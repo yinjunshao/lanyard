@@ -1,0 +1,10 @@
+name = "lanyard"
+main = "worker/index.js"
+compatibility_date = "2025-01-01"
+
+# SPA static assets (Vite build output) served by the same Worker.
+assets = { directory = "./dist", binding = "ASSETS", run_worker_first = true, not_found_handling = "single-page-application" }
+
+[[kv_namespaces]]
+binding = "LANYARD_KV"
+id = "6fa2750047f94df78dc7814bd56b17b7"   # production LANYARD_KV namespace
