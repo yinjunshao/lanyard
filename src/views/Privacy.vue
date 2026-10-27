@@ -1,7 +1,7 @@
 <script setup>
 // Privacy Policy (UK GDPR). Bracketed items are for the operator to fill in before launch.
-const OPERATOR = "lanyard";
-const ADDRESS = "ARCK Industries";
+const OPERATOR = "ARCK Softworks";
+const ADDRESS = "WC1E 6BT";
 const CONTACT = "yinjun@arck.industries";
 const UPDATED = "26 October 2026";
 </script>
