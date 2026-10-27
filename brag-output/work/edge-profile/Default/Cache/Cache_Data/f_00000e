@@ -1,0 +1,608 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Lanyard brag</title>
+<link rel="stylesheet" href="main.css">
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f4f1ea; }
+  body { min-height: 0; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); }
+  .abs { position: absolute; }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+  .center-x { left: 0; right: 0; text-align: center; }
+  .big { font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; color: var(--ink); }
+  .strap-band { position: absolute; left: 0; top: 0; height: 14px; width: 1920px; background: var(--strap); transform-origin: left center; }
+
+  /* Hook: wall of faces */
+  .face { position: absolute; width: 140px; text-align: center; }
+  .face .pic { position: relative; width: 140px; height: 140px; border: 1.5px solid var(--ink); border-radius: 8px; overflow: hidden; background: var(--rule); box-shadow: var(--shadow-2); }
+  .face .pic svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .face .sil { color: color-mix(in srgb, var(--graphite) 70%, var(--rule)); background: var(--rule); opacity: 0; }
+  .face .nm { position: relative; margin-top: 10px; height: 30px; font-weight: 700; font-size: 22px; }
+  .face .nm span { position: absolute; left: 0; right: 0; }
+
+  /* Phones */
+  .phone { position: absolute; width: 420px; height: 860px; border-radius: 58px; background: #1b1a17; padding: 12px; box-shadow: 0 2px 4px rgba(27,26,23,.12), 0 30px 60px -18px rgba(27,26,23,.45); }
+  .screen { position: relative; width: 396px; height: 836px; border-radius: 47px; overflow: hidden; background: var(--paper); }
+  .notch { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); width: 110px; height: 30px; border-radius: 16px; background: #1b1a17; z-index: 30; }
+  .status { position: absolute; left: 0; right: 0; top: 0; height: 52px; display: flex; justify-content: space-between; align-items: center; padding: 0 34px; font-size: 15px; font-weight: 700; z-index: 29; }
+  .layer { position: absolute; inset: 0; }
+
+  /* Contacts (the "before") */
+  .contacts { background: #fff; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; }
+  .contacts h3 { font-size: 34px; font-weight: 700; padding: 70px 24px 14px; margin: 0; letter-spacing: -0.01em; }
+  .c-search { margin: 0 20px 12px; height: 40px; border-radius: 10px; background: #eeeeef; color: #8a8a8e; font-size: 16px; display: flex; align-items: center; padding: 0 14px; }
+  .c-row { display: flex; align-items: center; gap: 14px; padding: 12px 24px; border-bottom: 1px solid #ececec; }
+  .c-ini { width: 46px; height: 46px; border-radius: 50%; background: #c7c7cc; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; flex: none; }
+  .c-name { font-size: 19px; }
+  .c-name i { color: #8a8a8e; font-style: normal; }
+
+  /* Steps column (the landing page's own steps) */
+  .steps-col { position: absolute; left: 150px; top: 300px; width: 600px; }
+  .steps-col .s { display: flex; gap: 22px; align-items: baseline; margin-bottom: 44px; }
+  .steps-col .num { font-weight: 700; color: var(--strap); font-variant-numeric: tabular-nums; font-size: 34px; width: 50px; flex: none; }
+  .steps-col strong { display: block; font-size: 54px; line-height: 1.05; letter-spacing: -0.02em; }
+  .steps-col .muted { display: block; font-size: 28px; margin-top: 8px; line-height: 1.3; }
+
+  .top-word { position: absolute; left: 150px; top: 88px; font-size: 34px; }
+  .eyebrow { font-size: 15px; }
+
+  /* Scan screen */
+  .scan-screen { background: #141311; color: #f4f1ea; }
+  .scan-screen .ttl { position: absolute; left: 24px; top: 74px; font-size: 26px; font-weight: 700; }
+  .scan-screen .sub { position: absolute; left: 24px; top: 112px; font-size: 15px; color: #9d988d; }
+  .cam { position: absolute; left: 20px; top: 160px; width: 356px; height: 356px; border-radius: 6px; overflow: hidden; background: #2a2723; border: 1.5px solid #f4f1ea; }
+  .cam .feed { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .cam .scan-reticle { inset: 15%; }
+  .found { position: absolute; left: 20px; right: 20px; top: 540px; border-radius: 8px; background: #201e1a; border: 1px solid #3a362f; padding: 14px 16px; display: flex; gap: 14px; align-items: center; }
+  .found .avatar { border-color: #3a362f; }
+
+  /* In-phone sheet */
+  .screen .sheet-backdrop { position: absolute; }
+  .screen .sheet { max-height: none; overflow: visible; padding-bottom: 26px; }
+  .tap { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; background: rgba(27,26,23,.22); border: 2px solid rgba(255,255,255,.85); box-shadow: 0 4px 14px rgba(0,0,0,.25); pointer-events: none; opacity: 0; z-index: 90; }
+  .phone-flash { position: absolute; inset: 0; background: #fff; opacity: 0; z-index: 80; }
+  .polaroid { position: absolute; width: 380px; padding: 14px 14px 52px; background: #fffdf8; border: 1.5px solid #1b1a17; border-radius: 6px; box-shadow: 0 30px 60px -18px rgba(27,26,23,.5); opacity: 0; z-index: 95; transform-origin: center; }
+  .polaroid svg { display: block; width: 100%; height: auto; border-radius: 3px; }
+  .polaroid .cap { position: absolute; left: 18px; bottom: 14px; font-weight: 700; font-size: 18px; }
+  .polaroid .cap span { color: var(--graphite); font-weight: 400; }
+  .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--strap); vertical-align: -0.2em; margin-left: 1px; }
+
+  .week-pill { position: absolute; padding: 10px 22px; border: 1.5px solid var(--ink); border-radius: 999px; background: var(--paper-raised); font-weight: 700; font-size: 20px; letter-spacing: .1em; text-transform: uppercase; box-shadow: var(--shadow-2); opacity: 0; z-index: 40; }
+  .list-row { cursor: default; overflow: hidden; }
+  .expand { overflow: hidden; height: 0; }
+  .glow { position: absolute; border: 3px solid var(--strap); border-radius: 10px; pointer-events: none; opacity: 0; z-index: 60; }
+  .st-extra { display: block; margin-top: 12px; font-size: 28px; font-weight: 700; color: var(--strap); opacity: 0; }
+  .toast { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); padding: 12px 20px; border-radius: 999px; background: #1b1a17; color: #f4f1ea; font-weight: 700; font-size: 15px; white-space: nowrap; opacity: 0; z-index: 40; box-shadow: 0 10px 24px -8px rgba(0,0,0,.4); }
+  #profScroll .profile-selfie img { aspect-ratio: 4 / 3; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- S1 hook -->
+  <div class="scene" id="s1">
+    <div class="abs center-x big" id="h1a" style="top:150px;font-size:80px">You met 20 people at the careers fair.</div>
+    <div class="abs center-x big" id="h1b" style="top:150px;font-size:80px;opacity:0">A week later, who were they?</div>
+    <div id="faces"></div>
+  </div>
+
+  <!-- S2 problem -->
+  <div class="scene" id="s2">
+    <div class="phone" style="left:300px;top:110px" id="cphone">
+      <div class="screen contacts">
+        <div class="notch"></div>
+        <div class="status" style="color:#111"><span>9:41</span><span>●●●</span></div>
+        <h3>Contacts</h3>
+        <div class="c-search">Search</div>
+        <div id="crows"></div>
+      </div>
+    </div>
+    <div class="abs big" id="p1" style="left:880px;top:330px;font-size:92px;width:900px">Names without faces.</div>
+    <div class="abs big" id="p2" style="left:880px;top:560px;font-size:56px;width:900px;color:var(--graphite)">And no idea why you saved them.</div>
+  </div>
+
+  <!-- S3 reveal -->
+  <div class="scene" id="s3">
+    <div class="abs center-x" id="revWord" style="top:330px"><span class="wordmark" style="font-size:210px;letter-spacing:-0.045em">lanyard<b>.</b></span></div>
+    <div class="abs center-x big" id="revTag" style="top:640px;font-size:64px">Remember everyone you meet.</div>
+    <div class="abs center-x" id="revEyebrow" style="top:270px"><span class="label" style="font-size:20px">Networking for events</span></div>
+  </div>
+
+  <!-- S4-S6 product -->
+  <div class="scene" id="sP">
+    <div class="top-word"><span class="wordmark" style="font-size:40px">lanyard<b>.</b></span></div>
+    <div class="steps-col">
+      <div class="s" id="st1"><span class="num">01</span><div><strong>Show.</strong><span class="muted">Your card and QR, full screen.</span></div></div>
+      <div class="s" id="st2"><span class="num">02</span><div><strong>Scan.</strong><span class="muted">They open your card and tap Connect.</span><span class="st-extra" id="st2x">LinkedIn in one tap. No searching.</span></div></div>
+      <div class="s" id="st3"><span class="num">03</span><div><strong>Remember.</strong><span class="muted">Face, name and “come to me for” — saved.</span></div></div>
+    </div>
+
+    <!-- Maya's phone: her badge -->
+    <div class="phone" id="mphone">
+      <div class="screen">
+        <div class="notch"></div>
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="strap-rail" style="position:absolute;top:0;left:0;right:0;z-index:28"></div>
+        <div class="layer" style="padding:70px 22px 0" id="mayaBadgeHost"></div>
+      </div>
+    </div>
+
+    <!-- Leo's phone -->
+    <div class="phone" id="lphone">
+      <div class="screen" id="lscreen">
+        <div class="notch"></div>
+        <div class="status" id="lstatus"><span>9:42</span><span>●●●</span></div>
+
+        <div class="layer scan-screen" id="scanLayer">
+          <div class="ttl">Scan a card</div>
+          <div class="sub">Point at their QR code</div>
+          <div class="cam" id="cam"><div class="feed" id="feed"></div><div class="scan-reticle" id="reticle"></div></div>
+          <div class="found" id="found">
+            <img class="avatar" id="foundPic" alt="">
+            <div style="flex:1;min-width:0"><strong style="font-size:17px">Maya Okafor</strong><span class="small" style="display:block;color:#9d988d">Careers fair · Mechanical Engineering</span></div>
+          </div>
+        </div>
+
+        <div class="layer" id="connectLayer" style="opacity:0">
+          <div class="strap-rail" style="position:absolute;top:0;left:0;right:0;z-index:28"></div>
+          <div style="padding:66px 22px 0;transform:scale(.92);transform-origin:top center" id="pubBadgeHost"></div>
+          <div class="sheet-backdrop" id="backdrop">
+            <section class="sheet" id="sheet">
+              <div class="sheet-handle"></div>
+              <div id="sheetForm" class="stack-2">
+                <div class="sheet-head">
+                  <div><span class="label">Connect with</span><h2>Maya Okafor</h2></div>
+                  <span class="icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+                </div>
+                <div class="field" style="margin-bottom:0">
+                  <label class="label-top">Shared selfie (optional)</label>
+                  <div class="file-picker">
+                    <span class="avatar avatar-initial" id="camIcon" style="width:64px;height:64px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+                    <img id="selfieThumb" class="avatar" style="width:64px;height:64px;display:none" alt="">
+                    <span class="btn" id="selfieBtn">Take a selfie together</span>
+                  </div>
+                </div>
+                <div class="field" style="margin-bottom:0">
+                  <label>Leave Maya a note (they'll see it)</label>
+                  <div class="input" id="noteBox" style="min-height:92px;line-height:1.45;font-size:16px"><span id="noteText"></span><span class="caret" id="noteCaret"></span><span id="notePh" class="muted">Nice to meet you — I'd love to hear more about…</span></div>
+                </div>
+                <label class="checkbox-row" id="consentRow" style="display:none">
+                  <input type="checkbox" id="consentBox">
+                  <span class="small">Everyone in the shared selfie agrees to it. Either of us can delete it at any time, and it disappears for both.</span>
+                </label>
+                <div class="btn-row">
+                  <span class="btn btn-ghost">Not now</span>
+                  <span class="btn btn-primary" id="connectBtn">Connect</span>
+                </div>
+              </div>
+              <div id="sheetDone" class="stack-2" style="display:none">
+                <div class="sheet-head"><div><span class="label">Connected</span><h2>You and Maya are connected.</h2></div></div>
+                <p class="muted small">You'll find each other under People and in the Careers fair album.</p>
+                <div class="btn-row"><span class="btn">Stay here</span><span class="btn btn-primary">Open in People</span></div>
+              </div>
+            </section>
+          </div>
+          <div class="phone-flash" id="pflash"></div>
+        </div>
+
+        <div class="layer" id="profileLayer" style="opacity:0;overflow:hidden">
+          <div class="strap-rail" style="position:absolute;top:0;left:0;right:0;z-index:28"></div>
+          <div style="position:absolute;top:0;left:0;right:0;height:56px;background:var(--paper);z-index:27;box-shadow:0 1px 0 var(--rule)"></div>
+          <div id="profScroll" style="padding:62px 18px 40px">
+            <article class="profile">
+              <div class="profile-strap"><span class="profile-strap-word">lanyard</span><span class="profile-strap-card">Careers fair</span></div>
+              <div class="profile-body">
+                <div class="profile-id">
+                  <img class="profile-photo" id="profPhoto" alt="">
+                  <div class="profile-id-text"><h1>Maya Okafor</h1><p class="muted">Mechanical Engineering · UCL · Year 2</p></div>
+                </div>
+                <p class="profile-headline">Design engineer, formula student</p>
+                <figure class="profile-selfie"><img id="profSelfie" alt=""><figcaption class="label">You met on 14 Oct 2026</figcaption></figure>
+                <section class="profile-section" id="profTags">
+                  <span class="label">Come to me for</span>
+                  <div class="chip-row"><span class="chip">CV reviews</span><span class="chip">CAD</span><span class="chip">internships</span></div>
+                </section>
+                <section class="profile-section" id="profLinks">
+                  <span class="label">Find Maya online</span>
+                  <div class="list">
+                    <div class="list-row spread" id="liRow"><span class="link-label"><strong>LinkedIn</strong><span class="small muted">linkedin.com</span></span><span class="muted" style="display:inline-flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></svg></span></div>
+                    <div class="list-row spread"><span class="link-label"><strong>Portfolio</strong><span class="small muted">behance.net</span></span><span class="muted" style="display:inline-flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></svg></span></div>
+                  </div>
+                </section>
+              </div>
+            </article>
+          </div>
+          <div class="toast" id="liToast">Opening LinkedIn ↗</div>
+        </div>
+
+        <div class="layer" id="peopleLayer" style="opacity:0;padding:70px 20px 0">
+          <div class="stack-2">
+            <h1>People</h1>
+            <div class="search-field">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+              <div style="flex:1;padding:12px 0;font-size:16px;color:var(--ink)"><span id="qText"></span><span class="caret" id="qCaret"></span><span id="qPh" class="muted">Search by name, course…</span></div>
+            </div>
+            <div class="list" id="plist"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="week-pill" id="weekPill">One week later</div>
+    <div class="polaroid" id="polaroid"><div id="polSvg"></div><div class="cap">Maya &amp; Leo <span>· Careers fair</span></div></div>
+    <div class="tap" id="tap"></div>
+    <div class="glow" id="glow"></div>
+  </div>
+
+  <!-- S7 outro -->
+  <div class="scene" id="s7">
+    <div class="abs center-x" id="oWord" style="top:300px"><span class="wordmark" style="font-size:200px;letter-spacing:-0.045em">lanyard<b>.</b></span></div>
+    <div class="abs center-x big" id="oTag" style="top:600px;font-size:64px">Remember everyone you meet.</div>
+    <div class="abs center-x" id="oSub" style="top:720px;font-size:30px;color:var(--graphite);font-weight:700">Free for attendees · no app to download</div>
+  </div>
+
+  <div class="strap-band" id="band"></div>
+</div>
+
+<script>
+// ---------- people (fictional; drawn, not photographed) ----------
+const SKIN = ['#f1c7a5','#e0ac83','#c68a5e','#8d5a3b','#5e3a24','#f6d5bd','#d9a27c'];
+const HAIR = ['#1b1a17','#3b2a1e','#6b4a2e','#b98544','#d9c08a','#7a3b22','#2a2420'];
+const BG   = ['#e9d9c4','#d8e1d6','#dcd8ea','#f0d6cc','#d6e4ea','#ece4c9','#e4d3d9'];
+const SHIRT= ['#2b3138','#d9502b','#4d6b5a','#5a5f8a','#8a5a3b','#1b1a17','#c9b28a','#6f8fa6'];
+const P = {
+  maya:  { skin:3, hair:0, style:'curly', bg:0, shirt:1 },
+  leo:   { skin:1, hair:1, style:'side',  bg:4, shirt:0, glasses:true },
+  priya: { skin:2, hair:0, style:'long',  bg:3, shirt:3 },
+  tom:   { skin:5, hair:3, style:'short', bg:1, shirt:2 },
+  aiko:  { skin:6, hair:6, style:'bob',   bg:2, shirt:6 },
+  sam:   { skin:4, hair:0, style:'buzz',  bg:5, shirt:7 },
+  nadia: { skin:2, hair:2, style:'bun',   bg:6, shirt:5 },
+};
+const CROWD = [
+  ['Maya','maya'],['Priya','priya'],['Tom','tom'],['Aiko','aiko'],['Sam','sam'],
+  ['Nadia','nadia'],['Jonah',{skin:0,hair:5,style:'short',bg:2,shirt:4}],['Elif',{skin:1,hair:1,style:'long',bg:5,shirt:2}],
+  ['Kwame',{skin:4,hair:0,style:'buzz',bg:3,shirt:6,glasses:true}],['Sofia',{skin:5,hair:4,style:'long',bg:1,shirt:7}],
+  ['Ravi',{skin:3,hair:0,style:'side',bg:0,shirt:2}],['Chloe',{skin:0,hair:3,style:'bun',bg:4,shirt:1}],
+  ['Mateo',{skin:2,hair:1,style:'curly',bg:6,shirt:0}],['Hana',{skin:6,hair:0,style:'bob',bg:5,shirt:3,glasses:true}],
+  ['Ben',{skin:5,hair:2,style:'short',bg:3,shirt:5}],['Zara',{skin:3,hair:0,style:'long',bg:2,shirt:1}],
+  ['Omar',{skin:2,hair:0,style:'side',bg:1,shirt:7}],['Lucy',{skin:0,hair:5,style:'bob',bg:0,shirt:4}],
+  ['Femi',{skin:4,hair:0,style:'curly',bg:4,shirt:6}],['Iris',{skin:1,hair:4,style:'bun',bg:6,shirt:2}],
+];
+
+function figure(p, withBg = true) {
+  const s = SKIN[p.skin], h = HAIR[p.hair], sh = SHIRT[p.shirt];
+  let back = '', front = '';
+  if (p.style === 'long') { back = `<path d="M28 44 C26 22 74 22 72 44 L74 80 L26 80Z" fill="${h}"/>`; front = `<path d="M32 44 C30 22 70 22 68 44 C64 32 46 28 32 44Z" fill="${h}"/>`; }
+  if (p.style === 'short') front = `<path d="M32 43 C31 23 69 23 68 43 C66 34 56 31 50 31 C43 31 35 34 32 43Z" fill="${h}"/>`;
+  if (p.style === 'side') front = `<path d="M32 44 C30 22 70 20 68 42 C60 34 50 34 42 30 C38 34 35 38 32 44Z" fill="${h}"/>`;
+  if (p.style === 'buzz') front = `<path d="M33 41 C33 24 67 24 67 41 C63 33 37 33 33 41Z" fill="${h}" opacity=".85"/>`;
+  if (p.style === 'bob') { back = `<path d="M29 46 C27 22 73 22 71 46 L71 60 L29 60Z" fill="${h}"/>`; front = `<path d="M31 46 C31 26 69 24 69 46 C66 36 56 33 48 33 C40 33 34 38 31 46Z" fill="${h}"/>`; }
+  if (p.style === 'bun') { back = `<circle cx="50" cy="19" r="9" fill="${h}"/>`; front = `<path d="M32 43 C31 23 69 23 68 43 C64 33 36 33 32 43Z" fill="${h}"/>`; }
+  if (p.style === 'curly') { back = [[34,32],[40,25],[50,22],[60,25],[66,32],[69,41],[31,41],[30,50],[70,50]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="8.5" fill="${h}"/>`).join(''); }
+  const glasses = p.glasses ? `<g fill="none" stroke="#1b1a17" stroke-width="1.6"><circle cx="43.5" cy="46" r="4.6"/><circle cx="56.5" cy="46" r="4.6"/><path d="M48 46h4"/></g>` : '';
+  return `${withBg ? `<rect width="100" height="100" fill="${BG[p.bg]}"/>` : ''}
+    ${back}
+    <path d="M12 100 C12 78 30 70 50 70 C70 70 88 78 88 100Z" fill="${sh}"/>
+    <path d="M43 60 h14 v12 c-4 4 -10 4 -14 0z" fill="${s}" style="filter:brightness(.9)"/>
+    <ellipse cx="50" cy="45" rx="17" ry="20" fill="${s}"/>
+    ${front}
+    <circle cx="43.5" cy="46.5" r="1.7" fill="#1b1a17"/><circle cx="56.5" cy="46.5" r="1.7" fill="#1b1a17"/>
+    <path d="M44.5 54.5 Q50 59 55.5 54.5" fill="none" stroke="#1b1a17" stroke-width="1.6" stroke-linecap="round"/>
+    ${glasses}`;
+}
+const avatarSvg = (p) => `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${figure(p)}</svg>`;
+const dataUri = (svg) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+const avatarUri = (p) => dataUri(avatarSvg(p).replace('<svg ', '<svg width="200" height="200" '));
+
+function selfieSvg() {
+  const booths = `<rect width="400" height="300" fill="#efe6d8"/>
+    <rect x="-10" y="30" width="150" height="120" rx="6" fill="#d9502b" opacity=".18"/>
+    <rect x="160" y="10" width="120" height="110" rx="6" fill="#5a5f8a" opacity=".16"/>
+    <rect x="290" y="40" width="130" height="120" rx="6" fill="#4d6b5a" opacity=".16"/>
+    <rect x="0" y="200" width="400" height="100" fill="#e2d6c4"/>
+    <circle cx="70" cy="80" r="34" fill="#f4f1ea" opacity=".5"/><circle cx="330" cy="70" r="26" fill="#f4f1ea" opacity=".45"/>`;
+  return `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">${booths}
+    <g transform="translate(30 48) scale(2.55) rotate(-4 50 60)">${figure(P.maya,false)}</g>
+    <g transform="translate(150 54) scale(2.5) rotate(5 50 60)">${figure(P.leo,false)}</g></svg>`;
+}
+const SELFIE = selfieSvg();
+const SELFIE_URI = dataUri(SELFIE.replace('<svg ', '<svg width="800" height="600" '));
+// square crop for list avatars
+const SELFIE_SQ = dataUri(SELFIE.replace('viewBox="0 0 400 300"', 'viewBox="40 0 300 300" width="300" height="300"'));
+const SIL = `<svg viewBox="0 0 64 64"><circle cx="32" cy="24" r="11" fill="currentColor"/><path d="M9 64c0-14.4 10.3-23 23-23s23 8.6 23 23z" fill="currentColor"/></svg>`;
+
+// ---------- build DOM ----------
+const $ = (id) => document.getElementById(id);
+const faces = [];
+CROWD.forEach(([name, spec], i) => {
+  const p = typeof spec === 'string' ? P[spec] : spec;
+  const col = i % 10, row = Math.floor(i / 10);
+  const el = document.createElement('div');
+  el.className = 'face';
+  el.style.left = (152 + col * 164) + 'px';
+  el.style.top = (400 + row * 230) + 'px';
+  el.innerHTML = `<div class="pic">${avatarSvg(p)}<div class="sil abs" style="inset:0">${SIL}</div></div>
+    <div class="nm"><span class="n1">${name}</span><span class="n2 muted" style="opacity:0">?</span></div>`;
+  $('faces').appendChild(el);
+  faces.push({ el, sil: el.querySelector('.sil'), n1: el.querySelector('.n1'), n2: el.querySelector('.n2'), col, row, i });
+});
+
+const contacts = [
+  ['M', 'Maya <i>(fair??)</i>'], ['R', 'Ravi <i>— CAD guy?</i>'], ['P', 'Priya <i>???</i>'],
+  ['T', 'Tom <i>(which Tom?)</i>'], ['S', 'Sam <i>careers thing</i>'], ['N', 'Nadia <i>uni</i>'], ['J', 'Jonah <i>LinkedIn?</i>'],
+];
+const crows = contacts.map(([ini, nm]) => {
+  const r = document.createElement('div'); r.className = 'c-row';
+  r.innerHTML = `<span class="c-ini">${ini}</span><span class="c-name">${nm}</span>`;
+  $('crows').appendChild(r); return r;
+});
+
+function badgeHtml() {
+  return `<div class="badge"><div class="badge-strap"><div class="badge-slot"></div><span class="badge-strap-word">lanyard</span><span class="badge-strap-event">Careers fair</span></div>
+  <div class="badge-body">
+    <div class="badge-head"><img class="badge-photo" src="${avatarUri(P.maya)}" alt=""><div class="badge-head-text"><h2 class="badge-name">Maya Okafor</h2><p class="badge-meta">Mechanical Engineering  ·  UCL  ·  Year 2</p></div></div>
+    <div class="badge-field"><span class="label">What I do</span><div class="small badge-line-clamp-1">Design engineer, formula student</div></div>
+    <div class="badge-field badge-tags"><span class="label" style="display:block;margin-bottom:7px">Come to me for</span>
+      <div class="chip-row"><span class="chip muted badge-tag"><span class="badge-tag-text">CV reviews</span></span><span class="chip muted badge-tag"><span class="badge-tag-text">CAD</span></span><span class="chip muted badge-tag"><span class="badge-tag-text">internships</span></span></div></div>
+    <div class="badge-note">“Ask me about spring internships”</div>
+    <div class="badge-qr"><img src="qr.svg" alt=""></div>
+    <div class="badge-foot"><div class="label">Scan to connect</div><div class="code-glyph">LNYD</div></div>
+  </div></div>`;
+}
+$('mayaBadgeHost').innerHTML = badgeHtml();
+$('pubBadgeHost').innerHTML = badgeHtml();
+$('feed').innerHTML = badgeHtml();
+$('foundPic').src = avatarUri(P.maya);
+$('polSvg').innerHTML = SELFIE;
+$('selfieThumb').src = SELFIE_SQ;
+
+const people = [
+  { name: 'Maya Okafor', sub: 'Mechanical Engineering · UCL', date: '14 Oct 2026', pic: SELFIE_SQ, match: true },
+  { name: 'Priya Shah', sub: 'Economics · KCL', date: '14 Oct 2026', pic: avatarUri(P.priya) },
+  { name: 'Tom Becker', sub: 'Physics · Imperial', date: '14 Oct 2026', pic: avatarUri(P.tom) },
+  { name: 'Aiko Tanaka', sub: 'Architecture · UCL', date: '9 Oct 2026', pic: avatarUri(P.aiko) },
+  { name: 'Sam Reid', sub: 'Law · LSE', date: '2 Oct 2026', pic: avatarUri(P.sam) },
+  { name: 'Nadia Rahman', sub: 'Medicine · UCL', date: '2 Oct 2026', pic: avatarUri(P.nadia) },
+];
+const prows = people.map((p) => {
+  const r = document.createElement('div'); r.className = 'list-row';
+  r.style.display = 'block'; r.style.padding = '0';
+  r.innerHTML = `<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;min-height:60px">
+      <img class="avatar" src="${p.pic}" alt=""><span style="flex:1;min-width:0"><strong>${p.name}</strong><span class="small muted" style="display:block">${p.sub}</span></span>
+      <span class="label tnum">${p.date}</span></div>
+    ${p.match ? `<div class="expand" id="mexp"><div style="padding:0 16px 16px" class="stack">
+      <div class="label">Come to me for</div>
+      <div class="chip-row"><span class="chip">CV reviews</span><span class="chip">CAD</span><span class="chip">internships</span></div>
+      <div class="note-callout" style="margin-top:10px"><span class="label">Your note</span><p style="font-size:16px">“Loved the formula student car — CV review Thursday?”</p></div>
+    </div></div>` : ''}`;
+  $('plist').appendChild(r); return { r, p };
+});
+
+// ---------- time helpers ----------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lin = (t, a, b) => clamp((t - a) / (b - a));
+const oc = (x) => 1 - Math.pow(1 - x, 3);
+const io = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const ob = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const E = (t, a, b, f = oc) => f(lin(t, a, b));
+const win = (t, a, b, fi = .25, fo = .25) => Math.min(E(t, a, a + fi), 1 - E(t, b - fo, b, (x) => x));
+const set = (el, o, tf) => { el.style.opacity = o; if (tf !== undefined) el.style.transform = tf; };
+const NOTE = 'Loved the formula student car — CV review Thursday?';
+const QUERY = 'formula';
+
+let feedOrigin = null;
+function measure() {
+  // where Maya's QR sits inside the badge, so the camera can frame it
+  const feedBadge = $('feed').querySelector('.badge');
+  const qr = feedBadge.querySelector('.badge-qr').getBoundingClientRect();
+  const b = feedBadge.getBoundingClientRect();
+  feedOrigin = { x: qr.left - b.left + qr.width / 2, y: qr.top - b.top + qr.height / 2 };
+}
+
+function tapAt(el, t, at) {
+  const k = lin(t, at - .12, at + .35);
+  if (k <= 0 || k >= 1) return false;
+  const r = el.getBoundingClientRect();
+  const tap = $('tap');
+  tap.style.left = (r.left + r.width / 2) + 'px';
+  tap.style.top = (r.top + r.height / 2) + 'px';
+  const press = t < at ? lin(t, at - .12, at) : 1;
+  tap.style.opacity = t < at ? press : 1 - lin(t, at, at + .35);
+  tap.style.transform = `scale(${t < at ? 1.2 - .3 * press : .9 + .6 * lin(t, at, at + .35)})`;
+  return true;
+}
+
+// ---------- render(t) ----------
+// v1 timeline, driven by a remapped time so the new links beat fits in 25s
+function renderOld(t) {
+  // S1 hook 0–5
+  set($('s1'), win(t, 0, 5, .01, .25));
+  set($('h1a'), win(t, 0.15, 3.0, .3, .15), `translateY(${(1 - E(t, .15, .55)) * 24}px)`);
+  set($('h1b'), win(t, 3.05, 5, .3, .01), `translateY(${(1 - E(t, 3.05, 3.4)) * 24}px)`);
+  faces.forEach((f) => {
+    const at = 0.25 + f.i * 0.125;
+    const k = E(t, at, at + .35, ob);
+    const dAt = 3.0 + f.col * 0.0625 + f.row * .25;
+    const d = E(t, dAt, dAt + .35);
+    f.el.style.opacity = clamp(lin(t, at, at + .12));
+    f.el.style.transform = `translateY(${(1 - k) * 40}px) scale(${.7 + .3 * k})`;
+    f.sil.style.opacity = d;
+    f.n1.style.opacity = 1 - d;
+    f.n2.style.opacity = d;
+  });
+
+  // S2 problem 5–9
+  set($('s2'), win(t, 5, 9, .25, .25));
+  set($('cphone'), 1, `translateY(${(1 - E(t, 5, 5.5)) * 60}px)`);
+  crows.forEach((r, i) => { const a = 5.25 + i * .25; set(r, E(t, a, a + .2), `translateX(${(1 - E(t, a, a + .3)) * -30}px)`); });
+  set($('p1'), E(t, 5.5, 5.85), `translateY(${(1 - E(t, 5.5, 5.85)) * 30}px)`);
+  set($('p2'), E(t, 6.5, 6.85), `translateY(${(1 - E(t, 6.5, 6.85)) * 30}px)`);
+
+  // strap band from the reveal on
+  const band = t < 9 ? 0 : t < 22.25 ? 1 : 1;
+  $('band').style.transform = `scaleX(${t < 9 ? 0 : E(t, 9, 9.45, io)})`;
+  $('band').style.opacity = band;
+
+  // S3 reveal 9–11
+  set($('s3'), win(t, 9, 11, .01, .25));
+  set($('revWord'), E(t, 9.1, 9.5), `scale(${.86 + .14 * E(t, 9.1, 9.6, ob)})`);
+  set($('revEyebrow'), E(t, 9.35, 9.7));
+  set($('revTag'), E(t, 9.5, 9.85), `translateY(${(1 - E(t, 9.5, 9.9)) * 26}px)`);
+
+  // S4–S6 product 11–22.5
+  set($('sP'), win(t, 11, 22.5, .25, .25));
+  const sOn = (el, a) => { const k = E(t, a, a + .35); return { k, el }; };
+  const active = t < 12.25 ? 1 : t < 19.5 ? 2 : 3;
+  [['st1', 11.15], ['st2', 12.25], ['st3', 19.6]].forEach(([id, a], i) => {
+    const k = E(t, a, a + .4);
+    const dim = active === i + 1 ? 1 : .28;
+    set($(id), k * dim, `translateX(${(1 - k) * -30}px)`);
+  });
+
+  // Maya's phone
+  const mIn = E(t, 11.0, 11.5);
+  const mOut = E(t, 14.6, 15.1, io);
+  set($('mphone'), mIn * (1 - mOut), `translate(${860 - mOut * 160}px, ${110 + (1 - mIn) * 80}px)`);
+  // Leo's phone
+  const lIn = E(t, 12.1, 12.7);
+  const lMove = E(t, 14.6, 15.2, io);
+  const lx = 1360 + (1 - lIn) * 300 - lMove * 240;
+  set($('lphone'), lIn, `translate(${lx}px, 110px) rotate(${(1 - lIn) * 6}deg)`);
+  $('mphone').style.left = '0px'; $('mphone').style.top = '0px';
+  $('lphone').style.left = '0px'; $('lphone').style.top = '0px';
+
+  // scan screen
+  const lock = 13.0;
+  if (feedOrigin) {
+    const sc = 1.45;
+    const jit = t < lock ? (1 - lin(t, 12.3, lock)) : 0;
+    const jx = Math.sin(t * 7.1) * 22 * jit + 30 * jit, jy = Math.cos(t * 5.3) * 16 * jit - 20 * jit;
+    const cx = 178 - feedOrigin.x * sc + jx, cy = 178 - feedOrigin.y * sc + jy;
+    $('feed').style.transform = `translate(${cx}px, ${cy}px) scale(${sc}) rotate(${-3 * jit}deg)`;
+    $('feed').style.filter = `blur(${1.2 * jit + .4}px) brightness(.92)`;
+  }
+  const lk = E(t, lock, lock + .25, ob);
+  $('reticle').style.transform = `scale(${t < lock ? 1.06 : 1.06 - .1 * lk})`;
+  $('reticle').style.borderColor = t < lock ? '#d9502b' : '#f4f1ea';
+  set($('found'), E(t, lock + .1, lock + .4), `translateY(${(1 - E(t, lock + .1, lock + .45)) * 30}px)`);
+  set($('scanLayer'), t < 15 ? 1 : 0);
+  $('lstatus').style.color = t < 15 ? '#f4f1ea' : 'var(--ink)';
+
+  // connect sheet 15–19.5
+  const cOn = t >= 15 && t < 19.5;
+  set($('connectLayer'), cOn ? 1 - E(t, 19.3, 19.5, (x) => x) : 0);
+  $('backdrop').style.background = `rgba(20,19,17,${.55 * E(t, 15, 15.3)})`;
+  $('sheet').style.transform = `translateY(${(1 - E(t, 15.05, 15.45)) * 100}%)`;
+  const shot = 15.75;
+  const hasSelfie = t >= shot + .05;
+  $('camIcon').style.display = hasSelfie ? 'none' : '';
+  $('selfieThumb').style.display = hasSelfie ? '' : 'none';
+  $('selfieBtn').textContent = hasSelfie ? 'Retake' : 'Take a selfie together';
+  $('consentRow').style.display = hasSelfie ? '' : 'none';
+  $('consentBox').checked = t >= 17.85;
+  $('pflash').style.opacity = t >= shot ? Math.max(0, 1 - lin(t, shot, shot + .4)) * (t < shot + .4 ? 1 : 0) : 0;
+  // polaroid flies out of the phone then into the thumbnail
+  const pol = $('polaroid');
+  if (t >= shot && t < 16.9) {
+    const k = E(t, shot, shot + .35, ob), back = E(t, 16.45, 16.85, io);
+    const thumb = $('selfieThumb').getBoundingClientRect();
+    const sx = 1120 + 40 * k, sy = 250;
+    const tx = thumb.left - 14, ty = thumb.top - 14;
+    const x = sx + (tx - sx) * back, y = sy + (ty - sy) * back;
+    const s = (.6 + .4 * k) * (1 - back * .82);
+    pol.style.left = '0px'; pol.style.top = '0px';
+    set(pol, t < 16.75 ? 1 : 1 - lin(t, 16.75, 16.9), `translate(${x}px, ${y}px) scale(${s}) rotate(${(-6 + 3 * k) * (1 - back)}deg)`);
+    pol.style.transformOrigin = '0 0';
+  } else set(pol, 0);
+  const typed = Math.floor(NOTE.length * lin(t, 16.9, 17.75));
+  $('noteText').textContent = NOTE.slice(0, typed);
+  $('notePh').style.display = typed ? 'none' : '';
+  $('noteCaret').style.display = (t > 16.8 && t < 18) ? '' : 'none';
+  $('noteCaret').style.opacity = (Math.floor(t * 4) % 2 === 0 || (t > 16.9 && t < 17.75)) ? 1 : 0;
+  const done = t >= 18.1;
+  $('sheetForm').style.display = done ? 'none' : '';
+  $('sheetDone').style.display = done ? '' : 'none';
+
+  // people 19.5–22.5
+  set($('peopleLayer'), t >= 19.5 ? E(t, 19.5, 19.75) : 0);
+  set($('weekPill'), win(t, 19.55, 21.0, .25, .25), `translate(${1360 + 210}px, ${60 + (1 - E(t, 19.55, 19.9)) * 20}px) translateX(-50%)`);
+  $('weekPill').style.left = '0px'; $('weekPill').style.top = '0px';
+  const q = Math.floor(QUERY.length * lin(t, 20.25, 20.75));
+  $('qText').textContent = QUERY.slice(0, q);
+  $('qPh').style.display = q ? 'none' : '';
+  $('qCaret').style.display = t > 20.0 && t < 21.2 ? '' : 'none';
+  const filt = E(t, 20.9, 21.25, io);
+  prows.forEach(({ r, p }) => {
+    if (p.match) { r.style.height = ''; r.style.opacity = 1; return; }
+    r.style.opacity = 1 - filt;
+    r.style.height = (86 * (1 - filt)) + 'px';
+    r.style.minHeight = '0';
+    r.style.borderBottomWidth = filt > .98 ? '0' : '';
+  });
+  const exp = $('mexp');
+  exp.style.height = (exp.scrollHeight * E(t, 21.1, 21.5, io)) + 'px';
+  $('plist').querySelector('.list-row').style.borderBottom = filt > .98 ? 'none' : '';
+
+  // taps (after layout is settled for this frame)
+  $('tap').style.opacity = 0;
+  tapAt($('selfieBtn'), t, 15.6) || tapAt($('consentBox'), t, 17.85) || tapAt($('connectBtn'), t, 18.0);
+
+  // S7 outro 22.5–24.5
+  set($('s7'), E(t, 22.5, 22.75));
+  set($('oWord'), E(t, 22.55, 22.9), `scale(${.9 + .1 * E(t, 22.55, 23.0, ob)})`);
+  set($('oTag'), E(t, 22.8, 23.15), `translateY(${(1 - E(t, 22.8, 23.2)) * 24}px)`);
+  set($('oSub'), E(t, 23.1, 23.45));
+}
+$('profPhoto').src = avatarUri(P.maya);
+$('profSelfie').src = SELFIE_URI;
+let profScrollTo = 0;
+function remap(t) {
+  if (t < 5) return t;
+  if (t < 8) return 5 + (t - 5) * 4 / 3;
+  if (t < 18.1) return t + 1;
+  if (t < 20.5) return 19.1;
+  if (t < 23) return 19.5 + (t - 20.5) * 1.2;
+  return 22.5 + (t - 23);
+}
+function render(t) {
+  renderOld(remap(t));
+
+  // links beat 17.9–20.5: sheet slides away, Maya's profile, LinkedIn in one tap
+  const inLinks = t >= 17.9 && t < 20.5;
+  if (t >= 17.9 && t < 18.1) {
+    const k = E(t, 17.9, 18.1, io);
+    $('sheet').style.transform = `translateY(${k * 100}%)`;
+    $('backdrop').style.background = `rgba(20,19,17,${.55 * (1 - k)})`;
+  }
+  set($('profileLayer'), inLinks ? Math.min(E(t, 18.1, 18.3), 1 - E(t, 20.35, 20.5, (x) => x)) : 0);
+  if (inLinks) set($('connectLayer'), 1 - E(t, 17.95, 18.1, (x) => x));
+  if (!profScrollTo) {
+    const sc = $('profScroll').getBoundingClientRect(), tg = $('profTags').getBoundingClientRect();
+    profScrollTo = Math.max(0, tg.top - sc.top - 150);
+  }
+  $('profScroll').style.transform = `translateY(${-profScrollTo * E(t, 18.25, 18.75, io)}px)`;
+  const glow = $('glow');
+  const onTags = t < 19.3, target = onTags ? $('profTags') : $('profLinks');
+  const gk = inLinks ? (onTags ? win(t, 18.7, 19.3, .2, .15) : win(t, 19.3, 20.3, .2, .2)) : 0;
+  const gr = target.getBoundingClientRect();
+  glow.style.left = (gr.left - 10) + 'px'; glow.style.top = (gr.top - 6) + 'px';
+  glow.style.width = (gr.width + 20) + 'px'; glow.style.height = (gr.height + 14) + 'px';
+  glow.style.opacity = gk;
+  $('liRow').style.background = t >= 19.6 && t < 19.95 ? 'var(--paper)' : '';
+  set($('liToast'), win(t, 19.7, 20.45, .15, .15), `translateX(-50%) translateY(${(1 - E(t, 19.7, 19.95)) * 16}px)`);
+  set($('st2x'), t < 18.4 ? 0 : E(t, 18.4, 18.7), `translateY(${(1 - E(t, 18.4, 18.75)) * 14}px)`);
+  if (inLinks) tapAt($('liRow'), t, 19.6);
+}
+window.render = render;
+
+Promise.all([document.fonts.load('700 20px "Atkinson Hyperlegible Next"'), document.fonts.load('400 20px "Atkinson Hyperlegible Next"'), document.fonts.ready,
+  ...[...document.images].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; }))])
+  .then(() => { measure(); render(0); window.__ready = true; });
+const qp = new URLSearchParams(location.search).get('t');
+if (qp) setTimeout(() => render(+qp), 300);
+</script>
+</body>
+</html>
