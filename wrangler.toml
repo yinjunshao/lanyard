@@ -1,10 +1,44 @@
-name = "lanyard"
+name = "lanyard-v2"
 main = "worker/index.js"
 compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
 
 # SPA static assets (Vite build output) served by the same Worker.
 assets = { directory = "./dist", binding = "ASSETS", run_worker_first = true, not_found_handling = "single-page-application" }
 
+# --- Local development --------------------------------------------------------
+# `npm run dev` uses local Miniflare emulation; the placeholder IDs below are
+# never contacted locally. Apply the schema locally with:
+#   npx wrangler d1 migrations apply lanyard_db --local
+# ------------------------------------------------------------------------------
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lanyard_db"
+database_id = "cbee0cf7-5fff-477c-87dc-92a655eb72a0"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "lanyard-media"
+
+# Legacy KV is no longer used by the app; the binding stays temporarily so the
+# read-only export/migration tooling can be audited. Safe to delete once cutover
+# is confirmed.
 [[kv_namespaces]]
 binding = "LANYARD_KV"
-id = "6fa2750047f94df78dc7814bd56b17b7"   # production LANYARD_KV namespace
+id = "6fa2750047f94df78dc7814bd56b17b7"
+
+# Daily retention purge (selfies > 12 months, expired codes/sessions, stale guests).
+[triggers]
+crons = ["17 3 * * *"]
+
+[vars]
+APP_ORIGIN = "http://localhost:5173,http://localhost:5174,http://host.localhost:5173,http://host.localhost:5174"
+RP_ID = "localhost"
+
+# --- Remote go-live checklist -------------------------------------------------
+# 1. npx wrangler d1 create lanyard_db        -> paste id above
+# 2. npx wrangler r2 bucket create lanyard-media
+# 3. npx wrangler d1 migrations apply lanyard_db --remote
+# 4. set APP_ORIGIN / RP_ID via `wrangler secret bulk` or a [env.production] block
+# 5. custom domain in the dashboard (no code changes needed)

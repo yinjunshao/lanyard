@@ -1,7 +1,8 @@
-// Together-photo capture + compression. Returns a compact JPEG data URL.
-// <input type=file capture> opens the camera on phones and a file picker on desktop.
+// Browser-side image capture and compression.
+// Output: WebP data URL, longest edge <= maxSize (1080 default).
+// Falls back to JPEG if WebP encoding is unavailable.
 
-export function fileToDataUrl(file, maxSize = 760, quality = 0.72) {
+export function fileToDataUrl(file, maxSize = 1080, quality = 0.8) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
@@ -16,9 +17,13 @@ export function fileToDataUrl(file, maxSize = 760, quality = 0.72) {
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+
+        let url = canvas.toDataURL("image/webp", quality);
+        if (!url.startsWith("data:image/webp")) {
+          url = canvas.toDataURL("image/jpeg", quality);
+        }
+        resolve(url);
       };
       img.src = reader.result;
     };
@@ -26,13 +31,14 @@ export function fileToDataUrl(file, maxSize = 760, quality = 0.72) {
   });
 }
 
-// Trigger a hidden file input and resolve with the chosen/compressed photo.
-export function pickPhoto(maxSize) {
+// Camera capture on phones, file picker elsewhere. environment lens for QR
+// selfies; pass "user" for the avatar camera.
+export function pickPhoto(maxSize = 1080, facing = "environment") {
   return new Promise((resolve, reject) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
-    input.capture = "environment";
+    input.capture = facing === "user" ? "user" : "environment";
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return resolve(null);

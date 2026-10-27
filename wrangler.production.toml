@@ -1,0 +1,26 @@
+# Production deployment config. Deploy with:
+#   npm run build && npx wrangler deploy --config wrangler.production.toml
+# Local dev continues to use wrangler.toml (localhost origins).
+name = "lanyard-v2"
+main = "worker/index.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+assets = { directory = "./dist", binding = "ASSETS", run_worker_first = true, not_found_handling = "single-page-application" }
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lanyard_db"
+database_id = "cbee0cf7-5fff-477c-87dc-92a655eb72a0"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "lanyard-media"
+
+[[kv_namespaces]]
+binding = "LANYARD_KV"
+id = "6fa2750047f94df78dc7814bd56b17b7"
+
+[vars]
+APP_ORIGIN = "https://lanyard-v2.musea-moderation.workers.dev"
+RP_ID = "lanyard-v2.musea-moderation.workers.dev"

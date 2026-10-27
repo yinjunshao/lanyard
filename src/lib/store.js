@@ -1,31 +1,29 @@
-// Device identity + current user session. A device token (localStorage) claims
-// a profile for editing. No passwords — matches the lightweight hackathon scope.
+// Current user, loaded from the session cookie. No client-side tokens.
 import { reactive } from "vue";
 import { Api } from "./api";
 
-const TOKEN_KEY = "lanyard_device_token";
-
-export function getToken() {
-  let t = localStorage.getItem(TOKEN_KEY);
-  if (!t) {
-    t = crypto.randomUUID();
-    localStorage.setItem(TOKEN_KEY, t);
-  }
-  return t;
-}
-
-export const me = reactive({ id: null, profile: null, loaded: false });
+export const me = reactive({
+  user: null,
+  profile: null,
+  cards: [],
+  plan: { tier: "free", label: "Free", cards: 3, customStrap: false, onWaitlist: false },
+  loaded: false,
+});
 
 export async function refreshMe() {
-  const token = getToken();
-  const data = await Api.getMine(token);
-  me.id = data.id || null;
-  me.profile = data.profile || null;
+  const data = await Api.me();
+  me.user = data.user;
+  me.profile = data.profile;
+  me.cards = data.cards || [];
+  if (data.plan) me.plan = data.plan;
   me.loaded = true;
   return me;
 }
 
-export function saveProfile(profile) {
-  me.profile = profile;
-  if (profile && profile.id) me.id = profile.id;
+export function defaultCard() {
+  return me.cards.find((c) => c.cardId && c.code) || me.cards[0] || null;
+}
+
+export function hasProfile() {
+  return !!me.profile;
 }
