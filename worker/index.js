@@ -66,10 +66,12 @@ async function loadFullUser(db, userId) {
 // moment is_public went false, which broke My Card / Cards entirely), and
 // it needs the raw link/tag picks, not just the resolved values, so an
 // edit screen can show which links are currently selected for this card.
-async function cardView(db, card, { forOwner = false, limited = false } = {}) {
+// `shared: true` = the viewer is who this card was shared with (see
+// sharedCardId): they see everything the card shares, even on a private profile.
+async function cardView(db, card, { forOwner = false, limited = false, shared = false } = {}) {
   const p = await one(db, "SELECT * FROM profiles WHERE user_id = ?", card.user_id);
   if (!p) return null;
-  if (!p.is_public && !forOwner && !limited) return null;
+  if (!p.is_public && !forOwner && !limited && !shared) return null;
   const links = card.visible_links?.length
     ? Object.fromEntries(card.visible_links.map((k) => [k, p.links?.[k]]).filter(([, v]) => v))
     : p.links || {};
@@ -411,23 +413,24 @@ app.get("/api/c/:cardId", async (c) => {
   const card = await one(db, "SELECT * FROM cards WHERE id = ?", c.req.param("cardId"));
   if (!card) return c.json({ error: "not found" }, 404);
   const isOwner = card.user_id === me.id;
-  let view = await cardView(db, card, { forOwner: isOwner });
+  const cn = isOwner ? null : await findConnection(db, me.id, card.user_id);
+  const shared = !!cn && card.id === (await sharedCardId(db, cn, card.user_id));
+  let view = await cardView(db, card, { forOwner: isOwner, shared });
   // A private profile is still reachable by someone who is checked in to the
   // same event, where its owner opted into the attendee directory — but only
   // the identity the room already shows (no links, about or projects).
   if (!view && !isOwner && (await sharesDirectory(db, me.id, card.user_id))) {
     view = await cardView(db, card, { limited: true });
   }
-  // Someone you've already connected with stays viewable even if they later
-  // made their profile private (identity and "come to me for" only).
-  if (!view && !isOwner && (await findConnection(db, me.id, card.user_id))) {
+  // Their other cards stay viewable to a connection on a private profile, but
+  // only as identity and "come to me for".
+  if (!view && cn) {
     view = await cardView(db, card, { limited: true });
   }
   if (!view) return c.json({ error: "not found" }, 404);
 
   let connection = null;
   if (!isOwner) {
-    const cn = await findConnection(db, me.id, card.user_id);
     if (cn) {
       const mine = await one(db, "SELECT text FROM notes WHERE user_id = ? AND connection_id = ?", me.id, cn.id);
       const msgs = await all(db,
@@ -622,6 +625,16 @@ async function findConnection(db, a, b) {
     a, b, b, a);
 }
 
+// The card the owner shared through this connection: the card that was scanned
+// if it's theirs, otherwise (they scanned you) their default card.
+async function sharedCardId(db, cn, ownerId) {
+  if (cn.card_id) {
+    const own = await one(db, "SELECT id FROM cards WHERE id = ? AND user_id = ?", cn.card_id, ownerId);
+    if (own) return own.id;
+  }
+  return ensureDefaultCard(db, ownerId);
+}
+
 // Every profile needs a default card so it always has a /c/<id> page. Guests
 // who connect get a stub profile without one; create it on demand.
 async function ensureDefaultCard(db, userId) {
@@ -773,7 +786,7 @@ app.get("/api/connections", async (c) => {
   // sees what the person's card shares with this viewer.
   const views = await Promise.all(rows.map(async (r) => {
     const card = r.card_id ? await one(db, "SELECT * FROM cards WHERE id = ?", r.card_id) : null;
-    return card ? cardView(db, card, { forOwner: true }) : null;
+    return card ? cardView(db, card, { shared: true }) : null;
   }));
   return c.json({
     connections: rows.map((r, i) => {
@@ -818,7 +831,7 @@ app.get("/api/connections/:id", async (c) => {
   if (cn.card_id) card = await one(db, "SELECT * FROM cards WHERE id = ? AND user_id = ?", cn.card_id, peerId);
   if (!card) card = await one(db, "SELECT * FROM cards WHERE user_id = ? AND is_default = 1", peerId);
   if (!card) card = await one(db, "SELECT * FROM cards WHERE id = ?", await ensureDefaultCard(db, peerId));
-  const view = card ? await cardView(db, card, { forOwner: true }) : null;
+  const view = card ? await cardView(db, card, { shared: true }) : null;
 
   return c.json({
     id: cn.id,
