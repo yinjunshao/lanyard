@@ -21,13 +21,17 @@ const agreed = ref(false);
 onMounted(() => {
   const p = me.profile;
   if (p) {
+    // A guest who connected or checked in got a private name-only stub.
+    // Finishing it should start from the same default as signing up: public.
+    const bareStub = !p.is_public && !p.photo && !(p.tags || []).length && !Object.keys(p.links || {}).length
+      && ![p.uni, p.course, p.year, p.headline, p.about].some((x) => x && x.trim());
     f.value = {
       name: p.name || "", uni: p.uni || "", course: p.course || "",
       year: p.year || "", headline: p.headline || "", about: p.about || "",
       tags: (p.tags || []).join(", "),
       linksText: Object.entries(p.links || {}).map(([k, v]) => `${k} ${v}`).join("\n"),
       projects: p.projects || [],
-      showAge: !!p.show_age, isPublic: !!p.is_public,
+      showAge: !!p.show_age, isPublic: bareStub || !!p.is_public,
     };
     existingPhoto.value = p.photo || "";
   }

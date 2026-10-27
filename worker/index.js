@@ -42,8 +42,11 @@ function profilePayload(input) {
       );
     }
   }
-  if (typeof input.is_public === "boolean") out.is_public = input.is_public ? 1 : 0;
-  if (typeof input.show_age === "boolean") out.show_age = input.show_age ? 1 : 0;
+  // The app sends camelCase (isPublic / showAge); accept both spellings.
+  const isPublic = input.isPublic ?? input.is_public;
+  const showAge = input.showAge ?? input.show_age;
+  if (typeof isPublic === "boolean") out.is_public = isPublic ? 1 : 0;
+  if (typeof showAge === "boolean") out.show_age = showAge ? 1 : 0;
   return out;
 }
 
