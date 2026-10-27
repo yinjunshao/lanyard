@@ -755,28 +755,43 @@ app.get("/api/connections", async (c) => {
             cd.name AS card_name,
             COALESCE((SELECT c2.id FROM cards c2 WHERE c2.id = cn.card_id
                       AND c2.user_id = CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END), cd.id) AS card_id,
-            n.text AS my_note
+            n.text AS my_note, ev.name AS event_name
      FROM connections cn
      JOIN profiles p ON p.user_id = CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END
      LEFT JOIN notes n ON n.connection_id = cn.id AND n.user_id = ?
      LEFT JOIN cards cd ON cd.user_id = p.user_id AND cd.is_default = 1
+     LEFT JOIN events ev ON ev.id = cn.event_id
      WHERE cn.user_a = ? OR cn.user_b = ?
      ORDER BY cn.created_at DESC`,
     me.id, me.id, me.id, me.id, me.id, me.id
   );
   for (const r of rows) if (!r.card_id) r.card_id = await ensureDefaultCard(db, r.peer_id);
+  // Same card-scoped view as GET /api/connections/:id, so search only ever
+  // sees what the person's card shares with this viewer.
+  const views = await Promise.all(rows.map(async (r) => {
+    const card = r.card_id ? await one(db, "SELECT * FROM cards WHERE id = ?", r.card_id) : null;
+    return card ? cardView(db, card, { forOwner: true }) : null;
+  }));
   return c.json({
-    connections: rows.map((r) => ({
-      id: r.connection_id,
-      peer: {
-        id: r.peer_id, name: r.peer_name,
-        photo: r.peer_photo_key ? `/media/${r.peer_photo_key}` : null,
-        course: r.course, uni: r.uni, headline: r.headline,
-      },
-      selfie: r.selfie_key ? `/media/${r.selfie_key}` : null,
-      cardId: r.card_id || null,
-      eventId: r.event_id, metAt: r.created_at, note: r.my_note || "",
-    })),
+    connections: rows.map((r, i) => {
+      const v = views[i];
+      return {
+        id: r.connection_id,
+        peer: {
+          id: r.peer_id, name: r.peer_name,
+          photo: r.peer_photo_key ? `/media/${r.peer_photo_key}` : null,
+          course: r.course, uni: r.uni, headline: r.headline,
+          year: v?.profile.year || "", about: v?.profile.about || "",
+          tags: v?.profile.tags || [], links: v?.profile.links || {},
+          projects: (v?.profile.projects || []).map((pr) => ({ title: pr.title || "", line: pr.line || "" })),
+          cardName: v?.name || "", cardNote: v?.note || "",
+        },
+        selfie: r.selfie_key ? `/media/${r.selfie_key}` : null,
+        cardId: r.card_id || null,
+        eventId: r.event_id, eventName: r.event_name || "",
+        metAt: r.created_at, note: r.my_note || "",
+      };
+    }),
   });
 });
 
