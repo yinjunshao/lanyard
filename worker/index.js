@@ -1,7 +1,11 @@
 import { Hono } from "hono";
-import { setCookie } from "hono/cookie";
 import { newId, now, one, all, run, uniqueCode } from "./db.js";
-import { sessionMiddleware, COOKIE, endSession, requireUser } from "./session.js";
+import { sessionMiddleware, ensureSession, endSession, requireUser, HttpError } from "./session.js";
+import { securityHeaders, sameOriginWrites } from "./security.js";
+import { isBlocked } from "./blocks.js";
+import { bump, HOUR, DAY } from "./ratelimit.js";
+import { feedbackApp, pendingFeedback } from "./feedback.js";
+import { integrationsApp } from "./integrations.js";
 import * as Passkeys from "./passkeys.js";
 import * as Auth from "./auth.js";
 import { TERMS_VERSION, termsScope, hasConsent, recordConsent, recordConsentStmt } from "./legal.js";
@@ -17,13 +21,29 @@ import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 
 const app = new Hono();
 
-app.use("*", async (c, next) => {
-  await sessionMiddleware("DB")(c, next);
+// Order matters: headers wrap everything; cross-site writes are refused before
+// a session (or guest account) is touched; static assets never hit the database.
+app.use("*", securityHeaders);
+app.use("/api/*", sameOriginWrites);
+const withSession = sessionMiddleware("DB");
+app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/integrations/") ? next() : withSession(c, next)));
+app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
+
+app.onError((err, c) => {
+  const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+  if (status >= 500) console.error(err);
+  const body = { error: status >= 500 ? "Something went wrong on our side. Try again in a moment." : err.message };
+  if (err?.code) body.code = err.code;
+  return c.json(body, status);
 });
 
 /* ----------------------------- shape helpers ----------------------------- */
 
 const TEXT_FIELDS = ["name", "uni", "course", "year", "headline", "about"];
+
+// Only short strings get into JSON list columns.
+const strings = (arr, max, len) =>
+  (Array.isArray(arr) ? arr : []).filter((x) => typeof x === "string" && x.trim()).slice(0, max).map((x) => x.trim().slice(0, len));
 
 function profilePayload(input) {
   const out = {};
@@ -38,7 +58,11 @@ function profilePayload(input) {
   for (const jsonField of ["tags", "projects"]) {
     if (Array.isArray(input[jsonField])) {
       out[jsonField] = JSON.stringify(
-        input[jsonField].slice(0, jsonField === "projects" ? 3 : 30).map((x) => String(x).slice(0, 60))
+        input[jsonField].slice(0, jsonField === "projects" ? 3 : 30)
+          .map((x) => (jsonField === "projects" && x && typeof x === "object"
+            ? { title: String(x.title || "").slice(0, 80), line: String(x.line || "").slice(0, 160),
+                url: /^https?:\/\//.test(String(x.url || "")) ? String(x.url).slice(0, 300) : "" }
+            : String(x).slice(0, 60)))
       );
     }
   }
@@ -68,8 +92,8 @@ async function loadFullUser(db, userId) {
 // edit screen can show which links are currently selected for this card.
 // `shared: true` = the viewer is who this card was shared with (see
 // sharedCardId): they see everything the card shares, even on a private profile.
-async function cardView(db, card, { forOwner = false, limited = false, shared = false } = {}) {
-  const p = await one(db, "SELECT * FROM profiles WHERE user_id = ?", card.user_id);
+async function cardView(db, card, { forOwner = false, limited = false, shared = false, profile } = {}) {
+  const p = profile !== undefined ? profile : await one(db, "SELECT * FROM profiles WHERE user_id = ?", card.user_id);
   if (!p) return null;
   if (!p.is_public && !forOwner && !limited && !shared) return null;
   const links = card.visible_links?.length
@@ -109,13 +133,24 @@ async function cardView(db, card, { forOwner = false, limited = false, shared = 
 
 app.get("/api/me", async (c) => {
   const u = c.get("user");
-  const data = await loadFullUser(c.env.DB, u.id);
+  if (!u) {
+    // No session yet: a first-time visitor. Nothing is created until they act.
+    return c.json({
+      user: null, profile: null, cards: [],
+      plan: { tier: "free", label: USER_PLANS.free.label || "Free", cards: USER_PLANS.free.cards, customStrap: false,
+              onWaitlist: false, plusPrice: PLUS_PRICE, freeCards: USER_PLANS.free.cards },
+    });
+  }
+  const db = c.env.DB;
+  const [data, waitlisted, termsAccepted] = await Promise.all([
+    loadFullUser(db, u.id),
+    one(db, "SELECT 1 AS x FROM plus_waitlist WHERE user_id = ?", u.id),
+    hasConsent(db, u.id, termsScope()),
+  ]);
   const profile = data.profile
     ? { ...data.profile, photo: data.profile.photo_key ? `/media/${data.profile.photo_key}` : null }
     : null;
   const plan = planOf(data.user);
-  const waitlisted = !!(await one(c.env.DB, "SELECT 1 AS x FROM plus_waitlist WHERE user_id = ?", u.id));
-  const termsAccepted = await hasConsent(c.env.DB, u.id, termsScope());
   return c.json({
     user: {
       id: u.id, isGuest: u.is_guest, hasPasskey: !!u.has_passkey,
@@ -128,10 +163,12 @@ app.get("/api/me", async (c) => {
     },
     plan: {
       tier: plan.tier, label: plan.label, cards: plan.cards, customStrap: plan.customStrap,
-      onWaitlist: waitlisted, plusPrice: PLUS_PRICE, freeCards: USER_PLANS.free.cards,
+      onWaitlist: !!waitlisted, plusPrice: PLUS_PRICE, freeCards: USER_PLANS.free.cards,
     },
     profile,
-    cards: await Promise.all(data.cards.map((card) => cardView(c.env.DB, card, { forOwner: true }).catch(() => null))),
+    // The profile is already loaded: pass it in rather than re-reading it per card.
+    cards: await Promise.all(data.cards.map((card) =>
+      cardView(db, card, { forOwner: true, profile: data.profile }).catch(() => null))),
   });
 });
 
@@ -206,6 +243,8 @@ app.put("/api/profile", async (c) => {
   let photoKey = current.photo_key;
   if (body.photoDataUrl) {
     photoKey = await putImage(c.env, body.photoDataUrl, "avatar");
+    // The old photo is not kept once it's replaced.
+    if (current.photo_key) await deleteImage(c.env, current.photo_key).catch(() => {});
   } else if (body.removePhoto === true) {
     await deleteImage(c.env, current.photo_key);
     photoKey = null;
@@ -224,8 +263,9 @@ app.put("/api/profile", async (c) => {
 
 app.post("/api/account/email", async (c) => {
   const u = requireUser(c);
-  const { email } = await c.req.json();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email || "")) return c.json({ error: "bad email" }, 400);
+  const body = await c.req.json().catch(() => ({}));
+  const email = String(body.email || "").trim();
+  if (email.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: "That email doesn't look right." }, 400);
   await run(c.env.DB, "UPDATE users SET recovery_email = ?, email_domain = ? WHERE id = ?",
     email.toLowerCase(), email.split("@")[1].toLowerCase(), u.id);
   return c.json({ ok: true });
@@ -233,22 +273,22 @@ app.post("/api/account/email", async (c) => {
 
 /* ------------------------------- passkeys -------------------------------- */
 
-app.get("/api/passkey/register/options", async (c) =>
-  c.json(await Passkeys.registerOptions(c, c.env.DB)));
+app.get("/api/passkey/register/options", async (c) => {
+  // Saving a passkey is an explicit action, so a first-time visitor (e.g. a new
+  // host) gets their account here even though this is a GET.
+  if (!c.get("user")) await ensureSession(c, c.env.DB, { create: true });
+  return c.json(await Passkeys.registerOptions(c, c.env.DB));
+});
 app.post("/api/passkey/register/verify", async (c) => {
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => ({}));
   await Passkeys.registerVerify(c, c.env.DB, body);
   return c.json({ ok: true });
 });
 app.get("/api/passkey/login/options", async (c) =>
   c.json(await Passkeys.loginOptions(c, c.env.DB)));
 app.post("/api/passkey/login/verify", async (c) => {
-  const body = await c.req.json();
-  const { sid } = await Passkeys.loginVerify(c, c.env.DB, body);
-  setCookie(c, COOKIE, sid, {
-    httpOnly: true, sameSite: "Lax", path: "/",
-    secure: c.req.url.startsWith("https://"), maxAge: 365 * 24 * 3600,
-  });
+  const body = await c.req.json().catch(() => ({}));
+  await Passkeys.loginVerify(c, c.env.DB, body); // sets the session cookie
   return c.json({ ok: true });
 });
 
@@ -265,7 +305,7 @@ app.post("/api/auth/recovery/redeem", async (c) => {
   return Auth.redeemRecoveryKey(c, c.env.DB, body.key);
 });
 app.post("/api/logout", async (c) => {
-  endSession(c, c.env.DB);
+  await endSession(c, c.env.DB);
   return c.json({ ok: true });
 });
 
@@ -279,7 +319,7 @@ app.get("/api/account/export", async (c) => {
     one(db, "SELECT * FROM profiles WHERE user_id = ?", u.id),
     q("SELECT * FROM cards WHERE user_id = ?", u.id),
     q("SELECT * FROM connections WHERE user_a = ? OR user_b = ? ORDER BY created_at", u.id, u.id),
-    q("SELECT connection_id, text, updated_at FROM notes WHERE user_id = ?", u.id),
+    q("SELECT connection_id, text, tags, remind_at, followed_up_at, updated_at FROM notes WHERE user_id = ?", u.id),
     q(`SELECT m.connection_id, m.from_id, m.text, m.photo_key, m.created_at FROM messages m
         JOIN connections c ON c.id = m.connection_id WHERE c.user_a = ? OR c.user_b = ? ORDER BY m.created_at`, u.id, u.id),
     q("SELECT scope, created_at FROM consents WHERE user_id = ?", u.id),
@@ -289,6 +329,7 @@ app.get("/api/account/export", async (c) => {
     q("SELECT blocked_id, created_at FROM blocks WHERE blocker_id = ?", u.id).catch(() => []),
     q("SELECT id, created_at FROM webauthn_credentials WHERE user_id = ?", u.id).catch(() => []),
   ]);
+  const feedbackGiven = await q("SELECT event_id FROM feedback_done WHERE user_id = ?", u.id).catch(() => []);
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
     exportedAt: now(),
@@ -302,6 +343,8 @@ app.get("/api/account/export", async (c) => {
       eventId: x.event_id, metAt: x.created_at, sharedSelfie: media(x.selfie_key),
     })),
     privateNotes: notes,
+    feedbackGivenFor: feedbackGiven.map((r) => r.event_id),
+    feedbackNote: "Event feedback answers are stored without your account, so they can't be listed or returned here.",
     messages: messages.map((m) => ({ ...m, photo: media(m.photo_key) })),
     eventCheckins: checkins,
     organisations: orgs,
@@ -319,8 +362,8 @@ app.get("/api/account/export", async (c) => {
 // cascade via FK. Images in R2 and sole-owner organisations are removed too.
 app.delete("/api/account", async (c) => {
   const u = requireUser(c);
+  await endSession(c, c.env.DB);
   await eraseUser(c.env, u.id);
-  endSession(c, c.env.DB);
   return c.json({ ok: true });
 });
 
@@ -353,8 +396,8 @@ app.post("/api/cards", async (c) => {
       id, u.id, cc.code, cc.rotatesAt,
       String(body.name || "Card").slice(0, 60),
       String(body.note || "").slice(0, 300),
-      JSON.stringify(Array.isArray(body.visibleLinks) ? body.visibleLinks.slice(0, 20) : []),
-      JSON.stringify(Array.isArray(body.tags) ? body.tags.slice(0, 30) : []),
+      JSON.stringify(strings(body.visibleLinks, 20, 40)),
+      JSON.stringify(strings(body.tags, 30, 60)),
       ["default", "formal", "night", "host"].includes(body.theme) ? body.theme : "default",
       now()
     ),
@@ -383,8 +426,8 @@ app.put("/api/cards/:id", async (c) => {
       fields.strap_color = String(strap);
     }
   }
-  if (Array.isArray(b.visibleLinks)) fields.visible_links = JSON.stringify(b.visibleLinks.slice(0, 20));
-  if (Array.isArray(b.tags)) fields.tags = JSON.stringify(b.tags.slice(0, 30));
+  if (Array.isArray(b.visibleLinks)) fields.visible_links = JSON.stringify(strings(b.visibleLinks, 20, 40));
+  if (Array.isArray(b.tags)) fields.tags = JSON.stringify(strings(b.tags, 30, 60));
   const sets = Object.keys(fields);
   if (sets.length) {
     await run(c.env.DB, `UPDATE cards SET ${sets.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`,
@@ -409,64 +452,62 @@ app.delete("/api/cards/:id", async (c) => {
 // once, inside POST /api/connect.
 app.get("/api/c/:cardId", async (c) => {
   const db = c.env.DB;
-  const me = c.get("user");
+  const me = c.get("user"); // null for a first-time visitor
   const card = await one(db, "SELECT * FROM cards WHERE id = ?", c.req.param("cardId"));
   if (!card) return c.json({ error: "not found" }, 404);
-  const isOwner = card.user_id === me.id;
-  const cn = isOwner ? null : await findConnection(db, me.id, card.user_id);
+  const isOwner = !!me && card.user_id === me.id;
+  if (me && !isOwner && (await isBlocked(db, me.id, card.user_id))) return c.json({ error: "not found" }, 404);
+  const cn = me && !isOwner ? await findConnection(db, me.id, card.user_id) : null;
   const shared = !!cn && card.id === (await sharedCardId(db, cn, card.user_id));
-  let view = await cardView(db, card, { forOwner: isOwner, shared });
+  const profile = await one(db, "SELECT * FROM profiles WHERE user_id = ?", card.user_id);
+  let view = await cardView(db, card, { forOwner: isOwner, shared, profile });
   // A private profile is still reachable by someone who is checked in to the
   // same event, where its owner opted into the attendee directory — but only
   // the identity the room already shows (no links, about or projects).
-  if (!view && !isOwner && (await sharesDirectory(db, me.id, card.user_id))) {
-    view = await cardView(db, card, { limited: true });
+  if (!view && me && !isOwner && (await sharesDirectory(db, me.id, card.user_id))) {
+    view = await cardView(db, card, { limited: true, profile });
   }
   // Their other cards stay viewable to a connection on a private profile, but
   // only as identity and "come to me for".
-  if (!view && cn) {
-    view = await cardView(db, card, { limited: true });
-  }
+  if (!view && cn) view = await cardView(db, card, { limited: true, profile });
   if (!view) return c.json({ error: "not found" }, 404);
 
-  let connection = null;
-  if (!isOwner) {
-    if (cn) {
-      const mine = await one(db, "SELECT text FROM notes WHERE user_id = ? AND connection_id = ?", me.id, cn.id);
-      const msgs = await all(db,
-        "SELECT id, from_id, text, created_at FROM messages WHERE connection_id = ? ORDER BY created_at", cn.id);
-      const cev = cn.event_id ? await one(db, "SELECT id, name FROM events WHERE id = ?", cn.event_id) : null;
-      connection = {
-        id: cn.id,
-        metAt: cn.created_at,
-        selfie: cn.selfie_key ? `/media/${cn.selfie_key}` : null,
-        note: mine?.text || "",
-        messages: msgs.map((m) => ({ id: m.id, mine: m.from_id === me.id, text: m.text, at: m.created_at })),
-        event: cev ? { id: cev.id, name: cev.name } : null,
-      };
-    }
-  }
-
-  let incomingNote = null;
   const token = c.req.query("n");
-  if (token && !isOwner) {
-    const n = await peekNote(db, card.id, token);
-    if (n) incomingNote = { text: n.text };
-  }
+  const hint = /^[0-9a-f]{10}$/.test(c.req.query("event") || "") ? c.req.query("event") : null;
+  const [connection, incomingNote, event] = await Promise.all([
+    cn ? connectionDetail(db, cn, me.id) : null,
+    token && !isOwner ? peekNote(db, card.id, token).then((n) => (n ? { text: n.text } : null)) : null,
+    // The event this connection would be filed under, if both of you checked in.
+    me && !isOwner ? eventForConnection(db, me.id, card.user_id, hint)
+      .then((id) => (id ? one(db, "SELECT id, name FROM events WHERE id = ?", id) : null)) : null,
+  ]);
 
-  // The event this connection would be filed under, if both of you checked in.
-  let event = null;
-  if (!isOwner) {
-    const hint = /^[0-9a-f]{10}$/.test(c.req.query("event") || "") ? c.req.query("event") : null;
-    const evId = await eventForConnection(db, me.id, card.user_id, hint);
-    if (evId) {
-      const ev = await one(db, "SELECT id, name FROM events WHERE id = ?", evId);
-      if (ev) event = { id: ev.id, name: ev.name };
-    }
-  }
-
-  return c.json({ ...view, viewer: { isOwner, connection, event }, incomingNote });
+  return c.json({
+    ...view,
+    viewer: { isOwner, signedIn: !!me, connection, event: event ? { id: event.id, name: event.name } : null },
+    incomingNote,
+  });
 });
+
+// Your side of a connection: your private note, follow-up and tags, the thread.
+async function connectionDetail(db, cn, meId) {
+  const [mine, msgs, cev] = await Promise.all([
+    one(db, "SELECT text, tags, remind_at, followed_up_at FROM notes WHERE user_id = ? AND connection_id = ?", meId, cn.id),
+    all(db, "SELECT id, from_id, text, created_at FROM messages WHERE connection_id = ? ORDER BY created_at", cn.id),
+    cn.event_id ? one(db, "SELECT id, name FROM events WHERE id = ?", cn.event_id) : null,
+  ]);
+  return {
+    id: cn.id,
+    metAt: cn.created_at,
+    selfie: cn.selfie_key ? `/media/${cn.selfie_key}` : null,
+    note: mine?.text || "",
+    tags: mine?.tags || [],
+    remindAt: mine?.remind_at || null,
+    followedUpAt: mine?.followed_up_at || null,
+    messages: msgs.map((m) => ({ id: m.id, mine: m.from_id === meId, text: m.text, at: m.created_at })),
+    event: cev ? { id: cev.id, name: cev.name } : null,
+  };
+}
 
 /* ------------------------------ event helpers ----------------------------- */
 
@@ -655,13 +696,17 @@ async function ensureDefaultCard(db, userId) {
 }
 
 app.post("/api/connect", async (c) => {
-  const me = c.get("user");
+  const me = requireUser(c);
   const body = await c.req.json().catch(() => ({}));
   const db = c.env.DB;
-  const card = await one(db, "SELECT * FROM cards WHERE id = ?", body.cardId);
+  if ((await bump(db, `conn:u:${me.id}`, HOUR)) > 60) {
+    return c.json({ error: "That's a lot of connections in an hour. Take a breather and try again soon.", code: "throttled" }, 429);
+  }
+  const card = await one(db, "SELECT * FROM cards WHERE id = ?", String(body.cardId || ""));
   if (!card) return c.json({ error: "card not found" }, 404);
   const peerId = card.user_id;
   if (peerId === me.id) return c.json({ error: "that's your own card" }, 400);
+  if (await isBlocked(db, me.id, peerId)) return c.json({ error: "You can't connect with this person." }, 403);
 
   // Guests must at least have a name. If they have no profile, make a stub one
   // they can finish at home (the /claim flow).
@@ -768,10 +813,9 @@ app.get("/api/connections", async (c) => {
     `SELECT cn.id AS connection_id, cn.selfie_key, cn.event_id, cn.created_at,
             CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END AS peer_id,
             p.name AS peer_name, p.photo_key AS peer_photo_key, p.course, p.uni, p.headline,
-            cd.name AS card_name,
             COALESCE((SELECT c2.id FROM cards c2 WHERE c2.id = cn.card_id
                       AND c2.user_id = CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END), cd.id) AS card_id,
-            n.text AS my_note, ev.name AS event_name
+            n.text AS my_note, n.tags AS my_tags, n.remind_at, n.followed_up_at, ev.name AS event_name
      FROM connections cn
      JOIN profiles p ON p.user_id = CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END
      LEFT JOIN notes n ON n.connection_id = cn.id AND n.user_id = ?
@@ -782,12 +826,21 @@ app.get("/api/connections", async (c) => {
     me.id, me.id, me.id, me.id, me.id, me.id
   );
   for (const r of rows) if (!r.card_id) r.card_id = await ensureDefaultCard(db, r.peer_id);
-  // Same card-scoped view as GET /api/connections/:id, so search only ever
-  // sees what the person's card shares with this viewer.
-  const views = await Promise.all(rows.map(async (r) => {
-    const card = r.card_id ? await one(db, "SELECT * FROM cards WHERE id = ?", r.card_id) : null;
-    return card ? cardView(db, card, { shared: true }) : null;
+  // Same card-scoped view as GET /api/connections/:id, so search only ever sees
+  // what each person's card shares with this viewer. Cards and profiles are
+  // loaded in two queries for the whole list, not two per person.
+  const ids = (list) => JSON.stringify([...new Set(list)]);
+  const [cards, profiles] = rows.length ? await Promise.all([
+    all(db, "SELECT * FROM cards WHERE id IN (SELECT value FROM json_each(?))", ids(rows.map((r) => r.card_id))),
+    all(db, "SELECT * FROM profiles WHERE user_id IN (SELECT value FROM json_each(?))", ids(rows.map((r) => r.peer_id))),
+  ]) : [[], []];
+  const cardById = new Map(cards.map((x) => [x.id, x]));
+  const profileByUser = new Map(profiles.map((x) => [x.user_id, x]));
+  const views = await Promise.all(rows.map((r) => {
+    const card = cardById.get(r.card_id);
+    return card ? cardView(db, card, { shared: true, profile: profileByUser.get(r.peer_id) || null }) : null;
   }));
+  const parseTags = (t) => { try { return Array.isArray(t) ? t : JSON.parse(t || "[]"); } catch { return []; } };
   return c.json({
     connections: rows.map((r, i) => {
       const v = views[i];
@@ -806,6 +859,9 @@ app.get("/api/connections", async (c) => {
         cardId: r.card_id || null,
         eventId: r.event_id, eventName: r.event_name || "",
         metAt: r.created_at, note: r.my_note || "",
+        myTags: parseTags(r.my_tags),
+        remindAt: r.remind_at || null,
+        followedUpAt: r.followed_up_at || null,
       };
     }),
   });
@@ -856,7 +912,7 @@ app.get("/api/connections/:id", async (c) => {
 
 app.put("/api/connections/:id/note", async (c) => {
   const me = requireUser(c);
-  const { text } = await c.req.json();
+  const { text } = await c.req.json().catch(() => ({}));
   const cn = await one(c.env.DB, "SELECT id FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)",
     c.req.param("id"), me.id, me.id);
   if (!cn) return c.json({ error: "not found" }, 404);
@@ -865,6 +921,60 @@ app.put("/api/connections/:id/note", async (c) => {
      ON CONFLICT(user_id, connection_id) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at`,
     me.id, cn.id, String(text || "").slice(0, 600), now());
   return c.json({ ok: true });
+});
+
+// Your private follow-up details: a reminder date, "done", and your own tags.
+app.put("/api/connections/:id/meta", async (c) => {
+  const me = requireUser(c);
+  const db = c.env.DB;
+  const cn = await one(db, "SELECT id FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)",
+    c.req.param("id"), me.id, me.id);
+  if (!cn) return c.json({ error: "not found" }, 404);
+  const b = await c.req.json().catch(() => ({}));
+  const cur = (await one(db, "SELECT remind_at, followed_up_at, tags FROM notes WHERE user_id = ? AND connection_id = ?", me.id, cn.id)) || {};
+  let remindAt = cur.remind_at ?? null;
+  if (b.remindAt === null) remindAt = null;
+  else if (b.remindAt !== undefined) {
+    const t = Number(b.remindAt);
+    if (!Number.isFinite(t) || t < now() - DAY || t > now() + 366 * DAY) return c.json({ error: "Pick a date within the next year." }, 400);
+    remindAt = Math.round(t);
+  }
+  let followedUpAt = cur.followed_up_at ?? null;
+  if (b.followedUp === true) { followedUpAt = followedUpAt || now(); remindAt = null; }
+  if (b.followedUp === false) followedUpAt = null;
+  const tags = Array.isArray(b.tags) ? strings(b.tags, 10, 24).map((t) => t.toLowerCase()) : (cur.tags || []);
+  await run(db,
+    `INSERT INTO notes (user_id, connection_id, text, updated_at, remind_at, followed_up_at, tags) VALUES (?, ?, '', ?, ?, ?, ?)
+     ON CONFLICT(user_id, connection_id) DO UPDATE SET remind_at = excluded.remind_at,
+       followed_up_at = excluded.followed_up_at, tags = excluded.tags, updated_at = excluded.updated_at`,
+    me.id, cn.id, now(), remindAt, followedUpAt, JSON.stringify([...new Set(tags)]));
+  return c.json({ ok: true, remindAt, followedUpAt, tags: [...new Set(tags)] });
+});
+
+// The home screen in one request: follow-ups that are due and events waiting for feedback.
+app.get("/api/home", async (c) => {
+  const me = c.get("user");
+  if (!me) return c.json({ followups: [], feedback: [] });
+  const db = c.env.DB;
+  const [followups, feedback] = await Promise.all([
+    all(db,
+      `SELECT cn.id, n.remind_at, p.name, p.photo_key,
+              COALESCE((SELECT c2.id FROM cards c2 WHERE c2.id = cn.card_id AND c2.user_id = p.user_id),
+                       (SELECT c3.id FROM cards c3 WHERE c3.user_id = p.user_id AND c3.is_default = 1)) AS card_id
+       FROM notes n JOIN connections cn ON cn.id = n.connection_id
+       JOIN profiles p ON p.user_id = CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END
+       WHERE n.user_id = ? AND n.remind_at IS NOT NULL AND n.followed_up_at IS NULL AND n.remind_at <= ?
+       ORDER BY n.remind_at LIMIT 5`,
+      me.id, me.id, now() + DAY),
+    pendingFeedback(db, me.id),
+  ]);
+  return c.json({
+    followups: followups.map((f) => ({
+      connectionId: f.id, cardId: f.card_id, name: f.name, remindAt: f.remind_at,
+      photo: f.photo_key ? `/media/${f.photo_key}` : null,
+    })),
+    feedback,
+  });
 });
 
 // Either side removes: deletes connection rows + selfie for both (GDPR right).
@@ -887,7 +997,15 @@ app.get("/media/:key{.+}", async (c) => {
   if (!/^(avatar|selfie|project|event)\/[a-z0-9]+\.(webp|jpg|jpeg|png)$/.test(key)) {
     return c.json({ error: "bad key" }, 400);
   }
-  const res = await getImage(c.env, key);
+  // A shared selfie is only ever served to the two people in that connection.
+  const isPrivate = key.startsWith("selfie/");
+  if (isPrivate) {
+    const me = c.get("user");
+    const ok = me && (await one(c.env.DB,
+      "SELECT 1 AS x FROM connections WHERE selfie_key = ? AND (user_a = ? OR user_b = ?)", key, me.id, me.id));
+    if (!ok) return c.json({ error: "not found" }, 404);
+  }
+  const res = await getImage(c.env, key, { isPrivate });
   return res || c.json({ error: "not found" }, 404);
 });
 
@@ -904,6 +1022,7 @@ app.post("/api/connections/:id/report", async (c) => {
   const cn = await one(db, "SELECT * FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)", c.req.param("id"), u.id, u.id);
   if (!cn) return c.json({ error: "not found" }, 404);
   const body = await c.req.json().catch(() => ({}));
+  if ((await bump(db, `day:report:${u.id}`, DAY)) > 20) return c.json({ error: "You've sent a lot of reports today. Email us if it's urgent." }, 429);
   const target = cn.user_a === u.id ? cn.user_b : cn.user_a;
   const reason = String(body.reason || "").slice(0, 500);
   if (!body.block && !reason.trim()) return c.json({ error: "Tell us what happened" }, 400);
@@ -921,7 +1040,9 @@ app.post("/api/connections/:id/report", async (c) => {
 
 /* ------------------------------- Events ---------------------------------- */
 app.route("/", eventsApp);
+app.route("/", feedbackApp);
 app.route("/", hostApp);
+app.route("/", integrationsApp);
 
 /* ------------------------------- SPA fallback ----------------------------- */
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));

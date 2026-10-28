@@ -14,6 +14,10 @@ const name = ref(me.profile?.name || "");
 const answers = reactive({});
 const sponsorConsent = reactive({});
 const directoryConsent = ref(false);
+// First-timers agree to the Terms here (the server checks it too).
+const agreed = ref(false);
+const needsAgree = () => !me.user?.termsAccepted;
+const INFO_LABELS = { access: "Access", dress: "Dress code", food: "Food and drink", other: "Good to know" };
 const busy = ref(false);
 const error = ref("");
 
@@ -41,6 +45,10 @@ async function checkIn() {
     error.value = "Add your name to check in.";
     return;
   }
+  if (needsAgree() && !agreed.value) {
+    error.value = "Please tick the box to confirm you're 18 or over and agree to the Terms and Privacy Policy.";
+    return;
+  }
   busy.value = true;
   try {
     await Api.checkIn(route.params.code, {
@@ -48,6 +56,7 @@ async function checkIn() {
       answers: { ...answers },
       sponsor: Object.keys(sponsorConsent).filter((k) => sponsorConsent[k]),
       directoryConsent: directoryConsent.value,
+      ...(needsAgree() ? { acceptTerms: agreed.value, over18: agreed.value } : {}),
     });
     router.replace(`/app/events/${event.value.id}`);
   } catch (e) {
@@ -74,6 +83,13 @@ const fmtDate = (t) =>
           <span v-if="event.venue">{{ event.venue }} · </span>{{ fmtDate(event.startsAt) }}
         </p>
       </div>
+
+      <dl v-if="event.info && Object.keys(event.info).length" class="panel event-info">
+        <template v-for="(v, k) in event.info" :key="k">
+          <dt class="label">{{ INFO_LABELS[k] || k }}</dt>
+          <dd>{{ v }}</dd>
+        </template>
+      </dl>
 
       <div class="notice">
         Checking in unlocks perks and the event album. If you choose to, you can also appear in the attendee room.
@@ -109,10 +125,16 @@ const fmtDate = (t) =>
         <p class="small muted">Each sponsor is a separate, optional choice. Never pre-ticked.</p>
       </div>
 
+      <label v-if="needsAgree()" class="checkbox-row">
+        <input v-model="agreed" type="checkbox" />
+        <span class="small">
+          I'm 18 or over and I agree to the <router-link to="/terms" target="_blank">Terms</router-link> and
+          <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
+        </span>
+      </label>
       <p class="small muted">
-        By checking in you agree to our <router-link to="/terms" target="_blank">Terms</router-link> and
-        <router-link to="/privacy" target="_blank">Privacy Policy</router-link>. The organiser only sees
-        anonymous totals, never who you connect with.
+        The organiser only sees anonymous totals, never who you connect with.
+        <template v-if="event.feedbackOn">After the event you'll be asked for quick, anonymous feedback.</template>
       </p>
 
       <p v-if="error" class="error-text" role="alert">{{ error }}</p>
@@ -133,3 +155,9 @@ const fmtDate = (t) =>
     </template>
   </main>
 </template>
+
+<style scoped>
+.event-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+.event-info dt { padding-top: 2px; }
+.event-info dd { margin: 0; }
+</style>

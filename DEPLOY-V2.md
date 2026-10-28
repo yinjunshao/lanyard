@@ -34,7 +34,7 @@ the shared parent domain (see below).
 ## Deploy
 
 ```bash
-npm run db:remote                 # applies migrations 0001-0006 to the remote D1 (the daily purge cron in wrangler.toml deploys with the Worker)
+npm run db:remote                 # applies migrations 0001-0007 to the remote D1 (the daily purge cron in wrangler.production.toml deploys with the Worker)
 npm run build
 npx wrangler deploy               # prints the workers.dev URL
 ```

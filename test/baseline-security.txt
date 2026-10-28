@@ -1,0 +1,68 @@
+
+# Sessions and bots
+  FAIL page views and GETs without a cookie create no user rows  → {"before":0,"after":3}
+  FAIL /api/me works without a session  → {"user":{"id":"f381e19f74","isGuest":1,"hasPasskey":false,"hasRecovery":false,"claimed":false,"termsVersion":"2026-10-26","termsAccepted":false,"needsTerms":false,"recoveryEmail":null,"verifiedStudent":false,"over18":false},"plan":{"tier":"free","label":"Free","cards":3,"customStrap":false,"onWaitli
+  FAIL session tokens are stored hashed, not as the cookie value
+  ok  logout deletes the session row
+  FAIL new guest accounts are rate-limited per IP  → {"blocked":0}
+
+# Headers and CSRF
+  FAIL HTML has a Content-Security-Policy
+  FAIL HTML cannot be framed
+  FAIL nosniff on HTML
+  FAIL Referrer-Policy set
+  FAIL HSTS set on https
+  FAIL Permissions-Policy set
+  FAIL API responses are not cacheable by shared caches  → null
+  FAIL cross-origin state-changing request is rejected  → 201
+  FAIL text/plain cross-origin POST is rejected  → 201
+  FAIL same-origin POST still works  → 402
+
+# Passkey challenge integrity
+  FAIL a forged challenge cookie cannot choose the expected challenge/origin  → {"status":200,"seen":{"ch":"attacker","o":["https://evil.example"]}}
+  ok  genuine passkey login works
+  FAIL a passkey challenge can only be used once  → 200
+
+# Media access
+  ok  connect with selfie works
+  ok  people in the connection can load the selfie
+  FAIL a stranger cannot load someone else's selfie  → 200
+  FAIL a signed-out visitor cannot load a selfie  → 200
+  FAIL media has nosniff
+  ok  media path traversal is rejected
+  FAIL an upload whose bytes are not a real image is rejected  → 200
+Error: image too large
+    at putImage (file:///mnt/attach/outputs/lw2/worker/media.js:26:25)
+    at file:///mnt/attach/outputs/lw2/worker/index.js:208:22
+    at async dispatch (file:///mnt/attach/outputs/lw2/node_modules/hono/dist/compose.js:35:11)
+    at async file:///mnt/attach/outputs/lw2/worker/session.js:91:3
+    at async file:///mnt/attach/outputs/lw2/worker/index.js:21:3
+    at async dispatch (file:///mnt/attach/outputs/lw2/node_modules/hono/dist/compose.js:35:11)
+    at async file:///mnt/attach/outputs/lw2/node_modules/hono/dist/hono-base.js:287:21
+    at async req (file:///mnt/attach/outputs/lw2/test/harness.mjs:74:19)
+    at async file:///mnt/attach/outputs/lw2/test/security.mjs:121:14 {
+  status: 413
+}
+  FAIL oversized upload returns 413 (not 500)  → 500
+  FAIL replacing a profile photo deletes the old file  → {"k1":"avatar/872934fe19.png","k2":"avatar/f050aa3c79.png","still":true}
+
+# Blocking, consent and access control
+  FAIL a blocked person cannot connect again  → 200
+  FAIL a blocked person cannot open the blocker's card  → 200
+  ok  IDOR: stranger cannot read a connection
+  ok  IDOR: stranger cannot write a note on it
+  ok  IDOR: stranger cannot delete it
+  ok  IDOR: stranger cannot edit someone's card
+  FAIL card fields only store strings  → {"visible_links":"[{\"evil\":1},\"LinkedIn\"]","tags":"[{\"x\":1},\"ok\"]"}
+  FAIL recovery email length is capped  → 200
+  ok  SQL injection in a code lookup is harmless
+(node:357) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  FAIL check-in requires agreeing to the Terms (18+)  → {"ok":true,"eventId":"1d21ce1d73"}
+  ok  check-in works once agreed
+  ok  IDOR: another organisation cannot read an event report
+  FAIL free starter credits cannot be farmed from one IP  → [3,3,3,3,3]
+  ok  data export contains no session token or key hashes
+  ok  /api/me exposes no secrets
+
+14 passed, 28 failed

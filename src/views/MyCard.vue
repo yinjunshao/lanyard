@@ -1,9 +1,28 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 import Badge from "../components/Badge.vue";
+import Avatar from "../components/Avatar.vue";
+import RatingInput from "../components/RatingInput.vue";
 import { downloadBadge } from "../lib/qr";
+import { relativeDay } from "../lib/time";
+
+const router = useRouter();
+
+// Things waiting for you: feedback for events you went to, people to follow up.
+const home = ref({ followups: [], feedback: [] });
+Api.home().then((h) => { home.value = h; }).catch(() => {});
+const quick = ref(null);
+watch(quick, (n) => {
+  const ev = home.value.feedback[0];
+  if (n && ev) router.push({ path: `/app/feedback/${ev.eventId}`, query: { overall: n } });
+});
+async function doneFollowup(f) {
+  home.value.followups = home.value.followups.filter((x) => x !== f);
+  try { await Api.connectionMeta(f.connectionId, { followedUp: true }); } catch { /* shows again next time */ }
+}
 
 const selectedId = ref(me.cards[0]?.cardId || null);
 const card = computed(() =>
@@ -140,6 +159,31 @@ async function share() {
     <p class="small muted" style="text-align:center;margin-top:40px">
       Hold the card to show it at full brightness
     </p>
+
+    <section v-if="home.feedback.length" class="panel stack" aria-label="Feedback">
+      <span class="label">How was {{ home.feedback[0].name }}?</span>
+      <p class="small muted" style="margin:0">Tap a rating. It's anonymous and takes a minute.</p>
+      <RatingInput v-model="quick" :label="`Rate ${home.feedback[0].name}`" size="sm" />
+      <router-link v-for="f in home.feedback.slice(1)" :key="f.eventId" :to="`/app/feedback/${f.eventId}`" class="link-btn">
+        Give feedback for {{ f.name }}
+      </router-link>
+    </section>
+
+    <section v-if="home.followups.length" class="panel stack" aria-label="Follow up">
+      <span class="label">Follow up</span>
+      <div class="list">
+        <div v-for="f in home.followups" :key="f.connectionId" class="list-row spread">
+          <router-link :to="`/c/${f.cardId}`" class="row" style="flex:1;min-width:0">
+            <Avatar class="avatar" :src="f.photo" :alt="f.name" />
+            <span style="min-width:0">
+              <strong>{{ f.name }}</strong>
+              <span class="small muted" style="display:block">Reminder {{ relativeDay(f.remindAt) }}</span>
+            </span>
+          </router-link>
+          <button type="button" class="btn" style="width:auto" :aria-label="`Mark ${f.name} as followed up`" @click="doneFollowup(f)">Done</button>
+        </div>
+      </div>
+    </section>
 
     <section class="panel stack-2">
       <div class="spread">

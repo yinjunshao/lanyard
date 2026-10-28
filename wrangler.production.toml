@@ -21,6 +21,11 @@ bucket_name = "lanyard-media"
 binding = "LANYARD_KV"
 id = "6fa2750047f94df78dc7814bd56b17b7"
 
+# Daily retention purge (selfies > 12 months, feedback text > 12 months,
+# expired codes/sessions, stale guests). Required by the Privacy Policy.
+[triggers]
+crons = ["17 3 * * *"]
+
 [vars]
 APP_ORIGIN = "https://lanyard-v2.musea-moderation.workers.dev"
 RP_ID = "lanyard-v2.musea-moderation.workers.dev"

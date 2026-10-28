@@ -10,6 +10,14 @@ export const me = reactive({
   loaded: false,
 });
 
+// One shared request, so pages that load at the same time don't each ask.
+let pending = null;
+export function ensureMe() {
+  if (me.loaded) return Promise.resolve(me);
+  if (!pending) pending = refreshMe().catch(() => me).finally(() => { pending = null; });
+  return pending;
+}
+
 export async function refreshMe() {
   const data = await Api.me();
   me.user = data.user;

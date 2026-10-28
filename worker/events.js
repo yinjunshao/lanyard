@@ -4,6 +4,9 @@ import { Hono } from "hono";
 import { newId, now, one, all, run } from "./db.js";
 import { newCardCode } from "./codes.js";
 import { requireUser } from "./session.js";
+import { termsScope, hasConsent, recordConsentStmt } from "./legal.js";
+import { blockedSet } from "./blocks.js";
+import { eventInfo, feedbackOpensAt } from "./feedback.js";
 
 export const eventsApp = new Hono();
 
@@ -32,10 +35,15 @@ eventsApp.get("/api/e/:code", async (c) => {
       perks: ev.perks || [],
       directoryOn: !!ev.directory_on,
       questions: ev.checkin_questions || [],
+      endsAt: ev.ends_at || null,
+      ended: !!ev.ended_at,
+      info: eventInfo(ev.info),
+      feedbackOn: !!ev.feedback_on,
     },
     sponsors: sponsors.map((s) => ({ id: s.id, name: s.name, perk: s.perk })),
     checkedIn: !!checkin,
     checkin: checkin ? { at: checkin.created_at, answers: checkin.answers } : null,
+    feedbackOpensAt: checkin && ev.feedback_on ? feedbackOpensAt(ev, checkin.created_at) : null,
   });
 });
 
@@ -49,6 +57,12 @@ eventsApp.post("/api/e/:code/checkin", async (c) => {
   if (!ev) return c.json({ error: "event not found" }, 404);
 
   const body = await c.req.json().catch(() => ({}));
+  // Checking in is often someone's first action: it needs the Terms / Privacy
+  // Policy and the 18+ confirmation, just like making a card or connecting.
+  const agreed = await hasConsent(db, me.id, termsScope());
+  if (!agreed && (body.acceptTerms !== true || body.over18 !== true)) {
+    return c.json({ error: "Please confirm you're 18 or over and agree to the Terms and Privacy Policy.", code: "terms_required" }, 400);
+  }
   let profile = await one(db, "SELECT name FROM profiles WHERE user_id = ?", me.id);
   if (!profile) {
     const name = String(body.name || "").trim();
@@ -94,6 +108,10 @@ eventsApp.post("/api/e/:code/checkin", async (c) => {
   } else {
     stmts.push(db.prepare("UPDATE cards SET event_id = ? WHERE id = ?").bind(ev.id, card.id));
   }
+  if (!agreed) {
+    stmts.push(recordConsentStmt(db, me.id, termsScope()));
+    stmts.push(db.prepare("UPDATE users SET over_18 = 1, age_confirmed_at = COALESCE(age_confirmed_at, ?) WHERE id = ?").bind(now(), me.id));
+  }
   if (ev.directory_on) {
     stmts.push(db.prepare(
       `INSERT INTO consents (id, user_id, scope, granted, created_at)
@@ -118,9 +136,7 @@ eventsApp.get("/api/e/:id/room", async (c) => {
   const mine = await one(db, "SELECT created_at FROM checkins WHERE event_id = ? AND user_id = ?", ev.id, me.id);
   if (!mine) return c.json({ error: "check in to see the room" }, 403);
 
-  const blocked = new Set(
-    (await all(db, "SELECT blocked_id FROM blocks WHERE blocker_id = ?", me.id)).map((b) => b.blocked_id)
-  );
+  const blocked = await blockedSet(db, me.id); // both directions
 
   const rows = await all(
     db,

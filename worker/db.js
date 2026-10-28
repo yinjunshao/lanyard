@@ -14,14 +14,14 @@ export const newToken = () =>
 
 const JSON_FIELDS = new Set([
   "links", "tags", "projects", "visible_links", "perks",
-  "checkin_questions", "answers", "sponsor", "transports",
+  "checkin_questions", "answers", "sponsor", "transports", "feedback_questions", "info",
 ]);
 
 export function hydrate(row) {
   if (!row) return null;
   for (const k of Object.keys(row)) {
     if (JSON_FIELDS.has(k) && typeof row[k] === "string") {
-      try { row[k] = JSON.parse(row[k]); } catch { row[k] = k === "links" || k === "answers" ? {} : []; }
+      try { row[k] = JSON.parse(row[k]); } catch { row[k] = k === "links" || k === "answers" || k === "info" ? {} : []; }
     }
   }
   return row;

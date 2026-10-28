@@ -13,6 +13,7 @@ const loading = ref(true);
 const error = ref("");
 
 const event = ref(null);
+const feedback = ref(null); // { status, opensAt }
 
 onMounted(async () => {
   // Event meta comes from my-events; refetch room/album.
@@ -21,6 +22,7 @@ onMounted(async () => {
     event.value = mine.events.find((e) => e.id === route.params.id);
     if (!event.value) throw new Error("You haven't checked in to this event.");
     await loadRoom();
+    Api.feedbackForm(route.params.id).then((f) => { feedback.value = f; }).catch(() => {});
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -52,10 +54,16 @@ function switchTab(t) {
     <p v-else-if="error" class="error-text">{{ error }}</p>
 
     <template v-else>
-      <div class="btn-row" role="tablist" style="margin-bottom:8px">
-        <button class="btn" :class="{ 'btn-primary': tab === 'room' }" @click="switchTab('room')">Room</button>
-        <button class="btn" :class="{ 'btn-primary': tab === 'album' }" @click="switchTab('album')">Album</button>
-        <button class="btn" :class="{ 'btn-primary': tab === 'perks' }" @click="switchTab('perks')">Perks</button>
+      <router-link v-if="feedback?.status === 'open'" :to="`/app/feedback/${route.params.id}`" class="panel spread" style="color:inherit">
+        <span><strong>How was it?</strong><br /><span class="small muted">Anonymous feedback for the organisers. One minute.</span></span>
+        <span class="btn btn-primary" style="width:auto">Give feedback</span>
+      </router-link>
+      <p v-else-if="feedback?.status === 'done'" class="small muted">Thanks for your feedback on this event.</p>
+
+      <div class="btn-row" role="tablist" aria-label="Event" style="margin-bottom:8px">
+        <button class="btn" role="tab" :aria-selected="tab === 'room'" :class="{ 'btn-primary': tab === 'room' }" @click="switchTab('room')">Room</button>
+        <button class="btn" role="tab" :aria-selected="tab === 'album'" :class="{ 'btn-primary': tab === 'album' }" @click="switchTab('album')">Album</button>
+        <button class="btn" role="tab" :aria-selected="tab === 'perks'" :class="{ 'btn-primary': tab === 'perks' }" @click="switchTab('perks')">Perks</button>
       </div>
 
       <template v-if="tab === 'room'">

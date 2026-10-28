@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { me, refreshMe } from "../lib/store";
+import { ensureMe } from "../lib/store";
 import { ON_HOST_SITE, MAIN_ORIGIN } from "../lib/site";
 
 // Route-level code splitting: public landing/card pages must stay under the
@@ -25,6 +25,7 @@ const HostAccount = () => import("../views/HostAccount.vue");
 const HostBilling = () => import("../views/HostBilling.vue");
 const Terms = () => import("../views/Terms.vue");
 const Privacy = () => import("../views/Privacy.vue");
+const Feedback = () => import("../views/Feedback.vue");
 const NotFound = () => import("../views/NotFound.vue");
 
 const routes = [
@@ -32,6 +33,7 @@ const routes = [
   { path: "/c/:cardId", component: PublicCard },
   { path: "/c/:cardId/connect", redirect: (to) => ({ path: `/c/${to.params.cardId}`, query: to.query }) },
   { path: "/e/:code", component: EventJoin },
+  { path: "/e/:code/feedback", component: Feedback, meta: { app: true } },
 
   { path: "/app", component: MyCard, meta: { app: true } },
   { path: "/app/cards", component: Cards, meta: { app: true } },
@@ -42,6 +44,7 @@ const routes = [
   { path: "/app/events", component: Events, meta: { app: true } },
   { path: "/app/events/:id", component: EventDetail, meta: { app: true } },
   { path: "/app/settings", component: Settings, meta: { app: true } },
+  { path: "/app/feedback/:eventId", component: Feedback, meta: { app: true } },
 
   { path: "/terms", component: Terms },
   { path: "/privacy", component: Privacy },
@@ -71,8 +74,10 @@ router.beforeEach(async (to) => {
       return false;
     }
   }
-  if (!me.loaded) {
-    try { await refreshMe(); } catch { /* guest */ }
-  }
+  // Pages that depend on who you are wait for it; public pages (landing, a
+  // scanned card, terms) render straight away and fill in when it arrives.
+  const needsMe = to.meta.app || to.path.startsWith("/host") || ["/claim", "/signin"].includes(to.path);
+  if (needsMe) await ensureMe();
+  else ensureMe();
   return true;
 });

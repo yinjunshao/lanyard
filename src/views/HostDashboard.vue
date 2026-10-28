@@ -5,6 +5,8 @@ import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
 import { registerPasskey, loginPasskey } from "../lib/passkeys";
 import { ON_HOST_SITE, MAIN_ORIGIN } from "../lib/site";
+import FeedbackEditor from "../components/FeedbackEditor.vue";
+import { fromLocalInput } from "../lib/time";
 
 const state = ref("loading"); // loading | account | terms | org | ready
 const org = ref(null);
@@ -19,11 +21,12 @@ const accountEmail = ref("");
 const accountError = ref("");
 const orgForm = ref({ name: "", type: "society", billingEmail: "" });
 
-const f = ref({
-  name: "", venue: "", startsAt: "", theme: "default",
-  perksText: "", directoryOn: true,
-  q1: "", q2: "",
+const blankForm = () => ({
+  from: "", name: "", venue: "", startsAt: "", endsAt: "", theme: "default",
+  perksText: "", directoryOn: true, q1: "", q2: "",
+  rsvpCount: "", access: "", food: "", feedbackOn: true, feedbackQuestions: [],
 });
+const f = ref(blankForm());
 
 onMounted(load);
 async function load() {
@@ -114,24 +117,38 @@ async function saveOrg() {
 
 async function create() {
   error.value = "";
-  if (!f.value.name.trim()) { error.value = "Event name is required."; return; }
   busy.value = true;
   try {
-    const body = {
-      name: f.value.name,
-      venue: f.value.venue,
-      startsAt: f.value.startsAt ? new Date(f.value.startsAt).getTime() : null,
-      theme: f.value.theme,
-      directoryOn: f.value.directoryOn,
-      perks: f.value.perksText.split("\n").map((s) => s.trim()).filter(Boolean),
-      questions: [
-        { key: "extra1", label: f.value.q1 },
-        { key: "extra2", label: f.value.q2 },
-      ].filter((q) => q.label.trim()),
-    };
-    const res = await Api.hostCreateEvent(body);
+    let res;
+    if (f.value.from) {
+      // Start from a past event: the server copies its details, questions, form and sponsors.
+      res = await Api.hostDuplicateEvent(f.value.from, {
+        name: f.value.name.trim() || undefined,
+        startsAt: fromLocalInput(f.value.startsAt), endsAt: fromLocalInput(f.value.endsAt),
+      });
+    } else {
+      if (!f.value.name.trim()) { error.value = "Event name is required."; return; }
+      res = await Api.hostCreateEvent({
+        name: f.value.name,
+        venue: f.value.venue,
+        startsAt: fromLocalInput(f.value.startsAt),
+        endsAt: fromLocalInput(f.value.endsAt),
+        theme: f.value.theme,
+        directoryOn: f.value.directoryOn,
+        perks: f.value.perksText.split("\n").map((s) => s.trim()).filter(Boolean),
+        questions: [
+          { key: "extra1", label: f.value.q1 },
+          { key: "extra2", label: f.value.q2 },
+        ].filter((q) => q.label.trim()),
+        rsvpCount: f.value.rsvpCount === "" ? null : Number(f.value.rsvpCount),
+        info: { access: f.value.access, food: f.value.food },
+        feedbackOn: f.value.feedbackOn,
+        feedbackQuestions: f.value.feedbackQuestions,
+      });
+    }
     createdCode.value = res.code;
     creating.value = false;
+    f.value = blankForm();
     await load();
   } catch (e) {
     error.value = e.message;
@@ -249,37 +266,63 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
 
       <div v-if="creating" class="panel stack-2">
         <h2>Create event</h2>
-        <div class="field"><label>Event name</label>
-          <input v-model="f.name" type="text" placeholder="UCL Careers Fair" /></div>
-        <div class="field"><label>Venue</label>
-          <input v-model="f.venue" type="text" /></div>
-        <div class="field"><label>Date and time (optional)</label>
-          <input v-model="f.startsAt" type="datetime-local" /></div>
-        <div class="field"><label>Theme</label>
+        <div v-if="events.length" class="field"><label for="ev-from">Start from</label>
           <div class="select-wrap">
-            <select v-model="f.theme">
+            <select id="ev-from" v-model="f.from">
+              <option value="">A blank event</option>
+              <option v-for="e in events" :key="e.id" :value="e.id">A copy of {{ e.name }}</option>
+            </select>
+          </div>
+          <span v-if="f.from" class="small muted">Copies the venue, perks, questions, feedback form and sponsors. Change anything afterwards under Details.</span>
+        </div>
+        <div class="field"><label for="ev-name">Event name</label>
+          <input id="ev-name" v-model="f.name" type="text" :placeholder="f.from ? 'Same name as before' : 'UCL Careers Fair'" /></div>
+        <div class="field"><label for="ev-start">Starts (optional)</label>
+          <input id="ev-start" v-model="f.startsAt" type="datetime-local" /></div>
+        <div class="field"><label for="ev-end">Ends (optional)</label>
+          <input id="ev-end" v-model="f.endsAt" type="datetime-local" />
+          <span class="small muted">Feedback opens when the event ends. Without an end time it opens 3 hours after the start, or when you press End event.</span></div>
+        <template v-if="!f.from">
+        <div class="field"><label for="ev-venue">Venue</label>
+          <input id="ev-venue" v-model="f.venue" type="text" /></div>
+        <div class="field"><label for="ev-theme">Theme</label>
+          <div class="select-wrap">
+            <select id="ev-theme" v-model="f.theme">
               <option value="default">Default — Persimmon</option>
               <option value="formal">Formal — navy strap</option>
               <option value="night">Night — dark</option>
             </select>
           </div>
         </div>
-        <div class="field"><label>Perks — one per line</label>
-          <textarea v-model="f.perksText" placeholder="Free coffee&#10;Raffle entry"></textarea></div>
-        <div class="field"><label>Check-in question 1 (optional)</label>
-          <input v-model="f.q1" type="text" placeholder="Course" /></div>
-        <div class="field"><label>Check-in question 2 (optional)</label>
-          <input v-model="f.q2" type="text" placeholder="What are you looking for?" /></div>
+        <div class="field"><label for="ev-perks">Perks — one per line</label>
+          <textarea id="ev-perks" v-model="f.perksText" placeholder="Free coffee&#10;Raffle entry"></textarea></div>
+        <div class="field"><label for="ev-access">Access info for attendees (optional)</label>
+          <input id="ev-access" v-model="f.access" type="text" maxlength="200" placeholder="Step-free via the lift on Gower St" /></div>
+        <div class="field"><label for="ev-food">Food and drink (optional)</label>
+          <input id="ev-food" v-model="f.food" type="text" maxlength="200" /></div>
+        <div class="field"><label for="ev-rsvp">Sign-ups so far (optional)</label>
+          <input id="ev-rsvp" v-model="f.rsvpCount" type="number" min="0" inputmode="numeric" />
+          <span class="small muted">From Luma or the Union site. A number only; the report shows turnout.</span></div>
+        <div class="field"><label for="ev-q1">Check-in question 1 (optional)</label>
+          <input id="ev-q1" v-model="f.q1" type="text" placeholder="Course" /></div>
+        <div class="field"><label for="ev-q2">Check-in question 2 (optional)</label>
+          <input id="ev-q2" v-model="f.q2" type="text" placeholder="What are you looking for?" /></div>
         <label class="checkbox-row">
           <input type="checkbox" v-model="f.directoryOn" />
           <span class="small">Show the live attendee room to checked-in people</span>
         </label>
+        <label class="checkbox-row">
+          <input type="checkbox" v-model="f.feedbackOn" />
+          <span class="small">Ask attendees for anonymous feedback after the event</span>
+        </label>
+        <FeedbackEditor v-if="f.feedbackOn" v-model="f.feedbackQuestions" />
+        </template>
         <p v-if="error" class="error-text">
           {{ error }}
           <router-link v-if="credits.remaining <= 0" to="/host/billing" style="text-decoration:underline">Buy credits</router-link>
         </p>
         <button class="btn btn-primary" :disabled="busy" @click="create">
-          {{ busy ? "Creating…" : "Create event (uses 1 credit)" }}
+          {{ busy ? "Creating…" : f.from ? "Create the copy (uses 1 credit)" : "Create event (uses 1 credit)" }}
         </button>
       </div>
 
@@ -303,10 +346,10 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
           <span>
             <strong>{{ e.name }}</strong>
             <span class="small muted" style="display:block">
-              <span class="tnum">{{ e.code }}</span>{{ e.venue ? " · " + e.venue : "" }}
+              <span class="tnum">{{ e.code }}</span>{{ e.venue ? " · " + e.venue : "" }}{{ e.startsAt ? " · " + fmtDate(e.startsAt) : "" }}
             </span>
           </span>
-          <span class="label">Live ›</span>
+          <span class="label">{{ e.ended ? "Report ›" : "Live ›" }}</span>
         </router-link>
       </div>
     </template>

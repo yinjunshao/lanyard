@@ -1,3 +1,5 @@
+import { clearOfflineData } from "./offline";
+
 // Same-origin fetch. Auth is the HTTP-only session cookie — no manual tokens.
 export async function api(path, method = "GET", data) {
   const res = await fetch(path, {
@@ -32,9 +34,9 @@ export const Api = {
   authRedeem: (code) => api("/api/auth/redeem", "POST", { code }),
   recoveryCreate: () => api("/api/auth/recovery", "POST"),
   recoveryRedeem: (key) => api("/api/auth/recovery/redeem", "POST", { key }),
-  logout: () => api("/api/logout", "POST"),
+  logout: async () => { const r = await api("/api/logout", "POST"); await clearOfflineData(); return r; },
   exportUrl: "/api/account/export",
-  deleteAccount: () => api("/api/account", "DELETE"),
+  deleteAccount: async () => { const r = await api("/api/account", "DELETE"); await clearOfflineData(); return r; },
 
   createCard: (body) => api("/api/cards", "POST", body),
   updateCard: (id, body) => api(`/api/cards/${id}`, "PUT", body),
@@ -53,17 +55,33 @@ export const Api = {
   note: (id, text) => api(`/api/connections/${id}/note`, "PUT", { text }),
   reportConnection: (id, reason, block) => api(`/api/connections/${id}/report`, "POST", { reason, block }),
   removeConnection: (id) => api(`/api/connections/${id}`, "DELETE"),
+  connectionMeta: (id, body) => api(`/api/connections/${id}/meta`, "PUT", body),
+  home: () => api("/api/home"),
 
   event: (code) => api(`/api/e/${encodeURIComponent(String(code).toUpperCase())}`),
   checkIn: (code, body) => api(`/api/e/${encodeURIComponent(String(code).toUpperCase())}/checkin`, "POST", body),
   room: (eventId) => api(`/api/e/${eventId}/room`),
   album: (eventId) => api(`/api/e/${eventId}/album`),
   myEvents: () => api("/api/my/events"),
+  feedbackForm: (eventId) => api(`/api/e/${eventId}/feedback`),
+  sendFeedback: (eventId, answers) => api(`/api/e/${eventId}/feedback`, "POST", { answers }),
 
   hostMe: () => api("/api/host/me"),
   hostOrg: (body) => api("/api/host/org", "POST", body),
   hostCreateEvent: (body) => api("/api/host/events", "POST", body),
   hostLive: (id) => api(`/api/host/events/${id}/live`),
+  hostUpdateEvent: (id, body) => api(`/api/host/events/${id}`, "PUT", body),
+  hostDuplicateEvent: (id, body) => api(`/api/host/events/${id}/duplicate`, "POST", body),
+  hostEndEvent: (id) => api(`/api/host/events/${id}/end`, "POST"),
+  hostFeedback: (id) => api(`/api/host/events/${id}/feedback`),
+  hostSaveFeedback: (id, body) => api(`/api/host/events/${id}/feedback`, "PUT", body),
+  hostReportCsvUrl: (id) => `/api/host/events/${id}/report.csv`,
+  hostIntegrations: () => api("/api/host/integrations"),
+  hostSetWebhook: (url) => api("/api/host/integrations/webhook", "PUT", { url }),
+  hostRemoveWebhook: () => api("/api/host/integrations/webhook", "DELETE"),
+  hostTestWebhook: () => api("/api/host/integrations/webhook/test", "POST"),
+  hostNewApiKey: () => api("/api/host/integrations/key", "POST"),
+  hostRemoveApiKey: () => api("/api/host/integrations/key", "DELETE"),
   hostReport: (id) => api(`/api/host/events/${id}/report`),
   hostRotateEventCode: (id) => api(`/api/host/events/${id}/rotate-code`, "POST"),
   hostTeam: () => api("/api/host/team"),

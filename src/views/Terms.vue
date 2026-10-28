@@ -4,7 +4,7 @@
 const OPERATOR = "ARCK Softworks";
 const ADDRESS = "WC1E 6BT";
 const CONTACT = "yinjun@arck.industries";
-const UPDATED = "26 October 2026";
+const UPDATED = "27 October 2026";
 </script>
 
 <template>
@@ -79,6 +79,8 @@ const UPDATED = "26 October 2026";
       optional questions and optional choices (for example, appearing in the event's attendee directory or sharing
       details with a named sponsor). Those choices are separate and optional, are never pre-ticked, and you can change
       them. Hosts only receive anonymous totals about their event; they are not told who connected with whom.
+     After an event you may be asked for optional, anonymous feedback, which goes to the
+      host as totals only.
     </p>
 
     <h3>9. Free and paid features</h3>
@@ -168,6 +170,13 @@ const UPDATED = "26 October 2026";
       you must only name sponsors that have actually agreed to take part and you must not promise attendees things you
       cannot deliver.
     </p>
+
+    <h3>18a. Feedback forms and integrations</h3>
+    <ul>
+      <li>You may add up to five of your own feedback questions. They must not ask for health, religion, ethnicity, sexuality, politics or other special category data, or for anything that would identify the person answering.</li>
+      <li>You receive feedback only as anonymous totals, and written answers only once enough people have answered. Do not try to work out who wrote an answer.</li>
+      <li>If you connect a webhook or use an API key, keep the secret and key private and tell us if either leaks. You are responsible for the services you connect and for what they do with the totals we send. Send us counts only, never attendee names or emails.</li>
+    </ul>
 
     <h3>19. Event content</h3>
     <p>

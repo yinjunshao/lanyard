@@ -10,6 +10,7 @@ import Avatar from "../components/Avatar.vue";
 import { openPhoto } from "../lib/lightbox";
 import ConnectSheet from "../components/ConnectSheet.vue";
 import Icon from "../components/Icon.vue";
+import { morningIn, fmtDay, relativeDay } from "../lib/time";
 
 const route = useRoute();
 const router = useRouter();
@@ -73,6 +74,36 @@ async function saveNote() {
   noteSaved.value = true;
   setTimeout(() => (noteSaved.value = false), 1500);
 }
+// ---- Follow-up: a reminder, "done", and your own tags (all private to you) ----
+const myTags = ref([]);
+const remindAt = ref(null);
+const followedUpAt = ref(null);
+const metaMsg = ref("");
+watch(connection, (cn) => {
+  if (!cn) return;
+  myTags.value = [...(cn.tags || [])];
+  remindAt.value = cn.remindAt || null;
+  followedUpAt.value = cn.followedUpAt || null;
+}, { immediate: true });
+async function saveMeta(patch) {
+  metaMsg.value = "";
+  try {
+    const r = await Api.connectionMeta(connection.value.id, patch);
+    myTags.value = r.tags; remindAt.value = r.remindAt; followedUpAt.value = r.followedUpAt;
+  } catch (e) {
+    metaMsg.value = e.message;
+  }
+}
+const newTag = ref("");
+function addTag() {
+  const t = newTag.value.trim().toLowerCase().slice(0, 24);
+  newTag.value = "";
+  if (t && !myTags.value.includes(t)) saveMeta({ tags: [...myTags.value, t] });
+}
+const removeTag = (t) => saveMeta({ tags: myTags.value.filter((x) => x !== t) });
+const today = new Date().toISOString().slice(0, 10);
+function remindOn(v) { if (v) saveMeta({ remindAt: new Date(`${v}T09:00`).getTime() }); }
+
 function vcard() {
   const pr = p.value;
   const lines = [
@@ -240,6 +271,44 @@ async function sendReport() {
           <span v-if="noteSaved" class="success-text small" role="status">Saved</span>
         </div>
 
+        <div class="stack">
+          <span class="label">Follow up</span>
+          <p v-if="followedUpAt" class="small" style="margin:0">
+            Followed up {{ fmtDay(followedUpAt) }}.
+            <button type="button" class="link-btn" @click="saveMeta({ followedUp: false })">Undo</button>
+          </p>
+          <template v-else>
+            <p v-if="remindAt" class="small" style="margin:0">
+              Reminder {{ relativeDay(remindAt) }} ({{ fmtDay(remindAt) }}).
+              <button type="button" class="link-btn" @click="saveMeta({ remindAt: null })">Clear</button>
+            </p>
+            <div class="chip-row" role="group" aria-label="Remind me to follow up">
+              <button type="button" class="chip chip-toggle" @click="saveMeta({ remindAt: morningIn(1) })">Tomorrow</button>
+              <button type="button" class="chip chip-toggle" @click="saveMeta({ remindAt: morningIn(3) })">In 3 days</button>
+              <button type="button" class="chip chip-toggle" @click="saveMeta({ remindAt: morningIn(7) })">Next week</button>
+              <input type="date" class="chip" :min="today" aria-label="Remind me on a date" @change="remindOn($event.target.value)" />
+            </div>
+            <button type="button" class="btn" @click="saveMeta({ followedUp: true })">Mark as followed up</button>
+          </template>
+        </div>
+
+        <div class="stack">
+          <span class="label">Your tags</span>
+          <p class="small muted" style="margin:0">Only you see these. Filter by them under People.</p>
+          <div v-if="myTags.length" class="chip-row">
+            <span v-for="t in myTags" :key="t" class="chip">
+              {{ t }}
+              <button type="button" class="tag-x" :aria-label="`Remove tag ${t}`" @click="removeTag(t)">×</button>
+            </span>
+          </div>
+          <form class="row" @submit.prevent="addTag">
+            <label for="new-tag" class="visually-hidden">Add a tag</label>
+            <input id="new-tag" v-model="newTag" type="text" maxlength="24" placeholder="mentor, cofounder, hiring…" style="flex:1" />
+            <button type="submit" class="btn" style="width:auto">Add</button>
+          </form>
+          <p v-if="metaMsg" class="error-text" role="alert">{{ metaMsg }}</p>
+        </div>
+
         <div class="btn-row">
           <button class="btn" @click="vcard">Save to contacts</button>
           <button class="btn" style="color:var(--strap-deep)" @click="removeConnection">Remove</button>
@@ -274,3 +343,8 @@ async function sendReport() {
     />
   </main>
 </template>
+
+<style scoped>
+.tag-x { background: none; border: none; padding: 0 0 0 6px; margin: 0; cursor: pointer; font-weight: 800; color: inherit; min-width: 24px; min-height: 24px; }
+.tag-x:focus-visible { outline: 2px solid var(--strap); }
+</style>

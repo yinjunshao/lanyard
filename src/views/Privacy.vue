@@ -3,7 +3,7 @@
 const OPERATOR = "ARCK Softworks";
 const ADDRESS = "WC1E 6BT";
 const CONTACT = "yinjun@arck.industries";
-const UPDATED = "26 October 2026";
+const UPDATED = "27 October 2026";
 </script>
 
 <template>
@@ -27,9 +27,12 @@ const UPDATED = "26 October 2026";
         <tr><td>Users</td><td>Name, university, course, year, headline, about text, tags, links, profile photo, and whether you show your age band</td><td>To make your card and profile and show them as you choose</td></tr>
         <tr><td>Users</td><td>Connections you make, which card was scanned, optional note, private notes, messages, and shared selfies</td><td>To keep your connections and let both people see them</td></tr>
         <tr><td>Users</td><td>Event check-ins, answers to optional questions, and your optional directory and sponsor choices</td><td>To join events and respect your choices</td></tr>
+        <tr><td>Users</td><td>Your private follow-up reminders and the tags you put on your connections</td><td>So you can remember who to follow up with; only you see them</td></tr>
+        <tr><td>Users</td><td>Event feedback answers (ratings, choices and optional written answers), stored without your name or account, plus a separate record that you have answered</td><td>To give organisers anonymous feedback, and to ask you only once</td></tr>
         <tr><td>Everyone</td><td>Session cookie or device token, passkey public key, hashed recovery key, sign-in codes (short-lived), and records of your terms and consent choices</td><td>To keep you signed in, secure your account, and prove what you agreed to</td></tr>
         <tr><td>Everyone</td><td>IP address and basic request data, kept briefly in rate-limit counters and security logs</td><td>To stop abuse and guessing of codes</td></tr>
         <tr><td>Hosts</td><td>Organisation name and type, billing email, team members and roles, events you create, credits and invoice requests</td><td>To run the host portal and bill you</td></tr>
+        <tr><td>Hosts</td><td>Integration settings: a webhook address and its signing secret, and a one-way hash of your API key; sign-up counts you send us</td><td>To connect Lanyard to your other tools</td></tr>
       </tbody>
     </table>
     <p>
@@ -48,8 +51,9 @@ const UPDATED = "26 October 2026";
     <h2>4. Who sees your data</h2>
     <ul>
       <li><b>Other users</b> see what is on the card you share, and what you choose to show in a connection. A private profile shows only a limited view.</li>
-      <li><b>Hosts</b> only receive anonymous, aggregated figures about their events. They are not told who attended by name or who connected with whom. Sponsors only receive details you opted in to share with that named sponsor.</li>
+      <li><b>Hosts</b> only receive anonymous, aggregated figures about their events. They are not told who attended by name or who connected with whom. Feedback reaches them only as totals once at least 3 people have answered, and written answers only once at least 5 have, without names. Sponsors only receive details you opted in to share with that named sponsor.</li>
       <li><b>Our service providers</b> process data for us under contract. Today that is Cloudflare, which hosts the app, database and image storage. If we add payments or email, we will name those providers here first.</li>
+      <li><b>Hosts' own tools</b>: if a host connects a webhook, we send it the same anonymous event totals they see in their report, never personal data.</li>
       <li>We may disclose data where the law requires it, or to protect people from serious harm.</li>
       <li>We never sell your data.</li>
     </ul>
@@ -71,6 +75,9 @@ const UPDATED = "26 October 2026";
         <tr><td>Unclaimed guest sessions with no profile</td><td>Removed automatically after a period of inactivity</td></tr>
         <tr><td>Consent and terms records</td><td>While your account exists, then up to 6 years as proof of what you agreed to</td></tr>
         <tr><td>Host invoices and billing records</td><td>6 years, as the law requires</td></tr>
+        <tr><td>Follow-up reminders and your tags</td><td>Until you remove them, the connection, or your account</td></tr>
+        <tr><td>Written feedback answers</td><td>12 months, then removed automatically; anonymous ratings and choices are kept so organisers can compare events</td></tr>
+        <tr><td>The record that you gave feedback</td><td>Until you delete your account</td></tr>
       </tbody>
     </table>
 
@@ -90,7 +97,15 @@ const UPDATED = "26 October 2026";
       you can complain to the Information Commissioner's Office (<a href="https://ico.org.uk" rel="noopener">ico.org.uk</a>, 0303 123 1113).
     </p>
 
-    <h2>8. Shared selfies and other people's data</h2>
+    <h2>8. Event feedback</h2>
+    <p>
+      After an event you checked in to, you may be asked for optional feedback. Your answers are stored without your
+      name or account, so the organiser can't tell who wrote what and we can't link them back to you. Because of that we
+      can't show you or delete an individual answer later. Please don't put personal details in written answers.
+      Organisers must not ask about health, religion, ethnicity, sexuality or politics.
+    </p>
+
+    <h2>8a. Shared selfies and other people's data</h2>
     <p>
       A shared selfie can show someone else. We store it only because both people connected, and either of them can
       delete it, which deletes it for both. If you appear in a photo you did not agree to, tell us and we will remove it.
@@ -104,7 +119,8 @@ const UPDATED = "26 October 2026";
 
     <h2>10. Security</h2>
     <p>
-      Connections use HTTPS. Sign-in codes are short, single use and rate-limited; recovery keys are stored only as a one-way
+      Connections use HTTPS. Session tokens and API keys are stored only as one-way hashes, requests from other
+      websites are refused, and shared selfies are only served to the two people in them. Sign-in codes are short, single use and rate-limited; recovery keys are stored only as a one-way
       hash. Hosts see only aggregates, with small groups hidden. No system is perfectly secure. If a breach puts your
       rights at risk we will tell you and the ICO as the law requires.
     </p>
@@ -112,8 +128,10 @@ const UPDATED = "26 October 2026";
     <h2>11. Cookies and similar storage</h2>
     <p>
       We use a single strictly necessary cookie to keep you signed in, and the browser's local storage for a few settings
-      that make the app work on your device (for example, remembering a dismissed hint). These do not need consent
-      because the service cannot work without them. We do not use analytics, advertising or tracking cookies. If we ever
+      that make the app work on your device (for example, remembering a dismissed hint). The app also keeps a copy of its
+      own files and of your card details on your device so your card opens without signal; signing out or deleting your
+      account clears your details from it. These do not need consent because they are strictly necessary for the
+      service you asked for. We do not use analytics, advertising or tracking cookies. If we ever
       add any, we will ask first with a clear choice, and update this section before we do.
     </p>
 

@@ -1,98 +1,119 @@
-// HTTP-only cookie sessions. Guests get an anonymous session immediately so the
-// browser remembers them; claiming turns the user row into a passkey account.
+// HTTP-only cookie sessions.
+//
+// - The cookie holds a random token; the database stores only its SHA-256, so a
+//   leaked database backup can't be replayed as live sessions. Rows created
+//   before hashing (id = raw token) still work and are upgraded on next use.
+// - Reading pages never creates an account. A guest user + session is minted
+//   only when a browser does something that needs one (a POST/PUT/DELETE such
+//   as connecting or checking in), and that is rate-limited per IP so a bot
+//   can't fill the users table.
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { newToken, now, one, run } from "./db.js";
+import { newId, newToken, now, one, run } from "./db.js";
+import { bump } from "./ratelimit.js";
 
 export const COOKIE = "lanyard_session";
 const SESSION_DAYS = 365;
-const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
+export const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
+const GUESTS_PER_IP = 120;            // per 10 minutes; a busy venue shares one IP
+const GUEST_WINDOW_MS = 10 * 60 * 1000;
 
-function secure(c) {
-  return c.req.url.startsWith("https://");
+export class HttpError extends Error {
+  constructor(status, message, code) {
+    super(message);
+    this.status = status;
+    if (code) this.code = code;
+  }
 }
 
-function baseCookie(c) {
+export async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+const isSecure = (c) => c.req.url.startsWith("https://");
+
+function cookieOptions(c) {
+  return { httpOnly: true, sameSite: "Lax", path: "/", secure: isSecure(c), maxAge: SESSION_DAYS * 24 * 3600 };
+}
+
+function userFromRow(row) {
   return {
-    httpOnly: true,
-    sameSite: "Lax",
-    path: "/",
-    secure: secure(c),
-    maxAge: SESSION_DAYS * 24 * 3600,
+    id: row.id,
+    created_at: row.created_at,
+    is_guest: row.is_guest,
+    recovery_email: row.recovery_email,
+    email_domain: row.email_domain,
+    verified_student: row.verified_student,
+    has_passkey: row.has_passkey,
+    has_recovery: row.has_recovery,
+    over_18: row.over_18,
   };
 }
 
-// Creates (or returns) the session row + user for the current browser.
-// A first-time visitor becomes a guest user with no profile yet.
-export async function ensureSession(c, db) {
-  const sid = getCookie(c, COOKIE);
-  if (sid) {
-    const session = await one(
+/** Opens a new session for userId and sets the cookie. */
+export async function createSession(c, db, userId) {
+  const token = newToken();
+  const hashed = await sha256Hex(token);
+  const ts = now();
+  await run(
+    db,
+    "INSERT INTO sessions (id, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)",
+    hashed, userId, ts, ts + SESSION_MS, c.req.header("user-agent")?.slice(0, 200) || null
+  );
+  setCookie(c, COOKIE, token, cookieOptions(c));
+  c.set("sessionId", hashed);
+}
+
+// Loads the session for this request. With { create: true }, a browser with no
+// valid session becomes a new guest (rate-limited per IP).
+export async function ensureSession(c, db, { create = false } = {}) {
+  const token = getCookie(c, COOKIE);
+  if (token && /^[0-9a-f]{32}$/.test(token)) {
+    const hashed = await sha256Hex(token);
+    const row = await one(
       db,
-      `SELECT s.id AS sid, s.expires_at, u.* FROM sessions s
-       JOIN users u ON u.id = s.user_id WHERE s.id = ?`,
-      sid
+      `SELECT s.id AS sid, u.* FROM sessions s
+       JOIN users u ON u.id = s.user_id WHERE s.id IN (?, ?) AND s.expires_at > ?`,
+      hashed, token, now()
     );
-    if (session) {
-      c.set("sessionId", session.sid);
-      c.set("user", {
-        id: session.id,
-        created_at: session.created_at,
-        is_guest: session.is_guest,
-        recovery_email: session.recovery_email,
-        email_domain: session.email_domain,
-        verified_student: session.verified_student,
-        has_passkey: session.has_passkey,
-        has_recovery: session.has_recovery,
-        over_18: session.over_18,
-      });
+    if (row) {
+      if (row.sid === token) await run(db, "UPDATE sessions SET id = ? WHERE id = ?", hashed, token); // upgrade legacy row
+      c.set("sessionId", hashed);
+      c.set("user", userFromRow(row));
       return;
     }
   }
+  c.set("user", null);
+  if (!create) return;
 
-  // First visit: mint guest user + session.
-  const { newId } = await import("./db.js");
+  const ip = c.req.header("cf-connecting-ip") || "local";
+  if ((await bump(db, `guest:ip:${ip}`, GUEST_WINDOW_MS)) > GUESTS_PER_IP) {
+    throw new HttpError(429, "Too many new visitors from this network. Wait a few minutes and try again.", "throttled");
+  }
   const userId = newId();
-  const sessionId = newToken();
   const ts = now();
-  await db.batch([
-    db.prepare(
-      `INSERT INTO users (id, created_at, is_guest) VALUES (?, ?, 1)`
-    ).bind(userId, ts),
-    db.prepare(
-      `INSERT INTO sessions (id, user_id, created_at, expires_at, user_agent)
-       VALUES (?, ?, ?, ?, ?)`
-    ).bind(sessionId, userId, ts, ts + SESSION_MS, c.req.header("user-agent")?.slice(0, 200) || null),
-  ]);
-  setCookie(c, COOKIE, sessionId, baseCookie(c));
-  c.set("sessionId", sessionId);
+  await run(db, "INSERT INTO users (id, created_at, is_guest) VALUES (?, ?, 1)", userId, ts);
+  await createSession(c, db, userId);
   c.set("user", { id: userId, created_at: ts, is_guest: 1 });
 }
 
-// Refresh sliding expiry periodically (only if >30 days left).
-export async function touchSession(c, db) {
+export async function endSession(c, db) {
   const sid = c.get("sessionId");
-  if (!sid) return;
-  const s = await one(db, "SELECT expires_at FROM sessions WHERE id = ?", sid);
-  if (s && s.expires_at - now() < SESSION_MS / 12) {
-    await run(db, "UPDATE sessions SET expires_at = ? WHERE id = ?", now() + SESSION_MS, sid);
-    setCookie(c, COOKIE, sid, baseCookie(c));
-  }
+  if (sid) await run(db, "DELETE FROM sessions WHERE id = ?", sid);
+  deleteCookie(c, COOKIE, { path: "/", secure: isSecure(c) });
 }
 
-export function endSession(c, db) {
-  const sid = c.get("sessionId");
-  if (sid) run(db, "DELETE FROM sessions WHERE id = ?", sid);
-  deleteCookie(c, COOKIE, { path: "/", secure: secure(c) });
-}
+const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 
-// Hono middleware factory.
+// Hono middleware. Reads never create users; writes do (as a guest).
 export const sessionMiddleware = (envName = "DB") => async (c, next) => {
-  await ensureSession(c, c.env[envName]);
+  await ensureSession(c, c.env[envName], { create: !SAFE.has(c.req.method) });
   await next();
 };
 
+/** The signed-in (or guest) user, or a 401. */
 export function requireUser(c) {
   const u = c.get("user");
-  if (!u) return c.json({ error: "no session" }, 401);
+  if (!u) throw new HttpError(401, "Please sign in or make a card first.", "no_session");
   return u;
 }

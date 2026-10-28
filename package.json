@@ -16,7 +16,11 @@
     "import:local": "node scripts/import-v2.mjs --local",
     "import:remote": "node scripts/import-v2.mjs --remote",
     "smoke:events": "node scripts/smoke-events.mjs",
-    "migrate:kv": "node scripts/migrate-kv.mjs"
+    "migrate:kv": "node scripts/migrate-kv.mjs",
+    "test:security": "node test/security.mjs",
+    "test:features": "node test/features.mjs",
+    "test:vue": "node test/vuecheck.mjs",
+    "test": "node test/security.mjs && node test/features.mjs && node test/vuecheck.mjs"
   },
   "dependencies": {
     "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",

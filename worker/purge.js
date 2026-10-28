@@ -61,7 +61,18 @@ export async function purgeExpired(env, ts = Date.now()) {
   await run(db, "DELETE FROM sessions WHERE expires_at < ?", ts);
   await run(db, "DELETE FROM login_codes WHERE expires_at < ?", ts);
   await run(db, "DELETE FROM org_invites WHERE expires_at < ?", ts);
-  await run(db, "DELETE FROM rate_limits WHERE window_start < ?", ts - DAY);
+  await run(db, "DELETE FROM rate_limits WHERE window_start < ?", ts - 2 * DAY);
+  await run(db, "DELETE FROM webauthn_challenges WHERE expires_at < ?", ts);
+
+  // Feedback: free-text answers are removed after 12 months; the anonymous
+  // ratings and choices stay for the host's year-on-year comparison.
+  const oldText = await all(db,
+    "SELECT id, answers FROM feedback_responses WHERE day < ? AND answers LIKE '%\"text\":{\"%' LIMIT 500", ts - SELFIE_MAX_AGE);
+  for (const r of oldText) {
+    const a = typeof r.answers === "string" ? JSON.parse(r.answers) : r.answers;
+    await run(db, "UPDATE feedback_responses SET answers = ? WHERE id = ?", JSON.stringify({ closed: a?.closed || {}, text: {} }), r.id);
+  }
+  out.feedbackText = oldText.length;
   await run(db, "DELETE FROM card_notes WHERE redeemed_at IS NULL AND created_at < ?", ts - DAY);
 
   // Guests who never made a profile and have no live session.

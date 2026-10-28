@@ -4,10 +4,12 @@ import { Api } from "../lib/api";
 import { buildIndex, search, suggest, terms } from "../lib/search";
 import Icon from "../components/Icon.vue";
 import Avatar from "../components/Avatar.vue";
+import { relativeDay as relDay } from "../lib/time";
 
 const rows = ref([]);
 const query = ref("");
 const loading = ref(true);
+const loadError = ref("");
 // Set when the person chose "Search instead for…" on a corrected query.
 const exact = ref(false);
 
@@ -15,6 +17,8 @@ onMounted(async () => {
   try {
     const data = await Api.connections();
     rows.value = data.connections;
+  } catch (e) {
+    loadError.value = e.message || "Couldn't load your connections.";
   } finally {
     loading.value = false;
   }
@@ -22,7 +26,24 @@ onMounted(async () => {
 
 watch(query, () => { exact.value = false; });
 
-const index = computed(() => buildIndex(rows.value));
+// Filters sit on top of search: to follow up, one of your tags, or an event.
+const filter = ref("all");
+const needsFollowUp = (r) => r.remindAt && !r.followedUpAt;
+const myTags = computed(() => [...new Set(rows.value.flatMap((r) => r.myTags || []))].sort());
+const events = computed(() => {
+  const seen = new Map();
+  for (const r of rows.value) if (r.eventId && r.eventName && !seen.has(r.eventId)) seen.set(r.eventId, r.eventName);
+  return [...seen].map(([id, name]) => ({ id, name }));
+});
+const followCount = computed(() => rows.value.filter(needsFollowUp).length);
+const filteredRows = computed(() => {
+  const f = filter.value;
+  if (f === "followup") return rows.value.filter(needsFollowUp).sort((a, b) => a.remindAt - b.remindAt);
+  if (f.startsWith("tag:")) return rows.value.filter((r) => (r.myTags || []).includes(f.slice(4)));
+  if (f.startsWith("event:")) return rows.value.filter((r) => r.eventId === f.slice(6));
+  return rows.value;
+});
+const index = computed(() => buildIndex(filteredRows.value));
 const typed = computed(() => terms(query.value));
 const typedResults = computed(() => search(index.value, typed.value));
 
@@ -53,16 +74,40 @@ const fmt = (t) =>
              aria-label="Search people" autocomplete="off" spellcheck="false" />
     </div>
 
+    <div v-if="rows.length && (followCount || myTags.length || events.length)" class="chip-row" role="group" aria-label="Filter people">
+      <button type="button" class="chip chip-toggle" :class="{ on: filter === 'all' }" :aria-pressed="filter === 'all'" @click="filter = 'all'">All</button>
+      <button v-if="followCount" type="button" class="chip chip-toggle" :class="{ on: filter === 'followup' }"
+              :aria-pressed="filter === 'followup'" @click="filter = 'followup'">To follow up · {{ followCount }}</button>
+      <button v-for="t in myTags" :key="t" type="button" class="chip chip-toggle" :class="{ on: filter === 'tag:' + t }"
+              :aria-pressed="filter === 'tag:' + t" @click="filter = 'tag:' + t">{{ t }}</button>
+      <div v-if="events.length" class="select-wrap" style="min-width:160px">
+        <select :value="filter.startsWith('event:') ? filter : ''" aria-label="Filter by event"
+                @change="filter = $event.target.value || 'all'">
+          <option value="">Any event</option>
+          <option v-for="e in events" :key="e.id" :value="'event:' + e.id">{{ e.name }}</option>
+        </select>
+      </div>
+    </div>
+
     <p v-if="correction" class="small search-fix" role="status">
       Showing results for <button type="button" class="link-btn search-term" @click="query = correction.text">{{ correction.text }}</button>.
       <span class="muted">Search instead for&nbsp;</span><button type="button" class="link-btn" @click="searchInstead">{{ query.trim() }}</button>
     </p>
 
     <p v-if="loading" class="muted">Loading…</p>
+    <div v-else-if="loadError" class="empty stack" role="alert">
+      <span class="label">Couldn't load your connections</span>
+      <p>{{ loadError }}</p>
+      <p class="small muted">Your connections are safe. This is a loading problem, not missing data.</p>
+    </div>
     <div v-else-if="!rows.length" class="empty stack">
       <span class="label">No connections yet</span>
       <p>Scan someone's card at an event and they'll be remembered here, with the selfie and where you met.</p>
       <router-link to="/app/scan" class="btn btn-primary" style="margin-top:8px">Scan a card</router-link>
+    </div>
+    <div v-else-if="!results.length && !query.trim()" class="empty stack" role="status">
+      <span class="label">No one here</span>
+      <p>Nobody matches this filter. <button type="button" class="link-btn" @click="filter = 'all'">Show everyone</button></p>
     </div>
     <div v-else-if="!results.length" class="empty stack" role="status">
       <span class="label">No one matches “{{ query.trim() }}”</span>
@@ -82,6 +127,7 @@ const fmt = (t) =>
           <span class="small muted" style="display:block">
             {{ [r.peer.course, r.peer.uni].filter(Boolean).join(" · ") || r.peer.headline }}
           </span>
+          <span v-if="needsFollowUp(r)" class="small" style="display:block;color:var(--strap-deep);font-weight:700">Follow up {{ relDay(r.remindAt) }}</span>
           <span v-if="hint" class="small search-hint">
             <span class="label">{{ hint.label }}</span>
             <template v-for="(p, i) in hint.parts" :key="i"><mark v-if="p.hit">{{ p.text }}</mark><template v-else>{{ p.text }}</template></template>

@@ -35,6 +35,7 @@ function fieldsOf(r) {
     ["Card", [p.cardName, p.cardNote].filter(Boolean).join(" — ")],
     ["Met at", r.eventName],
     ["Your note", r.note],
+    ["Your tags", (r.myTags || []).join(" · ")],
   ].filter(([, v]) => v && String(v).trim());
 }
 

@@ -1,38 +1,54 @@
 // Passkey (WebAuthn) registration/login via SimpleWebAuthn.
-// Challenge state lives in KV-free D1 table? We piggyback on the sessions row
-// via a tiny auth_challenges table created lazily in schema — instead we keep
-// challenges in a signed cookie so no extra table is needed.
+//
+// Challenges are kept server-side (webauthn_challenges), single use and short
+// lived. The browser only holds an opaque id in a cookie. The expected origin
+// and RP ID always come from server config, never from anything the client
+// sends, so a forged cookie can't make the server accept a replayed or
+// cross-site assertion.
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
-import { getCookie, setCookie } from "hono/cookie";
-import { newId, now, one, run, all } from "./db.js";
+import { getCookie, setCookie, deleteCookie } from "hono/cookie";
+import { newId, newToken, now, one, run, all } from "./db.js";
+import { createSession, requireUser, HttpError } from "./session.js";
 
 const CHALLENGE_COOKIE = "lanyard_ch";
+const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 function rpConfig(c) {
   const origin = c.env.APP_ORIGIN || new URL(c.req.url).origin;
   const rpId = c.env.RP_ID || new URL(c.req.url).hostname;
-  return { origins: origin.split(",").map((s) => s.trim()), rpId };
+  return { origins: origin.split(",").map((s) => s.trim()).filter(Boolean), rpId };
 }
 
-function setChallenge(c, payload) {
-  const data = btoa(JSON.stringify(payload));
-  setCookie(c, CHALLENGE_COOKIE, data, {
-    httpOnly: true, sameSite: "Lax", secure: c.req.url.startsWith("https://"), path: "/", maxAge: 600,
+async function setChallenge(c, challenge, userId = null) {
+  const db = c.env.DB;
+  const id = newToken();
+  const ts = now();
+  await run(db, "DELETE FROM webauthn_challenges WHERE expires_at < ?", ts);
+  await run(db, "INSERT INTO webauthn_challenges (id, challenge, user_id, expires_at) VALUES (?, ?, ?, ?)",
+    id, challenge, userId, ts + CHALLENGE_TTL_MS);
+  setCookie(c, CHALLENGE_COOKIE, id, {
+    httpOnly: true, sameSite: "Strict", secure: c.req.url.startsWith("https://"), path: "/api/passkey", maxAge: CHALLENGE_TTL_MS / 1000,
   });
 }
-function readChallenge(c) {
-  const raw = getCookie(c, CHALLENGE_COOKIE);
-  if (!raw) return null;
-  try { return JSON.parse(atob(raw)); } catch { return null; }
+
+// Consumes the challenge: it can be used once, by the browser it was issued to.
+async function takeChallenge(c, userId = null) {
+  const id = getCookie(c, CHALLENGE_COOKIE);
+  deleteCookie(c, CHALLENGE_COOKIE, { path: "/api/passkey" });
+  if (!id || !/^[0-9a-f]{32}$/.test(id)) throw new HttpError(400, "That sign-in attempt expired. Try again.");
+  const row = await one(c.env.DB,
+    "DELETE FROM webauthn_challenges WHERE id = ? AND expires_at > ? RETURNING challenge, user_id", id, now());
+  if (!row || (userId && row.user_id !== userId)) throw new HttpError(400, "That sign-in attempt expired. Try again.");
+  return row.challenge;
 }
 
 export async function registerOptions(c, db) {
-  const user = c.get("user");
+  const user = requireUser(c);
   const creds = await all(
     db,
     "SELECT credential_id AS id FROM webauthn_credentials WHERE user_id = ?",
@@ -50,21 +66,21 @@ export async function registerOptions(c, db) {
     excludeCredentials: creds.map((r) => ({ id: r.id })),
     authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
   });
-  setChallenge(c, { ch: options.challenge, origins, rpId });
+  await setChallenge(c, options.challenge, user.id);
   return options;
 }
 
 export async function registerVerify(c, db, body) {
-  const user = c.get("user");
-  const ch = readChallenge(c);
-  if (!ch) throw Object.assign(new Error("challenge expired"), { status: 400 });
+  const user = requireUser(c);
+  const challenge = await takeChallenge(c, user.id);
+  const { origins, rpId } = rpConfig(c);
   const verification = await verifyRegistrationResponse({
     response: body,
-    expectedChallenge: ch.ch,
-    expectedOrigin: ch.origins,
-    expectedRPID: ch.rpId,
-  });
-  if (!verification.verified) throw Object.assign(new Error("verification failed"), { status: 400 });
+    expectedChallenge: challenge,
+    expectedOrigin: origins,
+    expectedRPID: rpId,
+  }).catch(() => ({ verified: false }));
+  if (!verification.verified) throw new HttpError(400, "That passkey couldn't be verified. Try again.");
   const reg = verification.registrationInfo;
   await run(
     db,
@@ -89,51 +105,34 @@ export async function loginOptions(c, db) {
     rpID: rpId,
     userVerification: "preferred",
   });
-  setChallenge(c, { ch: options.challenge, origins, rpId });
+  await setChallenge(c, options.challenge);
   return options;
 }
 
 // Discoverable-credential login: the authenticator returns the user handle.
 export async function loginVerify(c, db, body) {
-  const ch = readChallenge(c);
-  if (!ch) throw Object.assign(new Error("challenge expired"), { status: 400 });
+  const challenge = await takeChallenge(c);
+  const { origins, rpId } = rpConfig(c);
 
-  const credId = body.id;
-  const record = await one(
-    db,
-    "SELECT * FROM webauthn_credentials WHERE credential_id = ?",
-    credId
-  );
-  if (!record) throw Object.assign(new Error("unknown passkey"), { status: 404 });
+  const record = await one(db, "SELECT * FROM webauthn_credentials WHERE credential_id = ?", String(body?.id || ""));
+  if (!record) throw new HttpError(404, "That passkey isn't registered here.");
 
   const verification = await verifyAuthenticationResponse({
     response: body,
-    expectedChallenge: ch.ch,
-    expectedOrigin: ch.origins,
-    expectedRPID: ch.rpId,
+    expectedChallenge: challenge,
+    expectedOrigin: origins,
+    expectedRPID: rpId,
     credential: {
       id: record.credential_id,
       publicKey: record.public_key,
       counter: record.counter,
       transports: record.transports || [],
     },
-  });
-  if (!verification.verified) throw Object.assign(new Error("verification failed"), { status: 400 });
+  }).catch(() => ({ verified: false }));
+  if (!verification.verified) throw new HttpError(400, "That passkey couldn't be verified. Try again.");
 
-  await run(
-    db,
-    "UPDATE webauthn_credentials SET counter = ? WHERE id = ?",
-    verification.authenticationInfo.newCounter,
-    record.id
-  );
-  // Hand back to the session layer: import lazily to avoid a cycle.
-  const { newToken } = await import("./db.js");
-  const sid = newToken();
-  const ts = now();
-  await run(
-    db,
-    "INSERT INTO sessions (id, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)",
-    sid, record.user_id, ts, ts + 365 * 864e5, c.req.header("user-agent")?.slice(0, 200) || null
-  );
-  return { userId: record.user_id, sid };
+  await run(db, "UPDATE webauthn_credentials SET counter = ? WHERE id = ?",
+    verification.authenticationInfo.newCounter, record.id);
+  await createSession(c, db, record.user_id);
+  return { userId: record.user_id };
 }

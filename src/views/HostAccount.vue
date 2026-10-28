@@ -21,6 +21,7 @@ async function load() {
   try {
     me.value = await Api.hostMe();
     team.value = await Api.hostTeam();
+    loadInteg();
   } catch (e) {
     if (e.code === "account_required") needsAccount.value = true;
     else error.value = e.message;
@@ -89,6 +90,43 @@ async function join() {
   try { await Api.hostJoin(joinCode.value); router.push("/host"); }
   catch (e) { error.value = e.message; }
 }
+
+// ----- integrations (owner only) -----
+const integ = ref(null);
+const hookUrl = ref("");
+const hookSecret = ref("");
+const apiKey = ref("");
+const integMsg = ref("");
+async function loadInteg() {
+  if (team.value?.role !== "owner") return;
+  try { integ.value = await Api.hostIntegrations(); hookUrl.value = integ.value.webhookUrl || ""; } catch { /* not owner */ }
+}
+async function saveHook() {
+  error.value = ""; integMsg.value = ""; hookSecret.value = "";
+  try { hookSecret.value = (await Api.hostSetWebhook(hookUrl.value)).secret; await loadInteg(); }
+  catch (e) { error.value = e.message; }
+}
+async function removeHook() {
+  await Api.hostRemoveWebhook(); hookSecret.value = ""; hookUrl.value = ""; await loadInteg();
+}
+async function testHook() {
+  error.value = ""; integMsg.value = "";
+  try {
+    const r = await Api.hostTestWebhook();
+    integMsg.value = r.ok ? `Test sent. Your endpoint replied ${r.status}.` : `Your endpoint didn't accept it${r.status ? ` (HTTP ${r.status})` : ""}.`;
+  } catch (e) { error.value = e.message; }
+}
+async function newKey() {
+  error.value = "";
+  if (integ.value?.hasApiKey && !confirm("Make a new key? The old one stops working straight away.")) return;
+  try { apiKey.value = (await Api.hostNewApiKey()).key; await loadInteg(); }
+  catch (e) { error.value = e.message; }
+}
+async function removeKey() {
+  await Api.hostRemoveApiKey(); apiKey.value = ""; await loadInteg();
+}
+const curlExample = () =>
+  `curl -X POST ${integ.value?.rsvpEndpoint} \\\n  -H "Authorization: Bearer ${apiKey.value || "lyk_…"}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"eventCode":"ABC12","count":120}'`;
 
 async function signOut() {
   await Api.logout();
@@ -167,6 +205,55 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
         </div>
       </section>
 
+      <section v-if="integ" class="panel stack-2" aria-labelledby="integ-h">
+        <h2 id="integ-h">Integrations</h2>
+        <p class="small muted" style="margin:0">
+          Connect Lanyard to Luma, Google Sheets, Slack and others through Zapier or Make, or your own server.
+          Only totals are ever sent: no names, emails or who connected with whom.
+        </p>
+
+        <div class="stack">
+          <span class="label">Webhook: when you end an event</span>
+          <p class="small muted" style="margin:0">
+            We POST check-in, connection and feedback totals to this address, signed with a secret
+            (header <code>Lanyard-Signature: t=…,v1=HMAC-SHA256(secret, "t.body")</code>).
+          </p>
+          <form class="row" @submit.prevent="saveHook">
+            <label for="hook-url" class="visually-hidden">Webhook address</label>
+            <input id="hook-url" v-model="hookUrl" type="url" inputmode="url" placeholder="https://hooks.zapier.com/…" style="flex:1" />
+            <button class="btn" style="width:auto" type="submit">{{ integ.hasWebhook ? "Update" : "Save" }}</button>
+          </form>
+          <div v-if="hookSecret" class="notice small stack">
+            <span>Signing secret. Shown once, so copy it into your Zap or server now:</span>
+            <code style="word-break:break-all">{{ hookSecret }}</code>
+            <button class="btn" type="button" @click="copy(hookSecret)">Copy secret</button>
+          </div>
+          <div v-if="integ.hasWebhook" class="btn-row">
+            <button class="btn" type="button" @click="testHook">Send a test</button>
+            <button class="btn btn-danger" type="button" @click="removeHook">Remove</button>
+          </div>
+          <p v-if="integMsg" class="small" role="status">{{ integMsg }}</p>
+        </div>
+
+        <div class="stack">
+          <span class="label">API key: send us your sign-up count</span>
+          <p class="small muted" style="margin:0">
+            Let Zapier (or a script) update an event's sign-ups from Luma or the Union site, so your report shows turnout.
+            Send a number, never a guest list.
+          </p>
+          <div v-if="apiKey" class="notice small stack">
+            <span>Your API key. Shown once, so store it somewhere safe:</span>
+            <code style="word-break:break-all">{{ apiKey }}</code>
+            <button class="btn" type="button" @click="copy(apiKey)">Copy key</button>
+          </div>
+          <pre v-if="integ.hasApiKey || apiKey" class="small code-block">{{ curlExample() }}</pre>
+          <div class="btn-row">
+            <button class="btn" type="button" @click="newKey">{{ integ.hasApiKey ? "Replace key" : "Create API key" }}</button>
+            <button v-if="integ.hasApiKey" class="btn btn-danger" type="button" @click="removeKey">Revoke</button>
+          </div>
+        </div>
+      </section>
+
       <section id="join" class="panel stack">
         <span class="label">Join a team</span>
         <p class="small muted">Got an invite code from a colleague? Enter it to work in their organisation instead of your own.</p>
@@ -184,3 +271,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
   </div>
 </template>
+
+<style scoped>
+.code-block { margin: 0; padding: 10px; border: var(--border); border-radius: var(--radius); background: var(--paper); overflow-x: auto; white-space: pre; }
+</style>

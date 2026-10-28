@@ -128,5 +128,6 @@ export async function recordMiss(db, keys) {
       ).bind(k, ts, since, since, ts)
     )
   );
-  await run(db, "DELETE FROM rate_limits WHERE window_start < ?", ts - 6 * MISS_WINDOW_MS);
+  // Tidy only short-lived throttle keys; longer windows (guest:, day:) are cleared by the daily purge.
+  await run(db, "DELETE FROM rate_limits WHERE window_start < ? AND (key LIKE 'code:%' OR key LIKE 'auth:%')", ts - 6 * MISS_WINDOW_MS);
 }
