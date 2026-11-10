@@ -5,7 +5,7 @@ tags: [technical, api]
 
 Grouped from route definitions in `worker/*.js`. All under `/api` unless noted.
 
-**Session and account:** `GET /me`, `POST /logout`, `POST /terms/accept`, `GET /account/export`, `DELETE /account`, `POST /account/email`, `/account/email/confirm`, `/account/event-emails`, `/account/marketing`, `GET /auth/sessions`, `POST /auth/signout-others`
+**Session and account:** `GET /me`, `POST /logout`, `POST /terms/accept`, `GET /account/export`, `DELETE /account`, `POST /account/email`, `/account/email/confirm`, `/account/event-emails`, `/account/marketing`, `GET /auth/sessions` (each device has an opaque `id`), `POST /auth/signout-others`, `DELETE /auth/sessions/:id` (one of your own other devices; someone else's or a made-up id is 404, this device is 400)
 
 **Sign-in:** passkey register/login (`/passkey/...`), email (`/auth/email/start`, `/verify`), TOTP (`/auth/totp/setup`, `/confirm`, `/redeem`, `DELETE`), recovery (`/auth/recovery`, `/recovery/redeem`), `POST /auth/redeem`, `/auth/link`
 

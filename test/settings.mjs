@@ -18,9 +18,11 @@ check("the query string is kept", JSON.stringify(settingsRedirect(to("/app/setti
 check("no hash, an unknown hash or another path is left alone",
   settingsRedirect(to("/app/settings")) === null && settingsRedirect(to("/app/settings", "#nope")) === null && settingsRedirect(to("/app/settings/plan", "#plus")) === null);
 const router = read("src/router/index.js");
-check("the router applies the redirect before anything waits on /api/me", router.indexOf("settingsRedirect(to)") > 0 && router.indexOf("settingsRedirect(to)") < router.indexOf("await ensureMe()"));
+const layout0 = read("src/views/Settings.vue");
+check("the Settings layout applies the redirect, and the router (loaded by every public page) does not import it or the pages",
+  /settingsRedirect\(route\)/.test(layout0) && !/settingsRedirect|views\/settings\//.test(router));
 const routes = ["account", "security", "notifications", "privacy", "plan", "appearance", "help"];
-check("every redirect target is a real settings route", Object.values(SETTINGS_HASHES).every((p) => routes.includes(p.split("/").pop()) && router.includes(`path: "${p.split("/").pop()}"`)));
+check("every redirect target is a real settings page", Object.values(SETTINGS_HASHES).every((p) => routes.includes(p.split("/").pop()) && layout0.includes(`${p.split("/").pop()}: { title:`)));
 
 const stale = [];
 const walk = (d) => { for (const e of readdirSync(new URL("../" + d, import.meta.url), { withFileTypes: true })) {
@@ -32,9 +34,9 @@ check("no link in src/ or worker/ still uses a /app/settings#section anchor", st
 check("emails point at the Sign-in and devices page", read("worker/alerts.js").includes("/app/settings/security") && read("worker/mail.js").includes("/app/settings/security"));
 
 console.log("\n# The pages");
-for (const r of routes) check(`/app/settings/${r} exists and has a title`, new RegExp(`path: "${r}", component: Settings[A-Za-z]+, meta: [{] title: "[^"]+" [}]`).test(router));
-check("Settings is a nested route with a list at its root", /path: "\/app\/settings", component: Settings,[\s\S]*children:[\s\S]*path: "", component: SettingsPick/.test(router));
-const layout = read("src/views/Settings.vue");
+check("Settings is one route, /app/settings/:page?, so the pages add nothing to the router", /path: "\/app\/settings\/:page\?", component: Settings,/.test(router) && !/Settings(Account|Security|Notifications|Privacy|Plan|Appearance|Help)/.test(router));
+for (const r of routes) check(`/app/settings/${r} is a page with a title and a file`, new RegExp(`${r}: [{] title: "[^"]+", load: [(][)] => import[(]"[.]/settings/Settings[A-Za-z]+[.]vue"[)] [}]`).test(layout0));
+const layout = layout0;
 check("every category is a row in the list", routes.every((r) => layout.includes(`to: "/app/settings/${r}"`)));
 check("Log out is at the bottom of the list, uses signOutAndReload and keeps the unsaved warning",
   layout.includes("signOutAndReload(") && layout.includes("Your card isn't saved yet") && layout.indexOf('class="settings-nav"') < layout.indexOf("@click=\"logout\""));

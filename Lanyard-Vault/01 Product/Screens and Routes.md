@@ -19,6 +19,8 @@ From `src/router/index.js`. All views are code-split so public pages stay light 
 ## Attendee app (`/app`, bottom tabs: My Card, Scan, People)
 `/app`, `/app/cards`, `/app/profile`, `/app/scan`, `/app/people`, `/app/people/:id`, `/app/events`, `/app/events/:id`, `/app/settings`, `/app/feedback/:eventId`
 
+**Settings** (F09) is a list of categories, each its own page: `/app/settings/account`, `/security` (Sign-in and devices), `/notifications` (Email and notifications), `/privacy` (Privacy and data), `/plan`, `/appearance` (Appearance and app), `/help` (Help and legal). Log out sits under the list. Phones show the list, then one page with a "‹ Settings" back link; from 900 px the list stays on the left. It is one route, `/app/settings/:page?`; `Settings.vue` loads the page. Old `/app/settings#plus`, `#signin` and `#install` links redirect to `/plan`, `/security` and `/appearance`. Emails about sign-in link to `/app/settings/security`.
+
 ## Host portal
 `/host` (dashboard), `/host/events/:id` (live), `/host/billing`, `/host/account`, `/host/signout` (signs out and reloads to the host home), `/admin`
 

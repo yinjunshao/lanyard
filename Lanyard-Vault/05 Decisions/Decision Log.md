@@ -7,6 +7,7 @@ Newest context first. Each decision has its own note (context, decision, consequ
 
 | ID | Decision | Status |
 | --- | --- | --- |
+| [[D019 Settings pages load from the layout, not the router]] | One `/app/settings/:page?` route; `Settings.vue` loads each page, so public pages load no extra route code | Accepted |
 | [[D018 Hand-built pickers outside the shared Vue chunk]] | Custom pickers by hand; no Teleport, `useId`, `<slot>` or `defineAsyncComponent` where public pages would pay | Accepted |
 | [[D017 Use academic network for pilot access]] | Ask professor for intros, access, resources | Proposed |
 | [[D016 Rotating card codes]] | Codes rotate every 3 days | Accepted |

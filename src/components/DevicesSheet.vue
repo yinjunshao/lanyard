@@ -60,6 +60,7 @@ onMounted(load);
 
 <template>
   <div v-if="loaded && sessions.length" class="stack">
+    <p class="small muted">See where you are signed in, and sign out any device you don't recognise.</p>
     <button ref="trigger" type="button" class="btn" aria-haspopup="dialog" @click="openSheet">Signed-in devices ({{ sessions.length }})</button>
     <p v-if="note" class="success-text small" role="status">{{ note }}</p>
     <UiSheet :open="open" :anchor="trigger" label="Signed-in devices" fit @close="close">
@@ -69,7 +70,8 @@ onMounted(load);
             <button v-for="s in sessions" :key="s.id" type="button" class="list-row spread" @click="show(s.id)">
               <span>
                 <strong>{{ s.device }}</strong><br />
-                <span class="small muted">First signed in {{ when(s.at) }}<template v-if="s.current"> · <strong>This device</strong></template></span>
+                <span v-if="s.current" class="small"><strong>This device</strong><br /></span>
+                <span class="small muted">First signed in {{ when(s.at) }}</span>
               </span>
               <span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
             </button>
@@ -94,6 +96,8 @@ onMounted(load);
 </template>
 
 <style>
+.devices-sheet button.list-row { border: 0; color: inherit; }
+.devices-sheet button.list-row:not(:last-child) { border-bottom: var(--border); }
 .devices-details { margin: 0; display: grid; gap: 2px; }
 .devices-details dd { margin: 0 0 8px; }
 </style>

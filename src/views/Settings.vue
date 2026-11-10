@@ -2,15 +2,48 @@
 // Settings: a short list of categories, each on its own page (F09). Phones show the
 // list, then one page with a back link; from 900 px the list stays on the left and
 // the page shows on the right. Later features add rows inside the pages, not here.
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { useRoute } from "vue-router";
+//
+// One route (/app/settings/:page?) serves the list and every page. The pages are
+// loaded here, not in the router, so they add nothing to the entry file that every
+// public page loads (D018).
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { me, refreshMe, signOutAndReload } from "../lib/store";
 import Icon from "../components/Icon.vue";
 import { SETTINGS_ICONS } from "./settings/icons";
 import { getThemePref } from "../lib/theme";
+import { settingsRedirect } from "../router/settingsRedirect";
+
+const PAGES = {
+  account: { title: "Account", load: () => import("./settings/SettingsAccount.vue") },
+  security: { title: "Sign-in and devices", load: () => import("./settings/SettingsSecurity.vue") },
+  notifications: { title: "Email and notifications", load: () => import("./settings/SettingsNotifications.vue") },
+  privacy: { title: "Privacy and data", load: () => import("./settings/SettingsPrivacy.vue") },
+  plan: { title: "Plan", load: () => import("./settings/SettingsPlan.vue") },
+  appearance: { title: "Appearance and app", load: () => import("./settings/SettingsAppearance.vue") },
+  help: { title: "Help and legal", load: () => import("./settings/SettingsHelp.vue") },
+};
 
 const route = useRoute();
-const isIndex = computed(() => !route.meta.title);
+const router = useRouter();
+
+// Old #plus, #signin and #install links land on the page that holds them.
+const moved = computed(() => settingsRedirect(route));
+watch(moved, (m) => { if (m) router.replace(m); }, { immediate: true });
+const key = computed(() => (Object.hasOwn(PAGES, route.params.page) ? route.params.page : ""));
+const isIndex = computed(() => !key.value);
+// An address we don't have (/app/settings/nope) shows the list.
+watch(() => route.params.page, (p) => { if (p && !Object.hasOwn(PAGES, p)) router.replace("/app/settings"); }, { immediate: true });
+
+// The open page's component is kept outside Vue's reactivity; `loaded` says when to redraw.
+const components = {};
+const loaded = ref(0);
+watch(key, async (k) => {
+  if (!k || components[k]) return;
+  components[k] = (await PAGES[k].load()).default;
+  loaded.value++;
+}, { immediate: true });
+const Page = computed(() => (loaded.value, components[key.value] || null));
 
 // The Appearance page announces a change, so the summary here stays right on wide screens.
 const themePref = ref(getThemePref());
@@ -38,7 +71,7 @@ async function logout() {
 </script>
 
 <template>
-  <div class="settings" :class="{ 'is-index': isIndex }">
+  <div v-if="!moved" class="settings" :class="{ 'is-index': isIndex }">
     <nav class="settings-nav" aria-label="Settings">
       <h1>Settings</h1>
       <div class="list">
@@ -61,9 +94,10 @@ async function logout() {
     <section class="settings-pane">
       <template v-if="!isIndex">
         <router-link to="/app/settings" class="settings-back link-btn">‹ Settings</router-link>
-        <h2 class="settings-title">{{ route.meta.title }}</h2>
+        <h2 class="settings-title">{{ PAGES[key].title }}</h2>
       </template>
-      <router-view />
+      <component :is="Page" v-if="Page" />
+      <p v-else-if="isIndex" class="muted settings-pick">Choose a setting from the list.</p>
     </section>
   </div>
 </template>
@@ -71,8 +105,9 @@ async function logout() {
 <style>
 .settings { display: block; }
 .settings-nav > * + * { margin-top: calc(var(--space) * 2); }
-.settings-nav h1 { margin-bottom: 0; }
-.settings-row { min-height: 56px; padding-top: 8px; padding-bottom: 8px; color: inherit; text-decoration: none; }
+.settings-nav h1 { margin: 0; }
+.settings-row { min-height: 52px; padding-top: 5px; padding-bottom: 5px; color: inherit; text-decoration: none; }
+button.settings-row { border: 0; color: inherit; }
 .settings-ico { flex: none; color: var(--graphite); }
 .settings-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .settings-row-text .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -91,7 +126,7 @@ async function logout() {
 }
 /* From 900 px: the list on the left, the page on the right. */
 @media (min-width: 900px) {
-  .app-col.is-wide, .topbar.is-wide { max-width: 960px; }
+  .app-col:has(> .settings), .topbar:has(+ .app-col > .settings) { max-width: 960px; }
   .settings { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: calc(var(--space) * 5); align-items: start; }
   .settings-nav { position: sticky; top: 90px; }
   .settings-back { display: none; }
