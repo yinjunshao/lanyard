@@ -73,6 +73,9 @@ myEventsApp.get("/api/my/events/:id", async (c) => {
     me.id, e.id
   );
 
+  // Whether there is anything to choose here (the room, or a named sponsor), so the hub knows to offer it.
+  const sponsors = await one(db, "SELECT COUNT(*) AS n FROM sponsors WHERE event_id = ?", e.id);
+
   // People here: the others who chose to appear in the room, the same people the Room tab lists.
   let roomCount = null;
   if (e.directory_on) {
@@ -94,6 +97,7 @@ myEventsApp.get("/api/my/events/:id", async (c) => {
       id: e.id, code: e.code, name: e.name, venue: e.venue, startsAt: e.starts_at || null,
       endsAt: e.ends_at || null, endedAt: e.ended_at || null,
       theme: e.theme, strapColor: e.strap_color, perks: e.perks || [], directoryOn: !!e.directory_on,
+      hasChoices: !!e.directory_on || sponsors.n > 0,
     },
     status: eventStatus(eventTimes(e), e.checked_in_at, t),
     checkedInAt: e.checked_in_at,

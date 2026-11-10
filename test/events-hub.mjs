@@ -197,4 +197,35 @@ console.log("\n# Events page (source guards)");
   check("the page asks for the list once and tells the tab dot", (page.match(/Api\.myEvents\(\)/g) || []).length === 1 && page.includes("setLive("));
 }
 
+console.log("\n# Event hub (source guards)");
+{
+  const hubSrc = read("src/views/EventDetail.vue");
+  check("the hub asks for its own event, not the whole list", hubSrc.includes("/api/my/events/${encodeURIComponent(id)}") && !/Api\.myEvents|\/api\/my\/events["'`]/.test(hubSrc));
+  check("the hub's request does not add a method to the shared api.js (it is in every page's first load)", !/myEvent\b/.test(read("src/lib/api.js")));
+  check("the back arrow goes to My card, or to the Events list only if you came from it", /router\.push\("\/app"\)/.test(hubSrc) && /history\.state\?\.back === "\/app\/events"/.test(hubSrc) && /aria-label="backLabel\(\)"|:aria-label="backLabel\(\)"/.test(hubSrc));
+  check("the hub has the stats row, People you met here and its empty text", hubSrc.includes("Connections") && hubSrc.includes("Checked in") && hubSrc.includes("People here") && hubSrc.includes("People you met here") && hubSrc.includes("No connections at this event yet. Scan someone's badge to connect."));
+  check("the how-we-met words come from connectedShort, without the event name", /connectedShort\(\{ via: c\.via \}\)/.test(hubSrc));
+  check("the stats show the count the server sent, the same number the list is built from", /\{\{ hub\.connectionCount \}\}/.test(hubSrc) && /hub\.value\?\.connections/.test(hubSrc));
+  check("the hub says plainly when the event is gone", hubSrc.includes("gone") && hubSrc.includes("it has been removed"));
+  check("the room, album and perks tabs are still there", ["Room", "Album", "Perks"].every((t) => hubSrc.includes(`>${t}</button>`)));
+  check("choices open in a sheet, and the sheet is the last child of the root", /<UiSheet[^>]*label="Your choices at this event"/.test(hubSrc) && /<\/UiSheet>\s*<\/div>\s*<\/template>/.test(hubSrc));
+  check("the choices component no longer draws its own panel", !/class="panel/.test(read("src/components/EventChoices.vue")));
+  check("the room tab and the stats keep to tokens (no hard-coded colours)", !/#[0-9a-f]{3,8}\b/i.test(hubSrc.slice(hubSrc.indexOf("<style"))));
+  const routes = read("src/router/routes.attendee.js");
+  check("both pages stay lazy /app routes", /path: "\/app\/events", component: \(\) => import\("\.\.\/views\/Events\.vue"\), meta: \{ app: true \}/.test(routes) && /path: "\/app\/events\/:id", component: \(\) => import\("\.\.\/views\/EventDetail\.vue"\), meta: \{ app: true \}/.test(routes));
+  const entryUsers = ["src/main.js", "src/App.vue", "src/router/index.js", "src/lib/store.js", "src/lib/api.js", "src/lib/profile.js", "src/lib/shell.js"].filter((f) => /eventlive|eventtext|eventstatus/.test(read(f)));
+  check("no shared or entry file imports the events code (it stays in /app chunks)", entryUsers.length === 0, entryUsers);
+}
+
+console.log("\n# Sheet content flag from the API");
+{
+  const hub = (await A.c.get(`/api/my/events/${live.id}`)).json;
+  check("an event with the room on says it has choices", hub.event.hasChoices === true);
+  const quiet = await mkEvent({ name: "No choices", startsAt: t0 - H, endsAt: t0 + H, directoryOn: false });
+  await checkIn(B, quiet);
+  check("an event with the room off and no sponsors has none, so the hub shows no row", (await B.c.get(`/api/my/events/${quiet.id}`)).json.event.hasChoices === false);
+  env.DB.raw.prepare("INSERT INTO sponsors (id, event_id, name, perk) VALUES ('sp-hub', ?, 'Acme', '')").run(quiet.id);
+  check("a named sponsor makes it true", (await B.c.get(`/api/my/events/${quiet.id}`)).json.event.hasChoices === true);
+}
+
 summary();

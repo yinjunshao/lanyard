@@ -1,5 +1,6 @@
 <script setup>
-// Your directory and sponsor choices for one event. Changing your mind is as easy as ticking.
+// Your directory and sponsor choices for one event, shown in a sheet on the event hub (F15).
+// Changing your mind is as easy as ticking.
 import { onMounted, ref } from "vue";
 import { Api } from "../lib/api";
 
@@ -25,8 +26,8 @@ async function save() {
 </script>
 
 <template>
-  <section v-if="choices && (choices.directoryOn || choices.sponsors.length)" class="panel stack">
-    <span class="label">Your choices at this event</span>
+  <div v-if="choices && (choices.directoryOn || choices.sponsors.length)" class="stack">
+    <p class="small muted">Change these any time. Each one takes effect at once.</p>
     <label v-if="choices.directoryOn" class="checkbox-row">
       <input v-model="choices.directory" type="checkbox" @change="save" />
       <span class="small">Show me in the room, to other people who checked in.</span>
@@ -37,5 +38,5 @@ async function save() {
     </label>
     <p v-if="saved" class="success-text small">{{ saved }}</p>
     <p v-if="error" class="error-text small" role="alert">{{ error }}</p>
-  </section>
+  </div>
 </template>
