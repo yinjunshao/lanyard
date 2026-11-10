@@ -42,9 +42,12 @@ const vueFiles = (d) => readdirSync(new URL("../" + d, import.meta.url), { withF
 const native = /<select[\s>]|type="(?:date|datetime-local|time|month|week)"/;
 const left = vueFiles("src").filter((f) => native.test(read(f)));
 check("no <select>, type=date or type=datetime-local is left in src/", left.length === 0, left);
-const pub = read("src/views/PublicCard.vue");
-check("PublicCard does not import the date picker statically", !/^import .*ui\/Ui/m.test(pub) && /import\("\.\.\/components\/ui\/UiDatePicker\.vue"\)/.test(pub));
-check("PublicCard uses the bare date picker", /<component :is="DatePicker"[^>]*bare/.test(pub));
+// The remind-me calendar lives in the "Your connection" panel (CardConnection.vue, its own chunk since F28),
+// which PublicCard loads with a plain import() only for a connected viewer. Neither file may import the pickers statically.
+const pub = read("src/views/PublicCard.vue"), panel = read("src/components/CardConnection.vue");
+check("PublicCard does not import the date picker or the panel statically", !/^import .*ui\/Ui/m.test(pub) && !/^import .*CardConnection/m.test(pub) && /import\("\.\.\/components\/CardConnection\.vue"\)/.test(pub));
+check("the connection panel does not import the date picker statically, it loads it when tapped", !/^import .*ui\/Ui/m.test(panel) && /import\("\.\.\/components\/ui\/UiDatePicker\.vue"\)/.test(panel));
+check("the connection panel uses the bare date picker", /<component :is="DatePicker"[^>]*bare/.test(panel));
 const router = read("src/router/index.js") + read("src/router/routes.attendee.js"); // the main site's route table moved out of index.js in F10
 check("the /ui-test route exists only in development", /import\.meta\.env\.DEV \? \[\{ path: "\/ui-test"/.test(router));
 const sheetCode = read("src/components/ui/UiSheet.vue").replace(/\/\/.*|<!--[\s\S]*?-->/g, "");

@@ -7,7 +7,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
-import { fileToDataUrl } from "../lib/photo";
 import Icon from "./Icon.vue";
 
 const props = defineProps({
@@ -39,6 +38,8 @@ const result = ref(null); // { connectionId, receivedNote }
 async function takeSelfie(e) {
   const file = e.target.files?.[0];
   if (!file) return;
+  // The photo code loads when a photo is picked, not with the card (public-page JS budget, F28).
+  const { fileToDataUrl } = await import("../lib/photo");
   selfieDataUrl.value = await fileToDataUrl(file, 1080);
   consent.value = false;
 }
