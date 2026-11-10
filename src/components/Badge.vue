@@ -1,6 +1,5 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import { drawQR } from "../lib/qr";
 import Avatar from "./Avatar.vue";
 
 const props = defineProps({
@@ -23,7 +22,11 @@ const note = computed(() => (props.view?.note || "").slice(0, 160));
 onMounted(render);
 watch(() => props.url, render);
 async function render() {
-  if (qrCanvas.value) await drawQR(qrCanvas.value, props.url, 272) // drawn at 2x, shown at 136px, so it stays sharp;
+  // The QR library is a chunk of its own, loaded here so the Landing page's first load does not carry it (F28).
+  // Pages that already import ../lib/qr (My card) have it by now, so for them this does not wait.
+  if (!qrCanvas.value) return;
+  const { drawQR } = await import("../lib/qr");
+  if (qrCanvas.value) await drawQR(qrCanvas.value, props.url, 272); // drawn at 2x, shown at 136px, so it stays sharp
 }
 </script>
 
