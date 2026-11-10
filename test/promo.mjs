@@ -75,6 +75,32 @@ check("a switched-off code stops working", (await late.c.post("/api/redeem/SOCMO
 const exp = await admin.post("/api/admin/promos", { code: "OLDCODE", days: 30, expiresAt: Date.now() - 1000 }, A);
 check("an end date in the past is refused", exp.status === 400);
 
+console.log("\n# Lookups are rate-limited");
+const scraper = client({ ip: "10.4.1.1" });
+let lastOk = 0, firstBlock = 0, blocked = null;
+for (let i = 1; i <= 31; i++) {
+  const r = await scraper.get("/api/redeem/FIRST50");
+  if (r.status === 200) lastOk = i;
+  else if (!firstBlock) { firstBlock = i; blocked = r; }
+}
+check("the first 30 lookups in 10 minutes from one IP work", lastOk === 30, lastOk);
+check("the 31st gets a 429 with a friendly message", firstBlock === 31 && blocked.status === 429 && blocked.json.code === "throttled"
+  && /wait/i.test(blocked.json.error) && !/error|exception/i.test(blocked.json.error), blocked?.json);
+check("another IP is not affected", (await client({ ip: "10.4.1.2" }).get("/api/redeem/FIRST50")).status === 200);
+const unknownIp = client({ ip: "10.4.1.3" });
+for (let i = 0; i < 30; i++) await unknownIp.get("/api/redeem/ZZZ" + i);
+check("wrong codes count too: the 31st guess is stopped", (await unknownIp.get("/api/redeem/ZZZ31")).status === 429);
+// The same signed-in person from a fresh IP is limited by their own counter.
+const sameUser = client({ ip: "10.4.1.4" });
+await sameUser.post("/api/profile", { name: "Looker", acceptTerms: true, over18: true });
+let userBlocked = 0;
+for (let i = 1; i <= 31; i++) {
+  const hop = client({ ip: "10.4.2." + i });
+  for (const [k, v] of sameUser.jar) hop.jar.set(k, v);
+  if ((await hop.get("/api/redeem/FIRST50")).status === 429) { userBlocked = i; break; }
+}
+check("one signed-in person hopping between IPs is stopped on lookup 31 as well", userBlocked === 31, userBlocked);
+
 console.log("\n# Your data");
 const ex = await first.c.get("/api/account/export");
 check("the export lists codes you redeemed", Array.isArray(ex.json?.promoCodes) && ex.json.promoCodes.length === 2, ex.json?.promoCodes);

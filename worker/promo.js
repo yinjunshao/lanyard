@@ -11,6 +11,11 @@ import { now, one, run } from "./db.js";
 import { requireUser } from "./session.js";
 import { bump, HOUR } from "./ratelimit.js";
 
+// Looking a code up (hit or miss) is limited per IP and per signed-in person,
+// on top of the stricter limit on wrong guesses below.
+const LOOKUPS = 30;
+const LOOKUP_WINDOW = 10 * 60 * 1000;
+
 export const promoApp = new Hono();
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -47,13 +52,17 @@ promoApp.get("/api/redeem/:code", async (c) => {
   const db = c.env.DB;
   const ip = c.req.header("cf-connecting-ip") || "local";
   const code = normPromo(c.req.param("code"));
+  const u = c.get("user");
+  if ((await bump(db, `promo:look:${ip}`, LOOKUP_WINDOW)) > LOOKUPS
+    || (u && (await bump(db, `promo:look:u:${u.id}`, LOOKUP_WINDOW)) > LOOKUPS)) {
+    return c.json({ error: "That's a lot of lookups. Wait ten minutes and try again.", code: "throttled" }, 429);
+  }
   const row = code ? await one(db, "SELECT * FROM promo_codes WHERE code = ?", code) : null;
   if (!row || !row.active) {
     // Guessing codes is limited per IP.
     if ((await bump(db, `promo:miss:${ip}`, HOUR)) > 30) return c.json({ error: "Too many tries. Wait an hour.", code: "throttled" }, 429);
     return c.json({ error: "That code doesn't exist. Check the spelling.", code: "bad_code" }, 404);
   }
-  const u = c.get("user");
   const r = u ? await one(db, "SELECT * FROM promo_claims WHERE code = ? AND user_id = ?", code, u.id) : null;
   return c.json({ promo: publicView(row), mine: mine(r, row) });
 });
