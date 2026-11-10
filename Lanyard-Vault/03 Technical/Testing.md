@@ -11,6 +11,7 @@ Offline tests run the real Worker against in-memory SQLite (Node 22+, `node:sqli
 | `npm run test:features` | Feedback, reports/CSV, duplicate/edit/end event, webhooks and API keys, follow-ups, tags, retention purge, legacy sessions |
 | `node test/eventmail.mjs` | Event email |
 | `npm run test:vue` | Compiles every `.vue` template and syntax-checks each `<script setup>` |
+| `node test/homepath.mjs` | F02: the signed-in hint, and that every logo uses `homePath()` |
 | `node test/perf.mjs` | DB queries per request on hot paths |
 | `npm test` | Runs security, features, eventmail, vue |
 

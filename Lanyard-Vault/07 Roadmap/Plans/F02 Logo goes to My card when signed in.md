@@ -33,7 +33,7 @@ Every wordmark is a hard-coded `<router-link to="/">`:
 - [x] F02.1 `homePath()` plus the signed-in hint (set, clear on logout/delete, wrapped in try/catch).
 - [x] F02.2 Swap the wordmark links in all files listed above.
 - [x] F02.3 Redirect `/` to `/app` when signed in, with the `?about=1` escape.
-- [ ] F02.4 Test: add cases to `test/vuecheck.mjs` or a small router test; check manually signed in, signed out, and after logout.
+- [x] F02.4 Test: add cases to `test/vuecheck.mjs` or a small router test; check manually signed in, signed out, and after logout.
 
 ## Acceptance checks
 - [x] Signed in: the logo on Privacy, Terms, a public card, Redeem and Hosts opens `/app`.
