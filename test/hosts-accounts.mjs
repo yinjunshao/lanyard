@@ -68,4 +68,50 @@ check("the only DROP is the old billing_requests after its rows are copied, and 
   drops.length === 1 && drops[0] === "DROP TABLE BILLING_REQUESTS" && sql.indexOf("INSERT INTO billing_requests_new") < sql.indexOf("DROP TABLE billing_requests"), drops);
 check("a fresh database gets every migration", (() => { makeDb(); return true; })());
 
+console.log("\n# Reset, option B (full wipe): scripts/reset-hosts.mjs");
+const { COUNT_SQL, LOGO_SQL, SCHEMA_SQL, WIPED, wipeSql, verify } = await import("../scripts/reset-hosts.mjs");
+const rdb = makeDb({ before: "0018" });
+const r = rdb.raw;
+r.exec(fixture);
+const hasSchema = () => r.prepare(SCHEMA_SQL).get().n === 3;
+check("the script refuses a database without migration 0018", !hasSchema());
+r.exec(readMigration(MIGRATION));
+check("…and accepts one with it", hasSchema());
+// Some data on the new model too, as production will have between the deploy and the reset.
+r.exec(`INSERT INTO host_accounts (id, email, full_name, status, created_at) VALUES ('hanew00001', 'new@company.example.com', 'New Host', 'active', 1);
+  INSERT INTO host_sessions (id, host_account_id, created_at, expires_at) VALUES ('hs1', 'hanew00001', 1, 4100000000000);
+  INSERT INTO host_login_codes (email, code_hash, created_at, expires_at) VALUES ('new@company.example.com', 'x', 1, 2);
+  INSERT INTO orgs (id, name, plan, org_type, verification_status, created_at) VALUES ('fxorg00003', 'New Model Ltd', 'starter', 'company', 'approved', 1);
+  INSERT INTO host_org_members (org_id, host_account_id, role, created_at) VALUES ('fxorg00003', 'hanew00001', 'owner', 1);
+  INSERT INTO billing_requests (id, org_id, org_name, host_account_id, sku, quantity, amount_pence, contact_email, status, created_at)
+    VALUES ('fxbill0003', 'fxorg00003', 'New Model Ltd', 'hanew00001', 'standard_1', 1, 1250, 'new@company.example.com', 'open', 1);
+  INSERT INTO rate_limits (key, window_start, count) VALUES ('hmail:e:new@company.example.com', 1, 2), ('guest:ip:x', 1, 3);`);
+const pre = r.prepare(COUNT_SQL).get();
+const billsBeforeReset = r.prepare("SELECT * FROM billing_requests ORDER BY id").all();
+check("the dry-run counts see the host data", pre.orgs === 3 && pre.events === 2 && pre.host_accounts === 1 && pre.host_profiles === 2
+  && pre.billing_requests_kept === 3 && pre.connections_with_event === 1 && pre.cards_with_event === 1 && pre.host_consents === 3, pre);
+check("…and counting changes nothing", JSON.stringify(r.prepare(COUNT_SQL).get()) === JSON.stringify(pre));
+check("sponsor logos in R2 are listed for deleting by hand", r.prepare(LOGO_SQL).all().map((x) => x.logo_key).join() === "event/fxlogo0001.webp");
+r.exec("BEGIN"); r.exec(wipeSql(pre, 1794300000000)); r.exec("COMMIT");
+const post = r.prepare(COUNT_SQL).get();
+check("after the reset every host table is empty", WIPED.every((t) => post[t] === 0), WIPED.filter((t) => post[t] !== 0));
+check("the script's own check passes", verify(pre, post).length === 0, verify(pre, post));
+const billsAfterReset = r.prepare("SELECT * FROM billing_requests ORDER BY id").all();
+check("billing requests are untouched: same rows, amounts, emails and status, with the organisation's name kept",
+  billsAfterReset.length === 3 && billsAfterReset.every((b, i) => ["id", "sku", "quantity", "amount_pence", "contact_email", "status", "created_at", "org_name"].every((k) => b[k] === billsBeforeReset[i][k]))
+  && billsAfterReset.every((b) => b.org_id === null && b.org_name), billsAfterReset);
+check("attendees keep their accounts, cards and connections", post.users_kept === pre.users_kept && post.connections_kept === 1
+  && r.prepare("SELECT COUNT(*) n FROM cards").get().n === 1 && r.prepare("SELECT COUNT(*) n FROM profiles").get().n === 3);
+check("…a connection made at an event loses only the event label", r.prepare("SELECT event_id FROM connections").get().event_id === null && post.cards_with_event === 0);
+check("Host Terms and event consents go; the attendee's own Terms consent stays",
+  post.host_consents === 0 && r.prepare("SELECT scope FROM consents").all().map((x) => x.scope).join() === "terms:2026-10-26");
+check("the consent history (consent_log) is kept", post.consent_log_kept === pre.consent_log_kept && post.consent_log_kept > 0);
+const audit = r.prepare("SELECT * FROM admin_audit WHERE action = 'host_reset'").all();
+check("the reset writes one admin log entry with the counts", audit.length === 1 && JSON.parse(audit[0].detail).counts.orgs === 3 && audit[0].at === 1794300000000, audit);
+check("host rate limits are cleared, others kept", r.prepare("SELECT group_concat(key) k FROM rate_limits").get().k === "guest:ip:x");
+r.exec("PRAGMA foreign_keys = ON;");
+check("no foreign key is left dangling", r.prepare("PRAGMA foreign_key_check").all().length === 0, r.prepare("PRAGMA foreign_key_check").all());
+r.exec("BEGIN"); r.exec(wipeSql(post)); r.exec("COMMIT");
+check("running it twice is safe", verify(post, r.prepare(COUNT_SQL).get()).length === 0 && r.prepare("SELECT COUNT(*) n FROM billing_requests").get().n === 3);
+
 summary();

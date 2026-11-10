@@ -98,7 +98,30 @@ New tables, in a new migration (next free number; 0017 is the latest today):
 - [x] F10.9 Admin: host list, attach org to email.
   - `GET /api/admin/hosts?q=` lists host accounts (newest 50, or searched by email, name or organisation) with their organisation and role, and the organisations that have no members. `POST /api/admin/orgs/:id/attach {email}` makes the host account with that email the owner of an organisation with no members (the account must exist, be active, have no organisation, and meet the email rule for the organisation type); billing and leader email follow it. `POST /api/admin/hosts/:id/status {active|disabled}`: switching off ends every session of that account and stops sign-in (the sign-in reply stays the same). All go through the admin token and the audit log. `Admin.vue` has a Host accounts section with search, switch off and on, and an Attach form for each organisation with no host.
   - After the full wipe (option B) there are no organisations without a host, so Attach is for later cases (an owner whose account was removed, or a future partial reset). Tests: 13 new checks in `test/features.mjs`.
-- [ ] F10.10 Reset script for the chosen option, plus a dry-run mode that prints counts. Run it locally on an export copy and paste the counts here.
+- [x] F10.10 Reset script for the chosen option, plus a dry-run mode that prints counts. Run it locally on an export copy and paste the counts here.
+  - `scripts/reset-hosts.mjs`, option B. Dry run by default (counts only, nothing changed); `--apply` wipes. Targets: `--sqlite <file>` (a copy), `--local` (local D1 through wrangler) or `--remote` (production D1; `--apply` there also needs `--confirm=RESET-ALL-HOSTS`; the owner runs it). It refuses a database without migration 0018. In order: one `admin_audit` row (`host_reset`, with the counts), keep the organisation's name on every billing request, set `connections.event_id` and `cards.event_id` to NULL, delete the Host Terms, event directory and sponsor consents, then empty the host tables (old and new), organisations and everything under them, and the host rate-limit keys. Kept: `billing_requests` (org_id becomes NULL, name kept), `consent_log`, attendees, cards and connections. After `--apply` it counts again and fails loudly if a host table is not empty or the billing, user or connection counts moved. Sponsor logos in R2 are listed for the owner to delete by hand (`sponsors.logo_key`; nothing uploads them today).
+  - Tests: 16 checks in `test/hosts-accounts.mjs` on the fixture plus new-model rows (counts, every host table empty, billing rows field by field, consents, audit row, no dangling foreign keys, safe to run twice).
+  - Local run, 2026-11-10, on a copy of the local D1 file (`.wrangler/state/v3/d1/...sqlite` copied to a scratch folder; the local database itself was not changed), first as it was, then with `test/fixtures/old-hosts.sql` added so every table has rows. `--local` dry run through wrangler gave the same counts as the copy before the fixture.
+
+    | Count | Local copy, dry run | With fixture, dry run | After `--apply` |
+    | --- | --- | --- | --- |
+    | orgs | 2 | 4 | 0 |
+    | events | 2 | 4 | 0 |
+    | org_members (old) | 2 | 4 | 0 |
+    | host_profiles (old) | 2 | 4 | 0 |
+    | credits | 1 | 2 | 0 |
+    | checkins, sponsors, feedback_responses, feedback_done | 0 | 3, 1, 1, 1 | 0 |
+    | event_mail_log, promo_redemptions, org_integrations | 0 | 2, 1, 1 | 0 |
+    | org_invites, org_transfers, host_tickets (old) | 0 | 1, 1, 1 | 0 |
+    | host_accounts and the other new host tables | 0 | 0 | 0 |
+    | host consents (Host Terms, event directory, sponsor) | 4 | 7 | 0 |
+    | connections / cards with an event label | 0 / 0 | 1 / 1 | 0 / 0 |
+    | **billing_requests** | 0 | **2** | **2** (same rows; org_id NULL, name kept) |
+    | users | 8 | 12 | 12 |
+    | connections | 0 | 1 | 1 |
+    | consent_log | 10 | 11 | 11 |
+
+    One `admin_audit` row `host_reset` was written. A second dry run after the apply showed every host count at 0 and billing at 2.
 - [ ] F10.11 Config: add `https://host.lanyd.fyi` to `APP_ORIGIN` in `wrangler.production.toml`, set `VITE_HOST_ORIGIN=https://host.lanyd.fyi` for the build. Write the owner steps below.
 - [ ] F10.12 Update the vault: [[Auth and Sessions]], [[Host Portal and Billing]], [[Data Model]], [[Screens and Routes]], [[API Surface]], and a new decision note "D020 Host accounts separate from attendee accounts" (D018 and D019 were taken by then) that supersedes the session part of [[D014 Separate host subdomain]] and the host part of [[D003 Guest first with passkeys]].
 
