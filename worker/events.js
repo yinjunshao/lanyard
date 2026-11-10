@@ -213,26 +213,6 @@ eventsApp.get("/api/e/:id/album", async (c) => {
   });
 });
 
-// Events I've checked into (for /app/events).
-eventsApp.get("/api/my/events", async (c) => {
-  const me = requireUser(c);
-  const rows = await all(
-    c.env.DB,
-    `SELECT e.id, e.code, e.name, e.starts_at, e.venue, e.theme, e.strap_color,
-            e.perks, e.directory_on, ch.created_at AS checked_in_at
-     FROM checkins ch JOIN events e ON e.id = ch.event_id
-     WHERE ch.user_id = ? ORDER BY ch.created_at DESC`,
-    me.id
-  );
-  return c.json({
-    events: rows.map((e) => ({
-      id: e.id, code: e.code, name: e.name, startsAt: e.starts_at, venue: e.venue,
-      theme: e.theme, strapColor: e.strap_color, perks: e.perks || [],
-      directoryOn: !!e.directory_on, checkedInAt: e.checked_in_at,
-    })),
-  });
-});
-
 // Your choices at an event (directory, named sponsors), changeable any time:
 // withdrawing is as easy as giving. Every change is written to the consent history.
 eventsApp.get("/api/e/:id/choices", async (c) => {

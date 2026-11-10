@@ -16,6 +16,7 @@ import { TERMS_VERSION, termsScope, hasConsent, recordConsent, recordConsentStmt
 import { putImage, getImage, deleteImage } from "./media.js";
 import { eraseUser, purgeExpired } from "./purge.js";
 import { eventsApp } from "./events.js";
+import { myEventsApp } from "./myevents.js";
 import { hostApp } from "./hosts.js";
 import { adminApp } from "./admin.js";
 import { promoApp } from "./promo.js";
@@ -30,6 +31,7 @@ import {
 import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 import { readInstitution } from "./institutions.js";
 import { moveTo } from "./onboarding.js";
+import { selfieView } from "./selfie.js";
 
 const app = new Hono();
 
@@ -113,17 +115,6 @@ function applyInstitution(fields, pick, current) {
   } else if (current && typeof fields.uni === "string" && fields.uni !== current.uni) {
     fields.institution_id = null;
   }
-}
-
-// A shared selfie belongs to two people. The one who took it always sees it; the
-// other only sees it as a request (to accept or remove) until they accept.
-function selfieView(cn, meId) {
-  if (!cn.selfie_key) return { selfie: null, selfieStatus: null, selfieRequest: null };
-  const url = `/media/${cn.selfie_key}`;
-  const accepted = !!cn.consent_b;
-  if (accepted) return { selfie: url, selfieStatus: "accepted", selfieRequest: null };
-  if (cn.selfie_by === meId) return { selfie: url, selfieStatus: "pending", selfieRequest: null };
-  return { selfie: null, selfieStatus: "request", selfieRequest: url };
 }
 
 async function loadFullUser(db, userId) {
@@ -1263,6 +1254,7 @@ app.post("/api/connections/:id/report", async (c) => {
 
 /* ------------------------------- Events ---------------------------------- */
 app.route("/", eventsApp);
+app.route("/", myEventsApp);
 app.route("/", feedbackApp);
 app.route("/", hostApp);
 app.route("/", adminApp);

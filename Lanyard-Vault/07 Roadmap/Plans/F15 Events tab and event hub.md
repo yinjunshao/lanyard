@@ -57,7 +57,9 @@ Order, top to bottom. Keep it calm, with no wall of panels:
 ## Tasks
 - [x] F15.1 Shared status helper (`worker/eventstatus.js`, mirrored in `src/lib/eventstatus.js`), with unit tests including clock edges.
   - `eventStatus(ev, checkedInAt, t)` returns `upcoming`, `ongoing` or `ended`; the two files are byte-identical and `test/events-hub.mjs` (new, in `npm test` before the budget check) fails if they differ. Edges: ended at exactly `ends_at`; with no end time, "more than 12 hours" means strictly more, counted from the later of the start and your check-in; started means `starts_at <= now`; a host-ended event is ended even before it started.
-- [ ] F15.2 Extend `/api/my/events`. Add `/api/my/events/:id`, with tests (404 when not checked in).
+- [x] F15.2 Extend `/api/my/events`. Add `/api/my/events/:id`, with tests (404 when not checked in).
+  - The two routes live in the new `worker/myevents.js`, not `events.js`: they return `via`, and `test/provenance.mjs` treats `events.js` as host-facing code that must never read it.
+  - `GET /api/my/events` adds `endsAt`, `endedAt`, `status`, `connectionCount` and the server clock `now`. `GET /api/my/events/:id` returns the event, `status`, `checkedInAt`, `connectionCount`, `roomCount` (the others in the room, or null with the directory off) and `connections` (connection id, peer id, name, photo, course, uni, mode, company, role, headline, `cardId`, `via`, `metAt`, `selfie` only when the viewer may see it). The list count and the hub list use one shared join, so they cannot disagree. 404 unless you checked in, 401 signed out. No migration and nothing new stored. `selfieView` moved from `worker/index.js` to `worker/selfie.js` so `events.js` can use it without a circular import.
 - [ ] F15.3 Events tab, icon and the ongoing dot.
 - [ ] F15.4 Events page with grouping, labels and attended dates.
 - [ ] F15.5 Event hub: back arrow, stats, people met here; `EventChoices` moves into a sheet. Stop fetching every event.
