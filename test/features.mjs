@@ -360,6 +360,36 @@ console.log("\n# Host accounts, societies, transfers and tickets");
   check("…and the new address is now how that account signs in", (await newSignIn.get("/api/host/me")).json.org?.name === "Example Robotics Society");
   const wrongTok = await adm.get("/api/admin/queue", { authorization: "Bearer nope" });
   check("a wrong admin token is refused", wrongTok.status === 401, wrongTok.status);
+
+  // F10.8: host mail links to the host site; invites and transfers go by host email.
+  const box = T.env.MAIL_OUTBOX;
+  const handOver = box.find((m) => m.to[0] === "hana@acme.example.com" && /Acme Ltd is waiting/.test(m.subject));
+  check("a transfer emails the new owner, with a link to the host site", handOver?.kind === "decisions" && handOver.text.includes("https://host.lanyard.test/"), handOver?.text);
+  const leadMail = box.find((m) => m.to[0] === "ben@example.ac.uk" && /Example Robotics Society is waiting/.test(m.subject));
+  check("an approved leader change emails the new leader too", !!leadMail);
+  const hostMail = box.filter((m) => m.kind === "decisions" && !/host portal code/.test(m.subject));
+  check("every host email links to the host portal at host.lanyard.test, none to an old /host address",
+    hostMail.length >= 5 && hostMail.every((m) => m.text.includes("https://host.lanyard.test/") && !/lanyard\.test\/host\b/.test(m.text)),
+    hostMail.map((m) => [m.subject, m.text.match(/https?:\/\/\S+/g)]));
+
+  const byEmail = await heir.post("/api/host/team/invite", { email: "Ivy@acme.example.com" });
+  check("an owner can invite a colleague by email", byEmail.status === 201 && byEmail.json.email === "ivy@acme.example.com" && byEmail.json.emailed === true, byEmail.json);
+  const inviteMail = box.find((m) => m.to[0] === "ivy@acme.example.com" && /Join Acme Ltd/.test(m.subject));
+  check("…and the invite is emailed with the code and a link to the host site", inviteMail?.text.includes(byEmail.json.code) && inviteMail.text.includes("https://host.lanyard.test/account#join"), inviteMail?.text);
+  const stranger = await signedUp("10.1.0.20", "sid@acme.example.com", "Sid Other");
+  const wrongPerson = await stranger.post("/api/host/team/join", { code: byEmail.json.code });
+  check("an invite made for one email can't be used by another host account", wrongPerson.status === 404, wrongPerson.json);
+  const ivy = await signedUp("10.1.0.21", "ivy@acme.example.com", "Ivy Invited");
+  const joined = await ivy.post("/api/host/team/join", { code: byEmail.json.code });
+  const ivyMe = await ivy.get("/api/host/me");
+  check("the invited host account can use it, and joins as staff", joined.status === 200 && ivyMe.json.org?.name === "Acme Ltd" && ivyMe.json.role === "staff", [joined.json, ivyMe.json.role]);
+  const members = (await heir.get("/api/host/team")).json.members;
+  check("the team lists host accounts by name and email", members.some((m) => m.email === "ivy@acme.example.com" && m.label === "Ivy Invited" && m.role === "staff"), members);
+  const open = await heir.post("/api/host/team/invite", {});
+  const sidJoins = await stranger.post("/api/host/team/join", { code: open.json.code });
+  check("an invite without an email still works for whoever has the code", open.status === 201 && open.json.email === null && sidJoins.status === 200, [open.json, sidJoins.json]);
+  const kick = await heir.del(`/api/host/team/${members.find((m) => m.email === "ivy@acme.example.com").id}`);
+  check("the owner can remove a member", kick.status === 200 && (await ivy.get("/api/host/me")).json.org === null);
 }
 
 console.log("\n# Anonymous visitors");

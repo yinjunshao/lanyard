@@ -40,6 +40,7 @@ check("nothing is sent for an event that ended 2 hours ago", !sent.some((m) => /
 check("the reminder links to the feedback form and can be stopped in one click", reminders[0].text.includes(`/app/feedback/${done.id}`) && /^<.+k=events/.test(reminders[0].headers["List-Unsubscribe"]));
 const recap = sent.find((m) => m.subject === "How Finished Fest went");
 check("the host gets one recap with the numbers", recap && recap.kind === "decisions" && recap.to[0] === "host@hosty.test" && /checked in: 4/.test(recap.text) && /reminder to 1 person/.test(recap.text), recap?.text);
+check("…and links to the event on the host site (F10)", recap?.text.includes(`https://host.lanyard.test/events/${done.id}`) && !/\/host\/events/.test(recap.text), recap?.text);
 check("run summary counts", r1.reminders === 1 && r1.summaries === 1, r1);
 
 const n1 = out.length;

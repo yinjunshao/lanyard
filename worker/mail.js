@@ -50,13 +50,15 @@ ${hostOrigin}/signin`;
   return { subject: `${code} is your Lanyard host portal code`, text, html };
 }
 
+// Host mail (F10): `origin` is the host portal's address (hostOrigin() in
+// host-auth.js), and links go to its pages at the root.
 export function decisionEmail({ orgName, approved, note, origin }) {
   const head = approved ? `${orgName} is approved on Lanyard` : `Update on your Lanyard application for ${orgName}`;
   const body = approved
     ? "Your host application has been approved. You can now create and run events."
     : `We couldn't approve this application.${note ? `\n\nReason: ${note}` : ""}\n\nYou can reply to this email or send a new application with the details fixed.`;
-  const text = `${body}\n\n${origin}/host`;
-  const html = `<p>${escapeHtml(body).replace(/\n\n/g, "</p><p>")}</p><p><a href="${escapeHtml(origin)}/host">Open the host portal</a></p>`;
+  const text = `${body}\n\n${origin}/`;
+  const html = `<p>${escapeHtml(body).replace(/\n\n/g, "</p><p>")}</p><p><a href="${escapeHtml(origin)}/">Open the host portal</a></p>`;
   return { subject: head, text, html };
 }
 
@@ -94,8 +96,20 @@ export function ticketEmail({ orgName, approved, note, origin }) {
   const body = approved
     ? `Your request for ${orgName} has been approved.${note ? `\n\n${note}` : ""}`
     : `We couldn't approve your request for ${orgName}.${note ? `\n\nReason: ${note}` : ""}`;
-  const text = `${body}\n\n${origin}/host`;
+  const text = `${body}\n\n${origin}/`;
   return { subject: approved ? `Request approved for ${orgName}` : `Update on your request for ${orgName}`, text, html: paragraphs(text) };
+}
+
+// A colleague invited you to their organisation on the host portal.
+export function teamInviteEmail({ orgName, fromName, code, origin }) {
+  const text = `${fromName || "A colleague"} invited you to help run events for ${orgName} on Lanyard.\n\nSign in to the host portal with this email address, then enter the invite code ${code} under Account and team > Join a team. It works for 7 days.\n\n${origin}/account#join\n\nIf you weren't expecting this, ignore this email.`;
+  return { subject: `Join ${orgName} on Lanyard`, text, html: paragraphs(text) };
+}
+
+// An organisation is waiting for you to accept it.
+export function transferEmail({ orgName, fromName, origin }) {
+  const text = `${fromName || "Its owner"} wants to hand ${orgName} to your Lanyard host account. Nothing changes until you accept.\n\nSign in to the host portal with this email address to accept or decline:\n${origin}/\n\nIf you weren't expecting this, you can decline it there or ignore this email.`;
+  return { subject: `${orgName} is waiting for you on Lanyard`, text, html: paragraphs(text) };
 }
 
 // Marketing mail always names who sends it and carries a one-click unsubscribe.

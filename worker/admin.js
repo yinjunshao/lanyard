@@ -4,7 +4,8 @@
 import { Hono } from "hono";
 import { now, one, all, run } from "./db.js";
 import { sha256Hex } from "./session.js";
-import { sendMail, sendBatch, decisionEmail, ticketEmail, marketingEmail } from "./mail.js";
+import { sendMail, sendBatch, decisionEmail, ticketEmail, transferEmail, marketingEmail } from "./mail.js";
+import { hostOrigin } from "./host-auth.js";
 import { unsubUrl } from "./unsub.js";
 import { newId } from "./db.js";
 import { peek, bump, HOUR } from "./ratelimit.js";
@@ -85,7 +86,7 @@ adminApp.post("/api/admin/orgs/:id/review", async (c) => {
   if (org?.leader_email) {
     emailed = await sendMail(c.env, "decisions", {
       to: org.leader_email,
-      ...decisionEmail({ orgName: org.name, approved: decision === "approved", note, origin: new URL(c.req.url).origin }),
+      ...decisionEmail({ orgName: org.name, approved: decision === "approved", note, origin: hostOrigin(c.env, c) }),
     }).then(() => true, (e) => { console.error(e); return false; });
   }
   return c.json({ ok: true, emailed });
@@ -104,7 +105,7 @@ adminApp.post("/api/admin/tickets/:id/resolve", async (c) => {
     if (status !== "resolved" && org?.leader_email) {
       await sendMail(c.env, "decisions", {
         to: org.leader_email,
-        ...ticketEmail({ orgName: org.name, approved: status === "approved", note, origin: new URL(c.req.url).origin }),
+        ...ticketEmail({ orgName: org.name, approved: status === "approved", note, origin: hostOrigin(c.env, c) }),
       }).catch((e) => console.error(e));
     }
   };
@@ -126,6 +127,8 @@ adminApp.post("/api/admin/tickets/:id/resolve", async (c) => {
     const owner = await one(db, "SELECT host_account_id FROM host_org_members WHERE org_id = ? AND role = 'owner'", org.id);
     // The new leader still has to press Accept.
     await openTransfer(db, org, owner?.host_account_id || null, target);
+    await sendMail(c.env, "decisions", { to: target.email, ...transferEmail({ orgName: org.name, fromName: org.leader_name, origin: hostOrigin(c.env, c) }) })
+      .catch((e) => console.error(e));
     await done("approved");
     return c.json({ ok: true, next: "transfer_sent" });
   }

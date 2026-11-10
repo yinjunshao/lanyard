@@ -57,9 +57,14 @@ const fmtDay = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric"
 
 // ----- team -----
 const invite = ref(null);
+const inviteEmail = ref("");
 async function newInvite() {
   error.value = "";
-  try { invite.value = await HostApi.hostInvite(); team.value = await HostApi.hostTeam(); }
+  try {
+    invite.value = await HostApi.hostInvite(inviteEmail.value.trim());
+    inviteEmail.value = "";
+    team.value = await HostApi.hostTeam();
+  }
   catch (e) { error.value = e.message; }
 }
 async function revoke(code) {
@@ -260,10 +265,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
       </section>
 
       <section v-if="me.org" class="panel stack">
-        <div class="spread">
-          <span class="label">Team</span>
-          <button v-if="team?.role === 'owner'" class="btn" style="width:auto" @click="newInvite">Invite a colleague</button>
-        </div>
+        <span class="label">Team</span>
         <div class="list">
           <div v-for="m in team?.members || []" :key="m.id" class="list-row spread">
             <span><strong>{{ m.label }}</strong>{{ m.you ? " (you)" : "" }}
@@ -271,13 +273,22 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
             <button v-if="team.role === 'owner' && m.role !== 'owner'" class="btn" style="width:auto" @click="remove(m)">Remove</button>
           </div>
         </div>
+        <form v-if="team?.role === 'owner'" class="stack" @submit.prevent="newInvite">
+          <label for="invite-email" class="small">Invite a colleague by the email they sign in to the host portal with</label>
+          <div class="row">
+            <input id="invite-email" v-model="inviteEmail" type="email" inputmode="email" placeholder="colleague@company.com" style="flex:1" />
+            <button class="btn" style="width:auto" type="submit">Invite</button>
+          </div>
+          <span class="small muted">Leave it empty for a code anyone you give it to can use.</span>
+        </form>
         <div v-if="invite" class="notice">
+          <template v-if="invite.email">Invite sent to <strong>{{ invite.email }}</strong>. Only that host account can use it.</template>
           Invite code <strong class="tnum">{{ invite.code }}</strong>, valid until {{ fmtDate(invite.expiresAt) }}.
-          Your colleague creates their own host account, then enters it under "Join a team" on this page.
+          Your colleague signs in to the host portal, then enters it under "Join a team" on this page.
           <button class="btn" style="margin-top:8px" @click="copy(invite.code)">Copy code</button>
         </div>
         <div v-for="i in team?.invites || []" :key="i.code" class="spread small muted">
-          <span>Open invite <span class="tnum">{{ i.code.slice(0, 4) }}-{{ i.code.slice(4) }}</span> · expires {{ fmtDate(i.expiresAt) }}</span>
+          <span>Open invite <span class="tnum">{{ i.code.slice(0, 4) }}-{{ i.code.slice(4) }}</span><span v-if="i.email"> for {{ i.email }}</span> · expires {{ fmtDate(i.expiresAt) }}</span>
           <button class="btn" style="width:auto" @click="revoke(i.code)">Cancel</button>
         </div>
       </section>

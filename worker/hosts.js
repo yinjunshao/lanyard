@@ -11,13 +11,13 @@ import {
 } from "./plans.js";
 import { HttpError, sha256Hex } from "./session.js";
 import { bump, DAY } from "./ratelimit.js";
-import { sendMail, applicationEmail } from "./mail.js";
+import { sendMail, applicationEmail, teamInviteEmail, transferEmail } from "./mail.js";
 import {
   sanitizeQuestions, eventInfo, questionsFor, summarize, closesAt, FEEDBACK_WINDOW_MS, MAX_HOST_QUESTIONS,
 } from "./feedback.js";
 import { validateWebhookUrl, newWebhookSecret, newApiKey, sendWebhook } from "./integrations.js";
 import { normEmail, validEmail, emailProblem, moveOwnership, openTransfer } from "./hostorg.js";
-import { hostGuard, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
+import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
 
 export const hostApp = new Hono();
 
@@ -273,7 +273,7 @@ hostApp.post("/api/host/orgs", async (c) => {
       .bind(newId(), id, FREE_EVENTS_FOR_NEW_ORG, ts + FREE_EVENT_DAYS * 864e5, ts)] : []),
   ]);
   if (!approved) {
-    await sendMail(c.env, "decisions", { to: profile.email, ...applicationEmail({ orgName: name, origin: new URL(c.req.url).origin }) })
+    await sendMail(c.env, "decisions", { to: profile.email, ...applicationEmail({ orgName: name, origin: hostOrigin(c.env, c) }) })
       .catch((e) => console.error(e));
   }
   return c.json({ ok: true, id, status: approved ? "approved" : "pending" }, 201);
@@ -772,11 +772,23 @@ hostApp.post("/api/host/team/invite", async (c) => {
   const db = c.env.DB;
   const open = await one(db, "SELECT COUNT(*) AS n FROM host_org_invites WHERE org_id = ? AND expires_at > ?", org.id, now());
   if ((open?.n || 0) >= 5) return c.json({ error: "You already have 5 open invites. Wait for one to expire or be used." }, 429);
+  // With an email, the invite is for the host account with that email only,
+  // and we send it to them. Without one, it's a code to pass on.
+  const b = await c.req.json().catch(() => ({}));
+  const email = b.email ? normEmail(b.email) : null;
+  if (email && !validEmail(email)) return c.json({ error: "That email doesn't look right." }, 400);
+  if (email && email === me.email) return c.json({ error: "That's your own email." }, 400);
   const code = inviteCode();
   const ts = now();
-  await run(db, "INSERT INTO host_org_invites (code, org_id, role, created_by, created_at, expires_at) VALUES (?, ?, 'staff', ?, ?, ?)",
-    code, org.id, me.id, ts, ts + INVITE_DAYS * 864e5);
-  return c.json({ code: code.slice(0, 4) + "-" + code.slice(4), expiresAt: ts + INVITE_DAYS * 864e5 }, 201);
+  const shown = code.slice(0, 4) + "-" + code.slice(4);
+  await run(db, "INSERT INTO host_org_invites (code, org_id, role, email, created_by, created_at, expires_at) VALUES (?, ?, 'staff', ?, ?, ?, ?)",
+    code, org.id, email, me.id, ts, ts + INVITE_DAYS * 864e5);
+  let emailed = false;
+  if (email) {
+    emailed = await sendMail(c.env, "decisions", { to: email, ...teamInviteEmail({ orgName: org.name, fromName: me.full_name, code: shown, origin: hostOrigin(c.env, c) }) })
+      .then(() => true, (e) => { console.error(e); return false; });
+  }
+  return c.json({ code: shown, email, emailed, expiresAt: ts + INVITE_DAYS * 864e5 }, 201);
 });
 
 hostApp.delete("/api/host/team/invite/:code", async (c) => {
@@ -796,7 +808,8 @@ hostApp.post("/api/host/team/join", async (c) => {
   const inv = code.length === 8
     ? await one(db, "SELECT * FROM host_org_invites WHERE code = ? AND expires_at > ?", code, now())
     : null;
-  if (!inv) return c.json({ error: "That invite isn't valid or has expired. Ask for a new one." }, 404);
+  // An invite made for someone else's email looks the same as a wrong code.
+  if (!inv || (inv.email && inv.email !== me.email)) return c.json({ error: "That invite isn't valid or has expired. Ask for a new one." }, 404);
 
   const mine = await one(
     db,
@@ -872,6 +885,8 @@ hostApp.post("/api/host/transfer", async (c) => {
   const problem = await transferProblem(db, org, target);
   if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
   const id = await openTransfer(db, org, me.id, target);
+  await sendMail(c.env, "decisions", { to: target.email, ...transferEmail({ orgName: org.name, fromName: me.full_name, origin: hostOrigin(c.env, c) }) })
+    .catch((e) => console.error(e));
   return c.json({ ok: true, id }, 201);
 });
 
