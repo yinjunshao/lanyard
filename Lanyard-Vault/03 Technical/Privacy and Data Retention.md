@@ -34,6 +34,11 @@ A connection records how the first scan happened (QR code, typed code or shared 
 - connections made before F13 have none and show only "Connected"; a connection whose event has been deleted or reset keeps its method and loses the event name;
 - the card address carries `?s=q`, `?s=c` or `?s=l` only to say how it was opened. The page reads it once and removes it from the address bar, and the server stores only the three allowed values. The Privacy Policy data table lists it.
 
+## Shared ground (F16)
+- "In common" on a person's card page ("Both into robotics", "Same course", "Both at <company>", "Both at <event>", "Both at <institution>") is worked out when the page is opened, from fields each of you already shows the other, and is **not stored**. It is not in your data export and there is nothing to delete; deleting your account removes the fields it reads.
+- It uses only what each person shows: the fields of the mode they chose (a kept course on a career profile, or a kept company on a student profile, is never used), and the "come to me for" tags of the card they shared. So it cannot tell the other person something you keep hidden.
+- Event facts are limited to past events you were already able to know the other attended: the event you connected at, or one whose attendee directory they joined. Hosts never see it. Blocked people, signed-out viewers and your own card get nothing. Mutual connections are not counted.
+
 ## Events tab and event hub (F15)
 Nothing new is stored. The hub shows a person only their own connections at that event (the same name, subtitle fields, photo, how you met and time they already see on People) and, when the host has the room on, how many other people chose to be in it (a number, never names). It does not show who anyone else connected with, and the data export and account deletion are unchanged because no new row exists. Hosts get no new field: `worker/myevents.js` is attendee-only and `test/provenance.mjs` still treats `worker/events.js` as host-facing code that must never read `via`. When an event has been deleted (the F10 host reset) its connections stay in People without the event name and its hub is a plain 404.
 

@@ -15,6 +15,7 @@ tags: [product, features]
 - **People:** grouped by event and date, keyword search (name, tags), filter.
 - **Messages/threads** on a connection (table `messages`).
 - **Report and block** on any profile or connection.
+- **Shared ground** (F16): a person's card page has one "In common" line ("Both into robotics · Same course"), worked out from what each of you shows the other, with no AI and nothing stored. See [[D026 Shared ground is worked out from what each person shows, and never stored]].
 - **Events tab and event hub** (F15): the fourth tab lists what is on now and the events you attended (Ongoing or Ended, the date you attended, your connection count); checking in lands on the hub with your figures and the people you met there.
 - **Event room, album and Discovery** after check-in. See [[Host Portal and Billing]].
 - **Feedback survey** after events, with reminder email.
