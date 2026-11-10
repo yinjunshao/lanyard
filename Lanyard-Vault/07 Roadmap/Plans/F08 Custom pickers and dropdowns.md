@@ -65,7 +65,9 @@ All of them:
   - Why not `defineAsyncComponent` (the plan's suggestion): measured, it adds about 2 KB (raw) to the Vue runtime chunk that every public page loads. A plain dynamic import does the same job for nothing. Same reason `UiSheet` has no `Teleport`, `useId` or `<slot>` (each added to that shared chunk). `test/pickers.mjs` guards this.
   - Public JS, gzip, entry + static imports + page chunk, measured from `dist/` before and after (see Log): no growth.
   - Checked in a local browser against a throwaway local account: My card "Switch card" (listed both cards, chose the second), card editor Theme, the privacy request kind (the `?kind=erasure` link preselects it), and the feedback editor (template list, then the answer-type list on each question). **Not checked in a browser:** the People event filter (it needs a connection made at an event) and the Remind me date chip on a real public card (needs a second account); the chip's code path was checked on `/ui-test` instead.
-- [ ] F08.6 `Admin.vue` last (optional).
+- [x] F08.6 `Admin.vue` last (optional).
+  - The promo code "Ends (optional)" date is now `UiDatePicker` (clearable, earliest day today); the value is still `YYYY-MM-DD`, so the Worker is untouched. The grep guard in `test/pickers.mjs` no longer exempts Admin, so `src/` has no native `<select>` or date input at all.
+  - Not opened in a browser (the admin page needs the admin token, which I did not use). The same component was checked elsewhere.
 - [ ] F08.7 Keyboard-only and screen-reader pass (VoiceOver or NVDA): every control can be reached, opened, chosen from and closed.
 
 ## Acceptance checks

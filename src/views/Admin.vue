@@ -2,6 +2,7 @@
 // Admin: approve society and institution applications, handle tickets.
 // Sign in with the ADMIN_TOKEN secret. It is kept for this browser tab only.
 import { onMounted, ref } from "vue";
+import UiDatePicker from "../components/ui/UiDatePicker.vue";
 
 const TOKEN_KEY = "lanyard_admin_token";
 const token = ref("");
@@ -230,7 +231,8 @@ const EMAIL = { education: "university or school address", free: "webmail addres
             <label class="small" style="flex:1">Days of Plus<input v-model.number="newPromo.days" type="number" min="1" max="3650" /></label>
             <label class="small" style="flex:1">Limit (blank = none)<input v-model="newPromo.maxUses" type="number" min="1" /></label>
           </div>
-          <label class="small">Ends (optional)<input v-model="newPromo.expiresAt" type="date" /></label>
+          <div class="small"><span id="np-end-l">Ends (optional)</span>
+            <UiDatePicker id="np-end" v-model="newPromo.expiresAt" labelledby="np-end-l" min-today clearable /></div>
           <input v-model="newPromo.note" type="text" maxlength="200" placeholder="Where is it printed? (only you see this)" aria-label="Note" />
           <button class="btn btn-primary" :disabled="newPromo.code.replace(/[^a-z0-9]/gi, '').length < 4">Create code</button>
         </form>

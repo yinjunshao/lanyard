@@ -40,7 +40,7 @@ const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
 const vueFiles = (d) => readdirSync(new URL("../" + d, import.meta.url), { withFileTypes: true })
   .flatMap((e) => (e.isDirectory() ? vueFiles(join(d, e.name)) : e.name.endsWith(".vue") ? [join(d, e.name)] : []));
 const native = /<select[\s>]|type="(?:date|datetime-local|time|month|week)"/;
-const left = vueFiles("src").filter((f) => !f.endsWith("Admin.vue") && native.test(read(f))); // Admin is F08.6
+const left = vueFiles("src").filter((f) => native.test(read(f)));
 check("no <select>, type=date or type=datetime-local is left in src/", left.length === 0, left);
 const pub = read("src/views/PublicCard.vue");
 check("PublicCard does not import the date picker statically", !/^import .*ui\/Ui/m.test(pub) && /import\("\.\.\/components\/ui\/UiDatePicker\.vue"\)/.test(pub));
