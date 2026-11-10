@@ -44,7 +44,7 @@ Gzip bytes of the entry chunk (45,810 B: Vue, vue-router and the app shell, one 
 - [x] F28.1 Add `test/budget.mjs` and record the starting numbers here.
 - [x] F28.2 Trim the entry chunk for public pages.
 - [x] F28.3 Landing demo QR without the QR library on first load.
-- [ ] F28.4 Make the script fail over 50 KB for the public pages and wire it into `npm test` after a build step, or document why it runs separately.
+- [x] F28.4 Make the script fail over 50 KB for the public pages and wire it into `npm test` after a build step, or document why it runs separately.
 
 ## Acceptance checks
 - [ ] Landing and a public card each load under 50 KB of gzip JS by the script's measure.

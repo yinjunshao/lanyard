@@ -4,7 +4,8 @@
 // dist/index.html, everything the entry statically imports (transitively), the
 // page's own chunk, and everything that chunk statically imports. Each file is
 // counted once. Dynamic import() is not followed: those chunks load later, on
-// a tap or after first paint (they are listed separately as "loads lazily").
+// a tap or after first paint (they are listed separately as "loads lazily"; the
+// entry's route loaders are left out of that list, since a page loads only its own).
 // Anything index.html preloads with modulepreload is reported too, since the
 // browser fetches it on first load; it is added to the figure when present.
 //
@@ -13,9 +14,7 @@
 //   node test/budget.mjs --no-build   measures dist/ as it is; fails if dist/ is older than src/
 //   node test/budget.mjs --json       also print the numbers as JSON (for the plan note)
 //
-// Fails (exit 1) when Landing or PublicCard is over 50 KB (51,200 B). The other
-// public pages are reported against the same budget; they only fail the run
-// when listed in ENFORCED below.
+// Fails (exit 1) when any public page is over 50 KB (51,200 B).
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { spawnSync } from "node:child_process";
@@ -24,9 +23,9 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "dist");
-const BUDGET = 50 * 1024;
+const BUDGET = Number(process.env.BUDGET_BYTES) || 50 * 1024; // BUDGET_BYTES only lowers the limit, to see the check fail
 const PAGES = ["Landing", "PublicCard", "Hosts", "Privacy", "Terms", "Redeem", "SignIn", "PrivacyRequest"];
-const ENFORCED = ["Landing", "PublicCard"];
+const ENFORCED = PAGES; // every public page is held to the budget
 const args = process.argv.slice(2);
 
 function newestMtime(path) {
@@ -96,8 +95,8 @@ for (const name of PAGES) {
   const own = new Set([...all].filter((f) => !entrySet.has(f)));
   const total = sum(all);
   const withPreload = sum(new Set([...all, ...preloadExtra]));
-  // Dynamic imports the page chunk and the entry make (the page may start them on first paint).
-  const lazy = [...new Set(read(page).dynamics)].filter((f) => !all.has(f));
+  // Dynamic imports made by any file counted for this page (the page may start them on first paint or on a tap).
+  const lazy = [...new Set([...own].flatMap((f) => read(f).dynamics))].filter((f) => !all.has(f));
   rows.push({ name, total, withPreload, entry: sum(entrySet), page: sum(own), files: [...own].map((f) => f.replace("assets/", "")), lazy: lazy.map((f) => f.replace("assets/", "")) });
 }
 
@@ -115,4 +114,4 @@ if (failed.length) {
   console.error(`budget: FAIL, over 50 KB: ${failed.map((r) => `${r.name} ${r.total} B`).join(", ")}`);
   process.exit(1);
 }
-console.log(`budget: ok (${ENFORCED.join(" and ")} are under 50 KB)`);
+console.log(`budget: ok (all ${ENFORCED.length} public pages are under 50 KB)`);
