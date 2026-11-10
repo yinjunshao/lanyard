@@ -32,7 +32,7 @@ export async function notifySignIn(c, db, userId, how) {
         where: c.req.header("cf-ipcountry") || "",
         at: Date.now(),
         revokeUrl: await emailLink(c.env, origin, userId, "revoke"),
-        settingsUrl: `${origin}/app/settings`,
+        settingsUrl: `${origin}/app/settings/security`,
       }),
     });
   } catch (e) { console.error(e); }

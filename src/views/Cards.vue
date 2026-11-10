@@ -83,7 +83,7 @@ async function remove(card) {
     <div v-if="atLimit" class="notice small">
       <template v-if="me.plan.tier === 'free'">
         You've used all {{ me.plan.cards }} cards on the free plan.
-        <router-link to="/app/settings#plus" style="text-decoration:underline">See Lanyard Plus</router-link>
+        <router-link to="/app/settings/plan" style="text-decoration:underline">See Lanyard Plus</router-link>
         for more cards and custom colours.
       </template>
       <template v-else>You've used all {{ me.plan.cards }} cards on your plan.</template>

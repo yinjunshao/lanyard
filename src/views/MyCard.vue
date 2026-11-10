@@ -305,7 +305,7 @@ async function share() {
           </div>
         </form>
       </template>
-      <router-link v-else to="/app/settings#plus" class="small link-btn" style="text-align:left">
+      <router-link v-else to="/app/settings/plan" class="small link-btn" style="text-align:left">
         Want a code you choose, like your name? That comes with Lanyard Plus.
       </router-link>
 

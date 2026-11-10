@@ -80,7 +80,7 @@ function toggle(label) {
       </div>
       <p v-else class="small muted" style="margin:0">
         Custom colours are part of Lanyard Plus.
-        <router-link to="/app/settings#plus" style="text-decoration:underline">See Plus</router-link>
+        <router-link to="/app/settings/plan" style="text-decoration:underline">See Plus</router-link>
       </p>
     </div>
   </div>

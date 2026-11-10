@@ -96,7 +96,7 @@ const UPDATED = "6 November 2026";
     <h2>7. Your rights</h2>
     <p>Under UK data protection law you can:</p>
     <ul>
-      <li>get a copy of your data. In <router-link to="/app/settings">Settings</router-link> you can download it;</li>
+      <li>get a copy of your data. In <router-link to="/app/settings/privacy">Settings</router-link> you can download it;</li>
       <li>correct it. Edit your profile at any time;</li>
       <li>delete it. Settings lets you delete your account, which removes your profile, photos, connections and selfies;</li>
       <li>withdraw consent, object to our use of your data based on legitimate interests, and ask us to limit its use;</li>

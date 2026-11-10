@@ -62,8 +62,8 @@ export async function sendBatch(env, kind, messages) {
 const paragraphs = (text) => String(text).split(/\n{2,}/).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("");
 
 export function welcomeEmail(origin) {
-  const text = `Welcome to Lanyard. Your email is saved, so you can sign in on any device with a code we email you.\n\nTip: add a passkey in Settings to sign in with Face ID or a fingerprint instead.\n\n${origin}/app/settings`;
-  const html = `${paragraphs(text.split("\n\n").slice(0, 2).join("\n\n"))}<p><a href="${escapeHtml(origin)}/app/settings">Open Settings</a></p>`;
+  const text = `Welcome to Lanyard. Your email is saved, so you can sign in on any device with a code we email you.\n\nTip: add a passkey in Settings to sign in with Face ID or a fingerprint instead.\n\n${origin}/app/settings/security`;
+  const html = `${paragraphs(text.split("\n\n").slice(0, 2).join("\n\n"))}<p><a href="${escapeHtml(origin)}/app/settings/security">Open Settings</a></p>`;
   return { subject: "Your Lanyard account is saved", text, html };
 }
 

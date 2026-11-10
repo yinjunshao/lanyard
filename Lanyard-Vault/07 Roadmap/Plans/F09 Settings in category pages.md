@@ -70,7 +70,8 @@ Written before the split. Each line gets ticked, with its new place, once it wor
   - One commit for all seven pages. Pages are in `src/views/settings/`. `EmailSetup` was split: the add-and-confirm form stays (Account), the two switches moved to the new `EmailPreferences` (Email and notifications). "Sign in on another device" became `SignInOnAnotherDevice`. The signed-in devices list is still `DevicesList` until F09.3. `test/homepath.mjs` now reads `SettingsHelp.vue` for the About link.
 - [x] F09.3 Devices sheet, plus `DELETE /api/auth/sessions/:id` with a security test (you can't delete another user's session).
   - `GET /api/auth/sessions` now returns an opaque `id` (first 16 hex characters of a SHA-256 of the stored session id with a fixed prefix; it cannot be turned back into the cookie or the stored id) and `until`. `DELETE /api/auth/sessions/:id` finds the handle among the caller's own sessions only; someone else's, a made-up one and a malformed one all give 404, and the caller's own current session gives 400 (use Log out). 9 checks under "Signed-in devices" in `test/security.mjs`. The host account page still uses the old `DevicesList`.
-- [ ] F09.4 Anchor redirects and link updates.
+- [x] F09.4 Anchor redirects and link updates.
+  - `src/router/settingsRedirect.js` maps `#plus`, `#signin`, `#install` (query kept) and the router applies it first in `beforeEach`. Links changed: `CardForm`, `Cards`, `MyCard` (Plan), `Privacy` and `PrivacyRequest` (Privacy and data), and the sign-in alert and welcome emails (`worker/alerts.js`, `worker/mail.js`, now Sign-in and devices). Old emails that point at `/app/settings` still land on the list. New `test/settings.mjs` (30 checks, in `npm test`).
 - [ ] F09.5 Two-column layout on wide screens.
 
 ## Acceptance checks

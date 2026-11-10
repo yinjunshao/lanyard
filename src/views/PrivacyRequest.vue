@@ -51,7 +51,7 @@ async function submit() {
     <form v-else class="stack" @submit.prevent="submit">
       <p class="muted">
         You can ask for a copy of your data, ask us to delete it, or complain about how we handled it. You can also do most of this yourself in
-        <router-link to="/app/settings">Settings</router-link>.
+        <router-link to="/app/settings/privacy">Settings</router-link>.
       </p>
       <label class="label-top" id="kind-l">What is this about?</label>
       <UiSelect id="kind" v-model="kind" labelledby="kind-l" :options="KINDS" />

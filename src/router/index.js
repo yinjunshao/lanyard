@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import { ensureMe } from "../lib/store";
 import { ON_HOST_SITE, MAIN_ORIGIN } from "../lib/site";
 import { hasSignedInHint } from "../lib/signedin";
+import { settingsRedirect } from "./settingsRedirect";
 
 // Route-level code splitting: public landing/card pages must stay under the
 // 50 KB JS budget, so qrcode/passkey/scanner chunks load only where used.
@@ -111,6 +112,9 @@ router.afterEach((to) => {
 });
 
 router.beforeEach(async (to) => {
+  // Old #plus, #signin and #install links into Settings go to the page that holds them.
+  const moved = settingsRedirect(to);
+  if (moved) return moved;
   if (ON_HOST_SITE) {
     if (to.path === "/") return "/host";
     if (!to.path.startsWith("/host")) {
