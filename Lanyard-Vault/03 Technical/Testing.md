@@ -1,0 +1,19 @@
+---
+tags: [technical, testing]
+---
+# Testing
+
+Offline tests run the real Worker against in-memory SQLite (Node 22+, `node:sqlite`). No Wrangler or network.
+
+| Command | Covers |
+| --- | --- |
+| `npm run test:security` | Sessions, CSRF, headers, passkey challenges, private media, uploads, blocking, access control, rate limits |
+| `npm run test:features` | Feedback, reports/CSV, duplicate/edit/end event, webhooks and API keys, follow-ups, tags, retention purge, legacy sessions |
+| `node test/eventmail.mjs` | Event email |
+| `npm run test:vue` | Compiles every `.vue` template and syntax-checks each `<script setup>` |
+| `node test/perf.mjs` | DB queries per request on hot paths |
+| `npm test` | Runs security, features, eventmail, vue |
+
+The passkey section needs a stub of `@simplewebauthn/server` and skips itself when the real library is installed.
+
+Related: [[Security]], [[Deployment]]
