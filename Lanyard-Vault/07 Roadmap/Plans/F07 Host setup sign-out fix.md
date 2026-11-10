@@ -4,7 +4,7 @@ id: F07
 priority: P0
 phase: 0
 size: S
-status: In progress
+status: Done
 needs: []
 ---
 # F07 Host setup sign-out fix
@@ -51,6 +51,12 @@ Parts of "Likely cause" that were **not** right:
 - [x] After sign out, reloading never shows the old setup step. (Local browser on `host.localhost`: stuck `profile` step, Sign out, then `/host/signout` and a reload both gave 'Create your host account'.)
 
 ## Log
--
+- 2026-11-10 (Claude subagent): the cause was the missing exit, not the server or the service worker. Every host setup step now has "Sign out" (and "Back to Lanyard" on the host site) in the header, `/host/signout` does the same, and `Api.logout()` clears the offline `/api/me` copy even if the request fails. Shared helper: `signOutAndReload()` in `src/lib/store.js`. New test: `test/hostsetup.mjs` (in `npm test`).
+- Checked in a local browser (Vite + local Worker, recovery-key path, `host.localhost:5173`). Not checked: the production service worker, which only registers in a production build on https, so the "stale `/api/me` after sign-out" point was reasoned from `sw.js`, not observed. Passkey setup also not run (needs a real authenticator).
+- Left alone on purpose: device preferences in localStorage (theme, banner dismissals, install prompt, a pending promo code) are not session state, so sign-out does not clear them.
+- The owner's real stuck account: open `https://host.lanyd.fyi/host/signout` (or the host site's `/host/signout`) after the deploy. Until then there is no in-app way out.
+
+### Owner steps
+- Review the F07 commits, `git push`, then `npm run deploy`. No migrations.
 
 Related: [[Auth and Sessions]] · back to [[00 Master To-Do]]

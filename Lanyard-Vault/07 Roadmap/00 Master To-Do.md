@@ -59,7 +59,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up)
 - [ ] **F05** [[F05 QR icon for My card tab]] · S · Needs: none
 - [ ] **F06** [[F06 Edit profile and Cards buttons]] · S · Needs: none
-- [ ] **F07** [[F07 Host setup sign-out fix]] · S · Needs: none (urgent: the owner is stuck) (in progress: Claude subagent, 2026-11-10)
+- [x] **F07** [[F07 Host setup sign-out fix]] · S · Needs: none (urgent: the owner is stuck) (done 2026-11-10, last commit b7ed96c)
 
 ### Phase 1: foundations
 - [ ] **F08** [[F08 Custom pickers and dropdowns]] · P1 · L · Needs: none
@@ -140,5 +140,6 @@ graph LR
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
 - 2026-11-10 · F01 · a6384e6 · New ignore rules; generated files and brag-output untracked; vault and app baseline committed
+- 2026-11-10 · F07 · b7ed96c · Sign out and Back on every host setup step, /host/signout route, logout always clears the offline copy
 
 Related: [[Decision Log]], [[Open Questions]], [[Timeline]] · back to [[00 Home]]
