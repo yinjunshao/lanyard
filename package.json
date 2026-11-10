@@ -20,7 +20,7 @@
     "test:security": "node test/security.mjs",
     "test:features": "node test/features.mjs",
     "test:vue": "node test/vuecheck.mjs",
-    "test": "node test/security.mjs && node test/features.mjs && node test/eventmail.mjs && node test/gdpr.mjs && node test/codes.mjs && node test/promo.mjs && node test/hostsetup.mjs && node test/homepath.mjs && node test/copycheck.mjs && node test/vuecheck.mjs && node test/ui.mjs && node test/dates.mjs"
+    "test": "node test/security.mjs && node test/features.mjs && node test/eventmail.mjs && node test/gdpr.mjs && node test/codes.mjs && node test/promo.mjs && node test/hostsetup.mjs && node test/homepath.mjs && node test/copycheck.mjs && node test/vuecheck.mjs && node test/ui.mjs && node test/dates.mjs && node test/pickers.mjs"
   },
   "dependencies": {
     "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",

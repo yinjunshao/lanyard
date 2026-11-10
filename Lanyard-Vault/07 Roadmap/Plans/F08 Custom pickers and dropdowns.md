@@ -52,7 +52,10 @@ All of them:
   - Value types: `UiDatePicker` takes and gives `"YYYY-MM-DD"` (like `type="date"`), `UiTimePicker` `"HH:mm"`, `UiDateTimePicker` a unix-ms number or `null` (like `fromLocalInput`; forms that held the `datetime-local` string will hold ms instead). The date-time picker has `clearable` for optional fields and `suggest` for the end time (one tap to start + 2 hours).
   - Clock changes: a time that does not exist (01:30 on the spring Sunday) becomes 02:30 BST, and a time that happens twice is the first one. A stored time is never rewritten unless the host edits it.
   - Checked in a local browser: calendar keys (arrows, Home/End, Page Down, min/max stop at the limit), Enter chooses and focus returns to the button, the time list takes `6.30pm`, and the phone sheet at 375 px in dark mode.
-- [ ] F08.3 `UiCombobox` (needed by F12).
+- [x] F08.3 `UiCombobox` (needed by F12).
+  - API for [[F12 Institution picker]]: `options` = `[{ value, label, aliases }]`; `v-model` is the option's `value` (null when custom or empty); `v-model:text` is what the field shows (the official name, or the custom text as typed); `@select` gives `{ value, label, custom }`. `allow-custom` adds the last row and `custom-label` sets its words (F12 passes `(t) => "Not listed? Use '" + t + "'"`). `clearable`, `limit` (60 rows shown) and `placeholder` are there too.
+  - Matching is in `src/lib/match.js` (case and accents ignored, word starts first, aliases, highlight ranges); `test/pickers.mjs` (15 checks, in `npm test`) covers it with made-up names.
+  - Checked in a local browser: a letter on the button opens it with that letter typed, an alias (`ncl`) finds the long name, Down and Enter choose, a custom row keeps the typed text with a null value, focus returns to the button.
 - [ ] F08.4 Replace the host controls (`HostDashboard`, `HostLive`, `HostAccount`).
 - [ ] F08.5 Replace the attendee controls (`MyCard`, `People`, `CardForm`, `FeedbackEditor`, `PrivacyRequest`, `PublicCard` lazily).
 - [ ] F08.6 `Admin.vue` last (optional).

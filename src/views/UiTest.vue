@@ -3,6 +3,7 @@
 // only in `vite dev` (see router/index.js); a production build does not contain it.
 import { ref } from "vue";
 import UiSelect from "../components/ui/UiSelect.vue";
+import UiCombobox from "../components/ui/UiCombobox.vue";
 import UiDatePicker from "../components/ui/UiDatePicker.vue";
 import UiTimePicker from "../components/ui/UiTimePicker.vue";
 import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
@@ -21,6 +22,16 @@ const none = ref("");
 const many = ref(12);
 const manyOptions = Array.from({ length: 40 }, (_, i) => ({ value: i + 1, label: `Option ${i + 1}` }));
 const off = ref("a");
+const inst = ref(null);
+const instText = ref("");
+const instOptions = [
+  { value: "northfield", label: "Northfield College London", aliases: ["NCL", "Northfield"] },
+  { value: "eut", label: "Example University of Technology", aliases: ["EUT"] },
+  { value: "zurich", label: "Zürich Example Institute" },
+  { value: "exemple", label: "Université Exemple" },
+  { value: "old", label: "Old Example College" },
+  ...Array.from({ length: 30 }, (_, i) => ({ value: "s" + i, label: `Sample Institute number ${i + 1}` })),
+];
 const day = ref("");
 const limited = ref("2026-11-10");
 const time = ref("");
@@ -59,6 +70,14 @@ const end = ref(null);
     <div class="field">
       <label for="t-plain">A button after it, to check focus returns here</label>
       <button id="t-plain" class="btn-quiet" type="button">Next control</button>
+    </div>
+
+    <h2>UiCombobox</h2>
+    <div class="field">
+      <label id="t-inst-l">Where do you study (free text allowed)</label>
+      <UiCombobox id="t-inst" v-model="inst" v-model:text="instText" labelledby="t-inst-l" :options="instOptions"
+                  allow-custom clearable placeholder="Search" :custom-label="(t) => `Not listed? Use ‘${t}’`" />
+      <span class="small muted">Value: {{ inst ?? "(none)" }} · Text: {{ instText || "(empty)" }}</span>
     </div>
 
     <h2>UiDatePicker</h2>
