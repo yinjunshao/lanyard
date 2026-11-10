@@ -33,3 +33,35 @@ dist-ssr
 
 # Vendored tunnel binary (~55MB), not part of the app
 cloudflared.exe
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Caches
+.vite/
+.cache/
+.eslintcache
+coverage/
+
+# Generated: timestamped render copies, the deck built by build-deck.mjs,
+# archives and binaries
+brag-output-*/
+*.pptx
+*.zip
+*.tar.gz
+*.exe
+
+# Local tool state
+.claude/settings.local.json
+Lanyard-Vault/.obsidian/workspace*.json
+Lanyard-Vault/.obsidian/cache
+
+# OS
+Thumbs.db
+desktop.ini
