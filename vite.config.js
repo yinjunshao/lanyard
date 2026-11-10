@@ -14,9 +14,11 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     allowedHosts: ['host.localhost'],
+    // changeOrigin: false keeps the browser's Host header (host.localhost or
+    // localhost), which is how the Worker tells the two sites apart.
     proxy: {
-      '/api': 'http://localhost:8787',
-      '/media': 'http://localhost:8787',
+      '/api': { target: 'http://localhost:8787', changeOrigin: false },
+      '/media': { target: 'http://localhost:8787', changeOrigin: false },
     },
   },
   build: {

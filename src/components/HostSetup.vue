@@ -105,7 +105,7 @@ const differentEmail = () => step(() => hostSignOutAndReload("/"));
   <!-- Setup 1 of 3: details -->
   <section v-else-if="view === 'details'" class="panel stack-2" aria-labelledby="hs-det-h">
     <button type="button" class="link-btn small host-back" :disabled="busy" @click="differentEmail">‹ Use a different email</button>
-    <span class="label">Step 1 of 3</span>
+    <span class="label" style="display:block">Step 1 of 3</span>
     <h2 id="hs-det-h">About you</h2>
     <p class="muted">Signed in as <strong>{{ account?.email }}</strong>. Organisations can be handed to your host account by this email, and invoices go to it.</p>
     <div class="field"><label for="hs-name">Full name</label>
@@ -126,7 +126,7 @@ const differentEmail = () => step(() => hostSignOutAndReload("/"));
   <!-- Setup 2 of 3: Host Terms -->
   <section v-else-if="view === 'terms'" class="panel stack-2" aria-labelledby="hs-terms-h">
     <button type="button" class="link-btn small host-back" @click="emit('go', 'details')">‹ Back</button>
-    <span class="label">Step 2 of 3</span>
+    <span class="label" style="display:block">Step 2 of 3</span>
     <h2 id="hs-terms-h">Host Terms</h2>
     <p class="muted">Hosts see totals about their events, never who connected with whom. The Host Terms say what you and we each agree to.</p>
     <label class="checkbox-row field">
@@ -143,5 +143,5 @@ const differentEmail = () => step(() => hostSignOutAndReload("/"));
 </template>
 
 <style scoped>
-.host-back { align-self: flex-start; }
+.host-back { display: block; min-height: 44px; text-align: left; }
 </style>

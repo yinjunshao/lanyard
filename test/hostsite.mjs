@@ -63,6 +63,9 @@ const stray = ["src/views/HostDashboard.vue", "src/views/HostLive.vue", "src/vie
   .filter((f) => /(to=|:to=|assign\(|push\()["'`]\/host[/"'`]/.test(read(f)));
 check("no host page links to an old /host address", stray.length === 0, stray);
 
+check("the dev proxy keeps the browser's Host header, so the Worker can tell host.localhost apart",
+  read("vite.config.js").includes("'/api': { target: 'http://localhost:8787', changeOrigin: false }"));
+
 console.log("\n# Config (F10.11)");
 const prod = read("wrangler.production.toml"), local = read("wrangler.toml");
 const prodOrigins = prod.match(/^APP_ORIGIN = "([^"]+)"/m)?.[1].split(",") || [];

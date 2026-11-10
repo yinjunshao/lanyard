@@ -197,8 +197,8 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       </section>
 
       <section class="panel stack-2" aria-labelledby="org-h">
-        <button type="button" class="link-btn small" style="align-self:flex-start" @click="view = 'terms'">‹ Back</button>
-        <span class="label">Step 3 of 3</span>
+        <button type="button" class="link-btn small" style="display:block;min-height:44px" @click="view = 'terms'">‹ Back</button>
+        <span class="label" style="display:block">Step 3 of 3</span>
         <h2 id="org-h">Where will your events live?</h2>
         <p class="muted">Pick one. Each host account has a single organisation, and you can hand it to someone else later.</p>
         <div class="stack">
