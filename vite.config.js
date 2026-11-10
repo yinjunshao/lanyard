@@ -8,6 +8,7 @@ import { defineConfig } from 'vite'
 export default defineConfig(({ mode }) => ({
   plugins: [vue()],
   define: {
+    __VUE_OPTIONS_API__: false,
     // Where the host portal lives. A production build points at the real host
     // site; otherwise the app works it out from its own address (site.js).
     __HOST_ORIGIN__: JSON.stringify(process.env.VITE_HOST_ORIGIN ?? (mode === 'production' ? 'https://host.lanyd.fyi' : '')),

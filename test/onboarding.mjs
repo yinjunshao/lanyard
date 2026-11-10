@@ -197,7 +197,8 @@ console.log("\n# Every consent and legal step the old onboarding had is still th
     has(you, "needsTerms.value && !agreed.value", "over18: true, acceptTerms: true"));
   check("1. step 1 asks again only for someone who has not accepted (a guest who connected has)", has(you, "!me.user?.termsAccepted"));
   check("3. someone with a card but without the current terms accepts them on step 1 through the same call as the pop-up", has(you, "Api.acceptTerms()") && has(read("src/components/TermsGate.vue"), "Api.acceptTerms()"));
-  check("3. the Terms pop-up is still on every /app page", has(read("src/App.vue"), '<TermsGate v-if="r.meta.app" />'));
+  check("3. the Terms pop-up is still on every /app page (the /app frame holds it, and App.vue shows the frame for every meta.app route)",
+    has(read("src/components/AppShell.vue"), "<TermsGate />") && has(read("src/App.vue"), 'v-else-if="r.meta.app && shell"') && has(read("src/router/index.js"), "to.meta.app ? loadShell()"));
   const sheet = read("src/components/ConnectSheet.vue");
   check("2. the connect sheet still has its tick, sends both flags, and is not sent through the welcome steps",
     has(sheet, "I'm 18 or over and I agree to the", "acceptTerms: needsAgree.value ? agreed.value : undefined", "over18: needsAgree.value ? agreed.value : undefined") && !/welcome/.test(sheet));

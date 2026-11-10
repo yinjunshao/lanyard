@@ -1,13 +1,11 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { homePath, me } from "./lib/store";
+import { me } from "./lib/store";
+import { shell } from "./lib/shell";
 import { Api } from "./lib/api";
 import { isStandalone, markInstalledHere } from "./lib/install";
-import Icon from "./components/Icon.vue";
 import Lightbox from "./components/Lightbox.vue";
-import AccountBanner from "./components/AccountBanner.vue";
-import TermsGate from "./components/TermsGate.vue";
 
 const r = useRoute();
 // Until the first page is ready (app pages wait for your account), show the
@@ -27,47 +25,13 @@ if (isStandalone()) {
     if (!u.appInstalled) Api.markInstalled().catch(() => {});
   }, { immediate: true });
 }
-const showChrome = computed(() => r.meta.app && me.profile);
-const tabs = [
-  { to: "/app", key: "card", icon: "qr", label: "My card", match: (p) => p === "/app" },
-  { to: "/app/scan", key: "scan", label: "Scan", match: (p) => p.startsWith("/app/scan") },
-  { to: "/app/people", key: "people", label: "People", match: (p) => p.startsWith("/app/people") },
-];
 </script>
 
 <template>
   <div v-if="!ready" class="boot-splash" aria-busy="true"><span>lanyard<b>.</b></span><span class="visually-hidden">Loading</span></div>
-  <template v-else-if="r.meta.app">
-    <div class="strap-rail"></div>
-    <header class="topbar">
-      <router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
-      <router-link to="/app/settings" class="topbar-link">Settings</router-link>
-    </header>
-
-    <main class="app-col">
-      <AccountBanner />
-      <router-view />
-    </main>
-
-    <nav v-if="showChrome" class="tabbar" aria-label="Primary">
-      <div class="tabbar-inner">
-        <router-link
-          v-for="t in tabs"
-          :key="t.key"
-          :to="t.to"
-          class="tab"
-          :class="{ on: t.match(r.path) }"
-        >
-          <span class="tab-glyph"><Icon :name="t.icon || t.key" /></span>
-          <span>{{ t.label }}</span>
-        </router-link>
-      </div>
-    </nav>
-  </template>
-
+  <component :is="shell" v-else-if="r.meta.app && shell" />
   <router-view v-else />
   <Lightbox />
-  <TermsGate v-if="r.meta.app" />
 </template>
 
 <style>

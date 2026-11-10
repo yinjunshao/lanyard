@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import { ensureMe } from "../lib/store";
 import { ON_HOST_SITE, MAIN_ORIGIN, hostAddress } from "../lib/site";
 import { hasSignedInHint } from "../lib/signedin";
+import { loadShell } from "../lib/shell";
 import { attendeeRoutes } from "./routes.attendee";
 import { hostRoutes } from "./routes.host";
 
@@ -40,7 +41,10 @@ router.beforeEach(async (to) => {
   // Pages that depend on who you are wait for it; public pages (landing, a
   // scanned card, terms) render straight away and fill in when it arrives.
   const needsMe = to.meta.app || ["/claim", "/signin"].includes(to.path) || to.path.startsWith("/redeem");
+  // /app pages also need their frame (top bar, tab bar), a chunk the public pages never load (F28).
+  const frame = to.meta.app ? loadShell() : null;
   if (needsMe) await ensureMe();
   else ensureMe();
+  if (frame) await frame;
   return true;
 });

@@ -33,7 +33,7 @@ check("'/' goes to /app when the hint is set, unless ?about=1",
   router.includes('to.path === "/" && !to.query.about && hasSignedInHint()) return "/app"'));
 check("the redirect does not wait on /api/me", router.indexOf("hasSignedInHint()) return") < router.indexOf("await ensureMe()"));
 
-const wordmarks = ["src/App.vue", "src/views/PublicCard.vue", "src/views/Privacy.vue", "src/views/Terms.vue",
+const wordmarks = ["src/components/AppShell.vue", "src/views/PublicCard.vue", "src/views/Privacy.vue", "src/views/Terms.vue",
   "src/views/PrivacyRequest.vue", "src/views/Redeem.vue", "src/views/SignIn.vue", "src/views/Hosts.vue"];
 for (const f of wordmarks) {
   const s = read(f);

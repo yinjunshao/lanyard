@@ -8,7 +8,7 @@ const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
 console.log("\n# F05 QR icon for the My card tab");
 const icon = read("src/components/Icon.vue");
 check("Icon.vue has a qr glyph", /^\s*qr: '/m.test(icon));
-const app = read("src/App.vue");
+const app = read("src/components/AppShell.vue"); // the tab bar lives in the /app frame, loaded only for /app pages (F28)
 check("the My card tab uses the qr icon", /key: "card", icon: "qr"/.test(app));
 check("the tab bar draws t.icon, falling back to t.key", app.includes('<Icon :name="t.icon || t.key" />'));
 
