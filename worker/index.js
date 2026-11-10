@@ -28,6 +28,7 @@ import {
   isThrottled, recordMiss, throttleKeys, checkCustomCode, setCustomCode, CUSTOM_EVERY_MS,
 } from "./codes.js";
 import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
+import { readInstitution } from "./institutions.js";
 
 const app = new Hono();
 
@@ -60,6 +61,8 @@ app.onError((err, c) => {
 /* ----------------------------- shape helpers ----------------------------- */
 
 const TEXT_FIELDS = ["name", "uni", "course", "year", "headline", "about"];
+// A custom institution (typed in) is capped at 120 characters (F12).
+const UNI_MAX = 120;
 // Student and Career mode (F11). `mode` is a whitelist; company and role are short.
 const MODES = ["student", "career"];
 const SHORT_FIELDS = ["company", "role"];
@@ -73,6 +76,7 @@ function profilePayload(input) {
   const out = {};
   for (const k of TEXT_FIELDS) if (typeof input[k] === "string") out[k] = input[k].trim().slice(0, 400);
   for (const k of SHORT_FIELDS) if (typeof input[k] === "string") out[k] = input[k].trim().slice(0, 80);
+  if (typeof out.uni === "string") out.uni = out.uni.slice(0, UNI_MAX);
   if (MODES.includes(input.mode)) out.mode = input.mode;
   if (typeof input.links === "object" && input.links) {
     const links = {};
@@ -96,6 +100,18 @@ function profilePayload(input) {
   const showAge = input.showAge ?? input.show_age;
   if (typeof showAge === "boolean") out.show_age = showAge ? 1 : 0;
   return out;
+}
+
+// Institution picker (F12). A listed institution sets institution_id and makes
+// `uni` its official name. Anything else (custom text, or an old client that only
+// sends `uni`) leaves institution_id empty when the text no longer matches.
+function applyInstitution(fields, pick, current) {
+  if (pick.present) {
+    fields.institution_id = pick.inst ? pick.inst.id : null;
+    if (pick.inst) fields.uni = pick.inst.name;
+  } else if (current && typeof fields.uni === "string" && fields.uni !== current.uni) {
+    fields.institution_id = null;
+  }
 }
 
 // A shared selfie belongs to two people. The one who took it always sees it; the
@@ -201,6 +217,7 @@ app.get("/api/me", async (c) => {
       needsTerms: !!profile && !termsAccepted,
       recoveryEmail: u.recovery_email || null, emailVerified: !!u.email_verified, marketingOptin: !!u.marketing_optin, eventEmails: u.notify_events !== 0,
       verifiedStudent: !!u.verified_student, over18: !!u.over_18,
+      emailDomain: u.email_domain || null,
       appInstalled: !!data.user?.app_installed_at,
     },
     plan: {
@@ -220,6 +237,8 @@ app.post("/api/profile", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   if (!body.name || !body.name.trim()) return c.json({ error: "name required" }, 400);
   if (!validMode(body)) return c.json({ error: "mode must be student or career" }, 400);
+  const pick = readInstitution(body);
+  if (pick.error) return c.json({ error: pick.error }, 400);
 
   const db = c.env.DB;
   const existing = await one(db, "SELECT user_id FROM profiles WHERE user_id = ?", u.id);
@@ -235,15 +254,16 @@ app.post("/api/profile", async (c) => {
   await recordConsent(db, u.id, termsScope());
 
   const fields = profilePayload({ ...body });
+  applyInstitution(fields, pick, null);
   const ts = now();
   if (photoKey) fields.photo_key = photoKey;
   await db.batch([
     db.prepare(
-      `INSERT INTO profiles (user_id, name, photo_key, uni, course, year, mode, company, role, headline, about, links, tags, projects, is_public, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+      `INSERT INTO profiles (user_id, name, photo_key, uni, institution_id, course, year, mode, company, role, headline, about, links, tags, projects, is_public, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
     ).bind(
       u.id, fields.name || body.name.trim(), photoKey,
-      fields.uni || "", fields.course || "", fields.year || "",
+      fields.uni || "", fields.institution_id || null, fields.course || "", fields.year || "",
       fields.mode || "student", fields.company || "", fields.role || "",
       fields.headline || "", fields.about || "",
       fields.links || "{}", fields.tags || "[]", fields.projects || "[]", ts
@@ -284,6 +304,8 @@ app.put("/api/profile", async (c) => {
   if (!current) return c.json({ error: "create profile first" }, 404);
   const body = await c.req.json().catch(() => ({}));
   if (!validMode(body)) return c.json({ error: "mode must be student or career" }, 400);
+  const pick = readInstitution(body);
+  if (pick.error) return c.json({ error: pick.error }, 400);
 
   let photoKey = current.photo_key;
   if (body.photoDataUrl) {
@@ -295,6 +317,7 @@ app.put("/api/profile", async (c) => {
     photoKey = null;
   }
   const fields = profilePayload(body);
+  applyInstitution(fields, pick, current);
   const sets = Object.keys(fields);
   const vals = Object.values(fields);
   if (sets.length || photoKey !== current.photo_key) {

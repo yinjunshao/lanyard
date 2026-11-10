@@ -16,6 +16,7 @@ import {
   sanitizeQuestions, eventInfo, questionsFor, summarize, closesAt, FEEDBACK_WINDOW_MS, MAX_HOST_QUESTIONS,
 } from "./feedback.js";
 import { validateWebhookUrl, newWebhookSecret, newApiKey, sendWebhook } from "./integrations.js";
+import { readInstitution } from "./institutions.js";
 import { normEmail, validEmail, emailProblem, moveOwnership, openTransfer } from "./hostorg.js";
 import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
 
@@ -94,7 +95,7 @@ hostApp.get("/api/host/account/export", async (c) => {
   const db = c.env.DB;
   const q = (sql, ...a) => all(db, sql, ...a);
   const [orgs, tickets, transfers, billing, consents, sessions] = await Promise.all([
-    q(`SELECT o.id, o.name, o.org_type, m.role FROM host_org_members m JOIN orgs o ON o.id = m.org_id WHERE m.host_account_id = ?`, me.id),
+    q(`SELECT o.id, o.name, o.org_type, o.university, o.institution_id, m.role FROM host_org_members m JOIN orgs o ON o.id = m.org_id WHERE m.host_account_id = ?`, me.id),
     q("SELECT kind, new_email, message, status, admin_note, created_at, resolved_at FROM host_org_tickets WHERE host_account_id = ?", me.id),
     q("SELECT org_id, to_email, status, created_at, resolved_at FROM host_org_transfers WHERE from_host_id = ? OR to_host_id = ?", me.id, me.id),
     q("SELECT org_name, sku, quantity, amount_pence, contact_email, po_number, note, status, created_at FROM billing_requests WHERE host_account_id = ?", me.id),
@@ -163,7 +164,7 @@ function assertApproved(org) {
 const orgJson = (org) => ({
   id: org.id, name: org.name, plan: org.plan, status: org.verification_status, type: org.org_type,
   billingEmail: org.billing_email || null, leaderName: org.leader_name || null, leaderEmail: org.leader_email || null,
-  orgLink: org.org_link || null, university: org.university || null, reviewNote: org.review_note || null,
+  orgLink: org.org_link || null, university: org.university || null, institutionId: org.institution_id || null, reviewNote: org.review_note || null,
   appliedAt: org.applied_at || null,
 });
 
@@ -245,11 +246,14 @@ hostApp.post("/api/host/orgs", async (c) => {
   const problem = emailProblem(kind, profile.email);
   if (problem) return c.json({ error: problem, code: "email_not_eligible" }, 400);
 
-  let leaderName = null, orgLink = null, university = null;
+  const pick = readInstitution(b);
+  if (pick.error) return c.json({ error: pick.error }, 400);
+  let leaderName = null, orgLink = null, university = null, institutionId = null;
   if (NEEDS_APPROVAL.has(kind)) {
     leaderName = text(b.leaderName, 80);
     orgLink = text(b.orgLink, 300);
     university = text(b.university, 120);
+    if (pick.inst) { university = pick.inst.name; institutionId = pick.inst.id; }
     if (leaderName.length < 2) return c.json({ error: "Add the leader's full name." }, 400);
     if (!/^https?:\/\/\S+\.\S+/.test(orgLink)) return c.json({ error: `Add a link to your ${kind === "society" ? "society's page (union listing, website or social page)" : "institution's website"}, starting with https://` }, 400);
     if (kind === "society" && !university) return c.json({ error: "Add your university." }, 400);
@@ -264,10 +268,10 @@ hostApp.post("/api/host/orgs", async (c) => {
     && (await bump(db, `day:org:ip:${ipOf(c)}`, DAY)) <= STARTER_ORGS_PER_IP_PER_DAY;
   await db.batch([
     db.prepare(
-      `INSERT INTO orgs (id, name, plan, org_type, verification_status, billing_email, leader_name, leader_email, org_link, university, applied_at, reviewed_at, created_at)
-       VALUES (?, ?, 'starter', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO orgs (id, name, plan, org_type, verification_status, billing_email, leader_name, leader_email, org_link, university, institution_id, applied_at, reviewed_at, created_at)
+       VALUES (?, ?, 'starter', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(id, name, kind, approved ? "approved" : "pending", profile.email, leaderName || profile.full_name, profile.email,
-      orgLink, university, approved ? null : ts, approved ? ts : null, ts),
+      orgLink, university, institutionId, approved ? null : ts, approved ? ts : null, ts),
     db.prepare("INSERT INTO host_org_members (org_id, host_account_id, role, created_at) VALUES (?, ?, 'owner', ?)").bind(id, me.id, ts),
     ...(starter ? [db.prepare("INSERT INTO credits (id, org_id, events_granted, events_used, expires_at, reason, granted_by, created_at) VALUES (?, ?, ?, 0, ?, 'starter', 'self-serve', ?)")
       .bind(newId(), id, FREE_EVENTS_FOR_NEW_ORG, ts + FREE_EVENT_DAYS * 864e5, ts)] : []),

@@ -3,7 +3,7 @@ tags: [technical, database]
 ---
 # Data Model
 
-D1 schema from `migrations/0001`-`0019`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
+D1 schema from `migrations/0001`-`0020`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
 
 ## Identity
 - `users` (is_guest, recovery_email, email_domain, verified_student, has_passkey, over_18, plan, plan_until, notify_events)
@@ -12,7 +12,7 @@ D1 schema from `migrations/0001`-`0019`. Conventions: ids are 10-character ungue
 - `rate_limits` (fixed-window counters)
 
 ## Profile and cards
-- `profiles` (name, photo_key, **mode** `student`|`career` default `student`, **company** and **role** up to 80 characters each, uni, course, year, headline, about, links JSON, tags JSON, projects JSON up to 3, is_public, show_age). Mode, company and role are F11, migration 0019. `uni`, `course` and `year` are kept in both modes; in Career mode `uni` reads "Studied at". Switching mode deletes nothing; only the chosen mode's fields are shown or searched
+- `profiles` (name, photo_key, **mode** `student`|`career` default `student`, **company** and **role** up to 80 characters each, uni, **institution_id**, course, year, headline, about, links JSON, tags JSON, projects JSON up to 3, is_public, show_age). Mode, company and role are F11, migration 0019. `uni`, `course` and `year` are kept in both modes; in Career mode `uni` reads "Studied at". Switching mode deletes nothing; only the chosen mode's fields are shown or searched. `institution_id` (F12, migration 0020) is a slug from `src/data/institutions-uk.json`, or NULL for typed or empty text; `uni` stays the display text (the official name for a listed institution, what was typed otherwise, up to 120 characters)
 - `cards` (code, name, note, visible_links, tags, theme default|formal|night|host, strap_color, event_id, code_rotates_at)
 - `card_codes` (current and grace codes with valid_until)
 
@@ -24,7 +24,7 @@ D1 schema from `migrations/0001`-`0019`. Conventions: ids are 10-character ungue
 ## Hosts and events
 - `host_accounts` (email UNIQUE lower-case, email_verified_at, full_name, use_case, event_frequency, typical_size, referral, terms_version, terms_at, status active|disabled, created_at, last_login_at, deleted_at): host accounts, separate from `users` (F10, migration 0018)
 - `host_sessions` (SHA-256 of the cookie token, host_account_id, expiry, user agent), `host_login_codes` (email, hashed code, attempts, expiry, used_at)
-- `orgs` (plan, org_type society|institution|company|individual, verification_status, leader, university, review notes)
+- `orgs` (plan, org_type society|institution|company|individual, verification_status, leader, university, **institution_id** (F12, as on `profiles`), review notes)
 - `host_org_members` (owner|staff|sponsor_viewer), `host_org_transfers`, `host_org_invites` (optional email), `host_org_tickets`: all on host accounts. `host_mail_log`: the owner recap, once per event
 - Old, before F10: `host_profiles`, `org_members`, `org_transfers`, `org_invites`, `host_tickets` point at `users`. No code reads them; the host reset empties them and a later migration can drop them
 - `events` (code, name, starts_at, venue, theme, strap_color, perks, directory_on, checkin_questions, is_paid)
