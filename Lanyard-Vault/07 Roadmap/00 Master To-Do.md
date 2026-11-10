@@ -63,7 +63,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 
 ### Phase 1: foundations
 - [x] **F08** [[F08 Custom pickers and dropdowns]] · P1 · L · Needs: none (done 2026-11-10, last commit e7d94e7)
-- [ ] **F09** [[F09 Settings in category pages]] · P1 · M · Needs: F08 (in progress: Claude subagent, 2026-11-10)
+- [x] **F09** [[F09 Settings in category pages]] · P1 · M · Needs: F08 (done 2026-11-10, last commit d790bd5)
 - [ ] **F10** [[F10 Separate host accounts on host subdomain]] · P1 · XL · Needs: F07 + owner decision (host reset)
 - [ ] **F11** [[F11 Student and Career mode]] · P1 · M · Needs: none
 - [ ] **F12** [[F12 Institution picker]] · P1 · M · Needs: F08, F11
@@ -140,6 +140,7 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
+- 2026-11-10 · F09 · d790bd5 · Settings split into seven category pages with a signed-in devices sheet; old anchors redirect; no JS added to public pages
 - 2026-11-10 · F08 · e7d94e7 · Hand-built select, combobox, date, time and date-time pickers replace every native one; no JS added to public pages; a screen-reader pass is an owner step
 - 2026-11-10 · F02 · d56a7de · Logo goes to My card when signed in; `/` redirects to `/app`; budget check moved to F28
 - 2026-11-10 · F01 · a6384e6 · New ignore rules; generated files and brag-output untracked; vault and app baseline committed
