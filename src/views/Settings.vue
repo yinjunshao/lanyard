@@ -182,6 +182,9 @@ async function erase() {
       <a class="list-row spread" :href="`mailto:${HELP_EMAIL}`">
         <span>Get help <span class="small muted">· {{ HELP_EMAIL }}</span></span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
       </a>
+      <router-link to="/?about=1" class="list-row spread">
+        <span>About Lanyard</span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
+      </router-link>
       <router-link to="/app/profile" class="list-row spread">
         <span>Edit profile</span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
       </router-link>

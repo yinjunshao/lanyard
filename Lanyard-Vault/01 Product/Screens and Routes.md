@@ -8,7 +8,7 @@ From `src/router/index.js`. All views are code-split so public pages stay light 
 ## Public
 | Route | View |
 | --- | --- |
-| `/` | Landing |
+| `/` | Landing. Signed-in people (browser hint `lanyard-signed-in`) are sent to `/app`; `/?about=1` shows it anyway (Settings, "About Lanyard"). The `lanyard.` logo on other pages goes to `/app` when signed in |
 | `/c/:cardId` | Public card (what a scan opens; Connect) |
 | `/e/:code` | Event join / check-in |
 | `/e/:code/feedback` | Feedback survey |

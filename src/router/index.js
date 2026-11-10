@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { ensureMe } from "../lib/store";
 import { ON_HOST_SITE, MAIN_ORIGIN } from "../lib/site";
+import { hasSignedInHint } from "../lib/signedin";
 
 // Route-level code splitting: public landing/card pages must stay under the
 // 50 KB JS budget, so qrcode/passkey/scanner chunks load only where used.
@@ -91,6 +92,9 @@ router.beforeEach(async (to) => {
       return false;
     }
   }
+  // Signed in before? Skip the front page. This reads a browser-only hint, so
+  // the landing page never waits on /api/me. "/?about=1" still shows it.
+  if (to.path === "/" && !to.query.about && hasSignedInHint()) return "/app";
   // Pages that depend on who you are wait for it; public pages (landing, a
   // scanned card, terms) render straight away and fill in when it arrives.
   const needsMe = to.meta.app || to.path.startsWith("/host") || ["/claim", "/signin"].includes(to.path) || to.path.startsWith("/redeem");
