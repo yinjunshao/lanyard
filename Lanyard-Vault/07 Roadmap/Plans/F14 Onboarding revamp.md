@@ -41,7 +41,9 @@ Daily aggregate counters only (`onboarding_stats(day, step, reached, completed)`
 Plain, warm, short. No named universities ([[F03 Neutral copy with no named university]]). No AI-written bios ([[F16 Shared ground without AI]] explains why).
 
 ## Tasks
-- [ ] F14.1 Route and stepper shell (progress, Back, Skip, resume from server state).
+- [x] F14.1 Route and stepper shell (progress, Back, Skip, resume from server state).
+  - `migrations/0022_onboarding.sql` (additive): `profiles.onboarding_step` (NULL = not in the steps; every old profile stays NULL) and `onboarding_max` (furthest step, so Back and forward are not counted twice), and the `onboarding_stats` table. `worker/onboarding.js` holds `moveTo`; `PUT /api/onboarding` takes `{ step: 1 to 6 }` or `{ done: true }` and changes nothing for anyone not in the steps. `POST /api/profile` with `onboarding: true` puts the new person at step 2 (step 1 was that request); a guest's stub profile made by connecting starts at step 1. The step is in the address (`/app/welcome?step=3`) and on the server, so a refresh or another device resumes. `src/views/Welcome.vue` is the shell: a progress bar, Back (Leave on step 1), Skip on steps 2 to 5, one Continue in the thumb bar. It is not a `meta.app` route, so the tab bar, the Terms pop-up and the account banner never sit over it. The step bodies come in F14.2 and F14.3.
+  - First-load JS: the route added 67 B gzip to the entry, so `AccountBanner.vue` (in the entry) now loads the email form and the passkey library with a plain `import()` when tapped. Landing went from 65,178 to 60,605 B and the public card from 60,113 to 55,554 B. See the Log.
 - [ ] F14.2 Steps 1-4 using the F11 and F12 fields.
 - [ ] F14.3 Step 5 email and optional passkey. Step 6 done screen.
 - [ ] F14.4 The guest-after-connect path and the redeem-code hand-off.

@@ -29,6 +29,7 @@ import {
 } from "./codes.js";
 import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 import { readInstitution } from "./institutions.js";
+import { moveTo } from "./onboarding.js";
 
 const app = new Hono();
 
@@ -259,14 +260,15 @@ app.post("/api/profile", async (c) => {
   if (photoKey) fields.photo_key = photoKey;
   await db.batch([
     db.prepare(
-      `INSERT INTO profiles (user_id, name, photo_key, uni, institution_id, course, year, mode, company, role, headline, about, links, tags, projects, is_public, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+      `INSERT INTO profiles (user_id, name, photo_key, uni, institution_id, course, year, mode, company, role, headline, about, links, tags, projects, is_public, updated_at, onboarding_step)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
     ).bind(
       u.id, fields.name || body.name.trim(), photoKey,
       fields.uni || "", fields.institution_id || null, fields.course || "", fields.year || "",
       fields.mode || "student", fields.company || "", fields.role || "",
       fields.headline || "", fields.about || "",
-      fields.links || "{}", fields.tags || "[]", fields.projects || "[]", ts
+      fields.links || "{}", fields.tags || "[]", fields.projects || "[]", ts,
+      body.onboarding === true ? 1 : null // the welcome steps (F14) start here; other clients are not put in them
     ),
   ]);
 
@@ -280,6 +282,8 @@ app.post("/api/profile", async (c) => {
     cc.registerStmt(cardId),
   ]);
   await run(db, "UPDATE users SET is_guest = 0 WHERE id = ? AND has_passkey = 0", u.id);
+  // Step 1 (name, photo and the Terms tick) was this request: the next step is 2.
+  if (body.onboarding === true) await moveTo(db, u.id, 2);
 
   const data = await loadFullUser(db, u.id);
   return c.json({ ok: true, profile: data.profile, cards: data.cards }, 201);
@@ -295,6 +299,20 @@ app.post("/api/terms/accept", async (c) => {
   await run(c.env.DB, "UPDATE users SET over_18 = 1, age_confirmed_at = COALESCE(age_confirmed_at, ?) WHERE id = ?", now(), u.id);
   await recordConsent(c.env.DB, u.id, termsScope());
   return c.json({ ok: true, version: TERMS_VERSION });
+});
+
+// Where the person is in the welcome steps (F14). { step: 1 to 6 } moves them;
+// { done: true } finishes. For anyone not in the steps it changes nothing.
+app.put("/api/onboarding", async (c) => {
+  const u = requireUser(c);
+  const body = await c.req.json().catch(() => ({}));
+  if ((await bump(c.env.DB, `onb:${u.id}`, HOUR)) > 200) return c.json({ error: "Too many steps in an hour. Try again soon.", code: "throttled" }, 429);
+  if (body.done !== true && !(Number.isInteger(body.step) && body.step >= 1 && body.step <= 6)) {
+    return c.json({ error: "step must be a whole number from 1 to 6, or done: true" }, 400);
+  }
+  if (!(await one(c.env.DB, "SELECT 1 AS x FROM profiles WHERE user_id = ?", u.id))) return c.json({ error: "create profile first" }, 404);
+  const place = await moveTo(c.env.DB, u.id, body.done === true ? null : body.step);
+  return c.json({ ok: true, step: place ? place.step : null, inOnboarding: !!place });
 });
 
 app.put("/api/profile", async (c) => {
@@ -881,8 +899,8 @@ app.post("/api/connect", async (c) => {
     if (!name) return c.json({ error: "name required" }, 400);
     await run(
       db,
-      `INSERT INTO profiles (user_id, name, uni, course, headline, about, links, tags, projects, is_public, updated_at)
-       VALUES (?, ?, '', '', '', '', '{}', '[]', '[]', 1, ?)`,
+      `INSERT INTO profiles (user_id, name, uni, course, headline, about, links, tags, projects, is_public, updated_at, onboarding_step)
+       VALUES (?, ?, '', '', '', '', '{}', '[]', '[]', 1, ?, 1)`,
       me.id, name.slice(0, 80), now()
     );
     myProfile = await one(db, "SELECT * FROM profiles WHERE user_id = ?", me.id);

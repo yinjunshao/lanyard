@@ -16,6 +16,8 @@ export const attendeeRoutes = [
 
   { path: "/app", component: () => import("../views/MyCard.vue"), meta: { app: true } },
   { path: "/app/cards", component: () => import("../views/Cards.vue"), meta: { app: true } },
+  // The welcome steps (F14). Not meta.app: no tab bar or Terms pop-up over the question; the page waits for /api/me itself.
+  { path: "/app/welcome", component: () => import("../views/Welcome.vue") },
   { path: "/app/profile", component: () => import("../views/EditProfile.vue"), meta: { app: true } },
   { path: "/app/scan", component: () => import("../views/Scan.vue"), meta: { app: true } },
   { path: "/app/people", component: () => import("../views/People.vue"), meta: { app: true } },
