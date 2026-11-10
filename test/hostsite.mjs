@@ -63,4 +63,22 @@ const stray = ["src/views/HostDashboard.vue", "src/views/HostLive.vue", "src/vie
   .filter((f) => /(to=|:to=|assign\(|push\()["'`]\/host[/"'`]/.test(read(f)));
 check("no host page links to an old /host address", stray.length === 0, stray);
 
+console.log("\n# Config (F10.11)");
+const prod = read("wrangler.production.toml"), local = read("wrangler.toml");
+const prodOrigins = prod.match(/^APP_ORIGIN = "([^"]+)"/m)?.[1].split(",") || [];
+check("production APP_ORIGIN lists the host portal", prodOrigins.includes("https://host.lanyd.fyi") && prodOrigins.includes("https://lanyd.fyi"), prodOrigins);
+check("production HOST_ORIGIN is https://host.lanyd.fyi", /^HOST_ORIGIN = "https:\/\/host\.lanyd\.fyi"$/m.test(prod));
+check("local dev: host.localhost:5173 is allowed and is HOST_ORIGIN", /^APP_ORIGIN = "[^"]*http:\/\/host\.localhost:5173/m.test(local) && /^HOST_ORIGIN = "http:\/\/host\.localhost:5173"$/m.test(local));
+check("local dev prints email instead of sending it; production does not", /^MAIL_LOG = "1"$/m.test(local) && !/MAIL_LOG/.test(prod));
+check("passkeys never accept the host portal's origin", read("worker/passkeys.js").includes(String.raw`filter((o) => o && !/^https?:\/\/host\./.test(o))`));
+const { sendMail } = await import("../worker/mail.js");
+let calls = 0;
+const realFetch = globalThis.fetch;
+globalThis.fetch = async () => { calls++; return new Response("{}"); };
+const log = console.log; let printed = "";
+console.log = (m) => { printed += m; };
+await sendMail({ MAIL_LOG: "1", RESEND_DECISIONS_KEY: "re_not_real" }, "decisions", { to: "a@example.com", subject: "123456 is your code", text: "code 123456" });
+console.log = log; globalThis.fetch = realFetch;
+check("with MAIL_LOG on, mail is printed and nothing is sent, even with a key set", calls === 0 && printed.includes("123456"));
+
 summary();

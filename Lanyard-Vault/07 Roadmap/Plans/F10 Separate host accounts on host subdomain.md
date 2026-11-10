@@ -122,13 +122,26 @@ New tables, in a new migration (next free number; 0017 is the latest today):
     | consent_log | 10 | 11 | 11 |
 
     One `admin_audit` row `host_reset` was written. A second dry run after the apply showed every host count at 0 and billing at 2.
-- [ ] F10.11 Config: add `https://host.lanyd.fyi` to `APP_ORIGIN` in `wrangler.production.toml`, set `VITE_HOST_ORIGIN=https://host.lanyd.fyi` for the build. Write the owner steps below.
+- [x] F10.11 Config: add `https://host.lanyd.fyi` to `APP_ORIGIN` in `wrangler.production.toml`, set `VITE_HOST_ORIGIN=https://host.lanyd.fyi` for the build. Write the owner steps below.
+  - `wrangler.production.toml`: `https://host.lanyd.fyi` added to `APP_ORIGIN`, and `HOST_ORIGIN = "https://host.lanyd.fyi"` (email links, the 301s). The custom domain itself is not put in the file: a `routes` entry would make `wrangler deploy` change the Worker's domains, which is the owner's call (step 3 below).
+  - The build: `vite.config.js` sets the host address to `https://host.lanyd.fyi` for every production build (`npm run build`, and so `npm run deploy`), so no environment variable is needed; setting `VITE_HOST_ORIGIN` overrides it. `.env.*` files are ignored by git, which is why it lives in `vite.config.js`.
+  - `wrangler.toml` (local): `HOST_ORIGIN = "http://host.localhost:5173"` and `MAIL_LOG = "1"`, so local dev prints every email (with the host sign-in code) in the wrangler console and never sends one, even with real keys in `.dev.vars`. Production has no `MAIL_LOG`.
+  - Passkeys no longer accept a `host.*` origin (`worker/passkeys.js`).
+  - Checked in `test/hostsite.mjs` (6 checks). How to run both sites locally is in [[Deployment]].
 - [ ] F10.12 Update the vault: [[Auth and Sessions]], [[Host Portal and Billing]], [[Data Model]], [[Screens and Routes]], [[API Surface]], and a new decision note "D020 Host accounts separate from attendee accounts" (D018 and D019 were taken by then) that supersedes the session part of [[D014 Separate host subdomain]] and the host part of [[D003 Guest first with passkeys]].
 
 ## Owner steps (outside the code)
-1. Cloudflare: add the custom domain `host.lanyd.fyi` to the `lanyard-v2` Worker, or add a `routes` entry with `custom_domain = true`.
-2. Resend: confirm `hosts@lanyd.fyi` can send (the domain is already verified for `accounts@` and `hosts@`).
-3. Take a D1 export. Apply the migration (`npm run db:remote`). Run the reset script. Deploy.
+In this order. Production runs Phase 0 today; F08, F09 and F10 are not deployed yet, so this deploy ships all three.
+1. **Review and push.** Read the F08, F09 and F10 commits, then `git push`.
+2. **Resend.** Check that `hosts@lanyd.fyi` sends with the key in `RESEND_DECISIONS_KEY` (the domain is verified for `accounts@` and `hosts@`). Host sign-in codes now go from it. *If it can't send, nobody can sign in to the host portal.*
+3. **Cloudflare: the custom domain.** Workers & Pages > `lanyard-v2` > Settings > Domains & Routes > Add > Custom domain > `host.lanyd.fyi`. Wait until `https://host.lanyd.fyi/api/health` answers. *If the new code goes live first, every `lanyd.fyi/host...` link and host email points at an address that doesn't exist yet, so the portal can't be reached.*
+4. **Back up D1.** `npx wrangler d1 export lanyard_db --remote --config wrangler.production.toml --output <a folder outside the repo>/lanyard-before-f10.sql`. Keep it offline; never commit it. *Without it the reset can't be undone.*
+5. **Apply the migration.** `npm run db:remote` (applies `0018_host_accounts.sql`). It only adds tables and copies `billing_requests` into its new shape, so the Phase 0 code keeps working. *If the code is deployed before this, the host portal, the daily purge and the attendee data export fail (missing tables and columns).*
+6. **Dry run the reset.** `node scripts/reset-hosts.mjs --remote`. Check the counts look like the live data and `billing_requests` will be kept. It refuses to run if step 5 hasn't happened.
+7. **Reset.** `node scripts/reset-hosts.mjs --remote --apply --confirm=RESET-ALL-HOSTS`. It checks its own result and prints the counts after. Delete any sponsor logos it lists from R2 (`npx wrangler r2 object delete lanyard-media/<key> --remote`); none are expected, nothing uploads them today.
+8. **Deploy, straight after the reset.** `npm run deploy`. *Between steps 7 and 8 the old portal still runs: anything a host does there is left without an owner (it shows under Admin > Organisations with no host). If the deploy comes before the reset instead, the reset also deletes host accounts made on the new portal in between.* So keep the gap short, and run step 6 again afterwards: every host count should be 0.
+9. **Check.** On a phone and a laptop: `https://host.lanyd.fyi/` shows "Sign in to the host portal"; sign up with a real email, get the code, go through details, terms and "under my own name", sign out from a step. `https://lanyd.fyi/host/events/abc` goes to `https://host.lanyd.fyi/events/abc`. In the browser's storage view, the `__Host-lanyard_host` cookie is on `host.lanyd.fyi` only, and signing in there does not sign you in to `lanyd.fyi` (or the reverse). Then tick the acceptance checks below that need production.
+10. **Later.** Once the reset is confirmed, a new migration can drop the old tables (`host_profiles`, `org_members`, `org_transfers`, `org_invites`, `host_tickets`). Attendee accounts that were made only to host stay as attendee accounts; the inactive-account purge removes them after 24 months unused.
 
 ## Acceptance checks
 - [ ] A new host signs up with only an email code, on `host.lanyd.fyi`, and never sees the word passkey.

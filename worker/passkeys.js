@@ -26,7 +26,10 @@ function rpConfig(c) {
   // Passkeys are bound to the domain they were made on. The custom domain gets
   // its own; the old workers.dev address keeps RP_ID so existing passkeys work.
   const rpId = dom && (host === dom || host.endsWith("." + dom)) ? dom : (c.env.RP_ID || host);
-  return { origins: origin.split(",").map((s) => s.trim()).filter(Boolean), rpId };
+  // The host portal (host.*) is in APP_ORIGIN but has no passkeys (F10), so a
+  // passkey made or used there is never accepted.
+  const origins = origin.split(",").map((s) => s.trim()).filter((o) => o && !/^https?:\/\/host\./.test(o));
+  return { origins, rpId };
 }
 
 async function setChallenge(c, challenge, userId = null) {

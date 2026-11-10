@@ -35,6 +35,11 @@ crons = ["17 3 * * *", "47 * * * *"]
 [vars]
 APP_ORIGIN = "http://localhost:5173,http://localhost:5174,http://host.localhost:5173,http://host.localhost:5174"
 RP_ID = "localhost"
+# The host portal in local dev (F10): Vite on host.localhost:5173 proxies /api to here.
+HOST_ORIGIN = "http://host.localhost:5173"
+# Local dev never sends real email: messages (with host sign-in codes) are
+# printed in the wrangler dev console instead. Remove this line to send for real.
+MAIL_LOG = "1"
 
 # --- Remote go-live checklist -------------------------------------------------
 # 1. npx wrangler d1 create lanyard_db        -> paste id above

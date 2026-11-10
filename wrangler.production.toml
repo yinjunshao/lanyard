@@ -27,8 +27,13 @@ id = "6fa2750047f94df78dc7814bd56b17b7"
 crons = ["17 3 * * *", "47 * * * *"]
 
 [vars]
-# Every address the app may be used from (comma-separated).
-APP_ORIGIN = "https://lanyd.fyi,https://www.lanyd.fyi,https://lanyard-v2.musea-moderation.workers.dev"
+# Every address the app may be used from (comma-separated). host.lanyd.fyi is
+# the host portal (F10): only /api/host/* is served there, and the attendee API
+# does not accept its origin (worker/security.js).
+APP_ORIGIN = "https://lanyd.fyi,https://www.lanyd.fyi,https://lanyard-v2.musea-moderation.workers.dev,https://host.lanyd.fyi"
+# The host portal's address, for host email links and the /host -> host site 301s.
+# Needs the custom domain host.lanyd.fyi on this Worker (owner step, F10 plan note).
+HOST_ORIGIN = "https://host.lanyd.fyi"
 # Passkeys made on the old workers.dev address stay tied to RP_ID. Anything
 # served from RP_DOMAIN (and its subdomains) uses RP_DOMAIN instead.
 RP_DOMAIN = "lanyd.fyi"
