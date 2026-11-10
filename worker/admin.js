@@ -38,21 +38,21 @@ adminApp.get("/api/admin/queue", async (c) => {
   const db = c.env.DB;
   const orgs = await all(
     db,
-    `SELECT o.*, u.user_id AS owner_id, hp.full_name AS owner_name, hp.email AS owner_email,
-            hp.use_case, hp.event_frequency, hp.typical_size
+    `SELECT o.*, m.host_account_id AS owner_id, ha.full_name AS owner_name, ha.email AS owner_email,
+            ha.use_case, ha.event_frequency, ha.typical_size
      FROM orgs o
-     LEFT JOIN (SELECT org_id, user_id FROM org_members WHERE role = 'owner') u ON u.org_id = o.id
-     LEFT JOIN host_profiles hp ON hp.user_id = u.user_id
+     LEFT JOIN (SELECT org_id, host_account_id FROM host_org_members WHERE role = 'owner') m ON m.org_id = o.id
+     LEFT JOIN host_accounts ha ON ha.id = m.host_account_id
      WHERE o.verification_status = 'pending' ORDER BY o.applied_at`
   );
   const tickets = await all(
     db,
     `SELECT t.*, o.name AS org_name, o.org_type, o.leader_name, o.leader_email
-     FROM host_tickets t JOIN orgs o ON o.id = t.org_id
+     FROM host_org_tickets t JOIN orgs o ON o.id = t.org_id
      WHERE t.status = 'open' ORDER BY t.created_at`
   );
   const withAccount = await Promise.all(tickets.map(async (t) => {
-    const holder = t.new_email ? await one(db, "SELECT user_id FROM host_profiles WHERE email = ?", t.new_email) : null;
+    const holder = t.new_email ? await one(db, "SELECT id FROM host_accounts WHERE email = ?", t.new_email) : null;
     return { ...t, accountExists: !!holder };
   }));
   return c.json({
@@ -93,14 +93,14 @@ adminApp.post("/api/admin/orgs/:id/review", async (c) => {
 
 adminApp.post("/api/admin/tickets/:id/resolve", async (c) => {
   const db = c.env.DB;
-  const t = await one(db, "SELECT * FROM host_tickets WHERE id = ? AND status = 'open'", c.req.param("id"));
+  const t = await one(db, "SELECT * FROM host_org_tickets WHERE id = ? AND status = 'open'", c.req.param("id"));
   if (!t) return c.json({ error: "That ticket isn't open." }, 404);
   const org = await one(db, "SELECT * FROM orgs WHERE id = ?", t.org_id);
   const b = await c.req.json().catch(() => ({}));
   const note = String(b.note || "").trim().slice(0, 300);
   // Tell the leader how it went; a mail failure must not undo the decision.
   const done = async (status) => {
-    await run(db, "UPDATE host_tickets SET status = ?, admin_note = ?, resolved_at = ? WHERE id = ?", status, note || null, now(), t.id);
+    await run(db, "UPDATE host_org_tickets SET status = ?, admin_note = ?, resolved_at = ? WHERE id = ?", status, note || null, now(), t.id);
     if (status !== "resolved" && org?.leader_email) {
       await sendMail(c.env, "decisions", {
         to: org.leader_email,
@@ -117,15 +117,15 @@ adminApp.post("/api/admin/tickets/:id/resolve", async (c) => {
   if (b.decision !== "approve") return c.json({ error: "decision must be approve or reject" }, 400);
 
   if (t.kind === "leader_change") {
-    const target = await one(db, "SELECT * FROM host_profiles WHERE email = ?", normEmail(t.new_email));
+    const target = await one(db, "SELECT * FROM host_accounts WHERE email = ? AND status = 'active'", normEmail(t.new_email));
     if (!target) return c.json({ error: "No host account uses that email yet. Ask them to sign up first." }, 409);
-    const elsewhere = await one(db, "SELECT 1 AS x FROM org_members WHERE user_id = ? AND org_id != ?", target.user_id, org.id);
+    const elsewhere = await one(db, "SELECT 1 AS x FROM host_org_members WHERE host_account_id = ? AND org_id != ?", target.id, org.id);
     if (elsewhere) return c.json({ error: "That account already belongs to another organisation." }, 409);
     const bad = emailProblem(org.org_type, target.email);
     if (bad) return c.json({ error: bad }, 400);
-    const owner = await one(db, "SELECT user_id FROM org_members WHERE org_id = ? AND role = 'owner'", org.id);
+    const owner = await one(db, "SELECT host_account_id FROM host_org_members WHERE org_id = ? AND role = 'owner'", org.id);
     // The new leader still has to press Accept.
-    await openTransfer(db, org, owner?.user_id || null, target);
+    await openTransfer(db, org, owner?.host_account_id || null, target);
     await done("approved");
     return c.json({ ok: true, next: "transfer_sent" });
   }
@@ -133,10 +133,12 @@ adminApp.post("/api/admin/tickets/:id/resolve", async (c) => {
     const email = normEmail(t.new_email);
     const bad = emailProblem(org.org_type, email);
     if (bad) return c.json({ error: bad }, 400);
-    const holder = await one(db, "SELECT user_id FROM host_profiles WHERE email = ?", email);
-    if (holder && holder.user_id !== t.user_id) return c.json({ error: "A different host account already uses that email." }, 409);
+    // The host account's email is how it signs in, so this also moves the sign-in.
+    const holder = await one(db, "SELECT id FROM host_accounts WHERE email = ?", email);
+    if (holder && holder.id !== t.host_account_id) return c.json({ error: "A different host account already uses that email." }, 409);
+    if (!t.host_account_id) return c.json({ error: "The account that asked for this no longer exists." }, 409);
     await db.batch([
-      db.prepare("UPDATE host_profiles SET email = ? WHERE user_id = ?").bind(email, t.user_id),
+      db.prepare("UPDATE host_accounts SET email = ? WHERE id = ?").bind(email, t.host_account_id),
       db.prepare("UPDATE orgs SET leader_email = ?, billing_email = ? WHERE id = ?").bind(email, email, org.id),
     ]);
     await done("approved");

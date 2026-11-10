@@ -48,11 +48,17 @@ export async function securityHeaders(c, next) {
 
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 
+// Origins allowed to call the attendee API. The host portal (host.*) is listed
+// in APP_ORIGIN but is left out here: lanyd.fyi and host.lanyd.fyi are the same
+// "site" to the browser, so SameSite cookies alone would not keep a host page
+// from acting on an attendee account (F10). The host API has its own, stricter
+// check (hostGuard in host-auth.js).
+const isHostOrigin = (o) => { try { return new URL(o).hostname.startsWith("host."); } catch { return false; } };
 export function allowedOrigins(c) {
   return new Set([
     new URL(c.req.url).origin,
     ...String(c.env.APP_ORIGIN || "").split(",").map((s) => s.trim()).filter(Boolean),
-  ]);
+  ].filter((o) => !isHostOrigin(o)));
 }
 
 // Browsers send Origin on cross-origin and same-origin POSTs; Sec-Fetch-Site

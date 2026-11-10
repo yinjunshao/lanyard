@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { newId, now, one, all, run, uniqueCode } from "./db.js";
 import { sessionMiddleware, ensureSession, endSession, requireUser, HttpError } from "./session.js";
 import { securityHeaders, sameOriginWrites } from "./security.js";
+import { isHostSite } from "./host-auth.js";
 import { isBlocked } from "./blocks.js";
 import { bump, HOUR, DAY } from "./ratelimit.js";
 import { feedbackApp, pendingFeedback } from "./feedback.js";
@@ -34,9 +35,18 @@ const app = new Hono();
 // a session (or guest account) is touched; static assets never hit the database.
 app.use("*", probeBlocker);
 app.use("*", securityHeaders);
-app.use("/api/*", sameOriginWrites);
+// The two sites keep to their own API (F10): the host site serves only
+// /api/host/* (checked again, with the host cookie, in hosts.js), and the
+// attendee session is never loaded for host routes.
+app.use("/api/*", async (c, next) => {
+  const hostRoute = c.req.path.startsWith("/api/host/");
+  if (isHostSite(c) && !hostRoute && c.req.path !== "/api/health") {
+    return c.json({ error: "Not available on the host portal.", code: "wrong_site" }, 401);
+  }
+  return hostRoute ? next() : sameOriginWrites(c, next);
+});
 const withSession = sessionMiddleware("DB");
-app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/privacy-request" ? next() : withSession(c, next)));
+app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/privacy-request" ? next() : withSession(c, next)));
 app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
 
 app.onError((err, c) => {
@@ -312,8 +322,8 @@ app.post("/api/auth/email/verify", async (c) => {
 /* ------------------------------- passkeys -------------------------------- */
 
 app.get("/api/passkey/register/options", async (c) => {
-  // Saving a passkey is an explicit action, so a first-time visitor (e.g. a new
-  // host) gets their account here even though this is a GET.
+  // Saving a passkey is an explicit action, so a first-time visitor gets their
+  // account here even though this is a GET.
   if (!c.get("user")) await ensureSession(c, c.env.DB, { create: true });
   return c.json(await Passkeys.registerOptions(c, c.env.DB));
 });
@@ -375,7 +385,7 @@ app.get("/api/account/export", async (c) => {
   const u = requireUser(c);
   const db = c.env.DB;
   const q = (sql, ...a) => all(db, sql, ...a);
-  const [profile, cards, connections, notes, messages, consents, checkins, orgs, reports, blocks, passkeys] = await Promise.all([
+  const [profile, cards, connections, notes, messages, consents, checkins, reports, blocks, passkeys] = await Promise.all([
     one(db, "SELECT * FROM profiles WHERE user_id = ?", u.id),
     q("SELECT * FROM cards WHERE user_id = ?", u.id),
     q("SELECT * FROM connections WHERE user_a = ? OR user_b = ? ORDER BY created_at", u.id, u.id),
@@ -384,25 +394,24 @@ app.get("/api/account/export", async (c) => {
         JOIN connections c ON c.id = m.connection_id WHERE c.user_a = ? OR c.user_b = ? ORDER BY m.created_at`, u.id, u.id),
     q("SELECT scope, created_at FROM consents WHERE user_id = ?", u.id),
     q("SELECT event_id, answers, sponsor, created_at FROM checkins WHERE user_id = ?", u.id),
-    q(`SELECT o.id, o.name, o.org_type, om.role FROM org_members om JOIN orgs o ON o.id = om.org_id WHERE om.user_id = ?`, u.id),
     q("SELECT target_id, reason, created_at FROM reports WHERE reporter_id = ?", u.id).catch(() => []),
     q("SELECT blocked_id, created_at FROM blocks WHERE blocker_id = ?", u.id).catch(() => []),
     q("SELECT id, created_at FROM webauthn_credentials WHERE user_id = ?", u.id).catch(() => []),
   ]);
   const feedbackGiven = await q("SELECT event_id FROM feedback_done WHERE user_id = ?", u.id).catch(() => []);
   const promoCodes = await q("SELECT code, position, granted, created_at FROM promo_claims WHERE user_id = ?", u.id).catch(() => []);
-  const [consentHistory, hostProfile, hostTickets, billingRequests, privacyRequests] = await Promise.all([
-    q("SELECT scope, action, ref, at FROM consent_log WHERE user_id = ? ORDER BY at", u.id).catch(() => []),
-    one(db, "SELECT email, full_name, use_case, event_frequency, typical_size, referral, created_at FROM host_profiles WHERE user_id = ?", u.id).catch(() => null),
-    q("SELECT kind, new_email, message, status, admin_note, created_at, resolved_at FROM host_tickets WHERE user_id = ?", u.id).catch(() => []),
-    q("SELECT sku, quantity, amount_pence, contact_email, po_number, note, status, created_at FROM billing_requests WHERE user_id = ?", u.id).catch(() => []),
+  // Host accounts are separate (F10) and have their own export on the host portal.
+  // Invoice requests raised from this account before F10 still name it, so they stay here.
+  const [consentHistory, billingRequests, privacyRequests] = await Promise.all([
+    q("SELECT scope, action, ref, at FROM consent_log WHERE user_id = ? AND (ref IS NULL OR ref != 'host_account') ORDER BY at", u.id).catch(() => []),
+    q("SELECT org_name, sku, quantity, amount_pence, contact_email, po_number, note, status, created_at FROM billing_requests WHERE user_id = ?", u.id).catch(() => []),
     q("SELECT id, kind, message, status, created_at, outcome FROM privacy_requests WHERE user_id = ? OR email = ?", u.id, u.recovery_email || "-").catch(() => []),
   ]);
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
     exportedAt: now(),
     note: "Image links need you to be signed in to open them. Passkey keys, recovery keys and session tokens are not included for security.",
-    consentHistory, hostProfile, hostTickets, billingRequests, privacyRequests,
+    consentHistory, billingRequests, privacyRequests,
     user: { id: u.id, isGuest: !!u.is_guest, plan: u.plan || "free", recoveryEmail: u.recovery_email || null,
             emailVerified: !!u.email_verified, newsEmails: !!u.marketing_optin, eventReminders: u.notify_events !== 0,
             authenticatorApp: !!u.has_totp, passkey: !!u.has_passkey, recoveryKeySet: !!u.has_recovery,
@@ -420,7 +429,6 @@ app.get("/api/account/export", async (c) => {
     feedbackNote: "Event feedback answers are stored without your account, so they can't be listed or returned here.",
     messages: messages.map((m) => ({ ...m, photo: media(m.photo_key) })),
     eventCheckins: checkins,
-    organisations: orgs,
     consents,
     reportsMade: reports,
     blocked: blocks,

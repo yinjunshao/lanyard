@@ -36,20 +36,8 @@ export async function eraseUser(env, userId) {
     await tryDel(env, prof.photo_key);
     for (const k of projectKeys(prof.projects)) await tryDel(env, k);
   }
-  // Organisations where this person is the only member: remove them (and their
-  // events) unless there are invoice records, which we must keep.
-  const orgs = await all(db,
-    `SELECT om.org_id FROM org_members om WHERE om.user_id = ?
-       AND (SELECT COUNT(*) FROM org_members x WHERE x.org_id = om.org_id) = 1`, userId);
-  for (const { org_id } of orgs) {
-    const billed = await one(db, "SELECT 1 AS x FROM billing_requests WHERE org_id = ? LIMIT 1", org_id);
-    if (billed) continue;
-    const sp = await all(db,
-      "SELECT logo_key FROM sponsors WHERE event_id IN (SELECT id FROM events WHERE org_id = ?)", org_id);
-    for (const s of sp) await tryDel(env, s.logo_key);
-    await run(db, "DELETE FROM events WHERE org_id = ?", org_id);
-    await run(db, "DELETE FROM orgs WHERE id = ?", org_id);
-  }
+  // Host accounts are separate (F10): organisations, events and invoices are not
+  // the attendee's and are not touched here.
   // The consent history stays (it has no foreign key); record that the account went.
   await run(db, "INSERT INTO consent_log (id, user_id, scope, action, ref, at) VALUES (?, ?, 'account', 'withdrawn', 'erased', ?)",
     lowerHex(), userId, Date.now());
@@ -91,7 +79,9 @@ export async function purgeExpired(env, ts = Date.now()) {
 
   await run(db, "DELETE FROM sessions WHERE expires_at < ?", ts);
   await run(db, "DELETE FROM login_codes WHERE expires_at < ?", ts);
-  await run(db, "DELETE FROM org_invites WHERE expires_at < ?", ts);
+  await run(db, "DELETE FROM host_sessions WHERE expires_at < ?", ts);
+  await run(db, "DELETE FROM host_login_codes WHERE expires_at < ?", ts);
+  await run(db, "DELETE FROM host_org_invites WHERE expires_at < ?", ts);
   await run(db, "DELETE FROM rate_limits WHERE window_start < ?", ts - 2 * DAY);
   await run(db, "DELETE FROM webauthn_challenges WHERE expires_at < ?", ts);
 

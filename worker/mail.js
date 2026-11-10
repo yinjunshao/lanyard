@@ -15,6 +15,8 @@ export async function sendMail(env, kind, { to, subject, text, html }) {
   // Replies go to a person, not the sending address.
   const msg = { from: FROM[kind](env), to: [to], reply_to: env.MAIL_REPLY_TO || "help@lanyd.fyi", subject, text, html };
   if (Array.isArray(env.MAIL_OUTBOX)) { env.MAIL_OUTBOX.push({ kind, ...msg }); return; } // tests
+  if (env.MAIL_LOG) { console.log(`[mail not sent: MAIL_LOG is on] ${kind} to ${to}: ${subject}
+${text}`); return; } // local dev
   const key = env[KEY[kind]];
   if (!key) throw new Error(`Email isn't set up: missing ${KEY[kind]}`);
   const res = await fetch("https://api.resend.com/emails", {
@@ -33,6 +35,21 @@ export function codeEmail(code, link) {
   return { subject: `${code} is your Lanyard code`, text, html };
 }
 
+// Host portal sign-in (F10). No code in the link: it is typed on the page that asked for it.
+export function hostCodeEmail(code, hostOrigin) {
+  const text = `Your Lanyard host portal code is ${code}
+
+Type it on the page where you asked for it. It works for 10 minutes and only once.
+
+If you did not ask for this, ignore this email. Nobody can get in without the code.
+
+${hostOrigin}/signin`;
+  const html = `<p>Your Lanyard host portal code:</p><p style="font-size:32px;font-weight:800;letter-spacing:6px;margin:8px 0">${escapeHtml(code)}</p>
+<p>Type it on the page where you asked for it. It works for 10 minutes and only once.</p>
+<p style="color:#6B675F;font-size:13px">If you did not ask for this, ignore this email. Nobody can get in without the code.</p>`;
+  return { subject: `${code} is your Lanyard host portal code`, text, html };
+}
+
 export function decisionEmail({ orgName, approved, note, origin }) {
   const head = approved ? `${orgName} is approved on Lanyard` : `Update on your Lanyard application for ${orgName}`;
   const body = approved
@@ -48,6 +65,7 @@ export async function sendBatch(env, kind, messages) {
   for (let i = 0; i < messages.length; i += 100) {
     const chunk = messages.slice(i, i + 100).map((m) => ({ from: FROM[kind](env), to: [m.to], reply_to: env.MAIL_REPLY_TO || "help@lanyd.fyi", subject: m.subject, text: m.text, html: m.html, headers: m.headers }));
     if (Array.isArray(env.MAIL_OUTBOX)) { for (const m of chunk) env.MAIL_OUTBOX.push({ kind, ...m }); continue; }
+    if (env.MAIL_LOG) { for (const m of chunk) console.log(`[mail not sent: MAIL_LOG is on] ${kind} to ${m.to[0]}: ${m.subject}`); continue; }
     const key = env[KEY[kind]];
     if (!key) throw new Error(`Email isn't set up: missing ${KEY[kind]}`);
     const res = await fetch("https://api.resend.com/emails/batch", {
@@ -68,7 +86,7 @@ export function welcomeEmail(origin) {
 }
 
 export function applicationEmail({ orgName, origin }) {
-  const text = `We have your application for ${orgName}. We check each one by hand and will email you as soon as it is decided.\n\nYou can follow its status at ${origin}/host`;
+  const text = `We have your application for ${orgName}. We check each one by hand and will email you as soon as it is decided.\n\nYou can follow its status at ${origin}/`;
   return { subject: `We got your Lanyard application for ${orgName}`, text, html: `${paragraphs(text)}` };
 }
 

@@ -125,10 +125,15 @@ console.log("\n# Export and event choices");
 {
   const ex = (await A.c.get("/api/account/export")).json;
   check("the export includes consent history, email settings and request logs", Array.isArray(ex.consentHistory) && ex.consentHistory.length && "newsEmails" in ex.user && "emailVerified" in ex.user && Array.isArray(ex.privacyRequests), Object.keys(ex));
-  const hostU = await signup("Hosty", "10.0.4.1");
+  // Host accounts are separate (F10): their data is exported on the host portal, not with a card.
+  const hostU = { c: client({ ip: "10.0.4.1", site: "host" }) };
   await becomeHost(hostU.c, { kind: "company", name: "HostCo", email: "h@hostco.test" });
-  const hx = (await hostU.c.get("/api/account/export")).json;
-  check("the export includes host data", hx.hostProfile?.email === "h@hostco.test" && Array.isArray(hx.hostTickets) && Array.isArray(hx.billingRequests), hx.hostProfile);
+  const hx = (await hostU.c.get("/api/host/account/export")).json;
+  check("the host portal export includes the host account, organisation, tickets and invoices",
+    hx.hostAccount?.email === "h@hostco.test" && hx.organisations?.[0]?.name === "HostCo" && Array.isArray(hx.tickets) && Array.isArray(hx.billingRequests)
+    && hx.consentHistory?.some((x) => x.scope.startsWith("host_terms:")), hx);
+  check("…and no session token or code hash", !/code_hash|"id":"[0-9a-f]{64}"/.test(JSON.stringify(hx)));
+  check("an attendee export carries no host account data", !("hostProfile" in ex) && !("organisations" in ex) && !JSON.stringify(ex).includes("h@hostco.test"));
 
   const ev = (await hostU.c.post("/api/host/events", { name: "Choice Night", startsAt: Date.now() - 3600e3, endsAt: Date.now() + 3600e3 })).json;
   await hostU.c.put(`/api/host/events/${ev.id}`, { sponsors: [{ name: "Acme", perk: "Pens" }] }).catch(() => {});

@@ -37,27 +37,27 @@ export function emailProblem(orgType, email) {
  * changes, whether the old owner started it or an admin approved a ticket.
  * Billing follows the new owner's email.
  */
-export async function moveOwnership(db, org, toUserId, toProfile, transferId) {
+export async function moveOwnership(db, org, to, transferId) {
   const ts = now();
   await db.batch([
-    db.prepare("DELETE FROM org_members WHERE org_id = ? AND (role = 'owner' OR user_id = ?)").bind(org.id, toUserId),
-    db.prepare("INSERT INTO org_members (org_id, user_id, role) VALUES (?, ?, 'owner')").bind(org.id, toUserId),
+    db.prepare("DELETE FROM host_org_members WHERE org_id = ? AND (role = 'owner' OR host_account_id = ?)").bind(org.id, to.id),
+    db.prepare("INSERT INTO host_org_members (org_id, host_account_id, role, created_at) VALUES (?, ?, 'owner', ?)").bind(org.id, to.id, ts),
     db.prepare("UPDATE orgs SET leader_name = ?, leader_email = ?, billing_email = ? WHERE id = ?")
-      .bind(toProfile.full_name, toProfile.email, toProfile.email, org.id),
-    db.prepare("UPDATE org_transfers SET status = 'accepted', resolved_at = ? WHERE id = ?").bind(ts, transferId),
-    db.prepare("UPDATE org_transfers SET status = 'cancelled', resolved_at = ? WHERE org_id = ? AND status = 'pending' AND id != ?")
+      .bind(to.full_name, to.email, to.email, org.id),
+    db.prepare("UPDATE host_org_transfers SET status = 'accepted', resolved_at = ? WHERE id = ?").bind(ts, transferId),
+    db.prepare("UPDATE host_org_transfers SET status = 'cancelled', resolved_at = ? WHERE org_id = ? AND status = 'pending' AND id != ?")
       .bind(ts, org.id, transferId),
   ]);
 }
 
-/** Opens a pending transfer from the org's owner to `toProfile`, replacing any earlier one. */
-export async function openTransfer(db, org, fromUserId, toProfile) {
+/** Opens a pending transfer from the org's owner to the host account `to`, replacing any earlier one. */
+export async function openTransfer(db, org, fromHostId, to) {
   const id = newId();
   const ts = now();
   await db.batch([
-    db.prepare("UPDATE org_transfers SET status = 'cancelled', resolved_at = ? WHERE org_id = ? AND status = 'pending'").bind(ts, org.id),
-    db.prepare("INSERT INTO org_transfers (id, org_id, from_user_id, to_user_id, to_email, status, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?)")
-      .bind(id, org.id, fromUserId, toProfile.user_id, toProfile.email, ts),
+    db.prepare("UPDATE host_org_transfers SET status = 'cancelled', resolved_at = ? WHERE org_id = ? AND status = 'pending'").bind(ts, org.id),
+    db.prepare("INSERT INTO host_org_transfers (id, org_id, from_host_id, to_host_id, to_email, status, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?)")
+      .bind(id, org.id, fromHostId, to.id, to.email, ts),
   ]);
   return id;
 }

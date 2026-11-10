@@ -60,10 +60,10 @@ export async function sendEventEmails(env, ts = now()) {
 
     // The recap goes out once per event.
     const owner = await one(db,
-      `SELECT m.user_id, hp.email FROM org_members m JOIN host_profiles hp ON hp.user_id = m.user_id
-        WHERE m.org_id = ? AND m.role = 'owner' LIMIT 1`, ev.org_id);
+      `SELECT a.id, a.email FROM host_org_members m JOIN host_accounts a ON a.id = m.host_account_id
+        WHERE m.org_id = ? AND m.role = 'owner' AND a.status = 'active' LIMIT 1`, ev.org_id);
     if (!owner?.email) continue;
-    const already = await one(db, "SELECT 1 AS x FROM event_mail_log WHERE event_id = ? AND user_id = ? AND kind = 'host_summary'", ev.id, owner.user_id);
+    const already = await one(db, "SELECT 1 AS x FROM host_mail_log WHERE event_id = ? AND kind = 'host_summary'", ev.id);
     if (already) continue;
     const n = async (sql) => (await one(db, sql, ev.id))?.n || 0;
     await sendMail(env, "decisions", {
@@ -77,7 +77,7 @@ export async function sendEventEmails(env, ts = now()) {
         url: `${origin}/host/events/${ev.id}`,
       }),
     });
-    await run(db, "INSERT OR IGNORE INTO event_mail_log (event_id, user_id, kind, sent_at) VALUES (?, ?, 'host_summary', ?)", ev.id, owner.user_id, ts);
+    await run(db, "INSERT OR IGNORE INTO host_mail_log (event_id, kind, host_account_id, sent_at) VALUES (?, 'host_summary', ?, ?)", ev.id, owner.id, ts);
     out.summaries += 1;
   }
   return out;

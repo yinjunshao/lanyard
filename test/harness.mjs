@@ -60,15 +60,20 @@ export async function makeEnv(extra = {}) {
     DB: makeDb(),
     MEDIA: makeBucket(),
     ASSETS: { fetch: async (req) => new Response("<!doctype html><title>app</title>", { headers: { "content-type": "text/html" } }) },
-    APP_ORIGIN: "https://lanyard.test",
+    APP_ORIGIN: "https://lanyard.test,https://host.lanyard.test",
+    HOST_ORIGIN: "https://host.lanyard.test",
     RP_ID: "lanyard.test",
     MAIL_OUTBOX: [], // sendMail() pushes here instead of calling Resend
     ...extra,
   };
   const waits = [];
   const ctx = { waitUntil: (p) => waits.push(p), passThroughOnException() {} };
-  // One cookie jar per simulated browser.
-  function client({ ip = "203.0.113.1", origin = "https://lanyard.test" } = {}) {
+  // One cookie jar per simulated browser. site: "host" talks to the host portal
+  // (host.lanyard.test). The jar is not split by site: a test can send a cookie
+  // where a real browser never would, to check the server ignores it.
+  function client({ ip = "203.0.113.1", site = "main", origin } = {}) {
+    const base = site === "host" ? "https://host.lanyard.test" : "https://lanyard.test";
+    if (origin === undefined) origin = base;
     const jar = new Map();
     async function req(method, path, body, headers = {}) {
       const h = new Headers({ "cf-connecting-ip": ip, ...headers });
@@ -79,7 +84,8 @@ export async function makeEnv(extra = {}) {
         if (typeof body === "string") payload = body;
         else { payload = JSON.stringify(body); if (!h.has("content-type")) h.set("content-type", "application/json"); }
       }
-      const res = await worker.fetch(new Request("https://lanyard.test" + path, { method, headers: h, body: payload }), env, ctx);
+      const url = /^https?:\/\//.test(path) ? path : base + path;
+      const res = await worker.fetch(new Request(url, { method, headers: h, body: payload, redirect: "manual" }), env, ctx);
       for (const sc of res.headers.getSetCookie?.() || []) {
         const [pair, ...attrs] = sc.split(";");
         const [k, v] = pair.split("=");
@@ -88,10 +94,10 @@ export async function makeEnv(extra = {}) {
       }
       const text = await res.text();
       let json = null; try { json = JSON.parse(text); } catch {}
-      return { status: res.status, json, text, headers: res.headers };
+      return { status: res.status, json, text, headers: res.headers, setCookies: res.headers.getSetCookie?.() || [] };
     }
     return {
-      jar, req,
+      jar, req, site, outbox: env.MAIL_OUTBOX,
       get: (p, h) => req("GET", p, undefined, h),
       post: (p, b, h) => req("POST", p, b ?? {}, h),
       put: (p, b, h) => req("PUT", p, b ?? {}, h),
@@ -115,17 +121,27 @@ export function summary() {
 }
 export const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
-// Turns a client into a host: account, Host Terms, host profile, then an
-// organisation of `kind` (default: events under their own name).
+// Host portal sign-in (F10): ask for a code, read it from the test outbox, enter it.
+export const lastCode = (c, email) => [...c.outbox].reverse().find((m) => m.to[0] === email)?.text.match(/code is (\d{6})/)?.[1];
+export async function hostSignIn(c, email) {
+  if (c.site !== "host") throw new Error("hostSignIn needs a client on the host site");
+  const start = await c.post("/api/host/auth/start", { email });
+  const code = lastCode(c, String(email).trim().toLowerCase());
+  const verify = await c.post("/api/host/auth/verify", { email, code });
+  return { start, verify, code };
+}
+
+// Turns a host-site client into a host: email code, details, Host Terms, then
+// an organisation of `kind` (default: events under their own name).
 let hostCounter = 0;
-export async function becomeHost(c, { email, kind = "individual", name = "Test Org", extra = {} } = {}) {
+export async function becomeHost(c, { email, kind = "individual", name = "Test Org", extra = {}, fullName = "Test Host" } = {}) {
   hostCounter += 1;
   const em = email || `host${hostCounter}@work${hostCounter}.example.com`;
-  await c.post("/api/auth/recovery");
-  await c.post("/api/host/terms", { accept: true });
-  const su = await c.post("/api/host/signup", {
-    fullName: "Test Host", email: em, survey: { useCase: "Weekly socials", frequency: "Weekly or more" },
+  const signin = await hostSignIn(c, em);
+  const details = await c.post("/api/host/account/details", {
+    fullName, survey: { useCase: "Weekly socials", frequency: "Weekly or more" },
   });
-  const org = await c.post("/api/host/orgs", { kind, name, ...extra });
-  return { email: em, signup: su, org };
+  const terms = await c.post("/api/host/terms", { accept: true });
+  const org = kind ? await c.post("/api/host/orgs", { kind, name, ...extra }) : null;
+  return { email: em, signin, details, terms, org };
 }

@@ -18,7 +18,7 @@ async function signup(name, ip) {
 const verified = (u, email, extra = "") => sql(`UPDATE users SET recovery_email = ?, email_verified = 1 ${extra} WHERE id = ?`, email, u.id);
 
 console.log("\n# Post-event emails");
-const H = await signup("Host", "10.0.0.1");
+const H = { c: client({ ip: "10.0.0.1", site: "host" }) };
 await becomeHost(H.c, { kind: "company", name: "Hosty", email: "host@hosty.test" });
 const now = Date.now();
 const mk = async (name, startsAt, endsAt) => (await H.c.post("/api/host/events", { name, startsAt, endsAt })).json;

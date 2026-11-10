@@ -193,15 +193,14 @@ console.log("\n# Blocking, consent and access control");
 {
   const guest = client();
   // A guest checking in to an event must agree to the terms first.
-  const host = await signup("Host");
-  host.c.jar.size; // reuse session
+  const host = { c: client({ site: "host", ip: "10.20.0.1" }) };
   await becomeHost(host.c, { kind: "company" });
   const ev = await host.c.post("/api/host/events", { name: "Social" });
   const r = await guest.post(`/api/e/${ev.json.code}/checkin`, { name: "Gus" });
   check("check-in requires agreeing to the Terms (18+)", r.status === 400 && r.json?.code === "terms_required", r.json);
   const r2 = await guest.post(`/api/e/${ev.json.code}/checkin`, { name: "Gus", acceptTerms: true, over18: true });
   check("check-in works once agreed", r2.status === 200, r2.text);
-  const other = await signup("OtherHost");
+  const other = { c: client({ site: "host", ip: "10.20.0.2" }) };
   await becomeHost(other.c, { kind: "company" });
   const rep = await other.c.get(`/api/host/events/${ev.json.id}/report`);
   check("IDOR: another organisation cannot read an event report", rep.status === 404, rep.status);
@@ -209,7 +208,7 @@ console.log("\n# Blocking, consent and access control");
 {
   let granted = [];
   for (let i = 0; i < 5; i++) {
-    const c = client({ ip: "192.0.2.77" });
+    const c = client({ ip: "192.0.2.77", site: "host" });
     await becomeHost(c, { kind: "company" });
     const me = await c.get("/api/host/me");
     granted.push(me.json?.credits?.granted ?? -1);
@@ -369,7 +368,7 @@ console.log("\n# Scanner probes");
     const r = await c.get(p);
     check(`${p} is a plain 404`, r.status === 404 && !r.text.includes("<html"), r.status);
   }
-  check("normal app routes still load", (await c.get("/host")).status === 200);
+  check("normal app routes still load", (await c.get("/hosts")).status === 200 && (await c.get("/c/abc")).status === 200);
 }
 
 summary();
