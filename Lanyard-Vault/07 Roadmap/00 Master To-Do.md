@@ -55,7 +55,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 ### Phase 0: quick fixes (any order, all P0)
 - [x] **F01** [[F01 Repo housekeeping]] · S · Needs: none (done 2026-11-10, last commit a6384e6)
 - [ ] **F02** [[F02 Logo goes to My card when signed in]] · S · Needs: none (in progress: Claude subagent, 2026-11-10)
-- [ ] **F03** [[F03 Neutral copy with no named university]] · S · Needs: none (in progress: Claude subagent, 2026-11-10)
+- [x] **F03** [[F03 Neutral copy with no named university]] · S · Needs: none (done 2026-11-10, last commit 95e0b70)
 - [x] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up) (done 2026-11-10, last commit fbb24bd)
 - [ ] **F05** [[F05 QR icon for My card tab]] · S · Needs: none
 - [ ] **F06** [[F06 Edit profile and Cards buttons]] · S · Needs: none
@@ -142,5 +142,6 @@ Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-l
 - 2026-11-10 · F01 · a6384e6 · New ignore rules; generated files and brag-output untracked; vault and app baseline committed
 - 2026-11-10 · F07 · b7ed96c · Sign out and Back on every host setup step, /host/signout route, logout always clears the offline copy
 - 2026-11-10 · F04 · fbb24bd · Redeem placeholder no longer the real code; code lookups limited to 30 per 10 minutes per IP and per person
+- 2026-11-10 · F03 · 95e0b70 · Examples, demo card and placeholders no longer name a university; test/copycheck.mjs guards it
 
 Related: [[Decision Log]], [[Open Questions]], [[Timeline]] · back to [[00 Home]]

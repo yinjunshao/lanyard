@@ -4,7 +4,7 @@ id: F03
 priority: P0
 phase: 0
 size: S
-status: In progress
+status: Done
 needs: []
 ---
 # F03 Neutral copy with no named university
@@ -33,10 +33,13 @@ Fine to keep: generic phrases like "Careers fair" (`CardForm.vue`, `FeedbackEdit
 - [x] F03.2 Add `test/copycheck.mjs`, which fails if those names appear in `src/` or `worker/`. Allow-list the institution data file from [[F12 Institution picker]] (`src/data/institutions-*.json`), `codes.js` and the legal pages' address lines. Wire it into `npm test`.
 
 ## Acceptance checks
-- [ ] `npm test` includes the copy check and passes.
-- [ ] Creating an event, editing a profile and the landing demo show no real institution or society.
+- [x] `npm test` includes the copy check and passes.
+- [x] Creating an event, editing a profile and the landing demo show no real institution or society.
 
 ## Log
--
+- 2026-11-10: Replaced the named examples (event name, access, university email, profile placeholder, landing demo card) with neutral ones. The sweep also found `Gower St` on the HostLive Access field and `uni: "UCL"` in `scripts/smoke-events.mjs`; both fixed and added to the table. Landing demo card now has no university.
+- `test/copycheck.mjs` (in `npm test`) scans `src/`, `worker/`, `public/` and `index.html` with whole-word patterns, and checks its own patterns on sample strings. Allow-list: `worker/codes.js`, `src/data/institutions-*.json` (F12), address lines in Terms and Privacy. Nothing in the allow-list is currently needed except `codes.js`.
+- Acceptance check 2 was verified from the source and the built bundle (no `UCL` or `Gower` in `dist/`; the event name placeholder is in the HostDashboard chunk), not by looking at the rendered pages. Left alone: test fixtures in `test/features.mjs` (UCL addresses and "UCL Robotics" are test data, never shown) and `docs/`.
+- Owner steps: review and `git push`, then `npm run deploy` (no migrations).
 
 Related: [[Design System]] · back to [[00 Master To-Do]]
