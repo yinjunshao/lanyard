@@ -160,7 +160,7 @@ const emailHint = computed(() => {
   const dom = (account.value?.email || "").split("@")[1] || "";
   const k = orgForm.value.kind;
   if ((k === "society" || k === "institution") && !eduRe.test(dom)) {
-    return `${account.value?.email} isn't a university or school address. Societies and institutions need one (for example name@ucl.ac.uk).`;
+    return `${account.value?.email} isn't a university or school address. Societies and institutions need one (for example name@university.ac.uk).`;
   }
   return "";
 });
@@ -447,7 +447,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
           <span v-if="f.from" class="small muted">Copies the venue, perks, questions, feedback form and sponsors. Change anything afterwards under Details.</span>
         </div>
         <div class="field"><label for="ev-name">Event name</label>
-          <input id="ev-name" v-model="f.name" type="text" :placeholder="f.from ? 'Same name as before' : 'UCL Careers Fair'" /></div>
+          <input id="ev-name" v-model="f.name" type="text" :placeholder="f.from ? 'Same name as before' : 'Spring networking night'" /></div>
         <div class="field"><label for="ev-start">Starts (optional)</label>
           <input id="ev-start" v-model="f.startsAt" type="datetime-local" /></div>
         <div class="field"><label for="ev-end">Ends (optional)</label>
@@ -468,7 +468,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         <div class="field"><label for="ev-perks">Perks — one per line</label>
           <textarea id="ev-perks" v-model="f.perksText" placeholder="Free coffee&#10;Raffle entry"></textarea></div>
         <div class="field"><label for="ev-access">Access info for attendees (optional)</label>
-          <input id="ev-access" v-model="f.access" type="text" maxlength="200" placeholder="Step-free via the lift on Gower St" /></div>
+          <input id="ev-access" v-model="f.access" type="text" maxlength="200" placeholder="Step-free entrance at the side door" /></div>
         <div class="field"><label for="ev-food">Food and drink (optional)</label>
           <input id="ev-food" v-model="f.food" type="text" maxlength="200" /></div>
         <div class="field"><label for="ev-rsvp">Sign-ups so far (optional)</label>

@@ -35,7 +35,7 @@ await attendee("GET", "/api/me");
 
 await host("POST", "/api/profile", {
   name: "Selfie Host Final",
-  uni: "UCL",
+  uni: "Example University",
   tags: ["host", "careers"],
 });
 const event = await host("POST", "/api/host/events", { name: "Selfie Album Final" });

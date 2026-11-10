@@ -24,7 +24,7 @@ export function emailKind(email) {
 export function emailProblem(orgType, email) {
   const kind = emailKind(email);
   if (orgType === "society" || orgType === "institution") {
-    return kind === "education" ? "" : "Student societies and institutions must use their university or school email (for example name@ucl.ac.uk).";
+    return kind === "education" ? "" : "Student societies and institutions must use their university or school email (for example name@university.ac.uk).";
   }
   if (orgType === "company") {
     return kind === "free" ? "Use your work email, not a personal webmail address." : "";

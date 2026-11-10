@@ -244,7 +244,7 @@ async function copyFeedbackLink() {
           <span class="small muted">A number only. The report compares it with check-ins.</span>
         </div>
         <span class="label">Shown to attendees</span>
-        <div class="field"><label for="d-access">Access</label><input id="d-access" v-model="d.access" type="text" maxlength="200" placeholder="Step-free via the lift on Gower St" /></div>
+        <div class="field"><label for="d-access">Access</label><input id="d-access" v-model="d.access" type="text" maxlength="200" placeholder="Step-free entrance at the side door" /></div>
         <div class="field"><label for="d-food">Food and drink</label><input id="d-food" v-model="d.food" type="text" maxlength="200" placeholder="Pizza, vegan options, soft drinks" /></div>
         <div class="field"><label for="d-dress">Dress code</label><input id="d-dress" v-model="d.dress" type="text" maxlength="200" /></div>
         <div class="field"><label for="d-other">Good to know</label><input id="d-other" v-model="d.other" type="text" maxlength="200" placeholder="Quiet room in 106" /></div>

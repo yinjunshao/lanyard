@@ -182,7 +182,7 @@ async function save() {
       <div class="field"><label for="name">Name</label>
         <input id="name" v-model="f.name" type="text" autocomplete="name" /></div>
       <div class="field"><label for="uni">University</label>
-        <input id="uni" v-model="f.uni" type="text" placeholder="e.g. UCL" /></div>
+        <input id="uni" v-model="f.uni" type="text" placeholder="Your university" /></div>
       <div class="field"><label for="course">Course</label>
         <input id="course" v-model="f.course" type="text" placeholder="e.g. Computer Science" /></div>
       <div class="field"><label for="year">Year (optional)</label>

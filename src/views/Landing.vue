@@ -17,7 +17,6 @@ const demo = {
     userId: "demo",
     name: "Maya Okafor",
     photo: null,
-    uni: "UCL",
     course: "Mechanical Engineering",
     year: "Year 2",
     headline: "Design engineer, formula student",
