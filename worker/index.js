@@ -32,6 +32,7 @@ import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 import { readInstitution } from "./institutions.js";
 import { moveTo } from "./onboarding.js";
 import { selfieView } from "./selfie.js";
+import { sharedGround } from "./inCommon.js";
 
 const app = new Hono();
 
@@ -601,18 +602,21 @@ app.get("/api/c/:cardId", async (c) => {
 
   const token = c.req.query("n");
   const hint = /^[0-9a-f]{10}$/.test(c.req.query("event") || "") ? c.req.query("event") : null;
-  const [connection, incomingNote, event] = await Promise.all([
+  const [connection, incomingNote, event, inCommon] = await Promise.all([
     cn ? connectionDetail(db, cn, me.id) : null,
     token && !isOwner ? peekNote(db, card.id, token).then((n) => (n ? { text: n.text } : null)) : null,
     // The event this connection would be filed under, if both of you checked in.
     me && !isOwner ? eventForConnection(db, me.id, card.user_id, hint)
       .then((id) => (id ? one(db, "SELECT id, name FROM events WHERE id = ?", id) : null)) : null,
+    // F16: what you and this person have chosen to show each other has in common. Signed-in viewers only.
+    me && !isOwner ? sharedGround(db, { viewerId: me.id, peerId: card.user_id, cn, peerCard: card }) : [],
   ]);
 
   return c.json({
     ...view,
     viewer: { isOwner, signedIn: !!me, connection, event: event ? { id: event.id, name: event.name } : null },
     incomingNote,
+    inCommon,
   });
 });
 
@@ -1071,9 +1075,11 @@ app.get("/api/connections/:id", async (c) => {
   if (!card) card = await one(db, "SELECT * FROM cards WHERE user_id = ? AND is_default = 1", peerId);
   if (!card) card = await one(db, "SELECT * FROM cards WHERE id = ?", await ensureDefaultCard(db, peerId));
   const view = card ? await cardView(db, card, { shared: true }) : null;
+  const inCommon = await sharedGround(db, { viewerId: me.id, peerId, cn, peerCard: card });
 
   return c.json({
     id: cn.id,
+    inCommon,
     cardId: card?.id || null,
     peer: {
       id: peerId,

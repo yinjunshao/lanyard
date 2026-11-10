@@ -50,7 +50,8 @@ Connected via QR code at … · Tue 4 Nov, 18:42      ← F13 footer
 ## Tasks
 - [x] F16.1 `worker/inCommon.js` with normalisers and unit tests (no leaks: a hidden card field never produces a fact).
   - `worker/inCommon.js`: normalisers, `visibleSide` (only what each person shows: their mode's fields and the shared card's tags), `inCommon` (pure) and `sharedGround` (reads the database, nothing stored). `test/inground.mjs` is in `npm test` before the budget check.
-- [ ] F16.2 Add `inCommon` to the two endpoints.
+- [x] F16.2 Add `inCommon` to the two endpoints.
+  - `GET /api/c/:cardId` (signed-in viewers, not the owner) and `GET /api/connections/:id` return `inCommon: [{ kind, text }]`, at most 3, worked out on the request from the two profiles and the cards each person shared; the people list and hosts get none. No migration, nothing stored.
 - [ ] F16.3 PublicCard layout reorder to the order above, plus the "In common" line.
 - [ ] F16.4 Screenshots in light and dark at 375 px and 1280 px, added to the Log.
 
