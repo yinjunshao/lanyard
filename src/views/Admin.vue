@@ -225,7 +225,7 @@ const EMAIL = { education: "university or school address", free: "webmail addres
           <button class="btn" @click="togglePromo(p)">{{ p.active ? "Switch off" : "Switch on" }}</button>
         </div>
         <form class="stack" @submit.prevent="createPromo">
-          <input v-model="newPromo.code" type="text" maxlength="24" placeholder="New code, e.g. AISOC" aria-label="Code" style="text-transform:uppercase" />
+          <input v-model="newPromo.code" type="text" maxlength="24" placeholder="New code, e.g. ABCD1234" aria-label="Code" style="text-transform:uppercase" />
           <div class="btn-row">
             <label class="small" style="flex:1">Days of Plus<input v-model.number="newPromo.days" type="number" min="1" max="3650" /></label>
             <label class="small" style="flex:1">Limit (blank = none)<input v-model="newPromo.maxUses" type="number" min="1" /></label>

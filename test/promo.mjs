@@ -1,4 +1,5 @@
 // Promo codes (/redeem): first N get Plus, everyone gets a place in the queue.
+import { readFileSync, readdirSync } from "node:fs";
 import { makeEnv, check, summary } from "./harness.mjs";
 
 const T = await makeEnv({ ADMIN_TOKEN: "adm" });
@@ -22,6 +23,13 @@ check("FIRST50 exists out of the box, 50 left", pub.status === 200 && pub.json.p
 check("anyone can look without an account", pub.json.mine === null);
 const bad = await client({ ip: "10.4.0.3" }).get("/api/redeem/NOPE123");
 check("an unknown code says so", bad.status === 404);
+
+console.log("\n# No live code in the pages");
+const seeded = /VALUES \('([A-Z0-9]+)'/.exec(readFileSync("migrations/0017_promo_codes.sql", "utf8"))?.[1];
+const srcFiles = ["src/views", "src/components", "src/lib"].flatMap((d) => readdirSync(d).map((f) => d + "/" + f)).concat(["index.html"]);
+const leaks = srcFiles.filter((f) => { try { return readFileSync(f, "utf8").toUpperCase().includes(seeded); } catch { return false; } });
+check("the code seeded by migration 0017 is " + seeded, seeded === "FIRST50", seeded);
+check("no page, component or lib file names the poster code (placeholders, help text, defaults)", leaks.length === 0, leaks);
 
 console.log("\n# Who can redeem");
 const anon = client({ ip: "10.4.0.4" });

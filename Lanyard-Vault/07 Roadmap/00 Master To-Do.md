@@ -56,7 +56,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F01** [[F01 Repo housekeeping]] · S · Needs: none (done 2026-11-10, last commit a6384e6)
 - [ ] **F02** [[F02 Logo goes to My card when signed in]] · S · Needs: none
 - [ ] **F03** [[F03 Neutral copy with no named university]] · S · Needs: none
-- [ ] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up)
+- [ ] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up) (in progress: Claude subagent, 2026-11-10)
 - [ ] **F05** [[F05 QR icon for My card tab]] · S · Needs: none
 - [ ] **F06** [[F06 Edit profile and Cards buttons]] · S · Needs: none
 - [x] **F07** [[F07 Host setup sign-out fix]] · S · Needs: none (urgent: the owner is stuck) (done 2026-11-10, last commit b7ed96c)

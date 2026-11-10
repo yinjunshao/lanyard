@@ -101,7 +101,7 @@ function submitTyped() {
         <p class="sub">From a poster, a society or a friend. Type it in.</p>
       </div>
       <form class="stack" @submit.prevent="submitTyped">
-        <input v-model="typed" type="text" aria-label="Code" placeholder="FIRST50" autocapitalize="characters" autocomplete="off"
+        <input v-model="typed" type="text" aria-label="Code" placeholder="e.g. ABCD1234" autocapitalize="characters" autocomplete="off"
                spellcheck="false" maxlength="24" style="text-transform:uppercase;letter-spacing:.2em;font-size:22px;text-align:center" />
         <button class="btn btn-primary" :disabled="typed.replace(/[^a-z0-9]/gi, '').length < 4">Continue</button>
       </form>
