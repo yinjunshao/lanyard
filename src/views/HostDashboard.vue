@@ -10,6 +10,7 @@ import { MAIN_ORIGIN } from "../lib/site";
 import HostSetup from "../components/HostSetup.vue";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
+import { UiCombobox } from "../components/ui/UiSelect.vue";
 import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
 import { defaultEnd } from "../lib/dates";
 
@@ -74,7 +75,20 @@ const KINDS = [
   { value: "institution", label: "A university or educational institution", hint: "Discounted prices. Needs approval." },
   { value: "company", label: "A company or event organiser", hint: "Standard prices. Use your work email." },
 ];
-const orgForm = ref({ kind: "individual", name: "", leaderName: "", orgLink: "", university: "" });
+const orgForm = ref({ kind: "individual", name: "", leaderName: "", orgLink: "", university: "", institutionId: null });
+// The institution list is a separate chunk, fetched with a plain import() the
+// first time the picker opens (D018). Typing your own works without it.
+const institutions = ref([]);
+let institutionsLoading = false;
+function loadInstitutions() {
+  if (institutionsLoading) return;
+  institutionsLoading = true;
+  import("../data/institutions-uk.json")
+    .then((m) => { institutions.value = (m.default || m).institutions; })
+    .catch(() => { institutionsLoading = false; });
+}
+const institutionOptions = computed(() => institutions.value.map((i) => ({ value: i.id, label: i.name, aliases: i.aliases })));
+const customInstitution = (t) => `Not listed? Use ‘${t}’`;
 const kindInfo = computed(() => KINDS.find((k) => k.value === orgForm.value.kind));
 const needsApproval = computed(() => ["society", "institution"].includes(orgForm.value.kind));
 const eduRe = /(^|\.)(ac|edu)\.[a-z]{2}$|\.edu$|\.sch\.uk$/;
@@ -93,7 +107,7 @@ async function createOrg() {
     const o = orgForm.value;
     await HostApi.hostCreateOrg({
       kind: o.kind, name: o.name, leaderName: o.leaderName || account.value?.fullName,
-      orgLink: o.orgLink, university: o.university,
+      orgLink: o.orgLink, university: o.university, institutionId: o.institutionId,
     });
     await load();
   } catch (e) {
@@ -218,8 +232,10 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
           <div class="field"><label for="org-link">{{ orgForm.kind === 'society' ? 'Society link' : 'Institution website' }}</label>
             <input id="org-link" v-model="orgForm.orgLink" type="url" inputmode="url" placeholder="https://" />
             <span class="small muted">{{ orgForm.kind === 'society' ? 'Your union listing, website or social page, so we can check it exists.' : 'Your official website.' }}</span></div>
-          <div v-if="orgForm.kind === 'society'" class="field"><label for="org-uni">University</label>
-            <input id="org-uni" v-model="orgForm.university" type="text" maxlength="120" /></div>
+          <div v-if="orgForm.kind === 'society'" class="field"><label id="org-uni-l">University</label>
+            <UiCombobox id="org-uni" v-model="orgForm.institutionId" v-model:text="orgForm.university" labelledby="org-uni-l" :options="institutionOptions"
+                        allow-custom clearable placeholder="Search for your university" search-placeholder="Type a name or short name"
+                        :custom-label="customInstitution" @open="loadInstitutions" /></div>
           <p class="small muted" style="margin:0">
             The leader's email and the person billed is <strong>{{ account?.email }}</strong>, the email on your host account.
             An admin checks every application before events can be created.

@@ -2,9 +2,11 @@
 // helpers, then (added by later F12 tasks) storage, API, backfill and source guards.
 // Run: node test/institutions.mjs
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { sep } from "node:path";
 import { makeEnv, makeDb, readMigration, check, summary, becomeHost } from "./harness.mjs";
 import { eraseUser } from "../worker/purge.js";
-import { slugify, institutionOptions, institutionForDomain, institutionForText } from "../src/lib/institutions.js";
+import { slugify, institutionForDomain, institutionForText } from "../src/lib/institutions.js";
 
 const file = JSON.parse(readFileSync(new URL("../src/data/institutions-uk.json", import.meta.url), "utf8"));
 const list = file.institutions;
@@ -29,8 +31,6 @@ check("pinned ids are still there", PINNED.every((id) => ids.includes(id)), PINN
 
 console.log("\n# Helpers");
 check("slugify drops apostrophes and turns & into and", slugify("King's College London") === "kings-college-london" && slugify("A & B") === "a-and-b");
-const opts = institutionOptions(list);
-check("options are { value, label, aliases }", opts.length === list.length && opts[0].value === list[0].id && opts[0].label === list[0].name && Array.isArray(opts[0].aliases));
 const ex = [{ id: "example-university", name: "Example University", aliases: ["EU"], domains: ["example.ac.uk"] }, { id: "other", name: "Other", aliases: ["Example University"], domains: [] }];
 check("a domain finds its institution", institutionForDomain(ex, "example.ac.uk")?.id === "example-university");
 check("a subdomain finds it too, in any case", institutionForDomain(ex, "Students.Example.AC.uk")?.id === "example-university");
@@ -126,6 +126,26 @@ console.log("\n# Host organisation");
   check("a typed university is kept as typed with no id", o3.university === "Typed College" && o3.institution_id === null, o3);
   const ex = (await H.get("/api/host/account/export")).json;
   check("the host export lists the organisation's university and id", ex.organisations?.[0]?.institution_id === L.id && ex.organisations[0].university === L.name, ex.organisations);
+}
+
+console.log("\n# Source guards");
+{
+  const { readdirSync, statSync } = await import("node:fs");
+  const walk = (d, out = []) => { for (const n of readdirSync(d)) { const f = d + "/" + n; if (statSync(f).isDirectory()) walk(f, out); else out.push(f); } return out; };
+  const src = walk(fileURLToPath(new URL("../src", import.meta.url))).map((f) => f.split(sep).join("/")).filter((f) => /\.(vue|js)$/.test(f));
+  const read = (f) => readFileSync(f, "utf8");
+  const importers = src.filter((f) => /institutions-[a-z]+\.json/.test(read(f))).map((f) => f.split("/").pop());
+  check("only the profile editor and the host dashboard name the data file", importers.sort().join() === "EditProfile.vue,HostDashboard.vue", importers);
+  check("each fetches it with a plain import(), never a static import or defineAsyncComponent", src.filter((f) => /(EditProfile|HostDashboard)\.vue$/.test(f)).every((f) => {
+    const t = read(f);
+    return /import\("\.\.\/data\/institutions-uk\.json"\)/.test(t) && !/^import .*institutions-[a-z]+\.json/m.test(t) && !/defineAsyncComponent/.test(t);
+  }));
+  const combo = read(src.find((f) => /UiCombobox\.vue$/.test(f)));
+  check("the list is fetched when the picker opens (UiCombobox emits open)", /emit\("open"\)/.test(combo));
+  const edit = read(src.find((f) => /EditProfile\.vue$/.test(f)));
+  check("the profile editor has no plain text field for the university or studied-at", !/<input[^>]*id="uni"/.test(edit) && (edit.match(/<UiCombobox/g) || []).length === 2);
+  check("and the organisation form sends the id", /institutionId: o\.institutionId/.test(read(src.find((f) => /HostDashboard\.vue$/.test(f)))));
+  check("and it sends the id with the text", /institutionId: f\.value\.institutionId/.test(edit));
 }
 
 summary();

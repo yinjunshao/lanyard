@@ -8,6 +8,7 @@
 //   v-model     the chosen option's value, or null when the text is custom or empty
 //   v-model:text  what the field shows: the option's label, or the custom text
 //   @select     { value, label, custom } whenever something is chosen
+//   @open       when the list opens (a page can load a big option list then)
 //   allow-custom  adds a last option that keeps what was typed
 //   custom-label  (text) => the words for that option (default: Use "text")
 // Matching ignores case and accents, looks at aliases, and highlights the match.
@@ -32,7 +33,7 @@ const props = defineProps({
   limit: { type: Number, default: 60 },
   disabled: Boolean,
 });
-const emit = defineEmits(["update:modelValue", "update:text", "select"]);
+const emit = defineEmits(["update:modelValue", "update:text", "select", "open"]);
 
 const uid = nextUid();
 const listId = `${uid}-list`;
@@ -64,6 +65,7 @@ function show(first = "") {
   if (props.disabled) return;
   query.value = first;
   open.value = true;
+  emit("open");
   settle(true);
   nextTick(() => { input.value?.focus(); if (!first) input.value?.select(); });
 }

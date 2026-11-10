@@ -5,12 +5,14 @@ import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
 import Avatar from "../components/Avatar.vue";
 import PhotoCropper from "../components/PhotoCropper.vue";
+import { UiCombobox } from "../components/ui/UiSelect.vue";
+import { institutionForDomain } from "../lib/institutions";
 import { afterAccountPath } from "../lib/redeem";
 
 const router = useRouter();
 const route = useRoute();
 const f = ref({
-  name: "", mode: "student", company: "", role: "", uni: "", course: "", year: "", headline: "", about: "",
+  name: "", mode: "student", company: "", role: "", uni: "", institutionId: null, course: "", year: "", headline: "", about: "",
   tags: "", links: [{ label: "", url: "" }], projects: [], showAge: false,
 });
 const photo = ref(null);
@@ -30,6 +32,31 @@ const career = computed(() => f.value.mode === "career");
 const SUGGESTED = computed(() => (career.value ? SUGGESTED_CAREER : SUGGESTED_STUDENT));
 // Career mode: where you studied is optional and tucked away, unless it is already filled in.
 const showStudied = ref(false);
+
+// The institution list is a separate chunk, fetched with a plain import() the
+// first time the picker opens (D018). Typing your own works without it.
+const institutions = ref([]);
+let institutionsLoading = false;
+function loadInstitutions() {
+  if (institutionsLoading) return;
+  institutionsLoading = true;
+  import("../data/institutions-uk.json")
+    .then((m) => { institutions.value = (m.default || m).institutions; })
+    .catch(() => { institutionsLoading = false; });
+}
+const institutionOptions = computed(() => institutions.value.map((i) => ({ value: i.id, label: i.name, aliases: i.aliases })));
+const customInstitution = (t) => `Not listed? Use ‘${t}’`;
+// "Looks like you're at ..." from the domain of the account's verified email.
+const emailDomain = computed(() => me.user?.emailDomain || "");
+const suggestion = computed(() => {
+  const inst = institutionForDomain(institutions.value, emailDomain.value);
+  return inst && f.value.institutionId !== inst.id ? inst : null;
+});
+function useSuggestion() {
+  const inst = suggestion.value; // read first: setting the id makes the suggestion go away
+  f.value.institutionId = inst.id;
+  f.value.uni = inst.name;
+}
 const tagList = computed(() => f.value.tags.split(",").map((t) => t.trim()).filter(Boolean));
 function toggleTag(t) {
   const have = tagList.value;
@@ -39,18 +66,19 @@ function toggleTag(t) {
 const hasTag = (t) => tagList.value.some((x) => x.toLowerCase() === t.toLowerCase());
 
 onMounted(() => {
+  if (/(^|\.)ac\.uk$/i.test(emailDomain.value)) loadInstitutions();
   // Arrived from "Finish your card": put the cursor in the field that's missing.
   if (route.hash) setTimeout(() => {
     const el = document.querySelector(route.hash);
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
-    (el?.matches("input, textarea") ? el : el?.querySelector("input:not([type=file]), textarea"))?.focus({ preventScroll: true });
+    (el?.matches("input, textarea, button") ? el : el?.querySelector("input:not([type=file]), textarea"))?.focus({ preventScroll: true });
   }, 250);
   const p = me.profile;
   if (p) {
     const links = Object.entries(p.links || {}).map(([label, url]) => ({ label, url }));
     f.value = {
       name: p.name || "", mode: p.mode === "career" ? "career" : "student",
-      company: p.company || "", role: p.role || "", uni: p.uni || "", course: p.course || "",
+      company: p.company || "", role: p.role || "", uni: p.uni || "", institutionId: p.institution_id || null, course: p.course || "",
       year: p.year || "", headline: p.headline || "", about: p.about || "",
       tags: (p.tags || []).join(", "),
       links: links.length ? links : [{ label: "", url: "" }],
@@ -132,7 +160,7 @@ async function save() {
   try {
     const payload = {
       name: f.value.name, mode: f.value.mode, company: f.value.company, role: f.value.role,
-      uni: f.value.uni, course: f.value.course,
+      uni: f.value.uni, institutionId: f.value.institutionId, course: f.value.course,
       year: f.value.year, headline: f.value.headline, about: f.value.about,
       tags: f.value.tags.split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean).slice(0, 12),
       links: buildLinks(f.value.links),
@@ -201,8 +229,13 @@ async function save() {
       </div>
 
       <template v-if="!career">
-        <div class="field"><label for="uni">University</label>
-          <input id="uni" v-model="f.uni" type="text" placeholder="Your university" /></div>
+        <div class="field"><label id="uni-l">University</label>
+          <p v-if="suggestion" class="notice small" role="status" style="margin:0 0 8px">
+            Looks like you're at {{ suggestion.name }}.
+            <button type="button" class="link-btn small" @click="useSuggestion">Use it</button></p>
+          <UiCombobox id="uni" v-model="f.institutionId" v-model:text="f.uni" labelledby="uni-l" :options="institutionOptions"
+                      allow-custom clearable placeholder="Search for your university" search-placeholder="Type a name or short name"
+                      :custom-label="customInstitution" @open="loadInstitutions" /></div>
         <div class="field"><label for="course">Course</label>
           <input id="course" v-model="f.course" type="text" placeholder="e.g. Computer Science" /></div>
         <div class="field"><label for="year">Year (optional)</label>
@@ -217,8 +250,13 @@ async function save() {
           Add where you studied (optional)
         </button>
         <template v-else>
-          <div class="field"><label for="uni">Studied at (optional)</label>
-            <input id="uni" v-model="f.uni" type="text" placeholder="Your university or school" /></div>
+          <div class="field"><label id="uni-l">Studied at (optional)</label>
+            <p v-if="suggestion" class="notice small" role="status" style="margin:0 0 8px">
+              Looks like you're at {{ suggestion.name }}.
+              <button type="button" class="link-btn small" @click="useSuggestion">Use it</button></p>
+            <UiCombobox id="uni" v-model="f.institutionId" v-model:text="f.uni" labelledby="uni-l" :options="institutionOptions"
+                        allow-custom clearable placeholder="Search for your university or school" search-placeholder="Type a name or short name"
+                        :custom-label="customInstitution" @open="loadInstitutions" /></div>
         </template>
       </template>
     </div>

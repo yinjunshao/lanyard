@@ -1,3 +1,9 @@
+<script>
+// UiCombobox rides in this chunk (see D018 and the F12 Log): a new chunk would add
+// its file names to the router's preload list in the entry every public page loads.
+export { default as UiCombobox } from "./UiCombobox.vue";
+</script>
+
 <script setup>
 // A single choice from a short list. WAI-ARIA "select-only combobox": the button
 // has role="combobox" and keeps focus on desktop, the list is a listbox driven by

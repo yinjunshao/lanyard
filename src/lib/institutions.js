@@ -1,15 +1,10 @@
-// F12: helpers for the institution list (src/data/institutions-uk.json). Plain JS
+// F12: helpers for the institution list (the JSON under src/data). Plain JS
 // with no import of the data, so the picker can load the list only when it opens
 // and the Worker and the tests can pass the list in.
 
 /** The stable slug for a name. An institution's id is this, fixed when it is first listed. */
 export function slugify(name) {
   return String(name).toLowerCase().replace(/&/g, " and ").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-/** Options for UiCombobox: { value: id, label: official name, aliases }. */
-export function institutionOptions(list) {
-  return list.map((i) => ({ value: i.id, label: i.name, aliases: i.aliases || [] }));
 }
 
 /**
