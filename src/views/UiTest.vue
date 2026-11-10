@@ -3,6 +3,10 @@
 // only in `vite dev` (see router/index.js); a production build does not contain it.
 import { ref } from "vue";
 import UiSelect from "../components/ui/UiSelect.vue";
+import UiDatePicker from "../components/ui/UiDatePicker.vue";
+import UiTimePicker from "../components/ui/UiTimePicker.vue";
+import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
+import { defaultEnd } from "../lib/dates.js";
 
 const freq = ref("weekly");
 const freqOptions = [
@@ -17,6 +21,11 @@ const none = ref("");
 const many = ref(12);
 const manyOptions = Array.from({ length: 40 }, (_, i) => ({ value: i + 1, label: `Option ${i + 1}` }));
 const off = ref("a");
+const day = ref("");
+const limited = ref("2026-11-10");
+const time = ref("");
+const start = ref(null);
+const end = ref(null);
 </script>
 
 <template>
@@ -50,6 +59,37 @@ const off = ref("a");
     <div class="field">
       <label for="t-plain">A button after it, to check focus returns here</label>
       <button id="t-plain" class="btn-quiet" type="button">Next control</button>
+    </div>
+
+    <h2>UiDatePicker</h2>
+    <div class="field">
+      <label id="t-day-l">Remind me on</label>
+      <UiDatePicker id="t-day" v-model="day" labelledby="t-day-l" clearable />
+      <span class="small muted">Value: {{ day || "(empty)" }}</span>
+    </div>
+    <div class="field">
+      <label id="t-lim-l">Only 5 Nov to 20 Dec 2026</label>
+      <UiDatePicker id="t-lim" v-model="limited" labelledby="t-lim-l" min="2026-11-05" max="2026-12-20" />
+      <span class="small muted">Value: {{ limited || "(empty)" }}</span>
+    </div>
+
+    <h2>UiTimePicker</h2>
+    <div class="field">
+      <label id="t-time-l">Doors open</label>
+      <UiTimePicker id="t-time" v-model="time" labelledby="t-time-l" />
+      <span class="small muted">Value: {{ time || "(empty)" }}</span>
+    </div>
+
+    <h2>UiDateTimePicker</h2>
+    <div class="field">
+      <label id="t-start-l">Starts (optional)</label>
+      <UiDateTimePicker id="t-start" v-model="start" labelledby="t-start-l" clearable />
+      <span class="small muted">Value: {{ start ?? "(empty)" }}</span>
+    </div>
+    <div class="field">
+      <label id="t-end-l">Ends (optional)</label>
+      <UiDateTimePicker id="t-end" v-model="end" labelledby="t-end-l" clearable :min="start" :suggest="start ? defaultEnd(start) : null" />
+      <span class="small muted">Value: {{ end ?? "(empty)" }}</span>
     </div>
   </div>
 </template>

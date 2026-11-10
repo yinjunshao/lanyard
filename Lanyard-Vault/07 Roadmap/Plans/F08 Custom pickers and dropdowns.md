@@ -47,7 +47,11 @@ All of them:
 - [x] F08.1 `UiSheet` and `UiSelect`, plus a test page for agents to check by eye (remove or hide it before finishing).
   - Test page: `/ui-test` (`src/views/UiTest.vue`), registered only when `import.meta.env.DEV`, so `npm run build` leaves it out (checked: no `UiTest` file in `dist/`). Hidden, not removed, so later tasks can add their pickers to it.
   - Checked in a local browser at 1280 px (popover, keyboard: Down skips a disabled option, Enter chooses, Esc closes, type-ahead, focus stays on the button) and 375 px (bottom sheet, focus on the listbox, page `inert`, body scroll locked, focus returns to the button).
-- [ ] F08.2 `UiDatePicker` and `UiTimePicker`, then `UiDateTimePicker`. Unit-test the date maths (month lengths, leap years, BST/GMT changeover on the last Sunday of March and October).
+- [x] F08.2 `UiDatePicker` and `UiTimePicker`, then `UiDateTimePicker`. Unit-test the date maths (month lengths, leap years, BST/GMT changeover on the last Sunday of March and October).
+  - Date maths is in `src/lib/dates.js` (no Vue). `test/dates.mjs` (50 checks, wired into `npm test`) sets `process.env.TZ = "Europe/London"` first and asserts the zone took effect, so it does not depend on the machine's zone. It covers month lengths, leap years, Monday-first grids, typed times, and every quarter hour on the Saturday, Sunday and Monday of both clock-change weekends.
+  - Value types: `UiDatePicker` takes and gives `"YYYY-MM-DD"` (like `type="date"`), `UiTimePicker` `"HH:mm"`, `UiDateTimePicker` a unix-ms number or `null` (like `fromLocalInput`; forms that held the `datetime-local` string will hold ms instead). The date-time picker has `clearable` for optional fields and `suggest` for the end time (one tap to start + 2 hours).
+  - Clock changes: a time that does not exist (01:30 on the spring Sunday) becomes 02:30 BST, and a time that happens twice is the first one. A stored time is never rewritten unless the host edits it.
+  - Checked in a local browser: calendar keys (arrows, Home/End, Page Down, min/max stop at the limit), Enter chooses and focus returns to the button, the time list takes `6.30pm`, and the phone sheet at 375 px in dark mode.
 - [ ] F08.3 `UiCombobox` (needed by F12).
 - [ ] F08.4 Replace the host controls (`HostDashboard`, `HostLive`, `HostAccount`).
 - [ ] F08.5 Replace the attendee controls (`MyCard`, `People`, `CardForm`, `FeedbackEditor`, `PrivacyRequest`, `PublicCard` lazily).

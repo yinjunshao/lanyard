@@ -146,6 +146,7 @@ function closed() {
   opener = null;
 }
 
+watch(isSheet, () => { if (props.open) nextTick(place); });
 watch(() => props.open, (v) => (v ? opened() : closed()), { immediate: true, flush: "post" });
 onBeforeUnmount(() => { if (props.open) closed(); });
 
