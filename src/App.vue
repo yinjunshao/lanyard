@@ -29,7 +29,7 @@ if (isStandalone()) {
 }
 const showChrome = computed(() => r.meta.app && me.profile);
 const tabs = [
-  { to: "/app", key: "card", label: "My card", match: (p) => p === "/app" },
+  { to: "/app", key: "card", icon: "qr", label: "My card", match: (p) => p === "/app" },
   { to: "/app/scan", key: "scan", label: "Scan", match: (p) => p.startsWith("/app/scan") },
   { to: "/app/people", key: "people", label: "People", match: (p) => p.startsWith("/app/people") },
 ];
@@ -58,7 +58,7 @@ const tabs = [
           class="tab"
           :class="{ on: t.match(r.path) }"
         >
-          <span class="tab-glyph"><Icon :name="t.key" /></span>
+          <span class="tab-glyph"><Icon :name="t.icon || t.key" /></span>
           <span>{{ t.label }}</span>
         </router-link>
       </div>

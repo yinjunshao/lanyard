@@ -4,7 +4,7 @@ id: F05
 priority: P0
 phase: 0
 size: S
-status: Not started
+status: In progress
 needs: []
 ---
 # F05 QR icon for My card tab
@@ -27,7 +27,7 @@ Add a `qr` icon in the same style: three rounded finder squares plus a few short
 Use `qr` for the My card tab. Keep `card` for other places that use it.
 
 ## Tasks
-- [ ] F05.1 Add the icon and switch the tab.
+- [x] F05.1 Add the icon and switch the tab.
 - [ ] F05.2 Check it at 24 px and 20 px, in light and dark, next to Scan and People. The stroke weight must match, and it must not look filled or heavier.
 
 ## Acceptance checks

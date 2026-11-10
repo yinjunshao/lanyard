@@ -12,6 +12,7 @@ const paths = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   note: '<path d="M5 5h14v10l-5 5H5z"/><path d="M14 20v-5h5"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/>',
+  qr: '<rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><path d="M14 14h2.5M14 17.5v2.5M17.5 17h2.5M20 14v.01M17 20h3"/>',
 };
 </script>
 <template>
