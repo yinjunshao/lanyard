@@ -4,7 +4,7 @@ id: F08
 priority: P1
 phase: 1
 size: L
-status: Not started
+status: In progress
 needs: []
 ---
 # F08 Custom pickers and dropdowns
@@ -44,7 +44,9 @@ All of them:
 - Load lazily. `PublicCard.vue` is a public page with a 50 KB JS budget, so its date picker loads with `defineAsyncComponent` only when "Remind me on a date" is tapped.
 
 ## Tasks
-- [ ] F08.1 `UiSheet` and `UiSelect`, plus a test page for agents to check by eye (remove or hide it before finishing).
+- [x] F08.1 `UiSheet` and `UiSelect`, plus a test page for agents to check by eye (remove or hide it before finishing).
+  - Test page: `/ui-test` (`src/views/UiTest.vue`), registered only when `import.meta.env.DEV`, so `npm run build` leaves it out (checked: no `UiTest` file in `dist/`). Hidden, not removed, so later tasks can add their pickers to it.
+  - Checked in a local browser at 1280 px (popover, keyboard: Down skips a disabled option, Enter chooses, Esc closes, type-ahead, focus stays on the button) and 375 px (bottom sheet, focus on the listbox, page `inert`, body scroll locked, focus returns to the button).
 - [ ] F08.2 `UiDatePicker` and `UiTimePicker`, then `UiDateTimePicker`. Unit-test the date maths (month lengths, leap years, BST/GMT changeover on the last Sunday of March and October).
 - [ ] F08.3 `UiCombobox` (needed by F12).
 - [ ] F08.4 Replace the host controls (`HostDashboard`, `HostLive`, `HostAccount`).

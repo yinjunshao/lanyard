@@ -66,6 +66,9 @@ const routes = [
   { path: "/host/billing", component: HostBilling },
   { path: "/host/account", component: HostAccount },
   { path: "/admin", component: Admin },
+  // F08 test page for checking the pickers by eye. `import.meta.env.DEV` is false
+  // in a production build, so this entry (and the page's chunk) is dropped.
+  ...(import.meta.env.DEV ? [{ path: "/ui-test", component: () => import("../views/UiTest.vue") }] : []),
 
   { path: "/:pathMatch(.*)*", component: NotFound },
 ];

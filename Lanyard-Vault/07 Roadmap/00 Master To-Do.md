@@ -62,7 +62,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F07** [[F07 Host setup sign-out fix]] · S · Needs: none (urgent: the owner is stuck) (done 2026-11-10, last commit b7ed96c)
 
 ### Phase 1: foundations
-- [ ] **F08** [[F08 Custom pickers and dropdowns]] · P1 · L · Needs: none
+- [ ] **F08** [[F08 Custom pickers and dropdowns]] · P1 · L · Needs: none (in progress: Claude subagent, 2026-11-10)
 - [ ] **F09** [[F09 Settings in category pages]] · P1 · M · Needs: F08
 - [ ] **F10** [[F10 Separate host accounts on host subdomain]] · P1 · XL · Needs: F07 + owner decision (host reset)
 - [ ] **F11** [[F11 Student and Career mode]] · P1 · M · Needs: none
