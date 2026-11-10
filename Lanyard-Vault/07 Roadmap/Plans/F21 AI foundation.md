@@ -55,7 +55,8 @@ The shared plumbing that makes every AI feature safe and cheap. The design and r
   - `worker/ai/client.js` (`callModel`, `allowanceFor`) with `store.js`, `optout.js`, `prompt.js`, `messages.js`, `alerts.js`, `stub.js`, `data.js`, and the cleaning and checking modules it needs (`sanitize.js`, `validate.js`, tested properly in F21.3). The 183 checks in `test/ai.mjs` use a stubbed `fetch`. Added: a per-actor burst and address limit, a per-event quota, 50% and 90% budget emails, the AI section of both data downloads, the purge (cache 7 days, counts 13 months, orphans) and erasure.
 - [x] F21.3 `sanitize.js` and `validate.js` with unit tests and the injection test file.
   - `sanitize.js` (`cleanText`, `deepClean`, `pickFields`, `safeJson`), `validate.js` (`parseModelJson`, schema-lite `validate`, `filterIds`, `exactQuotes`, `stripContacts`), `prompt.js` (`buildSystem`, `buildUser`, `assignIds`), and a `refine` hook in `callModel` for a feature's own checks. `test/ai-injection.mjs` (150 checks) runs a stubbed model that obeys every attack in the data; it is in `npm test` before the budget check.
-- [ ] F21.4 Admin spend panel, kill switch and allow-list.
+- [x] F21.4 Admin spend panel, kill switch and allow-list.
+  - `worker/ai/admin.js` (routes on `adminApp`, behind the token), `src/components/AdminAi.vue` in `/admin`: state, key and gateway set or not, prices (flagged while unconfirmed), spend against both budgets, calls, cache hit rate, fallbacks, per feature, top 10 people (ids only), people at a limit three days running, kill switch, rollout stage, allow-list and a test call. The kill switch, stage and list are in `ai_settings` (D1), not KV: read on every call, so they act at once. Checked in the browser at 375 and 1280 px, light and dark, with the local stub.
 - [ ] F21.5 Settings toggle, policy and DPIA text (the owner approves the wording).
 - [ ] F21.6 Owner steps written below and copied to the master list.
 

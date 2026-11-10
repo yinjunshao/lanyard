@@ -67,6 +67,12 @@ console.log("\n# Local stub mode is refused anywhere that is not local");
   check("production config never sets AI_STUB", !/AI_STUB/.test(live));
   check("production config has AI_ENABLED off", /^AI_ENABLED\s*=\s*"0"/m.test(live));
   check("production config holds no key and no price (the owner sets both)", !/CLAUDE_API_KEY|AI_PRICE_|sk-ant/.test(live));
+  const localToml = read("wrangler.toml").replace(/^\s*#.*$/gm, "");
+  const localOrigin = /^APP_ORIGIN\s*=\s*"([^"]+)"/m.exec(localToml)[1];
+  check("the local config turns the stub on, and only with local origins (so the Worker would accept it there and nowhere else)", /^AI_STUB\s*=\s*"1"/m.test(localToml) && stubMode({ AI_STUB: "1", APP_ORIGIN: localOrigin }).allowed === true, localOrigin);
+  const wranglerDeploys = (src) => src.split("\n").filter((l) => /wrangler(\.cmd)? deploy/.test(l));
+  const deploys = wranglerDeploys(read("package.json")).concat(wranglerDeploys(read("deploy.bat")));
+  check("`npm run deploy` and deploy.bat both use the production config, never the local file that has the stub", deploys.length >= 2 && deploys.every((l) => /--config wrangler\.production\.toml/.test(l)), deploys);
   check("the production APP_ORIGIN would make the Worker refuse the stub anyway", stubMode({ AI_STUB: "1", APP_ORIGIN: /^APP_ORIGIN\s*=\s*"([^"]+)"/m.exec(live)[1] }).allowed === false);
 }
 
@@ -573,6 +579,119 @@ console.log("\n# Alerts at 50% and 90% of the budget");
   gateway.outTok = 36;
   await ask(quiet, quiet.user(), { maxTokens: 5 });
   check("with no AI_ALERT_EMAIL nothing is sent", quiet.env.MAIL_OUTBOX.length === 0);
+}
+
+console.log("\n# Admin: behind the token, and it never shows the key or any text");
+{
+  resetGateway();
+  const TOKEN = "admin-test-token-0123456789";
+  const W = await world({ ADMIN_TOKEN: TOKEN });
+  const adm = { authorization: `Bearer ${TOKEN}` };
+  const routes = [["get", "/api/admin/ai"], ["post", "/api/admin/ai/kill", { killed: true }], ["post", "/api/admin/ai/rollout", { mode: "everyone" }], ["put", "/api/admin/ai/allow", { emails: ["x@y.test"] }], ["post", "/api/admin/ai/test", {}]];
+  const hit = (c, [m, p, b], h) => (m === "get" ? c.get(p, h) : m === "post" ? c.post(p, b, h) : c.put(p, b, h));
+  const anon = W.client({ ip: "10.30.0.1" });
+  const noToken = await world({ ADMIN_TOKEN: undefined });
+  const ncl = noToken.client({ ip: "10.30.0.2" });
+  const statuses = async (c, h) => { const out = []; for (const r of routes) out.push((await hit(c, r, h)).status); return out; };
+  check("with no token sent, every AI admin route is 401", (await statuses(anon)).every((s) => s === 401));
+  check("with a wrong token, every route is 401", (await statuses(W.client({ ip: "10.30.0.3" }), { authorization: "Bearer nope" })).every((s) => s === 401));
+  check("when the admin token is not set up at all, every route is 503 (never open)", (await statuses(ncl, { authorization: "Bearer anything" })).every((s) => s === 503));
+  // A signed-in attendee, and a signed-in host, are not admins.
+  const user = W.client({ ip: "10.30.0.4" });
+  await user.post("/api/profile", { name: "Normal User", acceptTerms: true, over18: true, course: "Maths", uni: "Test University" });
+  const host = W.client({ ip: "10.30.0.5", site: "host" });
+  await becomeHost(host, { kind: "company", name: "Admin Test Co" });
+  check("a signed-in attendee cookie does not open it", (await statuses(user)).every((s) => s === 401));
+  check("a signed-in host cookie does not open it either", (await user.get("/api/admin/ai", { cookie: "" })).status === 401);
+  check("nothing changed from those attempts", !W.q1("SELECT 1 x FROM ai_settings"));
+
+  const ok = W.client({ ip: "10.30.0.6" });
+  const first = await ok.get("/api/admin/ai", adm);
+  const J = first.json;
+  check("with the token the page data is returned", first.status === 200 && J.config && J.settings && J.today && J.month && Array.isArray(J.features) && Array.isArray(J.topUsers) && Array.isArray(J.flagged), first.text.slice(0, 200));
+  check("it says whether the key and gateway are set (yes or no), never what they are", J.config.keySet === true && J.config.gatewaySet === true && !first.text.includes(KEY) && !first.text.includes("gateway.test") && !/sk-/.test(first.text));
+  check("the model, budgets, prices and whether the prices are confirmed are there", J.config.model === "claude-haiku-5-5" && J.config.dailyBudgetUsd === 2 && J.config.monthlyBudgetUsd === 30 && J.config.prices.confirmed === true && J.config.prices.inputPerMtokUsd === 1);
+  check("the starting state is: enabled by the environment, allow-list only, switch not thrown, nobody listed", J.state === "on" && J.settings.rollout === "allowlist" && J.settings.killed === false && J.settings.allow.length === 0);
+  check("a fresh install has no spend and no rows", J.today.spendUsd === 0 && J.month.calls === 0 && J.features.length === 0 && J.topUsers.length === 0 && J.cacheHitRate === null);
+  const unconfirmed = await world({ ADMIN_TOKEN: TOKEN, AI_PRICE_INPUT_PER_MTOK_USD: undefined, AI_PRICE_OUTPUT_PER_MTOK_USD: undefined });
+  check("with no price vars the page says the prices are not confirmed", (await unconfirmed.client({ ip: "10.30.0.7" }).get("/api/admin/ai", adm)).json.config.prices.confirmed === false);
+  const states = [[{ AI_ENABLED: "0" }, "off_env"], [{ CLAUDE_API_KEY: undefined }, "not_configured"], [{ AI_STUB: "1", APP_ORIGIN: "https://lanyd.fyi" }, "stub_refused"]];
+  for (const [extra, want] of states) {
+    const X = await world({ ADMIN_TOKEN: TOKEN, ...extra });
+    check(`state is ${want} when ${Object.keys(extra).join("+")} is ${JSON.stringify(Object.values(extra)[0])}`, (await X.client({ ip: "10.30.0.8" }).get("/api/admin/ai", adm)).json.state === want);
+  }
+
+  // Use it, then look.
+  await setSetting(W.env.DB, "rollout", "everyone");
+  const a = W.user({ plan: "plus" }), b = W.user();
+  await ask(W, a); advance(6000); await ask(W, a); advance(6000); await ask(W, b, { data: { b: 1 } });
+  advance(6000);
+  await ask(W, b, { data: { b: 2 } }); advance(6000); await ask(W, b, { data: { b: 3 } }); advance(6000); await ask(W, b, { data: { b: 4 } }); // 4th is refused
+  const J2 = (await ok.get("/api/admin/ai", adm)).json;
+  check("today's spend, calls, cache hits and fallbacks add up (4 calls at 200 micro-dollars, 1 cache hit, 1 refusal)", J2.today.calls === 4 && J2.today.spendUsd === 0.0008 && J2.today.cacheHits === 1 && J2.today.fallbacks === 1 && J2.month.calls === 4, J2.today);
+  check("the cache hit rate is hits over hits plus calls", Math.abs(J2.cacheHitRate - 0.2) < 1e-9, J2.cacheHitRate);
+  const f = J2.features.find((x) => x.feature === "followup");
+  check("calls per feature are listed with their label, today's count, hits, fallbacks and limit hits", f && f.label === "drafts" && f.calls === 4 && f.callsToday === 4 && f.cacheHits === 1 && f.fallbacks === 1 && f.limited === 1 && f.spendUsd === 0.0008, f);
+  check("the top people are ids only, busiest first, with their kind", J2.topUsers[0].id === b.id && J2.topUsers[0].calls === 3 && J2.topUsers[0].kind === "user" && J2.topUsers.length === 2 && Object.keys(J2.topUsers[0]).sort().join() === "calls,id,kind,limited,spendUsd");
+  check("no name, email, prompt or reply text is on the page", !/@|robotics|Hello there|Write a short note|Sam/.test(JSON.stringify(J2)));
+  // Flagging: three days running at a limit.
+  const day = (n) => new Date(Date.now() - n * 86400e3).toISOString().slice(0, 10);
+  const rep = W.user(), gap = W.user();
+  for (const n of [0, 1, 2]) W.raw.prepare("INSERT INTO ai_usage (day, actor_kind, actor_id, feature, limited) VALUES (?, 'user', ?, 'followup', 1)").run(day(n), rep.id);
+  for (const n of [0, 1, 3]) W.raw.prepare("INSERT INTO ai_usage (day, actor_kind, actor_id, feature, limited) VALUES (?, 'user', ?, 'followup', 1)").run(day(n), gap.id);
+  const J3 = (await ok.get("/api/admin/ai", adm)).json;
+  check("someone who hit a limit on 3 days in a row is flagged (not blocked), and a gap in the run is not", J3.flagged.some((x) => x.id === rep.id && x.days === 3) && !J3.flagged.some((x) => x.id === gap.id), J3.flagged);
+  check("flagged people are only listed: they can still use it", (await ask(W, rep, { data: { x: 1 } })).fallback !== undefined);
+
+  // Kill switch, rollout, allow-list.
+  const bad = [await ok.post("/api/admin/ai/kill", { killed: "yes" }, adm), await ok.post("/api/admin/ai/kill", {}, adm), await ok.post("/api/admin/ai/rollout", { mode: "all" }, adm), await ok.post("/api/admin/ai/rollout", {}, adm)];
+  check("a bad kill-switch or rollout value is a 400 and changes nothing", bad.every((r) => r.status === 400) && W.q1("SELECT value v FROM ai_settings WHERE key = 'rollout'").v === "everyone" && !W.q1("SELECT 1 x FROM ai_settings WHERE key = 'killed'"));
+  advance(6000);
+  const k = await ok.post("/api/admin/ai/kill", { killed: true }, adm);
+  const afterKill = await ask(W, a, { data: { k: 1 } });
+  check("the kill switch from the admin page turns every call into a fallback at once", k.status === 200 && afterKill.reason === "off", afterKill);
+  check("and the page shows it as off", (await ok.get("/api/admin/ai", adm)).json.state === "off_switch");
+  await ok.post("/api/admin/ai/kill", { killed: false }, adm);
+  advance(6000);
+  check("switching it back on works at once", (await ask(W, a, { data: { k: 2 } })).fallback === false);
+  await ok.post("/api/admin/ai/rollout", { mode: "allowlist" }, adm);
+  const al = await ok.put("/api/admin/ai/allow", { emails: [" Mine@Mail.test ", "mine@mail.test", "other@mail.test"] }, adm);
+  check("the allow-list is stored lower-case, trimmed and without repeats", al.status === 200 && al.json.allow.join() === "mine@mail.test,other@mail.test", al.json);
+  const owner = W.user({ email: "mine@mail.test" });
+  advance(6000);
+  check("the stage 'allow-list' then lets only listed people in", (await ask(W, owner, { data: { o: 1 } })).fallback === false && (await ask(W, W.user())).reason === "not_allowed");
+  const badAllow = [await ok.put("/api/admin/ai/allow", { emails: "a@b.test" }, adm), await ok.put("/api/admin/ai/allow", { emails: ["not an email"] }, adm), await ok.put("/api/admin/ai/allow", { emails: Array.from({ length: 51 }, (_, i) => `p${i}@x.test`) }, adm), await ok.put("/api/admin/ai/allow", { emails: ["a".repeat(130) + "@x.test"] }, adm)];
+  check("a bad list (not a list, not an address, over 50, too long) is a 400 and the list is unchanged", badAllow.every((r) => r.status === 400) && (await ok.get("/api/admin/ai", adm)).json.settings.allow.length === 2);
+  check("an empty list clears it", (await ok.put("/api/admin/ai/allow", { emails: [] }, adm)).json.allow.length === 0);
+
+  // The test button.
+  await ok.post("/api/admin/ai/rollout", { mode: "everyone" }, adm);
+  advance(6000);
+  const before = gateway.calls.length;
+  gateway.text = '{"ok":true}';
+  const t1 = await ok.post("/api/admin/ai/test", {}, adm);
+  check("the test button makes one real-shaped call and reports success with the tokens", t1.status === 200 && t1.json.ok === true && t1.json.usage.inputTokens === 100 && gateway.calls.length === before + 1 && !t1.text.includes(KEY), t1.json);
+  check("it sent no personal data: the request holds only the fixed ping", gateway.calls.at(-1).body.messages[0].content.includes('"ping":"hello"') && !/@|Sam|robotics/.test(JSON.stringify(gateway.calls.at(-1).body)));
+  check("it is counted against the budget under the admin kind", W.q1("SELECT calls c FROM ai_usage WHERE actor_kind = 'admin' AND feature = 'admin_test'").c === 1);
+  const t2 = await ok.post("/api/admin/ai/test", {}, adm);
+  check("pressing it twice at once is refused as too fast", t2.json.ok === false && t2.json.reason === "burst" && gateway.calls.length === before + 1);
+  advance(6000);
+  gateway.text = "not json";
+  const t3 = await ok.post("/api/admin/ai/test", {}, adm);
+  check("when the reply is wrong it says so plainly (reason bad_output), still without the key", t3.json.ok === false && t3.json.reason === "bad_output" && !t3.text.includes(KEY), t3.json);
+  resetGateway();
+  await ok.post("/api/admin/ai/kill", { killed: true }, adm);
+  advance(6000);
+  check("the test respects the kill switch", (await ok.post("/api/admin/ai/test", {}, adm)).json.reason === "off");
+  check("every admin action is in the audit log", W.q1("SELECT COUNT(*) n FROM admin_audit WHERE action LIKE '%/api/admin/ai%'").n >= 10);
+
+  const stubW = await world({ ADMIN_TOKEN: TOKEN, AI_STUB: "1", APP_ORIGIN: "http://localhost:5173", CLAUDE_API_KEY: undefined, AI_GATEWAY_URL: undefined });
+  const sc = stubW.client({ ip: "10.30.0.9" });
+  advance(6000);
+  const st = await sc.post("/api/admin/ai/test", {}, adm);
+  check("in local stub mode the test works with no key and no gateway, and says it was the stub", st.json.ok === true && st.json.stub === true && gateway.calls.length === 0, st.json);
+  const src = read("worker/admin.js");
+  check("the AI admin routes are registered on adminApp after the token check, and nowhere else", src.indexOf('adminApp.use("/api/admin/*"') < src.indexOf("registerAiAdmin(adminApp)") && !/registerAiAdmin/.test(read("worker/index.js")) && /app\.(get|post|put)\("\/api\/admin\/ai/.test(read("worker/ai/admin.js")));
 }
 
 console.log("\n# Retention, the data download and deleting an account");

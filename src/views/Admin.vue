@@ -3,6 +3,7 @@
 // Sign in with the ADMIN_TOKEN secret. It is kept for this browser tab only.
 import { onMounted, ref } from "vue";
 import UiDatePicker from "../components/ui/UiDatePicker.vue";
+import AdminAi from "../components/AdminAi.vue";
 
 const TOKEN_KEY = "lanyard_admin_token";
 const token = ref("");
@@ -314,6 +315,8 @@ const EMAIL = { education: "university or school address", free: "webmail addres
           </tbody>
         </table>
       </section>
+
+      <AdminAi :call="call" />
 
       <section class="stack-2">
         <span class="label">News and offers</span>

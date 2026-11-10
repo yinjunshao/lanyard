@@ -11,6 +11,7 @@ import { newId } from "./db.js";
 import { peek, bump, HOUR } from "./ratelimit.js";
 import { emailProblem, emailKind, openTransfer, normEmail } from "./hostorg.js";
 import { funnel } from "./onboarding.js";
+import { registerAiAdmin } from "./ai/admin.js";
 
 export const adminApp = new Hono();
 
@@ -35,6 +36,9 @@ adminApp.use("/api/admin/*", async (c, next) => {
     newId() + newId(), now(), `${c.req.method} ${url.pathname}`, url.search.slice(0, 200) || null, c.req.header("cf-connecting-ip") || "local");
   return next();
 });
+
+// F21: the AI section (spend, kill switch, allow-list). Registered here so the token check above covers it.
+registerAiAdmin(adminApp);
 
 adminApp.get("/api/admin/queue", async (c) => {
   const db = c.env.DB;
