@@ -12,6 +12,7 @@ Offline tests run the real Worker against in-memory SQLite (Node 22+, `node:sqli
 | `node test/eventmail.mjs` | Event email |
 | `npm run test:vue` | Compiles every `.vue` template and syntax-checks each `<script setup>` |
 | `node test/homepath.mjs` | F02: the signed-in hint, and that every logo uses `homePath()` |
+| `node test/copycheck.mjs` | F03: no real university, students' union, street or society named in `src/`, `worker/`, `public/` or `index.html` (whole-word patterns; allow-list in the file) |
 | `node test/perf.mjs` | DB queries per request on hot paths |
 | `npm test` | Runs security, features, eventmail, vue |
 

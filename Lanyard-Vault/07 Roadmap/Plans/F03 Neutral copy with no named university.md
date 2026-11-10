@@ -30,7 +30,7 @@ Fine to keep: generic phrases like "Careers fair" (`CardForm.vue`, `FeedbackEdit
 
 ## Tasks
 - [x] F03.1 Sweep `src/`, `worker/`, `public/` (manifest, `index.html` meta), and the email templates in `worker/mail*.js` for: `UCL`, `ucl.ac.uk`, `Imperial`, `King's`, `KCL`, `LSE`, `SOAS`, `QMUL`, `Oxford`, `Cambridge`, `Bartlett`, `Gower`, `Bloomsbury`, `Students' Union` / `SU` used as a name, and any named society. Fix each one. Add any you find to the table above.
-- [ ] F03.2 Add `test/copycheck.mjs`, which fails if those names appear in `src/` or `worker/`. Allow-list the institution data file from [[F12 Institution picker]] (`src/data/institutions-*.json`), `codes.js` and the legal pages' address lines. Wire it into `npm test`.
+- [x] F03.2 Add `test/copycheck.mjs`, which fails if those names appear in `src/` or `worker/`. Allow-list the institution data file from [[F12 Institution picker]] (`src/data/institutions-*.json`), `codes.js` and the legal pages' address lines. Wire it into `npm test`.
 
 ## Acceptance checks
 - [ ] `npm test` includes the copy check and passes.
