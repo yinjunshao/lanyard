@@ -54,7 +54,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 
 ### Phase 0: quick fixes (any order, all P0)
 - [x] **F01** [[F01 Repo housekeeping]] · S · Needs: none (done 2026-11-10, last commit a6384e6)
-- [ ] **F02** [[F02 Logo goes to My card when signed in]] · S · Needs: none
+- [ ] **F02** [[F02 Logo goes to My card when signed in]] · S · Needs: none (in progress: Claude subagent, 2026-11-10)
 - [ ] **F03** [[F03 Neutral copy with no named university]] · S · Needs: none
 - [x] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up) (done 2026-11-10, last commit fbb24bd)
 - [ ] **F05** [[F05 QR icon for My card tab]] · S · Needs: none

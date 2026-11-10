@@ -4,7 +4,7 @@ id: F02
 priority: P0
 phase: 0
 size: S
-status: Not started
+status: In progress
 needs: []
 ---
 # F02 Logo goes to My card when signed in
@@ -30,7 +30,7 @@ Every wordmark is a hard-coded `<router-link to="/">`:
   - landing keeps a way to be viewed while signed in: `/?about=1` skips the redirect. Link to it from Settings → Help ("About Lanyard").
 
 ## Tasks
-- [ ] F02.1 `homePath()` plus the signed-in hint (set, clear on logout/delete, wrapped in try/catch).
+- [x] F02.1 `homePath()` plus the signed-in hint (set, clear on logout/delete, wrapped in try/catch).
 - [ ] F02.2 Swap the wordmark links in all files listed above.
 - [ ] F02.3 Redirect `/` to `/app` when signed in, with the `?about=1` escape.
 - [ ] F02.4 Test: add cases to `test/vuecheck.mjs` or a small router test; check manually signed in, signed out, and after logout.

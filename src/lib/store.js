@@ -1,6 +1,8 @@
 // Current user, loaded from the session cookie. No client-side tokens.
 import { reactive } from "vue";
 import { Api } from "./api";
+import { ON_HOST_SITE } from "./site";
+import { setSignedInHint } from "./signedin";
 
 export const me = reactive({
   user: null,
@@ -26,11 +28,25 @@ export async function refreshMe(boot = false) {
   me.cards = data.cards || [];
   if (data.plan) me.plan = data.plan;
   me.loaded = true;
+  setSignedInHint(isSignedIn());
   return me;
 }
 
 export function defaultCard() {
   return me.cards.find((c) => c.cardId && c.code) || me.cards[0] || null;
+}
+
+// Signed in means they have a card, or a saved account. A new browser with
+// no session is not signed in.
+export function isSignedIn() {
+  return !!(me.profile || me.user?.claimed);
+}
+
+// Where the lanyard. logo goes: My card for signed-in people, otherwise the
+// front page (the host home on the host site).
+export function homePath() {
+  if (ON_HOST_SITE) return "/host";
+  return isSignedIn() ? "/app" : "/";
 }
 
 export function hasProfile() {

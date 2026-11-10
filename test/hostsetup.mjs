@@ -51,6 +51,6 @@ check("the dashboard header has a Sign out button that is not tied to any one st
 const router = readFileSync(new URL("../src/router/index.js", import.meta.url), "utf8");
 check("/host/signout is a route", router.includes('path: "/host/signout"'));
 const api = readFileSync(new URL("../src/lib/api.js", import.meta.url), "utf8");
-check("logout clears the offline copy even if the request fails", api.includes("finally { await clearOfflineData(); }"));
+check("logout clears the offline copy even if the request fails", api.includes("finally { setSignedInHint(false); await clearOfflineData(); }"));
 
 summary();

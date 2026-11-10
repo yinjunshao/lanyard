@@ -1,4 +1,5 @@
 import { clearOfflineData } from "./offline";
+import { setSignedInHint } from "./signedin";
 
 // Same-origin fetch. Auth is the HTTP-only session cookie — no manual tokens.
 export async function api(path, method = "GET", data) {
@@ -53,9 +54,9 @@ export const Api = {
   setEventEmails: (on) => api("/api/account/event-emails", "POST", { on }),
   // The offline copy of /api/me is cleared even if the request fails (for example
   // no signal), so a signed-out device never draws the old badge from cache.
-  logout: async () => { try { return await api("/api/logout", "POST"); } finally { await clearOfflineData(); } },
+  logout: async () => { try { return await api("/api/logout", "POST"); } finally { setSignedInHint(false); await clearOfflineData(); } },
   exportUrl: "/api/account/export",
-  deleteAccount: async () => { const r = await api("/api/account", "DELETE"); await clearOfflineData(); return r; },
+  deleteAccount: async () => { const r = await api("/api/account", "DELETE"); setSignedInHint(false); await clearOfflineData(); return r; },
 
   createCard: (body) => api("/api/cards", "POST", body),
   updateCard: (id, body) => api(`/api/cards/${id}`, "PUT", body),
