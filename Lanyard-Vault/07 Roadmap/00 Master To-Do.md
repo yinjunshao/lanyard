@@ -65,7 +65,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F08** [[F08 Custom pickers and dropdowns]] · P1 · L · Needs: none (done 2026-11-10, last commit e7d94e7)
 - [x] **F09** [[F09 Settings in category pages]] · P1 · M · Needs: F08 (done 2026-11-10, last commit d790bd5)
 - [ ] **F10** [[F10 Separate host accounts on host subdomain]] · P1 · XL · Needs: F07 + owner decision (host reset) (in progress: Claude subagent, 2026-11-10; all tasks built, waiting on the owner steps in the plan note)
-- [ ] **F11** [[F11 Student and Career mode]] · P1 · M · Needs: none
+- [ ] **F11** [[F11 Student and Career mode]] · P1 · M · Needs: none (in progress: Claude subagent, 2026-11-10)
 - [ ] **F12** [[F12 Institution picker]] · P1 · M · Needs: F08, F11
 - [ ] **F13** [[F13 Connection provenance]] · P1 · M · Needs: none
 - [ ] **F14** [[F14 Onboarding revamp]] · P1 · L · Needs: F06, F11, F12

@@ -155,7 +155,7 @@ eventsApp.get("/api/e/:id/room", async (c) => {
 
   const rows = await all(
     db,
-    `SELECT p.user_id, p.name, p.photo_key, p.course, p.uni, p.headline, p.tags,
+    `SELECT p.user_id, p.name, p.photo_key, p.course, p.uni, p.mode, p.company, p.role, p.headline, p.tags,
             p.is_public, ch.answers, ch.created_at AS at,
             (SELECT id FROM cards WHERE user_id = p.user_id AND is_default = 1) AS card_id
      FROM checkins ch
@@ -175,6 +175,7 @@ eventsApp.get("/api/e/:id/room", async (c) => {
         id: r.user_id, cardId: r.card_id, name: r.name,
         photo: r.photo_key ? `/media/${r.photo_key}` : null,
         course: r.course, uni: r.uni, headline: r.headline,
+        mode: r.mode || "student", company: r.company || "", role: r.role || "",
         tags: r.tags || [],
         // Custom check-in answers (course/year/looking) surface in the room;
         // only the declared questions exist, so nothing unexpected leaks.

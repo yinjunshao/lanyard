@@ -4,7 +4,7 @@ id: F11
 priority: P1
 phase: 1
 size: M
-status: Not started
+status: In progress
 needs: []
 ---
 # F11 Student and Career mode
@@ -43,7 +43,8 @@ Use it everywhere a subtitle is built today: `Badge.vue`, `PublicCard.vue`, `Peo
 `POST/PUT /api/profile` accept `mode` (whitelist), `company` and `role` (trimmed, length-capped). `/api/c/:cardId` and the room return them only when the card shows them, the same way as today's fields.
 
 ## Tasks
-- [ ] F11.1 Migration and API validation, with tests.
+- [x] F11.1 Migration and API validation, with tests.
+  - `migrations/0019_profile_mode.sql` adds `mode` (default `student`), `company` and `role` (both `NOT NULL DEFAULT ""`, like `uni`). `mode` outside `student`/`career` is a 400 on create and edit; company and role are trimmed to 80. Card, people list, one person and event room return the three fields. `test/mode.mjs` (18 checks, in `npm test`) covers all of this, plus the export and deletion.
 - [ ] F11.2 Switch and fields in `EditProfile.vue`.
 - [ ] F11.3 `subtitleOf()` used everywhere.
 - [ ] F11.4 Search, export and policy text.

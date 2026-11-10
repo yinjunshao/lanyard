@@ -60,6 +60,10 @@ app.onError((err, c) => {
 /* ----------------------------- shape helpers ----------------------------- */
 
 const TEXT_FIELDS = ["name", "uni", "course", "year", "headline", "about"];
+// Student and Career mode (F11). `mode` is a whitelist; company and role are short.
+const MODES = ["student", "career"];
+const SHORT_FIELDS = ["company", "role"];
+const validMode = (input) => input.mode === undefined || MODES.includes(input.mode);
 
 // Only short strings get into JSON list columns.
 const strings = (arr, max, len) =>
@@ -68,6 +72,8 @@ const strings = (arr, max, len) =>
 function profilePayload(input) {
   const out = {};
   for (const k of TEXT_FIELDS) if (typeof input[k] === "string") out[k] = input[k].trim().slice(0, 400);
+  for (const k of SHORT_FIELDS) if (typeof input[k] === "string") out[k] = input[k].trim().slice(0, 80);
+  if (MODES.includes(input.mode)) out.mode = input.mode;
   if (typeof input.links === "object" && input.links) {
     const links = {};
     for (const [label, url] of Object.entries(input.links)) {
@@ -155,6 +161,7 @@ async function cardView(db, card, { forOwner = false, limited = false, shared = 
       name: p.name,
       photo: p.photo_key ? `/media/${p.photo_key}` : null,
       uni: p.uni, course: p.course, year: p.year,
+      mode: p.mode || "student", company: p.company || "", role: p.role || "",
       headline: card.headline || p.headline,
       about: limited ? "" : (card.about || p.about),
       links: limited ? {} : links, tags,
@@ -212,6 +219,7 @@ app.post("/api/profile", async (c) => {
   const u = requireUser(c);
   const body = await c.req.json().catch(() => ({}));
   if (!body.name || !body.name.trim()) return c.json({ error: "name required" }, 400);
+  if (!validMode(body)) return c.json({ error: "mode must be student or career" }, 400);
 
   const db = c.env.DB;
   const existing = await one(db, "SELECT user_id FROM profiles WHERE user_id = ?", u.id);
@@ -231,11 +239,12 @@ app.post("/api/profile", async (c) => {
   if (photoKey) fields.photo_key = photoKey;
   await db.batch([
     db.prepare(
-      `INSERT INTO profiles (user_id, name, photo_key, uni, course, year, headline, about, links, tags, projects, is_public, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+      `INSERT INTO profiles (user_id, name, photo_key, uni, course, year, mode, company, role, headline, about, links, tags, projects, is_public, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
     ).bind(
       u.id, fields.name || body.name.trim(), photoKey,
       fields.uni || "", fields.course || "", fields.year || "",
+      fields.mode || "student", fields.company || "", fields.role || "",
       fields.headline || "", fields.about || "",
       fields.links || "{}", fields.tags || "[]", fields.projects || "[]", ts
     ),
@@ -274,6 +283,7 @@ app.put("/api/profile", async (c) => {
   const current = await one(db, "SELECT * FROM profiles WHERE user_id = ?", u.id);
   if (!current) return c.json({ error: "create profile first" }, 404);
   const body = await c.req.json().catch(() => ({}));
+  if (!validMode(body)) return c.json({ error: "mode must be student or career" }, 400);
 
   let photoKey = current.photo_key;
   if (body.photoDataUrl) {
@@ -944,7 +954,7 @@ app.get("/api/connections", async (c) => {
     db,
     `SELECT cn.id AS connection_id, cn.selfie_key, cn.selfie_by, cn.consent_b, cn.event_id, cn.created_at,
             CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END AS peer_id,
-            p.name AS peer_name, p.photo_key AS peer_photo_key, p.course, p.uni, p.headline,
+            p.name AS peer_name, p.photo_key AS peer_photo_key, p.course, p.uni, p.mode, p.company, p.role, p.headline,
             COALESCE((SELECT c2.id FROM cards c2 WHERE c2.id = cn.card_id
                       AND c2.user_id = CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END), cd.id) AS card_id,
             n.text AS my_note, n.tags AS my_tags, n.remind_at, n.followed_up_at, ev.name AS event_name
@@ -982,6 +992,7 @@ app.get("/api/connections", async (c) => {
           id: r.peer_id, name: r.peer_name,
           photo: r.peer_photo_key ? `/media/${r.peer_photo_key}` : null,
           course: r.course, uni: r.uni, headline: r.headline,
+          mode: r.mode || "student", company: r.company || "", role: r.role || "",
           year: v?.profile.year || "", about: v?.profile.about || "",
           tags: v?.profile.tags || [], links: v?.profile.links || {},
           projects: (v?.profile.projects || []).map((pr) => ({ title: pr.title || "", line: pr.line || "" })),
@@ -1029,6 +1040,7 @@ app.get("/api/connections/:id", async (c) => {
       name: p.name,
       photo: p.photo_key ? `/media/${p.photo_key}` : null,
       uni: p.uni, course: p.course, year: p.year,
+      mode: p.mode || "student", company: p.company || "", role: p.role || "",
       headline: p.headline, about: p.about,
       links: view?.profile.links || {},
       tags: view?.profile.tags || p.tags || [],
