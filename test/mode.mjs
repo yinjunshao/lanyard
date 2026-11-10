@@ -4,6 +4,8 @@
 // Run: node test/mode.mjs
 import { makeEnv, makeDb, readMigration, check, summary, becomeHost } from "./harness.mjs";
 import { eraseUser } from "../worker/purge.js";
+import { subtitleOf, subtitleParts } from "../src/lib/profile.js";
+import { readFileSync, readdirSync } from "node:fs";
 
 const T = await makeEnv();
 const { client, q1, env } = T;
@@ -87,6 +89,28 @@ console.log("\n# Export and deletion");
   check("the data export includes mode, company and role", ex.mode === "career" && ex.company === "Acme" && ex.role === "Product designer", ex);
   await eraseUser(env, A.id);
   check("deleting the account removes the profile and with it mode, company and role", !q1("SELECT 1 x FROM profiles WHERE user_id = ?", A.id));
+}
+
+console.log("\n# One subtitle formatter (src/lib/profile.js)");
+{
+  check("a career profile reads Role at Company, with no course or university", subtitleOf({ mode: "career", role: "Product designer", company: "Acme", course: "Design", year: "3" }) === "Product designer at Acme");
+  check("Studied at shows only when it is filled in", subtitleOf({ mode: "career", role: "Engineer", company: "Acme", uni: "Some Uni", course: "Maths" }) === "Engineer at Acme · Studied at Some Uni");
+  check("a career profile with only a role or only a company", subtitleOf({ mode: "career", role: "Engineer" }) === "Engineer" && subtitleOf({ mode: "career", company: "Acme" }) === "Acme");
+  check("a career profile with nothing filled in is empty", subtitleOf({ mode: "career", uni: "", course: "" }) === "");
+  check("a student keeps Course · University, as before", subtitleOf({ mode: "student", course: "Maths", uni: "Some Uni", company: "Acme", role: "Engineer" }) === "Maths · Some Uni");
+  check("a profile with no mode at all (old data) is a student", subtitleOf({ course: "Maths", uni: "Some Uni" }) === "Maths · Some Uni" && subtitleOf({ uni: "Some Uni" }) === "Some Uni");
+  check("the year follows only where the screen asks for it", subtitleOf({ course: "Maths", uni: "Some Uni", year: "2" }, { year: true }) === "Maths · Some Uni · 2" && subtitleOf({ course: "Maths", uni: "Some Uni", year: "2" }) === "Maths · Some Uni");
+  check("parts are kept apart for the badge", subtitleParts({ mode: "career", role: "A", company: "B", uni: "C" }).length === 2);
+  check("no profile gives nothing", subtitleOf(null) === "" && subtitleOf(undefined) === "");
+
+  // Source guard: screens use the formatter rather than building the line by hand.
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((x) => (x.isDirectory() ? walk(`${d}/${x.name}`) : [`${d}/${x.name}`]));
+  const files = walk("src").filter((f) => /\.(vue|js)$/.test(f));
+  const hand = files.filter((f) => /\[\s*[\w.?]+\.course\s*,\s*[\w.?]+\.uni/.test(readFileSync(f, "utf8")));
+  check("no screen builds the course and university line by hand", hand.length === 0, hand);
+  const users = ["components/Badge.vue", "views/PublicCard.vue", "views/People.vue", "views/EventDetail.vue", "views/Connect.vue", "lib/qr.js"]
+    .filter((f) => !/from "\.\.?\/(lib\/)?profile"/.test(readFileSync(`src/${f}`, "utf8")));
+  check("the badge, public card, people list, event room, connect page and card image use it", users.length === 0, users);
 }
 
 summary();

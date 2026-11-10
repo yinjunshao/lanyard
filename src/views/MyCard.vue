@@ -39,7 +39,11 @@ const STEPS = [
   { key: "course", label: "Add your course and university", why: "", done: (p) => !!(p.course?.trim() && p.uni?.trim()) },
   { key: "links", label: "Add a link", why: "LinkedIn, GitHub, a portfolio", done: (p) => Object.keys(p.links || {}).length > 0 },
 ];
-const steps = computed(() => (me.profile ? STEPS.map((s) => ({ ...s, ok: s.done(me.profile) })) : []));
+// In Career mode the course-and-university step asks for company and role instead.
+const CAREER_STEP = { key: "company", label: "Add your company and role", why: "", done: (p) => !!(p.company?.trim() && p.role?.trim()) };
+const steps = computed(() => (me.profile
+  ? STEPS.map((s) => (s.key === "course" && me.profile.mode === "career" ? CAREER_STEP : s)).map((s) => ({ ...s, ok: s.done(me.profile) }))
+  : []));
 const doneCount = computed(() => steps.value.filter((s) => s.ok).length);
 const SNOOZE_KEY = "lanyard-finish-card-snoozed";
 const snoozed = ref((() => { try { return Date.now() - Number(localStorage.getItem(SNOOZE_KEY) || 0) < 3 * 864e5; } catch { return false; } })());

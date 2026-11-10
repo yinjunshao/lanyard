@@ -5,6 +5,7 @@ import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
 import { fileToDataUrl } from "../lib/photo";
 import Icon from "../components/Icon.vue";
+import { subtitleOf } from "../lib/profile";
 
 const route = useRoute();
 const router = useRouter();
@@ -88,7 +89,7 @@ async function submit() {
       <header>
         <div class="label">Connect with</div>
         <h1>{{ card.profile.name }}</h1>
-        <p class="muted small">{{ [card.profile.course, card.profile.uni].filter(Boolean).join(" · ") }}</p>
+        <p class="muted small">{{ subtitleOf(card.profile) }}</p>
         <p v-if="eventId" class="notice small" style="margin-top:12px">
           This connection will be saved to the event album.
         </p>

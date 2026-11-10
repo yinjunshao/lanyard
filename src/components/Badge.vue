@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { drawQR } from "../lib/qr";
 import Avatar from "./Avatar.vue";
+import { subtitleParts } from "../lib/profile";
 
 const props = defineProps({
   view: { type: Object, required: true },
@@ -9,10 +10,7 @@ const props = defineProps({
 });
 
 const qrCanvas = ref(null);
-const meta = computed(() =>
-  [props.view?.profile?.course, props.view?.profile?.uni, props.view?.profile?.year]
-    .filter(Boolean).join("  ·  ")
-);
+const meta = computed(() => subtitleParts(props.view?.profile, { year: true }).join("  ·  "));
 // Capped so the badge never grows with the data — a long tag list or
 // headline is cut (with CSS ellipsis / line-clamp), never pushed past the
 // card's edge or stretched into a wall of chips.

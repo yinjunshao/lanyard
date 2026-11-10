@@ -6,6 +6,7 @@ import Icon from "../components/Icon.vue";
 import Avatar from "../components/Avatar.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import { relativeDay as relDay } from "../lib/time";
+import { subtitleOf } from "../lib/profile";
 
 const rows = ref([]);
 const query = ref("");
@@ -122,7 +123,7 @@ const fmt = (t) =>
         <span style="flex:1;min-width:0">
           <strong>{{ r.peer.name }}</strong>
           <span class="small muted" style="display:block">
-            {{ [r.peer.course, r.peer.uni].filter(Boolean).join(" · ") || r.peer.headline }}
+            {{ subtitleOf(r.peer) || r.peer.headline }}
           </span>
           <span v-if="r.selfieStatus === 'request'" class="small" style="display:block;color:var(--strap-deep);font-weight:700">Selfie waiting for you</span>
           <span v-if="needsFollowUp(r)" class="small" style="display:block;color:var(--strap-deep);font-weight:700">Follow up {{ relDay(r.remindAt) }}</span>

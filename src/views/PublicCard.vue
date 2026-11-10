@@ -12,6 +12,7 @@ import { openPhoto } from "../lib/lightbox";
 import ConnectSheet from "../components/ConnectSheet.vue";
 import Icon from "../components/Icon.vue";
 import { morningIn, fmtDay, relativeDay } from "../lib/time";
+import { subtitleOf } from "../lib/profile";
 
 const route = useRoute();
 const router = useRouter();
@@ -51,7 +52,7 @@ async function onConnected() {
 
 const p = computed(() => view.value?.profile || {});
 const first = computed(() => (p.value.name || "").split(/\s+/)[0]);
-const meta = computed(() => [p.value.course, p.value.uni, p.value.year].filter(Boolean).join(" · "));
+const meta = computed(() => subtitleOf(p.value, { year: true }));
 const links = computed(() => Object.entries(p.value.links || {}));
 // Nothing to show beyond a name: say so, rather than a page that looks broken.
 const isBare = computed(() => !view.value?.limited && !p.value.headline && !p.value.about && !meta.value && !view.value?.note
@@ -122,8 +123,9 @@ function vcard() {
   const lines = [
     "BEGIN:VCARD", "VERSION:3.0",
     `FN:${pr.name}`,
-    pr.uni ? `ORG:${pr.uni}` : "",
-    pr.course ? `TITLE:${pr.course}` : "",
+    ...(pr.mode === "career"
+      ? [pr.company ? `ORG:${pr.company}` : "", pr.role ? `TITLE:${pr.role}` : ""]
+      : [pr.uni ? `ORG:${pr.uni}` : "", pr.course ? `TITLE:${pr.course}` : ""]),
     ...Object.values(pr.links || {}).map((u) => `URL:${u}`),
     "END:VCARD",
   ].filter(Boolean);

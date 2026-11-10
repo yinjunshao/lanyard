@@ -47,7 +47,8 @@ Use it everywhere a subtitle is built today: `Badge.vue`, `PublicCard.vue`, `Peo
   - `migrations/0019_profile_mode.sql` adds `mode` (default `student`), `company` and `role` (both `NOT NULL DEFAULT ""`, like `uni`). `mode` outside `student`/`career` is a 400 on create and edit; company and role are trimmed to 80. Card, people list, one person and event room return the three fields. `test/mode.mjs` (18 checks, in `npm test`) covers all of this, plus the export and deletion.
 - [x] F11.2 Switch and fields in `EditProfile.vue`.
   - A Student / Career `.seg` switch under Name. Student keeps University, Course, Year. Career shows Company and Role, with "Add where you studied (optional)" opening Studied at, Course and Year (open already when any is filled). Values for the other mode stay in the form and are saved, never cleared. The "Come to me for" suggestions change by mode. Plain inputs for now; F12 turns the institution field into the picker.
-- [ ] F11.3 `subtitleOf()` used everywhere.
+- [x] F11.3 `subtitleOf()` used everywhere.
+  - `src/lib/profile.js` has `subtitleOf(profile, { year })` and `subtitleParts`. Used by `Badge.vue`, `PublicCard.vue` (and its vCard: ORG and TITLE become company and role in Career mode), `People.vue`, `EventDetail.vue`, `Connect.vue` and the card image in `lib/qr.js`. A student reads exactly as before; the year is added only on the badge, public card and card image, where it was shown before. The plan said "Year 2 · Course if no uni"; that would have changed old cards, so it is not done. Career reads "Role at Company", plus "Studied at ..." only when filled in. The Finish your card step on My card asks for company and role in Career mode. The verified-student mark is not drawn on any card today, so there was nothing to hide. `test/mode.mjs` guards that no screen builds the line by hand.
 - [ ] F11.4 Search, export and policy text.
 
 ## Acceptance checks

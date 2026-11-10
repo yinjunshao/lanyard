@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import { Api } from "../lib/api";
 import Avatar from "../components/Avatar.vue";
 import EventChoices from "../components/EventChoices.vue";
+import { subtitleOf } from "../lib/profile";
 
 const route = useRoute();
 const tab = ref("room");
@@ -86,7 +87,7 @@ function switchTab(t) {
             <span style="flex:1;min-width:0">
               <strong>{{ p.name }}</strong>
               <span class="small muted" style="display:block">
-                {{ [p.course, p.uni].filter(Boolean).join(" · ") || p.headline }}
+                {{ subtitleOf(p) || p.headline }}
               </span>
               <span v-if="p.tags?.length" class="chip-row" style="margin-top:6px">
                 <span v-for="t in p.tags.slice(0,3)" :key="t" class="chip muted">{{ t }}</span>
