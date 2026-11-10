@@ -66,7 +66,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F09** [[F09 Settings in category pages]] · P1 · M · Needs: F08 (done 2026-11-10, last commit d790bd5)
 - [ ] **F10** [[F10 Separate host accounts on host subdomain]] · P1 · XL · Needs: F07 + owner decision (host reset) (in progress: Claude subagent, 2026-11-10; all tasks built, waiting on the owner steps in the plan note)
 - [x] **F11** [[F11 Student and Career mode]] · P1 · M · Needs: none (done 2026-11-10, last commit 12dfa9a)
-- [ ] **F12** [[F12 Institution picker]] · P1 · M · Needs: F08, F11 (in progress: Claude subagent, 2026-11-10)
+- [x] **F12** [[F12 Institution picker]] · P1 · M · Needs: F08, F11 (done 2026-11-10, last commit 08e9869)
 - [ ] **F13** [[F13 Connection provenance]] · P1 · M · Needs: none
 - [ ] **F14** [[F14 Onboarding revamp]] · P1 · L · Needs: F06, F11, F12
 - [ ] **F28** [[F28 Public-page JS budget]] · P1 · S · Needs: none (added 2026-11-10 from F02; the owner said to fix it later, so it sits at the end of Phase 1)
@@ -140,6 +140,7 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
+- 2026-11-10 · F12 · 08e9869 · Institution picker: searchable UK list (agent-written, owner to review) for University, Studied at and society university, email-domain suggestion, institution_id (migration 0020), backfill script; no JS added to public pages
 - 2026-11-10 · F11 · 12dfa9a · Student and Career mode: profile mode, company and role, one subtitle formatter, search and policy updated; no JS added to the Landing page, public card +0.3 KB gzip; migration 0019
 - 2026-11-10 · F09 · d790bd5 · Settings split into seven category pages with a signed-in devices sheet; old anchors redirect; no JS added to public pages
 - 2026-11-10 · F08 · e7d94e7 · Hand-built select, combobox, date, time and date-time pickers replace every native one; no JS added to public pages; a screen-reader pass is an owner step
