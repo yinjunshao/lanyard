@@ -74,7 +74,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 ### Phase 2: events
 - [x] **F15** [[F15 Events tab and event hub]] · P1 · L · Needs: F05, F13 (done 2026-11-10, last commit e230686)
 - [x] **F16** [[F16 Shared ground without AI]] · P1 · M · Needs: F11, F12 (done 2026-11-10, last commit af13322)
-- [ ] **F17** [[F17 Event presence and who to meet]] · P2 · L · Needs: F15, F11, F16 + owner decision (selfie retention) (in progress: Claude subagent, 2026-11-10)
+- [x] **F17** [[F17 Event presence and who to meet]] · P2 · L · Needs: F15, F11, F16 + owner decision (selfie retention) (done 2026-11-10, last commit 1e6e5a0)
 
 ### Phase 3: host tools
 - [ ] **F18** [[F18 Live previews for cards and events]] · P2 · M · Needs: F10, F11
@@ -140,6 +140,7 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
+- 2026-11-10 · F17 · 1e6e5a0 · Event presence and who to meet: opt-in per event "Be easy to find" (face photo, line, wish) seen only by opted-in people at the same event while it is on; suggestions without AI; photo private and deleted on withdrawal or 48 hours after the event ends; hosts see a count; migration 0023, D027; public card +55 B gzip
 - 2026-11-10 · F16 · af13322 · Shared ground without AI: one In common line on a person's card page, worked out per request from only what each of you shows the other (mode fields, shared card tags, past events you may know of); nothing stored, no migration, hosts get none; public card +162 B gzip
 - 2026-11-10 · F15 · e230686 · Events tab and event hub: a fourth tab lists what is on now and past events with the date attended; check-in lands on a hub with a back arrow, your figures and the people you met there; one shared status rule, no migration, nothing new stored; landing +76 B and public card +72 B gzip
 - 2026-11-10 · F28 · 0da6975 · Public-page JS budget: every public page under 50 KB gzip on first load (landing 60,677 to 44,595 B, public card 55,704 to 49,617 B); /app frame, QR library and a card's connection panel load only where used; test/budget.mjs now ends npm test

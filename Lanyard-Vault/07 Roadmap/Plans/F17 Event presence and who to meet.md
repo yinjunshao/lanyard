@@ -4,7 +4,7 @@ id: F17
 priority: P2
 phase: 2
 size: L
-status: In progress
+status: Done
 needs: [F15, F11, F16]
 ---
 # F17 Event presence and who to meet
