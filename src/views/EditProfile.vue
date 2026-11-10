@@ -10,7 +10,7 @@ import { afterAccountPath } from "../lib/redeem";
 const router = useRouter();
 const route = useRoute();
 const f = ref({
-  name: "", uni: "", course: "", year: "", headline: "", about: "",
+  name: "", mode: "student", company: "", role: "", uni: "", course: "", year: "", headline: "", about: "",
   tags: "", links: [{ label: "", url: "" }], projects: [], showAge: false,
 });
 const photo = ref(null);
@@ -23,7 +23,13 @@ const agreed = ref(false);
 // behind "Add more" so a new person is done in under a minute.
 const firstRun = computed(() => !me.profile);
 const showMore = ref(false);
-const SUGGESTED = ["CV reviews", "internships", "hackathons", "startups", "coding help", "design", "finding a team", "research"];
+const SUGGESTED_STUDENT = ["CV reviews", "internships", "hackathons", "startups", "coding help", "design", "finding a team", "research"];
+const SUGGESTED_CAREER = ["Hiring", "Referrals", "Industry advice", "Mentoring", "Side projects"];
+const MODES = [["student", "Student"], ["career", "Career"]];
+const career = computed(() => f.value.mode === "career");
+const SUGGESTED = computed(() => (career.value ? SUGGESTED_CAREER : SUGGESTED_STUDENT));
+// Career mode: where you studied is optional and tucked away, unless it is already filled in.
+const showStudied = ref(false);
 const tagList = computed(() => f.value.tags.split(",").map((t) => t.trim()).filter(Boolean));
 function toggleTag(t) {
   const have = tagList.value;
@@ -43,7 +49,8 @@ onMounted(() => {
   if (p) {
     const links = Object.entries(p.links || {}).map(([label, url]) => ({ label, url }));
     f.value = {
-      name: p.name || "", uni: p.uni || "", course: p.course || "",
+      name: p.name || "", mode: p.mode === "career" ? "career" : "student",
+      company: p.company || "", role: p.role || "", uni: p.uni || "", course: p.course || "",
       year: p.year || "", headline: p.headline || "", about: p.about || "",
       tags: (p.tags || []).join(", "),
       links: links.length ? links : [{ label: "", url: "" }],
@@ -51,6 +58,7 @@ onMounted(() => {
       showAge: !!p.show_age,
     };
     existingPhoto.value = p.photo || "";
+    showStudied.value = !!(p.uni || p.course || p.year);
   }
 });
 
@@ -123,7 +131,8 @@ async function save() {
   busy.value = true;
   try {
     const payload = {
-      name: f.value.name, uni: f.value.uni, course: f.value.course,
+      name: f.value.name, mode: f.value.mode, company: f.value.company, role: f.value.role,
+      uni: f.value.uni, course: f.value.course,
       year: f.value.year, headline: f.value.headline, about: f.value.about,
       tags: f.value.tags.split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean).slice(0, 12),
       links: buildLinks(f.value.links),
@@ -181,12 +190,41 @@ async function save() {
 
       <div class="field"><label for="name">Name</label>
         <input id="name" v-model="f.name" type="text" autocomplete="name" /></div>
-      <div class="field"><label for="uni">University</label>
-        <input id="uni" v-model="f.uni" type="text" placeholder="Your university" /></div>
-      <div class="field"><label for="course">Course</label>
-        <input id="course" v-model="f.course" type="text" placeholder="e.g. Computer Science" /></div>
-      <div class="field"><label for="year">Year (optional)</label>
-        <input id="year" v-model="f.year" type="text" /></div>
+      <!-- Switching keeps what is typed in the other mode; only the chosen mode shows on the card. -->
+      <div class="field">
+        <span id="mode-label" class="label-top">I am a</span>
+        <div class="seg" role="group" aria-labelledby="mode-label">
+          <button v-for="m in MODES" :key="m[0]" type="button" class="seg-btn"
+                  :class="{ on: f.mode === m[0] }" :aria-pressed="f.mode === m[0]"
+                  @click="f.mode = m[0]">{{ m[1] }}</button>
+        </div>
+      </div>
+
+      <template v-if="!career">
+        <div class="field"><label for="uni">University</label>
+          <input id="uni" v-model="f.uni" type="text" placeholder="Your university" /></div>
+        <div class="field"><label for="course">Course</label>
+          <input id="course" v-model="f.course" type="text" placeholder="e.g. Computer Science" /></div>
+        <div class="field"><label for="year">Year (optional)</label>
+          <input id="year" v-model="f.year" type="text" /></div>
+      </template>
+      <template v-else>
+        <div class="field"><label for="company">Company</label>
+          <input id="company" v-model="f.company" type="text" maxlength="80" placeholder="Where you work" /></div>
+        <div class="field"><label for="role">Role</label>
+          <input id="role" v-model="f.role" type="text" maxlength="80" placeholder="e.g. Product designer" /></div>
+        <button v-if="!showStudied" type="button" class="link-btn small" style="text-align:left" @click="showStudied = true">
+          Add where you studied (optional)
+        </button>
+        <template v-else>
+          <div class="field"><label for="uni">Studied at (optional)</label>
+            <input id="uni" v-model="f.uni" type="text" placeholder="Your university or school" /></div>
+          <div class="field"><label for="course">Course (optional)</label>
+            <input id="course" v-model="f.course" type="text" placeholder="e.g. Computer Science" /></div>
+          <div class="field"><label for="year">Year (optional)</label>
+            <input id="year" v-model="f.year" type="text" /></div>
+        </template>
+      </template>
     </div>
 
     <div class="form-section">
