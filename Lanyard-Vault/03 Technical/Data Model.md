@@ -3,7 +3,7 @@ tags: [technical, database]
 ---
 # Data Model
 
-D1 schema from `migrations/0001`-`0013`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
+D1 schema from `migrations/0001`-`0018`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
 
 ## Identity
 - `users` (is_guest, recovery_email, email_domain, verified_student, has_passkey, over_18, plan, plan_until, notify_events)
@@ -22,13 +22,16 @@ D1 schema from `migrations/0001`-`0013`. Conventions: ids are 10-character ungue
 - `consents` (record of who agreed to what, kept 6 years)
 
 ## Hosts and events
+- `host_accounts` (email UNIQUE lower-case, email_verified_at, full_name, use_case, event_frequency, typical_size, referral, terms_version, terms_at, status active|disabled, created_at, last_login_at, deleted_at): host accounts, separate from `users` (F10, migration 0018)
+- `host_sessions` (SHA-256 of the cookie token, host_account_id, expiry, user agent), `host_login_codes` (email, hashed code, attempts, expiry, used_at)
 - `orgs` (plan, org_type society|institution|company|individual, verification_status, leader, university, review notes)
-- `org_members` (owner|staff|sponsor_viewer), `org_transfers`, `host_profiles`, `host_tickets`
+- `host_org_members` (owner|staff|sponsor_viewer), `host_org_transfers`, `host_org_invites` (optional email), `host_org_tickets`: all on host accounts. `host_mail_log`: the owner recap, once per event
+- Old, before F10: `host_profiles`, `org_members`, `org_transfers`, `org_invites`, `host_tickets` point at `users`. No code reads them; the host reset empties them and a later migration can drop them
 - `events` (code, name, starts_at, venue, theme, strap_color, perks, directory_on, checkin_questions, is_paid)
 - `checkins` (answers JSON, sponsor opt-ins)
 - `sponsors`
 - `credits` (events_granted, events_used, expires_at, reason, granted_by), `promo_redemptions`
-- `billing_requests` (sku, quantity, amount_pence, po_number, status open|invoiced|paid|cancelled)
+- `billing_requests` (org_id nullable, org_name kept on the row, host_account_id, user_id before F10, sku, quantity, amount_pence, po_number, status open|invoiced|paid|cancelled). Since 0018 deleting an organisation sets org_id to NULL instead of deleting the invoice record
 - `plus_waitlist`
 - `feedback_responses`, `feedback_done`
 - `org_integrations` (webhook url/secret, API key)
@@ -36,6 +39,6 @@ D1 schema from `migrations/0001`-`0013`. Conventions: ids are 10-character ungue
 
 ## Privacy by design
 - Host reports are aggregate; named exports need per-sponsor opt-in. See [[Privacy and Data Retention]].
-- Billing rows are kept when an org is erased. See `eraseUser` in `worker/purge.js`.
+- Billing rows are kept when an org is erased (0018: `ON DELETE SET NULL`). Erasing an attendee no longer touches organisations (F10).
 
 Related: [[Architecture]], [[Host Portal and Billing]]

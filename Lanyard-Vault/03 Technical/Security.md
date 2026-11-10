@@ -12,7 +12,8 @@ tags: [technical, security]
 - Webhooks: https only, no IP literals or internal hostnames, no redirects followed, HMAC-SHA256 signature `Lanyard-Signature: t=...,v1=...`, 5 s timeout.
 - Host API keys prefixed `lyk_`, webhook secrets `whsec_`.
 - Security headers on every response (`worker/security.js`): CSP (self only, no framing), nosniff, Referrer-Policy, Permissions-Policy (camera self), HSTS on https, X-Frame-Options DENY, API responses `no-store`.
-- Same-origin check on all state-changing `/api` calls (CSRF defence on top of SameSite=Lax).
+- Same-origin check on all state-changing `/api` calls (CSRF defence on top of SameSite=Lax). The attendee API does not accept the host portal's origin.
+- Host portal (F10): separate host-only cookie `__Host-lanyard_host` (SameSite=Strict), host API only on the host site and only from its own pages (Origin and Sec-Fetch-Site on reads and writes), email codes hashed with limits per email, per IP and per code, and replies that never reveal whether an account exists. Tested in `test/hostsecurity.mjs`. See [[Auth and Sessions]].
 
 ## History
 `test/baseline-security.txt` records an early snapshot where many checks FAILED (headers, CSRF, media access, challenge reuse). The headers and same-origin checks above now exist in code, so treat that file as the **before** state. **TODO:** rerun `npm run test:security` and record the current result here.

@@ -7,12 +7,13 @@ Newest context first. Each decision has its own note (context, decision, consequ
 
 | ID | Decision | Status |
 | --- | --- | --- |
+| [[D020 Host accounts separate from attendee accounts]] | Host accounts have their own email-code sign-in, sessions and cookie on host.lanyd.fyi; existing host accounts reset | Accepted |
 | [[D019 Settings pages load from the layout, not the router]] | One `/app/settings/:page?` route; `Settings.vue` loads each page, so public pages load no extra route code | Accepted |
 | [[D018 Hand-built pickers outside the shared Vue chunk]] | Custom pickers by hand; no Teleport, `useId`, `<slot>` or `defineAsyncComponent` where public pages would pay | Accepted |
 | [[D017 Use academic network for pilot access]] | Ask professor for intros, access, resources | Proposed |
 | [[D016 Rotating card codes]] | Codes rotate every 3 days | Accepted |
 | [[D015 Profile split from cards]] | One profile, many cards | Accepted |
-| [[D014 Separate host subdomain]] | host.* serves only /host | Accepted |
+| [[D014 Separate host subdomain]] | host.* serves only /host | Partly superseded by D020 |
 | [[D013 No hardware or NFC for now]] | Web and QR only | Accepted |
 | [[D012 18 plus only]] | Adults only, no Discovery for minors | Accepted |
 | [[D011 Retention limits]] | 12 months selfies, 30 days guests | Accepted |
@@ -23,7 +24,7 @@ Newest context first. Each decision has its own note (context, decision, consequ
 | [[D006 UK campus beachhead first]] | UK before China | Accepted (in practice) |
 | [[D005 Shared selfie needs both consents]] | Dual consent, either deletes | Accepted |
 | [[D004 Aggregate-only host analytics]] | Hosts see totals only | Accepted |
-| [[D003 Guest first with passkeys]] | No account to connect | Accepted |
+| [[D003 Guest first with passkeys]] | No account to connect | Accepted (host part superseded by D020) |
 | [[D002 Move from KV to D1 and R2]] | v2 architecture | Accepted |
 | [[D001 Hosts pay, attendees free]] | B2B2C model | Accepted |
 

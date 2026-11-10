@@ -26,6 +26,7 @@ Not legal advice; a checklist from ICO guidance to be reviewed by a lawyer or UC
 - Consent records: 6 years.
 - Cron: daily 03:17 and hourly :47.
 - User can export and delete their own data; delete removes R2 objects too.
+- Host accounts (F10) are separate: a host can download their host account data on the host portal (`/api/host/account/export`). Expired host sessions, sign-in codes and invites are purged daily. Deleting a host account is by request for now (no self-serve button). Invoice records are kept 6 years even when the organisation is deleted (the organisation's name stays on the row).
 
 ## Rules of the product
 - Face images are never used for recognition and never sold.

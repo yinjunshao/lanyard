@@ -17,11 +17,12 @@ tags: [product, features]
 - **Plus plan** (waitlist table exists): more cards, custom strap colour. See [[Pricing]].
 
 ## Host side
+- Its own site and account (`host.lanyd.fyi`): sign in with an email code, no passkeys; setup is details, Host Terms, then own name or organisation, with Back and Sign out on every step (F10).
 - Create / duplicate / end events; event QR and rotating event code; live check-in count; custom check-in questions (max 3).
 - Aggregate report (PDF-style view and CSV).
 - Sponsors on an event; sponsor opt-in at check-in.
 - Feedback survey builder and results.
-- Team members (owner, staff, sponsor_viewer), invites, ownership transfer, support tickets.
+- Team members (owner, staff, sponsor_viewer), invites (by host email or code), ownership transfer by host email, support tickets.
 - Webhook (signed) and RSVP API key. See [[Integrations and Email]].
 - Billing requests (invoice / PO). See [[Host Portal and Billing]].
 

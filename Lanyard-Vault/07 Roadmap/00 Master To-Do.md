@@ -64,7 +64,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 ### Phase 1: foundations
 - [x] **F08** [[F08 Custom pickers and dropdowns]] · P1 · L · Needs: none (done 2026-11-10, last commit e7d94e7)
 - [x] **F09** [[F09 Settings in category pages]] · P1 · M · Needs: F08 (done 2026-11-10, last commit d790bd5)
-- [ ] **F10** [[F10 Separate host accounts on host subdomain]] · P1 · XL · Needs: F07 + owner decision (host reset) (in progress: Claude subagent, 2026-11-10)
+- [ ] **F10** [[F10 Separate host accounts on host subdomain]] · P1 · XL · Needs: F07 + owner decision (host reset) (in progress: Claude subagent, 2026-11-10; all tasks built, waiting on the owner steps in the plan note)
 - [ ] **F11** [[F11 Student and Career mode]] · P1 · M · Needs: none
 - [ ] **F12** [[F12 Institution picker]] · P1 · M · Needs: F08, F11
 - [ ] **F13** [[F13 Connection provenance]] · P1 · M · Needs: none
@@ -133,7 +133,7 @@ graph LR
 | When | Step | Note |
 | --- | --- | --- |
 | After every feature | Review the commits, `git push`. If the feature has migrations, run `npm run db:remote`, then `npm run deploy` | [[Deployment]] |
-| F10 | Add the custom domain `host.lanyd.fyi` to the `lanyard-v2` Worker. Take a D1 export, then run the reset script | [[F10 Separate host accounts on host subdomain]] |
+| F10 | In this order: check `hosts@lanyd.fyi` sends; add the custom domain `host.lanyd.fyi` to the `lanyard-v2` Worker; D1 export; `npm run db:remote` (0018); `node scripts/reset-hosts.mjs --remote` (dry run), then with `--apply --confirm=RESET-ALL-HOSTS`; `npm run deploy` straight after; check. Details and what breaks out of order are in the plan note | [[F10 Separate host accounts on host subdomain]] |
 | F21 | Anthropic production key with a spend limit; AI Gateway with logging off and a spend limit; secrets and vars | [[AI Safety and Cost Plan]] |
 | F26 | `RESEND_NEWS_KEY`, Resend webhook and secret, postal address | [[F26 Mailing list from news address]] |
 | F27 | Stripe account, products, Customer Portal, webhook and secrets; lawyer review; clear the legal blockers | [[F27 Lanyard Plus and billing]] |

@@ -15,12 +15,14 @@ Grouped from route definitions in `worker/*.js`. All under `/api` unless noted.
 
 **Events (attendee):** `GET /e/:code`, `POST /e/:code/checkin`, `GET /e/:id/room`, `/album`, `/feedback`, `POST /e/:id/feedback`, `GET /my/events`, `GET /home`
 
-**Host:** `/host/signup`, `/host/me`, `/host/org(s)`, `/host/events` (create, `PUT :id`, duplicate, end, rotate-code, live, report, report.csv, feedback), `/host/billing`, `/host/billing/request`, `/host/team` (invite, join, remove), `/host/transfer(s)`, `/host/tickets`, `/host/terms`, `/host/integrations` (webhook, key)
+**Host** (host site only, host cookie only; refused on the main site and from other origins, see [[Auth and Sessions]]): `POST /host/auth/start`, `/host/auth/verify` (email code), `POST /host/logout`, `GET /host/me` (includes `step`: details, terms, org, ready), `POST /host/account/details`, `POST /host/terms`, `GET /host/sessions`, `DELETE /host/sessions/:id`, `POST /host/sessions/signout-others`, `GET /host/account/export`, `/host/org(s)`, `/host/events` (create, `PUT :id`, duplicate, end, rotate-code, live, report, report.csv, feedback), `/host/billing`, `/host/billing/request`, `/host/team` (invite with an optional email, join, remove by host account id), `/host/transfer(s)`, `/host/tickets`, `/host/terms`, `/host/integrations` (webhook, key)
 
 **Integrations:** `POST /integrations/rsvp` (API key sets an event's RSVP count)
 
 **Promo codes:** `GET /redeem/:code` (look up; 30 per 10 minutes per IP and per person, wrong codes 30 an hour per IP), `POST /redeem/:code` (claim; 20 an hour per person). See `worker/promo.js`.
 
-**Other:** `GET /health`, `GET /media/:key`, `/admin` routes (token), `POST /plan/waitlist`
+**Admin hosts** (token): `GET /admin/hosts?q=` (host accounts and organisations with no host), `POST /admin/hosts/:id/status`, `POST /admin/orgs/:id/attach` (by host email)
+
+**Other:** `GET /health`, `GET /media/:key`, `/admin` routes (token), `POST /plan/waitlist`. Not under `/api`: `GET /host` and `/host/*` answer 301 to the same page on the host site (F10)
 
 Related: [[Screens and Routes]], [[Integrations and Email]], [[Security]]

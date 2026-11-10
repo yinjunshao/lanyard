@@ -13,6 +13,9 @@ Registration friction kills in-the-moment scans. v1 login used birthday + 4-hex 
 ## Decision
 Anyone can connect with a name and selfie (guest session). Claiming adds a passkey; email, TOTP and recovery code are optional. Drop birthday login.
 
+> [!note] Hosts (2026-11-10)
+> This applies to attendee accounts. Host accounts are separate and sign in with an email code, with no passkeys: [[D020 Host accounts separate from attendee accounts]].
+
 ## Consequences
 Zero-friction connect, stronger accounts. Requires guest rate limits and a claim flow.
 
