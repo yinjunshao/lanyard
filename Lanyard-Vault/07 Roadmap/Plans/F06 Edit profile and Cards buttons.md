@@ -24,7 +24,7 @@ On `/app`, rename "Edit" to "Edit profile" and make it a distinct button instead
 
 ## Tasks
 - [x] F06.1 Add `.btn-quiet` (light and dark tokens).
-- [ ] F06.2 Replace the two links in `MyCard.vue`.
+- [x] F06.2 Replace the two links in `MyCard.vue`.
 - [ ] F06.3 Check at 375 px and 1280 px, in light and dark. The badge stays the clear focus.
 
 ## Acceptance checks

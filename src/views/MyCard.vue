@@ -184,15 +184,15 @@ async function share() {
   </div>
 
   <div v-else class="stack-3">
-    <div class="spread">
+    <div class="card-head">
       <div>
         <span class="label">My card</span>
         <h1 style="margin-top:4px">Your badge</h1>
       </div>
-      <span class="row" style="gap:14px">
-        <router-link to="/app/profile" class="topbar-link">Edit</router-link>
-        <router-link to="/app/cards" class="topbar-link">Cards</router-link>
-      </span>
+      <div class="card-actions">
+        <router-link to="/app/profile" class="btn-quiet">Edit profile</router-link>
+        <router-link to="/app/cards" class="btn-quiet">Cards</router-link>
+      </div>
     </div>
 
     <section v-if="welcome" class="panel stack-2" aria-label="Your card is ready">
@@ -359,6 +359,14 @@ async function share() {
 </template>
 
 <style scoped>
+/* Edit profile and Cards: one row under the heading; beside it from 600px wide. */
+.card-head { display: grid; gap: var(--space); }
+.card-actions { display: flex; gap: var(--space); }
+.card-actions .btn-quiet { flex: 1; }
+@media (min-width: 600px) {
+  .card-head { grid-template-columns: 1fr auto; align-items: end; }
+  .card-actions .btn-quiet { flex: 0 0 auto; min-width: 128px; }
+}
 .welcome-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .finish { border-left: 4px solid var(--strap); }
 .finish-bar { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }

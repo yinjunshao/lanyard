@@ -18,5 +18,10 @@ const quiet = /\.btn-quiet \{([^}]*)\}/.exec(css);
 check(".btn-quiet is defined in main.css", !!quiet);
 check(".btn-quiet uses tokens only (no hard-coded colours)", !!quiet && !/#[0-9a-f]{3,8}\b|rgba?\(/i.test(quiet[1]) && /var\(--rule\)|var\(--border\)/.test(quiet[1]) && /var\(--ink\)/.test(quiet[1]));
 check(".btn-quiet has no shadow or hover", !!quiet && !/box-shadow/.test(quiet[1]) && !/\.btn-quiet:hover/.test(css));
+const mycard = read("src/views/MyCard.vue");
+check("MyCard has Edit profile and Cards as .btn-quiet links",
+  /<router-link to="\/app\/profile" class="btn-quiet">Edit profile<\/router-link>/.test(mycard) &&
+  /<router-link to="\/app\/cards" class="btn-quiet">Cards<\/router-link>/.test(mycard));
+check("the old Edit and Cards text links are gone from MyCard", !/class="topbar-link">(Edit|Cards)</.test(mycard));
 
 summary();
