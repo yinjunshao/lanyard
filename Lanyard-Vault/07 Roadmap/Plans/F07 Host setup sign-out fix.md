@@ -4,7 +4,7 @@ id: F07
 priority: P0
 phase: 0
 size: S
-status: Not started
+status: In progress
 needs: []
 ---
 # F07 Host setup sign-out fix
@@ -25,7 +25,21 @@ If a half-finished host account setup is remembered in the browser, the owner ca
 - Add a `/host/signout` route that does the same, so a stuck owner can type it.
 
 ## Tasks
-- [ ] F07.1 Reproduce: start host signup, make a recovery key, close the tab, reopen. Write down the exact steps here.
+- [x] F07.1 Reproduce: start host signup, make a recovery key, close the tab, reopen. Write down the exact steps here.
+
+### F07.1 Reproduction and confirmed cause (2026-11-10, by reading the code and an offline test)
+Exact steps (also run as `test/hostsetup.mjs`, wired into `npm test`):
+1. On the host site, open `/host` signed out. `GET /api/host/me` returns `account_required`, so `HostDashboard.vue` shows the `account` step.
+2. Tap "No passkey on this device? Use a recovery key instead". `createWithKey()` calls `POST /api/auth/recovery` **first**. That sets `users.has_recovery = 1`, so `hostUser()` and the host middleware now treat the account as a host user.
+3. `createWithKey()` then calls `Api.hostAcceptTerms()` and `saveDetails()`. If either fails or the tab is closed before it finishes (the key is on screen, the person is told to save it, and may leave), the account has a recovery key but no `host_profiles` row.
+4. Reopen `/host`. The session cookie is still valid. `/api/host/me` answers `terms_required` or `profile_required`, so the page shows the `terms` or `profile` step. Every reload gives the same answer, because the browser's only memory is the cookie and the cookie is never cleared.
+5. No setup step (`account`, `terms`, `profile`, `welcome`) has a sign-out control. The only exit is the "‹ lanyard" link, which goes to the main site (`MAIN_ORIGIN`). Sessions are per hostname, so that does not touch the host-site cookie. The person comes back to the same step. Confirmed in the test: after `POST /api/logout` the same client gets `account_required` (clean start), and the recovery key signs them back in to the `profile` step, so nothing is lost by signing out.
+
+Confirmed cause: the missing exit, as the note guessed. The server side behaves correctly (the lock is by design: terms and profile are needed before anything else, and `POST /api/logout` works from every state).
+
+Parts of "Likely cause" that were **not** right:
+- The service worker is not part of the trap. `public/sw.js` only caches `GET /api/me`. Every other `/api/` path, including `/api/host/me` which drives the setup step, goes straight to the network. So there is nothing at `/api/host/me` to clear. The `/api/me` copy is already cleared by `Api.logout()` (`clearOfflineData()`). F07.3 therefore only needs to make sure the attendee logout and the new host sign-out both clear it and that it still runs if the page is reloaded straight after.
+- A recovery key does not need to be made "before the profile is saved" to get stuck: any account with a sign-in method and no profile (for example one made before profiles were asked for) is in the same state.
 - [ ] F07.2 Add Back and Sign out to every setup state, plus the `/host/signout` route.
 - [ ] F07.3 Clear service-worker cache entries on logout (attendee logout too, in `Settings.vue`).
 - [ ] F07.4 Test the repro steps now end with a clean signed-out host home.

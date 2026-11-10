@@ -59,7 +59,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up)
 - [ ] **F05** [[F05 QR icon for My card tab]] · S · Needs: none
 - [ ] **F06** [[F06 Edit profile and Cards buttons]] · S · Needs: none
-- [ ] **F07** [[F07 Host setup sign-out fix]] · S · Needs: none (urgent: the owner is stuck)
+- [ ] **F07** [[F07 Host setup sign-out fix]] · S · Needs: none (urgent: the owner is stuck) (in progress: Claude subagent, 2026-11-10)
 
 ### Phase 1: foundations
 - [ ] **F08** [[F08 Custom pickers and dropdowns]] · P1 · L · Needs: none
