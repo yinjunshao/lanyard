@@ -4,6 +4,7 @@ import { deleteImage } from "./media.js";
 import { sendMail } from "./mail.js";
 import { inactiveEmail } from "./mail-templates.js";
 import { publicOrigin } from "./unsub.js";
+import { eraseUserPresence, purgePresence } from "./presence.js";
 
 const DAY = 86400_000;
 export const SELFIE_MAX_AGE = 365 * DAY;
@@ -32,6 +33,7 @@ export async function eraseUser(env, userId) {
     `SELECT m.photo_key FROM messages m JOIN connections c ON c.id = m.connection_id
      WHERE m.photo_key IS NOT NULL AND (c.user_a = ? OR c.user_b = ?)`, userId, userId);
   for (const m of msgs) await tryDel(env, m.photo_key);
+  await eraseUserPresence(env, userId); // F17 event-presence selfies (the rows go with the user)
   const prof = await one(db, "SELECT photo_key, projects FROM profiles WHERE user_id = ?", userId);
   if (prof) {
     await tryDel(env, prof.photo_key);
@@ -70,6 +72,9 @@ export async function purgeExpired(env, ts = Date.now()) {
     await run(db, "UPDATE connections SET selfie_key = NULL, selfie_by = NULL, selfie_at = NULL, consent_a = 0 WHERE id = ?", c.id);
   }
   out.pendingSelfies = pending.length;
+
+  // F17: presence rows and their selfies, 48 hours after the event ends.
+  out.presence = await purgePresence(env, ts);
 
   await run(db, "DELETE FROM reports WHERE created_at < ?", ts - REPORT_KEEP);
   await run(db, "DELETE FROM consent_log WHERE at < ?", ts - CONSENT_KEEP);

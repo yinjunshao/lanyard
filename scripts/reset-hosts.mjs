@@ -11,14 +11,16 @@
 // Keeps: billing_requests (6 years, 0006/0018: the organisation's name stays on
 // the row) and consent_log (proof of what was agreed). Writes an admin_audit row.
 //
-// Needs migration 0018. Dry run by default: prints the counts and changes nothing.
+// Needs migrations 0018 and 0023. Dry run by default: prints the counts and changes nothing.
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite>            dry run on a SQLite file
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite> --apply    wipe that file
 //   node scripts/reset-hosts.mjs --local [--apply]                 local D1 (wrangler --local)
 //   node scripts/reset-hosts.mjs --remote [--apply --confirm=RESET-ALL-HOSTS]
 //                                  production D1. The owner runs this, after a
 //                                  D1 export, never an agent.
-// R2: sponsor logos in the bucket are listed, not deleted (see the plan note).
+// R2: sponsor logos in the bucket are listed, not deleted (see the plan note). Event-presence
+// selfies (F17, face photos) are deleted from R2 first, with `wrangler r2 object delete`, and the
+// wipe only runs if every one went; on a --sqlite copy they are listed instead.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,13 +29,13 @@ import { fileURLToPath } from "node:url";
 
 // Tables emptied by option B, in delete order (children first).
 export const WIPED = [
-  "event_mail_log", "host_mail_log", "feedback_responses", "feedback_done", "checkins", "sponsors", "events",
+  "event_mail_log", "host_mail_log", "feedback_responses", "feedback_done", "event_presence", "checkins", "sponsors", "events",
   "credits", "promo_redemptions", "org_integrations",
   "org_invites", "org_transfers", "host_tickets", "org_members", "host_profiles",
   "host_org_invites", "host_org_transfers", "host_org_tickets", "host_org_members",
   "orgs", "host_sessions", "host_login_codes", "host_accounts",
 ];
-const HOST_CONSENTS = "(scope LIKE 'host_terms:%' OR scope LIKE 'event_directory:%' OR scope LIKE 'event_sponsor:%' OR scope LIKE 'sponsor:%')";
+const HOST_CONSENTS = "(scope LIKE 'host_terms:%' OR scope LIKE 'event_directory:%' OR scope LIKE 'event_presence:%' OR scope LIKE 'event_sponsor:%' OR scope LIKE 'sponsor:%')";
 
 // One row of counts: what goes, what changes and what must stay.
 export const COUNT_SQL = `SELECT ${[
@@ -48,7 +50,13 @@ export const COUNT_SQL = `SELECT ${[
   "(SELECT COUNT(*) FROM consent_log) AS consent_log_kept",
 ].join(",\n  ")}`;
 export const LOGO_SQL = "SELECT logo_key FROM sponsors WHERE logo_key IS NOT NULL";
-export const SCHEMA_SQL = "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('host_accounts', 'host_org_members', 'host_mail_log')";
+export const PRESENCE_SQL = "SELECT selfie_key FROM event_presence WHERE selfie_key IS NOT NULL";
+export const SCHEMA_SQL = "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('host_accounts', 'host_org_members', 'host_mail_log', 'event_presence')";
+export const R2_BUCKET = "lanyard-media";
+
+/** The wrangler arguments that delete one object from the media bucket. */
+export const r2DeleteArgs = (where, key) => ["wrangler", "r2", "object", "delete", `${R2_BUCKET}/${key}`,
+  ...(where === "remote" ? ["--remote", "--config", "wrangler.production.toml"] : ["--local"])];
 
 /** The wipe, as SQL. `counts` (from COUNT_SQL) goes into the audit row. */
 export function wipeSql(counts, at = Date.now()) {
@@ -125,13 +133,26 @@ function main(argv) {
   }
   const db = where === "sqlite" ? sqliteDb(sqlite) : wranglerDb(where);
   try {
-    if (Number(db.rows(SCHEMA_SQL)[0]?.n) !== 3) { console.error("Migration 0018 is not applied to this database. Apply it first."); return 2; }
+    if (Number(db.rows(SCHEMA_SQL)[0]?.n) !== 4) { console.error("Migrations 0018 and 0023 are not both applied to this database. Apply them first."); return 2; }
     const before = db.rows(COUNT_SQL)[0];
     const logos = db.rows(LOGO_SQL).map((r) => r.logo_key);
+    const selfies = db.rows(PRESENCE_SQL).map((r) => r.selfie_key);
     console.log(`Host reset, option B (full wipe): ${where}${where === "sqlite" ? ` ${sqlite}` : ""}${apply ? "" : " (dry run, nothing changed)"}`);
     console.table(Object.entries(before).map(([k, v]) => ({ count: k, now: Number(v), after: WIPED.includes(k) || ["host_consents", "connections_with_event", "cards_with_event", "billing_without_name"].includes(k) ? 0 : Number(v) })));
     if (logos.length) console.log(`R2 sponsor logos to delete by hand (${logos.length}):\n${logos.join("\n")}`);
+    if (selfies.length) {
+      const direct = apply && where !== "sqlite";
+      console.log(`Event-presence selfies in R2 (${selfies.length}): ${direct ? "deleted before the wipe" : "to delete by hand"}`);
+      if (!direct) console.log(selfies.join(String.fromCharCode(10)));
+    }
     if (!apply) { console.log("Dry run. Add --apply to wipe."); return 0; }
+    if (where !== "sqlite") {
+      // Face photos first: if one cannot be deleted, stop before the rows that point at them go.
+      for (const key of selfies) {
+        const r = spawnSync("npx", r2DeleteArgs(where, key), { encoding: "utf8", shell: process.platform === "win32" });
+        if (r.status !== 0) { console.error(`Could not delete ${key} from R2; nothing was wiped. ${r.stderr || r.stdout}`); return 1; }
+      }
+    }
     db.exec(wipeSql(before));
     const after = db.rows(COUNT_SQL)[0];
     const bad = verify(before, after);

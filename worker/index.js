@@ -33,6 +33,7 @@ import { readInstitution } from "./institutions.js";
 import { moveTo } from "./onboarding.js";
 import { selfieView } from "./selfie.js";
 import { sharedGround } from "./inCommon.js";
+import { exportPresence } from "./presence.js";
 
 const app = new Hono();
 
@@ -450,6 +451,7 @@ app.get("/api/account/export", async (c) => {
     q("SELECT org_name, sku, quantity, amount_pence, contact_email, po_number, note, status, created_at FROM billing_requests WHERE user_id = ?", u.id).catch(() => []),
     q("SELECT id, kind, message, status, created_at, outcome FROM privacy_requests WHERE user_id = ? OR email = ?", u.id, u.recovery_email || "-").catch(() => []),
   ]);
+  const eventPresence = await exportPresence(db, u.id); // F17
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
     exportedAt: now(),
@@ -472,6 +474,7 @@ app.get("/api/account/export", async (c) => {
     feedbackNote: "Event feedback answers are stored without your account, so they can't be listed or returned here.",
     messages: messages.map((m) => ({ ...m, photo: media(m.photo_key) })),
     eventCheckins: checkins,
+    eventPresence,
     consents,
     reportsMade: reports,
     blocked: blocks,

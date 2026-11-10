@@ -4,7 +4,7 @@ id: F17
 priority: P2
 phase: 2
 size: L
-status: Not started
+status: In progress
 needs: [F15, F11, F16]
 ---
 # F17 Event presence and who to meet
@@ -64,7 +64,8 @@ For a viewer with `looking_for` text, score each other visible person at the sam
 - Hosts see only an aggregate: "23 people used Be easy to find" ([[D004 Aggregate-only host analytics]]).
 
 ## Tasks
-- [ ] F17.1 Migration, purge job and consent scope, with tests (deleted 48 h after end; deleted on withdraw).
+- [x] F17.1 Migration, purge job and consent scope, with tests (deleted 48 h after end; deleted on withdraw).
+  - `migrations/0023_event_presence.sql`; `worker/presence.js` (`eventEndsAt`, `removePresence`, `purgePresence`, export, erase); the purge, account deletion, data export and `scripts/reset-hosts.mjs` (deletes the selfies from R2 first) are wired in. `test/presence.mjs` is in `npm test` before the budget check.
 - [ ] F17.2 Presence endpoints, with security tests: not checked in → 403; ended event → 403; blocked users excluded both ways; no card or user ids in the response.
 - [ ] F17.3 Matching function, with unit tests and reasons text.
 - [ ] F17.4 Hub UI: presence card, "I want to meet" field, suggestions row and sheet.

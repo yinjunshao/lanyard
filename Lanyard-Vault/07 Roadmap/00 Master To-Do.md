@@ -74,7 +74,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 ### Phase 2: events
 - [x] **F15** [[F15 Events tab and event hub]] · P1 · L · Needs: F05, F13 (done 2026-11-10, last commit e230686)
 - [x] **F16** [[F16 Shared ground without AI]] · P1 · M · Needs: F11, F12 (done 2026-11-10, last commit af13322)
-- [ ] **F17** [[F17 Event presence and who to meet]] · P2 · L · Needs: F15, F11, F16 + owner decision (selfie retention)
+- [ ] **F17** [[F17 Event presence and who to meet]] · P2 · L · Needs: F15, F11, F16 + owner decision (selfie retention) (in progress: Claude subagent, 2026-11-10)
 
 ### Phase 3: host tools
 - [ ] **F18** [[F18 Live previews for cards and events]] · P2 · M · Needs: F10, F11
