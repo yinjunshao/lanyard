@@ -4,7 +4,7 @@ id: F05
 priority: P0
 phase: 0
 size: S
-status: In progress
+status: Done
 needs: []
 ---
 # F05 QR icon for My card tab
@@ -31,9 +31,14 @@ Use `qr` for the My card tab. Keep `card` for other places that use it.
 - [x] F05.2 Check it at 24 px and 20 px, in light and dark, next to Scan and People. The stroke weight must match, and it must not look filled or heavier.
 
 ## Acceptance checks
-- [ ] Tab bar shows a QR glyph for My card. The active and inactive colours behave like the other tabs.
+- [x] Tab bar shows a QR glyph for My card. The active and inactive colours behave like the other tabs.
 
 ## Log
--
+- 2026-11-10 (Claude subagent): the My card tab now shows a `qr` glyph (`src/components/Icon.vue`), drawn in the same 24 px stroke style as Scan and People. `App.vue` tabs take an optional `icon` name; the card icon stays for other uses.
+- Checked in a local browser (dev servers, a test profile) at 375 px in light and dark: the glyph matches the stroke weight of Scan and People, and the active tab is ink while the others are graphite. The 20 px check used a copy of the glyphs placed on the page, not the real tab bar.
+- `test/ui.mjs` (in `npm test`) guards the icon and the tab wiring. Nothing else left over.
+
+### Owner steps
+- Review the F05 commits, `git push`, then `npm run deploy`. No migrations.
 
 Related: [[Design System]], [[F15 Events tab and event hub]] (adds a fourth tab icon in the same style) · back to [[00 Master To-Do]]
