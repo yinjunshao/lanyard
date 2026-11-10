@@ -10,3 +10,5 @@ TOTP_KEY=pick_another_long_random_string
 # Production: wrangler secret put RESEND_ACCOUNTS_KEY / RESEND_DECISIONS_KEY
 RESEND_ACCOUNTS_KEY=re_your_accounts_key
 RESEND_DECISIONS_KEY=re_your_decisions_key
+# AI (F21). Local development never needs the key: AI_STUB=1 in wrangler.toml answers with a canned reply.
+# Other AI settings (AI_ENABLED, AI_MODEL, AI_GATEWAY_URL, budgets, prices) are plain vars, see worker/ai/config.js.

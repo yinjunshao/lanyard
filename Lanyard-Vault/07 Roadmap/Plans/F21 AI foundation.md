@@ -4,7 +4,7 @@ id: F21
 priority: P1
 phase: 4
 size: L
-status: Not started
+status: In progress
 needs: [F09]
 ---
 # F21 AI foundation
@@ -49,7 +49,8 @@ The shared plumbing that makes every AI feature safe and cheap. The design and r
 - `test/ai-injection.mjs` (see the plan §5 Rule 6).
 
 ## Tasks
-- [ ] F21.1 Migration and `price.js`, `AI_LIMITS`, env var reading.
+- [x] F21.1 Migration and `price.js`, `AI_LIMITS`, env var reading.
+  - `migrations/0024_ai_foundation.sql` (`users.ai_search_ok`, `ai_usage`, `ai_cache`, `ai_daily`, `ai_settings`), `worker/ai/config.js` (all env reading, the stub-mode rule), `worker/ai/price.js` (prices are the plan's, **unchecked**, until the owner sets the price vars), `AI_LIMITS` in `worker/plans.js`, production vars with `AI_ENABLED = "0"`. `test/ai.mjs` is in `npm test` before the budget check.
 - [ ] F21.2 `client.js` with all eight steps and tests.
 - [ ] F21.3 `sanitize.js` and `validate.js` with unit tests and the injection test file.
 - [ ] F21.4 Admin spend panel, kill switch and allow-list.

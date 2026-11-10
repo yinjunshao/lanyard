@@ -82,7 +82,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F20** [[F20 Host promo codes for event credits]] · P2 · M · Needs: F10, F04
 
 ### Phase 4: AI (all through [[AI Safety and Cost Plan]])
-- [ ] **F21** [[F21 AI foundation]] · P1 · L · Needs: F09 + owner decision (AI search default)
+- [ ] **F21** [[F21 AI foundation]] · P1 · L · Needs: F09 + owner decision (AI search default) (in progress: Claude subagent, 2026-11-10)
 - [ ] **F22** [[F22 AI follow-up drafts]] · P1 · M · Needs: F21, F13, F16
 - [ ] **F23** [[F23 AI feedback summary for hosts]] · P2 · M · Needs: F21, F10
 - [ ] **F24** [[F24 Do I know someone who]] · P2 · L · Needs: F21, F11, F12, F13

@@ -49,3 +49,18 @@ export const STANDARD_CHECKIN_CAP = 300;
 /** Societies are hard-capped at the door; everyone else is nudged at 300. */
 export const checkinCapFor = (orgType) => (orgType === "society" ? SOCIETY_FREE.checkinCap : STANDARD_CHECKIN_CAP);
 export const skuAudience = (orgType) => (orgType === "society" ? "society" : orgType === "institution" ? "institution" : "standard");
+
+// AI allowances (F21, "AI Safety and Cost Plan" section 4). One entry per feature; each says what each
+// kind of caller may do. A caller with no entry for the feature is refused, so a host cannot call a
+// follow-up draft and an attendee cannot call a host summary. Days and months are UTC. perScope is a
+// limit per event (who to meet). optOut: the people whose data is in the prompt may have switched off
+// AI search, and the foundation then refuses (worker/ai/optout.js). Change numbers here only.
+export const AI_LIMITS = {
+  followup:         { label: "drafts",      free: { day: 3, month: 15 }, plus: { day: 15, month: 150 } },
+  people_search:    { label: "searches",    optOut: true, free: { day: 5 }, plus: { day: 30 } },
+  who_to_meet:      { label: "suggestions", optOut: true, free: { perScope: 3 }, plus: { perScope: 10 } },
+  // Written once per event automatically (not counted); these limits are for regenerating it.
+  feedback_summary: { label: "summaries",   host: { day: 3 } },
+  // The admin page's "test the connection" button.
+  admin_test:       { label: "tests",       admin: { day: 20 } },
+};
