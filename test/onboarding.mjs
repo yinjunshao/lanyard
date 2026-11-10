@@ -3,7 +3,7 @@
 // first, and (later tasks) source guards for the legal steps and the funnel.
 // Run: node test/onboarding.mjs
 import { makeEnv, makeDb, readMigration, check, summary } from "./harness.mjs";
-import { eraseUser } from "../worker/purge.js";
+import { eraseUser, purgeExpired } from "../worker/purge.js";
 import { readFileSync } from "node:fs";
 import { buildLinks, labelForUrl } from "../src/lib/links.js";
 
@@ -244,6 +244,68 @@ console.log("\n# While in the steps, nothing else nags; after them My card lists
   check("each item is on the step that asks for it: photo 1, school or work 2, headline and tags 3, links 4",
     has(my, 'key: "photo", step: 1', 'key: "course", step: 2', 'key: "headline", step: 3', 'key: "tags", step: 3', 'key: "links", step: 4', 'key: "company", step: 2'));
   check("Edit profile only edits now: it cannot create a card and has no Terms tick of its own", !/createProfile|acceptTerms|agreed|firstRun/.test(edit));
+}
+
+console.log("\n# The funnel: daily counts, nothing about who");
+{
+  const F = await makeEnv({ ADMIN_TOKEN: "funnel-admin-token" });
+  const fc = (o) => F.client(o);
+  const admin = (token) => fc({ ip: "10.14.7.99" }).get("/api/admin/onboarding", token ? { authorization: `Bearer ${token}` } : {});
+  const funnel = async () => Object.fromEntries((await admin("funnel-admin-token")).json.steps.map((s) => [s.step, [s.reached, s.completed]]));
+  check("no one has been through the steps: no rows", (await admin("funnel-admin-token")).json.steps.length === 0);
+  check("the page is for the admin token only", (await admin()).status === 401 && (await admin("wrong")).status === 401);
+
+  const A = fc({ ip: "10.14.7.1" });
+  await create(A, { name: "Ann" });
+  let t = await funnel();
+  check("a new card counts as reaching and getting past step 1, and reaching step 2", t[1]?.join() === "1,1" && t[2]?.join() === "1,0", t);
+  const mv = (c, s) => c.put("/api/onboarding", s === "done" ? { done: true } : { step: s });
+  await mv(A, 3);
+  t = await funnel();
+  check("step 3 reached, step 2 got past", t[2].join() === "1,1" && t[3].join() === "1,0", t);
+  await mv(A, 2); await mv(A, 3); await mv(A, 2); await mv(A, 3);
+  check("going Back and forward again is not counted twice", (await funnel())[3].join() === "1,0" && (await funnel())[2].join() === "1,1");
+  await mv(A, 4); await mv(A, 5);
+  await mv(A, 6);
+  check("a skipped step still counts as got past (4 and 5 were only moved over)", (await funnel())[4].join() === "1,1" && (await funnel())[5].join() === "1,1");
+  await mv(A, "done");
+  t = await funnel();
+  check("finishing counts the done step as reached and got past", t[6].join() === "1,1", t);
+  await mv(A, 2); await mv(A, 5);
+  check("anything after finishing is not counted", JSON.stringify(await funnel()) === JSON.stringify(t));
+
+  // A person who stopped at step 3.
+  const B = fc({ ip: "10.14.7.2" });
+  await create(B, { name: "Ben" }); await mv(B, 3);
+  t = await funnel();
+  check("two people: both reached 3, one got past it", t[1].join() === "2,2" && t[3].join() === "2,1", t);
+
+  // A guest who connected first (stub profile at step 1) counts when step 1 is shown, not before.
+  const card = (await me(A)).cards[0].cardId;
+  const G = fc({ ip: "10.14.7.3" });
+  await G.post("/api/connect", { cardId: card, name: "Gus", acceptTerms: true, over18: true });
+  check("a guest who has not opened the steps is not counted", (await funnel())[1].join() === "2,2");
+  await mv(G, 1);
+  check("they are counted once they reach step 1", (await funnel())[1].join() === "3,2");
+
+  // A card made some other way is never counted.
+  const P = fc({ ip: "10.14.7.4" });
+  await P.post("/api/profile", { name: "Pat", acceptTerms: true, over18: true });
+  await mv(P, 2); await mv(P, 3);
+  check("a card made outside the steps is not counted", JSON.stringify(await funnel()) === JSON.stringify({ ...t, 1: [3, 2] }), await funnel());
+
+  const body = (await admin("funnel-admin-token")).json;
+  check("the admin response is counts only: no ids, names or times", Object.keys(body).sort().join() === "days,since,steps" && body.steps.every((s) => Object.keys(s).sort().join() === "completed,reached,step"), body);
+  const cols = F.q("SELECT name FROM pragma_table_info('onboarding_stats')").map((c) => c.name).sort().join();
+  check("the table has no column that could say who", cols === "completed,day,reached,step", cols);
+
+  F.q("INSERT INTO onboarding_stats (day, step, reached, completed) VALUES ('2020-01-01', 1, 5, 5)");
+  await purgeExpired(F.env);
+  check("rows older than 400 days are deleted by the daily purge", !F.q1("SELECT 1 x FROM onboarding_stats WHERE day = '2020-01-01'") && !!F.q1("SELECT 1 x FROM onboarding_stats"));
+
+  const adm = read("src/views/Admin.vue");
+  check("the admin page shows the table", has(adm, "/api/admin/onboarding", 'class="funnel', "Of step 1"));
+  check("it is not read by any host route (hosts only ever see aggregates of their events)", !/onboarding/.test(read("worker/hosts.js") + read("worker/events.js") + read("worker/host-auth.js")));
 }
 
 summary();

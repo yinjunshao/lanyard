@@ -86,6 +86,14 @@ async function call(path, method = "GET", body) {
   return json;
 }
 
+// The welcome-steps funnel (F14): daily counts only, nothing about who.
+const funnel = ref(null);
+const STEP_NAMES = ["Name and photo", "Student or working", "What you can help with", "Links", "Save your card", "Done"];
+async function loadFunnel() {
+  try { funnel.value = await call("/api/admin/onboarding"); } catch (e) { error.value = e.message; }
+}
+const pct = (n, of) => (of ? `${Math.round((n / of) * 100)}%` : "–");
+
 // Promo codes (/redeem)
 const promos = ref(null);
 const newPromo = ref({ code: "", days: 365, maxUses: 50, expiresAt: "", note: "" });
@@ -112,6 +120,7 @@ async function load() {
   loadRequests();
   loadPromos();
   loadHosts();
+  loadFunnel();
   try { queue.value = await call("/api/admin/queue"); }
   catch (e) {
     queue.value = null;
@@ -288,6 +297,22 @@ const EMAIL = { education: "university or school address", free: "webmail addres
           <input v-model="newPromo.note" type="text" maxlength="200" placeholder="Where is it printed? (only you see this)" aria-label="Note" />
           <button class="btn btn-primary" :disabled="newPromo.code.replace(/[^a-z0-9]/gi, '').length < 4">Create code</button>
         </form>
+      </section>
+
+      <section class="stack-2" aria-labelledby="adm-funnel-h">
+        <span id="adm-funnel-h" class="label">Welcome steps, last {{ funnel?.days || 30 }} days</span>
+        <p class="small muted">How many new cards reached each step and got past it. Counts only: nothing about who. Step 1 counts people who saved a name, so someone who opens the page and leaves is not in it. Skipping a step counts as getting past it. Going Back and forward is counted once.</p>
+        <p v-if="funnel && !funnel.steps.length" class="muted">No one has been through the steps yet.</p>
+        <table v-else-if="funnel" class="funnel small">
+          <thead><tr><th scope="col">Step</th><th scope="col" class="num">Reached</th><th scope="col" class="num">Got past it</th><th scope="col" class="num">Of step 1</th></tr></thead>
+          <tbody>
+            <tr v-for="s in funnel.steps" :key="s.step">
+              <th scope="row">{{ s.step }}. {{ STEP_NAMES[s.step - 1] }}</th>
+              <td class="num tnum">{{ s.reached }}</td><td class="num tnum">{{ s.completed }}</td>
+              <td class="num tnum">{{ pct(s.reached, funnel.steps[0]?.reached) }}</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
       <section class="stack-2">

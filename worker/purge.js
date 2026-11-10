@@ -13,6 +13,7 @@ export const PENDING_SELFIE_MAX_AGE = 7 * DAY;    // a shared selfie nobody acce
 export const REPORT_KEEP = 365 * DAY;             // abuse reports about other people
 export const AUDIT_KEEP = 365 * DAY;              // admin audit log
 export const REQUEST_KEEP = 3 * 365 * DAY;        // privacy requests and complaints, after closing
+export const FUNNEL_KEEP = 400 * DAY;             // daily welcome-step counts (no personal data)
 export const INACTIVE_AFTER = 730 * DAY;          // 24 months unused
 export const INACTIVE_WARNING = 30 * DAY;         // warned this long before deletion
 
@@ -75,6 +76,7 @@ export async function purgeExpired(env, ts = Date.now()) {
   await run(db, "DELETE FROM admin_audit WHERE at < ?", ts - AUDIT_KEEP);
   await run(db, "DELETE FROM privacy_requests WHERE status = 'closed' AND closed_at < ?", ts - REQUEST_KEEP);
   await run(db, "DELETE FROM event_mail_log WHERE sent_at < ?", ts - 365 * DAY);
+  await run(db, "DELETE FROM onboarding_stats WHERE day < ?", new Date(ts - FUNNEL_KEEP).toISOString().slice(0, 10));
   Object.assign(out, await expireInactive(env, ts));
 
   await run(db, "DELETE FROM sessions WHERE expires_at < ?", ts);

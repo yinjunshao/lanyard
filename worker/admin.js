@@ -10,6 +10,7 @@ import { unsubUrl } from "./unsub.js";
 import { newId } from "./db.js";
 import { peek, bump, HOUR } from "./ratelimit.js";
 import { emailProblem, emailKind, openTransfer, normEmail } from "./hostorg.js";
+import { funnel } from "./onboarding.js";
 
 export const adminApp = new Hono();
 
@@ -245,6 +246,9 @@ adminApp.post("/api/admin/users/:id/signin-code", async (c) => {
 });
 
 // Promo codes (/redeem). Codes are upper-case letters and numbers.
+// The welcome-steps funnel (F14): counts per step for the last 30 days. Nothing about who.
+adminApp.get("/api/admin/onboarding", async (c) => c.json(await funnel(c.env.DB, 30)));
+
 adminApp.get("/api/admin/promos", async (c) => {
   const { results } = await c.env.DB.prepare("SELECT * FROM promo_codes ORDER BY created_at DESC").all();
   return c.json({ promos: results || [] });
