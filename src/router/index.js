@@ -16,6 +16,15 @@ const Person = () => import("../views/Person.vue");
 const SignIn = () => import("../views/SignIn.vue");
 const Claim = () => import("../views/Claim.vue");
 const Settings = () => import("../views/Settings.vue");
+const SettingsPick = () => import("../views/settings/SettingsPick.vue");
+const SettingsAccount = () => import("../views/settings/SettingsAccount.vue");
+const SettingsSecurity = () => import("../views/settings/SettingsSecurity.vue");
+const SettingsNotifications = () => import("../views/settings/SettingsNotifications.vue");
+const SettingsPrivacy = () => import("../views/settings/SettingsPrivacy.vue");
+const SettingsPlan = () => import("../views/settings/SettingsPlan.vue");
+const SettingsAppearance = () => import("../views/settings/SettingsAppearance.vue");
+const SettingsHelp = () => import("../views/settings/SettingsHelp.vue");
+const SettingsAll = () => import("../views/settings/SettingsAll.vue");
 const Events = () => import("../views/Events.vue");
 const EventDetail = () => import("../views/EventDetail.vue");
 const EventJoin = () => import("../views/EventJoin.vue");
@@ -48,7 +57,23 @@ const routes = [
   { path: "/app/people/:id", component: Person, meta: { app: true } },
   { path: "/app/events", component: Events, meta: { app: true } },
   { path: "/app/events/:id", component: EventDetail, meta: { app: true } },
-  { path: "/app/settings", component: Settings, meta: { app: true } },
+  // Settings: a list of categories, each its own page. A page's `title` is what the
+  // list-and-page layout in Settings.vue shows above it. Later features add rows
+  // inside these pages (F11 mode, F21 AI and privacy, F26 mailing list, F27 plan).
+  {
+    path: "/app/settings", component: Settings, meta: { app: true, wide: true },
+    children: [
+      { path: "", component: SettingsPick },
+      { path: "account", component: SettingsAccount, meta: { title: "Account" } },
+      { path: "security", component: SettingsSecurity, meta: { title: "Sign-in and devices" } },
+      { path: "notifications", component: SettingsNotifications, meta: { title: "Email and notifications" } },
+      { path: "privacy", component: SettingsPrivacy, meta: { title: "Privacy and data" } },
+      { path: "plan", component: SettingsPlan, meta: { title: "Plan" } },
+      { path: "appearance", component: SettingsAppearance, meta: { title: "Appearance and app" } },
+      { path: "help", component: SettingsHelp, meta: { title: "Help and legal" } },
+      { path: "all", component: SettingsAll, meta: { title: "All settings (temporary)" } },
+    ],
+  },
   { path: "/app/feedback/:eventId", component: Feedback, meta: { app: true } },
 
   { path: "/terms", component: Terms },

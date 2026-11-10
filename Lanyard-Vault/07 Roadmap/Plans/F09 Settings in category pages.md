@@ -4,7 +4,7 @@ id: F09
 priority: P1
 phase: 1
 size: M
-status: Not started
+status: In progress
 needs: [F08]
 ---
 # F09 Settings in category pages
@@ -35,8 +35,37 @@ The settings page is too stacked. Signed-in devices, for example, should be a bu
 - **Wide screens (≥ 900 px):** two columns. The category list stays on the left and the page shows on the right, like X. **Phones:** list → page, with "‹ Settings" back at the top.
 - **Old anchors:** the router maps `/app/settings#plus` → `/app/settings/plan`, `#signin` → `/security`, `#install` → `/appearance`. Update the links in code too.
 
+## Checklist: what the old `Settings.vue` did (2026-11-10)
+Written before the split. Each line gets ticked, with its new place, once it works there.
+- [ ] Sign-in status line ("Passkey saved", "Email saved"...) and the "Save my card" / "Add more" link to `/claim`
+- [ ] "Your card only lives in this browser until you save it" hint
+- [ ] Recovery email shown
+- [ ] Add a passkey
+- [ ] Add and confirm an email (send code, confirm)
+- [ ] Switch on or off the feedback reminder emails
+- [ ] Switch on or off news and offers
+- [ ] Authenticator app: set up, copy key, account ID, turn off
+- [ ] Signed-in devices, and sign out other devices
+- [ ] Sign in on another device (code, QR, countdown)
+- [ ] Appearance: Auto, Light, Dark
+- [ ] Install guide
+- [ ] Plan label, Lanyard Plus details, "Tell me when Plus opens", "Have a code? Redeem it"
+- [ ] Host portal link
+- [ ] Download my data
+- [ ] Get help (mailto link)
+- [ ] About Lanyard (`/?about=1`)
+- [ ] Edit profile
+- [ ] Log out of this device (with the "not saved yet" warning)
+- [ ] Consent history and the privacy request link
+- [ ] Delete account
+- [ ] Terms and Privacy policy links, and the selfie retention line
+- [ ] Error line under the page
+- [ ] Anchors `#signin`, `#install`, `#plus`
+- [ ] Links from other pages and from emails (`CardForm`, `Cards`, `MyCard`, `Privacy`, `PrivacyRequest`, `worker/alerts.js`, `worker/mail.js`)
+
 ## Tasks
-- [ ] F09.1 Settings index and routes, and a shared `SettingsPage` shell (title and back link).
+- [x] F09.1 Settings index and routes, and a shared `SettingsPage` shell (title and back link).
+  - The shell is in `Settings.vue` itself (back link and title, from each route's `meta.title`), not a separate component: a component with a `<slot>` would grow the Vue runtime chunk every public page loads (D018). The old page is kept for now as `settings/SettingsAll.vue` at `/app/settings/all` so nothing is unreachable between commits; F09.2 removes it.
 - [ ] F09.2 Move each section into its page without changing behaviour (one commit per page is fine).
 - [ ] F09.3 Devices sheet, plus `DELETE /api/auth/sessions/:id` with a security test (you can't delete another user's session).
 - [ ] F09.4 Anchor redirects and link updates.

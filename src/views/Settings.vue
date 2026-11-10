@@ -1,214 +1,101 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
-import { me, refreshMe } from "../lib/store";
-import { Api } from "../lib/api";
-import { registerPasskey, passkeysSupported } from "../lib/passkeys";
-import { drawQR } from "../lib/qr";
-import ConsentHistory from "../components/ConsentHistory.vue";
-import InstallGuide from "../components/InstallGuide.vue";
-import { HELP_EMAIL } from "../lib/contact";
-import DevicesList from "../components/DevicesList.vue";
-import EmailSetup from "../components/EmailSetup.vue";
-import AuthenticatorSetup from "../components/AuthenticatorSetup.vue";
+// Settings: a short list of categories, each on its own page (F09). Phones show the
+// list, then one page with a back link; from 900 px the list stays on the left and
+// the page shows on the right. Later features add rows inside the pages, not here.
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
+import { me, refreshMe, signOutAndReload } from "../lib/store";
 import Icon from "../components/Icon.vue";
-import { getThemePref, setThemePref } from "../lib/theme";
+import { SETTINGS_ICONS } from "./settings/icons";
+import { getThemePref } from "../lib/theme";
 
-const router = useRouter();
-const error = ref("");
-const host = location.host;
+const route = useRoute();
+const isIndex = computed(() => !route.meta.title);
+
+// The Appearance page announces a change, so the summary here stays right on wide screens.
 const themePref = ref(getThemePref());
-const THEME_OPTIONS = [
-  { value: "auto", label: "Auto" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-];
-function pickTheme(v) { themePref.value = v; setThemePref(v); }
+const onTheme = () => { themePref.value = getThemePref(); };
+onMounted(() => { refreshMe(); window.addEventListener("lanyard:theme", onTheme); });
+onBeforeUnmount(() => window.removeEventListener("lanyard:theme", onTheme));
 
-onMounted(refreshMe);
-
-const gbp = (pence) => `£${(pence / 100).toFixed(pence % 100 ? 2 : 0)}`;
-const joining = ref(false);
-async function joinWaitlist() {
-  joining.value = true;
-  try {
-    await Api.plusWaitlist();
-    await refreshMe();
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    joining.value = false;
-  }
-}
-
-async function addPasskey() {
-  error.value = "";
-  try {
-    await registerPasskey();
-    await refreshMe();
-  } catch (e) {
-    error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled." : e?.message || "Passkey setup failed.";
-  }
-}
-
-// Sign in on another device: a short-lived one-time code, also as a QR.
-const link = ref(null); // { code, expiresAt, url }
-const linkCanvas = ref(null);
-const secondsLeft = ref(0);
-const linkBusy = ref(false);
-let tick = null;
-async function showLink() {
-  error.value = ""; linkBusy.value = true;
-  try {
-    const r = await Api.authLink();
-    link.value = { ...r, url: `${location.origin}/signin?code=${r.code}` };
-    clearInterval(tick);
-    const update = () => {
-      secondsLeft.value = Math.max(0, Math.round((r.expiresAt - Date.now()) / 1000));
-      if (!secondsLeft.value) { clearInterval(tick); link.value = null; }
-    };
-    update();
-    tick = setInterval(update, 1000);
-    await nextTick();
-    if (linkCanvas.value) await drawQR(linkCanvas.value, link.value.url, 360);
-  } catch (e) { error.value = e.message; }
-  finally { linkBusy.value = false; }
-}
-onBeforeUnmount(() => clearInterval(tick));
-const mmss = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+const u = computed(() => me.user);
+const signInSummary = computed(() => (u.value?.hasPasskey ? "Passkey saved" : u.value?.emailVerified ? "Email saved" : u.value?.hasRecovery ? "Recovery key saved" : u.value?.hasTotp ? "Authenticator app on" : "Not saved yet"));
+const rows = computed(() => [
+  { key: "account", to: "/app/settings/account", title: "Account", summary: u.value?.emailVerified ? u.value.recoveryEmail : "No email saved" },
+  { key: "security", to: "/app/settings/security", title: "Sign-in and devices", summary: signInSummary.value },
+  { key: "notifications", to: "/app/settings/notifications", title: "Email and notifications",
+    summary: u.value?.emailVerified ? `Feedback reminders ${u.value.eventEmails ? "on" : "off"}, news ${u.value.marketingOptin ? "on" : "off"}` : "Add an email first" },
+  { key: "privacy", to: "/app/settings/privacy", title: "Privacy and data", summary: "Your data, consents, delete account" },
+  { key: "plan", to: "/app/settings/plan", title: "Plan", summary: me.plan.label },
+  { key: "appearance", to: "/app/settings/appearance", title: "Appearance and app", summary: `Theme: ${{ auto: "auto", light: "light", dark: "dark" }[themePref.value] || "auto"}` },
+  { key: "help", to: "/app/settings/help", title: "Help and legal", summary: "Contact, terms, about Lanyard" },
+  { key: "help", to: "/app/settings/all", title: "All settings (temporary)", summary: "Removed once every page is filled in" },
+]);
 
 async function logout() {
   if (!me.user?.claimed && !confirm("Your card isn't saved yet. If you log out, you can't get back into it. Log out anyway?")) return;
-  await Api.logout();
-  await refreshMe();
-  router.push("/");
-}
-
-async function erase() {
-  if (!confirm("Delete your account and all connections, selfies and notes? This cannot be undone.")) return;
-  await Api.deleteAccount();
-  router.push("/");
+  await signOutAndReload("/");
 }
 </script>
 
 <template>
-  <div class="stack-2">
-    <h1>Settings</h1>
-
-    <section id="signin" class="panel stack">
-      <div class="spread">
-        <span>
-          <span class="label">Sign-in</span><br />
-          <strong>{{ me.user?.hasPasskey ? "Passkey saved" : me.user?.emailVerified ? "Email saved" : me.user?.hasRecovery ? "Recovery key saved" : me.user?.hasTotp ? "Authenticator app on" : "Not saved yet" }}</strong>
-        </span>
-        <router-link v-if="!me.user?.hasPasskey || !me.user?.hasRecovery" to="/claim" class="btn btn-primary" style="width:auto">
-          {{ me.user?.claimed ? "Add more" : "Save my card" }}
+  <div class="settings" :class="{ 'is-index': isIndex }">
+    <nav class="settings-nav" aria-label="Settings">
+      <h1>Settings</h1>
+      <div class="list">
+        <router-link v-for="r in rows" :key="r.key" :to="r.to" class="list-row settings-row">
+          <svg class="settings-ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="SETTINGS_ICONS[r.key]"></svg>
+          <span class="settings-row-text"><strong>{{ r.title }}</strong><span class="small muted">{{ r.summary }}</span></span>
+          <span class="muted settings-chev"><Icon name="chevron" :size="18" /></span>
         </router-link>
       </div>
-      <p v-if="!me.user?.claimed" class="small muted">
-        Your card only lives in this browser until you save it. It takes one tap.
-      </p>
-      <p v-if="me.user?.recoveryEmail" class="small muted">Recovery email: {{ me.user.recoveryEmail }}</p>
-      <button v-if="!me.user?.hasPasskey && passkeysSupported()" class="btn" @click="addPasskey">Add a passkey</button>
-
-      <EmailSetup />
-
-      <AuthenticatorSetup />
-
-      <DevicesList />
-
-      <template v-if="!link">
-        <button class="btn" :disabled="linkBusy" @click="showLink">Sign in on another device</button>
-      </template>
-      <div v-else class="stack" style="align-items:center;text-align:center">
-        <p class="small muted">On the other device open <strong>{{ host }}/signin</strong> and enter this code, or scan the QR.</p>
-        <p class="tnum" style="font-size:36px;font-weight:800;letter-spacing:4px;margin:0">{{ link.code }}</p>
-        <canvas ref="linkCanvas" width="360" height="360" style="width:180px;height:180px" aria-label="Sign-in QR code"></canvas>
-        <p class="small muted">One use, expires in {{ mmss(secondsLeft) }}.</p>
-      </div>
-    </section>
-
-    <div class="list">
-      <div class="list-row spread">
-        <span><span class="label">Appearance</span><br />Light or dark</span>
-        <div class="seg" role="group" aria-label="Appearance">
-          <button v-for="o in THEME_OPTIONS" :key="o.value" type="button" class="seg-btn"
-                  :class="{ on: themePref === o.value }" :aria-pressed="themePref === o.value"
-                  @click="pickTheme(o.value)">{{ o.label }}</button>
-        </div>
-      </div>
-    </div>
-
-    <section id="install" class="panel">
-      <InstallGuide />
-    </section>
-
-    <section id="plus" class="panel stack-2">
-      <div class="spread">
-        <span class="label">Your plan</span>
-        <strong>{{ me.plan.label }}</strong>
-      </div>
-      <template v-if="me.plan.tier === 'free'">
-        <h2>Lanyard Plus</h2>
-        <p class="small muted">
-          One paid plan, priced for students:
-          <strong>{{ gbp(me.plan.plusPrice?.yearlyPence || 1199) }} a year</strong>
-          or {{ gbp(me.plan.plusPrice?.monthlyPence || 149) }} a month.
-          Everything you use today stays free.
-        </p>
-        <ul class="small plan-list">
-          <li><strong>Up to 12 cards</strong>, one for each room you walk into (Free: {{ me.plan.freeCards || 3 }}).</li>
-          <li><strong>Custom strap colours</strong> on every card.</li>
-          <li><strong>Choose your own card code</strong>, like your name, and change it once a week.</li>
-          <li><strong>Coming first:</strong> card views and connection stats, CSV and vCard export of your people, your own link name, follow-up reminders.</li>
-        </ul>
-        <router-link to="/redeem" class="small link-btn" style="text-align:left">Have a code? Redeem it</router-link>
-        <button v-if="!me.plan.onWaitlist" class="btn btn-primary" :disabled="joining" @click="joinWaitlist">
-          Tell me when Plus opens
+      <div class="list">
+        <button type="button" class="list-row settings-row" @click="logout">
+          <svg class="settings-ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="SETTINGS_ICONS.logout"></svg>
+          <span class="settings-row-text"><strong>Log out of this device</strong></span>
         </button>
-        <p v-else class="success-text small">You're on the list. We'll email if you've added a recovery email, otherwise you'll see it here first.</p>
+      </div>
+    </nav>
+
+    <section class="settings-pane">
+      <template v-if="!isIndex">
+        <router-link to="/app/settings" class="settings-back link-btn">‹ Settings</router-link>
+        <h2 class="settings-title">{{ route.meta.title }}</h2>
       </template>
-      <p v-else class="small muted">Thanks for backing Lanyard. You have {{ me.plan.cards }} cards, custom colours and your own card codes.</p>
+      <router-view />
     </section>
-
-    <div class="list">
-      <router-link to="/host" class="list-row spread">
-        <span>Run events? Open the host portal</span>
-        <span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
-      </router-link>
-      <a class="list-row spread" :href="Api.exportUrl" target="_blank" rel="noopener">
-        <span>Download my data</span><span class="muted" style="display:inline-flex"><Icon name="download" :size="18" /></span>
-      </a>
-      <a class="list-row spread" :href="`mailto:${HELP_EMAIL}`">
-        <span>Get help <span class="small muted">· {{ HELP_EMAIL }}</span></span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
-      </a>
-      <router-link to="/?about=1" class="list-row spread">
-        <span>About Lanyard</span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
-      </router-link>
-      <router-link to="/app/profile" class="list-row spread">
-        <span>Edit profile</span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
-      </router-link>
-      <button class="list-row spread" style="width:100%;text-align:left;background:none;border:none;cursor:pointer" @click="logout">
-        <span>Log out of this device</span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
-      </button>
-    </div>
-
-    <ConsentHistory />
-
-    <details class="list" style="padding:16px">
-      <summary class="error-text" style="cursor:pointer;font-weight:700">Delete account</summary>
-      <p class="small muted" style="margin:12px 0">
-        Removes your profile, cards, private notes and connections. Shared
-        selfies are deleted for everyone. This is permanent.
-      </p>
-      <button class="btn" style="color:var(--strap-deep)" @click="erase">Delete everything</button>
-    </details>
-
-    <p v-if="error" class="error-text">{{ error }}</p>
-
-    <p class="small muted">
-      <router-link to="/terms">Terms</router-link> · <router-link to="/privacy">Privacy policy</router-link>.
-      Shared selfies are deleted after 12 months. Hosts only ever see aggregate numbers.
-    </p>
   </div>
 </template>
+
+<style>
+.settings { display: block; }
+.settings-nav > * + * { margin-top: calc(var(--space) * 2); }
+.settings-nav h1 { margin-bottom: 0; }
+.settings-row { min-height: 56px; padding-top: 8px; padding-bottom: 8px; color: inherit; text-decoration: none; }
+.settings-ico { flex: none; color: var(--graphite); }
+.settings-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.settings-row-text .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-chev { display: inline-flex; flex: none; }
+.settings-row[aria-current="page"] { box-shadow: inset 3px 0 0 var(--strap); background: var(--paper); }
+.settings-row[aria-current="page"] .settings-ico { color: var(--strap); }
+.settings-back { min-height: 44px; display: inline-flex; align-items: center; text-align: left; }
+.settings-title { font-size: 26px; margin: 0 0 calc(var(--space) * 2); }
+.settings-pane > * + * { margin-top: 0; }
+.settings-pick { display: none; }
+
+/* Phones: the list, or one page. */
+@media (max-width: 899px) {
+  .settings:not(.is-index) .settings-nav { display: none; }
+  .settings.is-index .settings-pane { display: none; }
+}
+/* From 900 px: the list on the left, the page on the right. */
+@media (min-width: 900px) {
+  .app-col.is-wide, .topbar.is-wide { max-width: 960px; }
+  .settings { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: calc(var(--space) * 5); align-items: start; }
+  .settings-nav { position: sticky; top: 90px; }
+  .settings-back { display: none; }
+  .settings-pick { display: block; }
+}
+</style>

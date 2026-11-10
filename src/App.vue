@@ -39,12 +39,12 @@ const tabs = [
   <div v-if="!ready" class="boot-splash" aria-busy="true"><span>lanyard<b>.</b></span><span class="visually-hidden">Loading</span></div>
   <template v-else-if="r.meta.app">
     <div class="strap-rail"></div>
-    <header class="topbar">
+    <header class="topbar" :class="{ 'is-wide': r.meta.wide }">
       <router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
       <router-link to="/app/settings" class="topbar-link">Settings</router-link>
     </header>
 
-    <main class="app-col">
+    <main class="app-col" :class="{ 'is-wide': r.meta.wide }">
       <AccountBanner />
       <router-view />
     </main>
