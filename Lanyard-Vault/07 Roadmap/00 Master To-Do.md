@@ -58,7 +58,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F03** [[F03 Neutral copy with no named university]] · S · Needs: none (done 2026-11-10, last commit 95e0b70)
 - [x] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up) (done 2026-11-10, last commit fbb24bd)
 - [x] **F05** [[F05 QR icon for My card tab]] · S · Needs: none (done 2026-11-10, last commit 714d8f1)
-- [ ] **F06** [[F06 Edit profile and Cards buttons]] · S · Needs: none (in progress: Claude subagent, 2026-11-10)
+- [x] **F06** [[F06 Edit profile and Cards buttons]] · S · Needs: none (done 2026-11-10, last commit 8701b1f)
 - [x] **F07** [[F07 Host setup sign-out fix]] · S · Needs: none (urgent: the owner is stuck) (done 2026-11-10, last commit b7ed96c)
 
 ### Phase 1: foundations
@@ -144,5 +144,6 @@ Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-l
 - 2026-11-10 · F04 · fbb24bd · Redeem placeholder no longer the real code; code lookups limited to 30 per 10 minutes per IP and per person
 - 2026-11-10 · F03 · 95e0b70 · Examples, demo card and placeholders no longer name a university; test/copycheck.mjs guards it
 - 2026-11-10 · F05 · 714d8f1 · QR glyph on the My card tab, checked at 24 and 20 px in light and dark; test/ui.mjs guards it
+- 2026-11-10 · F06 · 8701b1f · Edit profile and Cards are quiet buttons under the My card heading (beside it from 600 px); checked at 375 and 1280 px, light and dark
 
 Related: [[Decision Log]], [[Open Questions]], [[Timeline]] · back to [[00 Home]]

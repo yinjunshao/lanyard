@@ -4,7 +4,7 @@ id: F06
 priority: P0
 phase: 0
 size: S
-status: In progress
+status: Done
 needs: []
 ---
 # F06 Edit profile and Cards buttons
@@ -28,9 +28,14 @@ On `/app`, rename "Edit" to "Edit profile" and make it a distinct button instead
 - [x] F06.3 Check at 375 px and 1280 px, in light and dark. The badge stays the clear focus.
 
 ## Acceptance checks
-- [ ] Both buttons look like buttons, sit side by side, are quieter than any primary button, and pass 4.5:1 text contrast.
+- [x] Both buttons look like buttons, sit side by side, are quieter than any primary button, and pass 4.5:1 text contrast.
 
 ## Log
--
+- 2026-11-10 (Claude subagent): `.btn-quiet` is in `src/styles/main.css` (tokens only, 1px `--rule` border, no shadow or hover, pressed border `--ink`). `MyCard.vue` now has "Edit profile" and "Cards" as two buttons in a row under the heading, beside it from 600 px. `test/ui.mjs` (in `npm test`) guards the labels, classes and the style.
+- Checked in a local browser at 375 px and 1280 px, light and dark. In light the computed style is 36 px tall, 1px border, no shadow, ink text at 15.4:1 contrast. The badge is still the main focus. The 44 px tap area is set with a `::before` in CSS but not measured. Dark contrast is from the tokens, not measured.
+- Nothing else left over.
+
+### Owner steps
+- Review the F06 commits, `git push`, then `npm run deploy`. No migrations.
 
 Related: [[Design System]], [[F14 Onboarding revamp]] · back to [[00 Master To-Do]]
