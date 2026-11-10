@@ -53,7 +53,8 @@ The shared plumbing that makes every AI feature safe and cheap. The design and r
   - `migrations/0024_ai_foundation.sql` (`users.ai_search_ok`, `ai_usage`, `ai_cache`, `ai_daily`, `ai_settings`), `worker/ai/config.js` (all env reading, the stub-mode rule), `worker/ai/price.js` (prices are the plan's, **unchecked**, until the owner sets the price vars), `AI_LIMITS` in `worker/plans.js`, production vars with `AI_ENABLED = "0"`. `test/ai.mjs` is in `npm test` before the budget check.
 - [x] F21.2 `client.js` with all eight steps and tests.
   - `worker/ai/client.js` (`callModel`, `allowanceFor`) with `store.js`, `optout.js`, `prompt.js`, `messages.js`, `alerts.js`, `stub.js`, `data.js`, and the cleaning and checking modules it needs (`sanitize.js`, `validate.js`, tested properly in F21.3). The 183 checks in `test/ai.mjs` use a stubbed `fetch`. Added: a per-actor burst and address limit, a per-event quota, 50% and 90% budget emails, the AI section of both data downloads, the purge (cache 7 days, counts 13 months, orphans) and erasure.
-- [ ] F21.3 `sanitize.js` and `validate.js` with unit tests and the injection test file.
+- [x] F21.3 `sanitize.js` and `validate.js` with unit tests and the injection test file.
+  - `sanitize.js` (`cleanText`, `deepClean`, `pickFields`, `safeJson`), `validate.js` (`parseModelJson`, schema-lite `validate`, `filterIds`, `exactQuotes`, `stripContacts`), `prompt.js` (`buildSystem`, `buildUser`, `assignIds`), and a `refine` hook in `callModel` for a feature's own checks. `test/ai-injection.mjs` (150 checks) runs a stubbed model that obeys every attack in the data; it is in `npm test` before the budget check.
 - [ ] F21.4 Admin spend panel, kill switch and allow-list.
 - [ ] F21.5 Settings toggle, policy and DPIA text (the owner approves the wording).
 - [ ] F21.6 Owner steps written below and copied to the master list.

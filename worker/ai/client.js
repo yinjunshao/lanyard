@@ -15,6 +15,8 @@
 //     scope: eventId,                 // only for per-event limits
 //     regenerate: true,               // skip the cache (counts against the quota)
 //     automatic: true,                // server-started (a cron): no burst or address limit (quotas and budget still apply)
+//     refine: (value) => value | null,// the feature's own checks on the reply (filterIds, exactQuotes, ...), run before
+//                                    // the reply is cached; null or a throw means the reply is thrown away
 //     ip, cacheTtlMs, stub, allowFrom
 //   });
 //   r.fallback ? use the template and r.message : r.result (already checked) and r.remaining
@@ -240,7 +242,11 @@ async function run(env, opts) {
   const text = body?.content?.[0]?.text;
   const parsed = stopped === "max_tokens" ? { ok: false } : parseModelJson(text);
   const checked = parsed.ok ? validate(schema, parsed.value, { allowFrom: [systemText, userText, ...allowFrom.map(String)] }) : { ok: false };
-  if (!checked.ok) {
+  let final = checked.ok ? checked.value : null;
+  if (checked.ok && typeof opts.refine === "function") {
+    try { final = opts.refine(checked.value) ?? null; } catch { final = null; }
+  }
+  if (final === null) {
     // The model was paid for, so the call still counts.
     await addUsage(db, who, day, feature, scope, { fallbacks: 1 });
     await addDaily(db, day, { fallbacks: 1 });
@@ -248,8 +254,8 @@ async function run(env, opts) {
   }
 
   const ttl = Math.min(Number.isFinite(opts.cacheTtlMs) ? opts.cacheTtlMs : CACHE_MAX_MS, CACHE_MAX_MS);
-  const json = JSON.stringify(checked.value);
+  const json = JSON.stringify(final);
   if (ttl > 0 && json.length <= MAX_CACHED_CHARS) await cachePut(db, key, who, feature, json, Date.now(), ttl);
   const usedNow = { day: used.day + 1, month: used.month + 1, scope: used.scope + (scope ? 1 : 0) };
-  return { fallback: false, result: checked.value, cached: false, usage: { inputTokens: inTok, outputTokens: outTok, costMicros: cost }, remaining: remainingOf(limit, usedNow, scope) };
+  return { fallback: false, result: final, cached: false, usage: { inputTokens: inTok, outputTokens: outTok, costMicros: cost }, remaining: remainingOf(limit, usedNow, scope) };
 }

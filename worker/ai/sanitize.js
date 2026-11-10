@@ -77,3 +77,27 @@ export function deepClean(value, { maxString = 2000, urls = true, depth = 0 } = 
 export const safeJson = (value) => JSON.stringify(value)
   .replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026")
   .replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+
+/**
+ * Only the fields a feature has decided the asker may see, each cleaned and capped. `spec` maps a field name
+ * to a character cap (text) or to [cap, maxItems] (a list of short texts, such as tags). Anything else on the
+ * source object (an email, a private note, a link, a field hidden on the card) is left behind, so a
+ * record can never carry more than the spec names.
+ *   pickFields(profile, { headline: 140, about: 280, tags: [40, 8] })
+ */
+export function pickFields(source, spec) {
+  const out = {};
+  if (!source || typeof source !== "object") return out;
+  for (const [key, rule] of Object.entries(spec)) {
+    const v = Object.prototype.hasOwnProperty.call(source, key) ? source[key] : undefined;
+    if (Array.isArray(rule)) {
+      const [cap, max] = rule;
+      const list = (Array.isArray(v) ? v : []).map((x) => cleanText(x, cap)).filter(Boolean).slice(0, max);
+      if (list.length) out[key] = list;
+    } else {
+      const t = cleanText(v, rule);
+      if (t) out[key] = t;
+    }
+  }
+  return out;
+}
