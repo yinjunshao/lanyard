@@ -417,6 +417,133 @@ console.log("\n# Rate limits");
   check("the list is limited to 120 an hour", status === 429, status);
 }
 
+// ------------------------------------------------------------------ F17.3
+const { words, rank, visibleFields, NEW_REASON, TOP } = await import("../worker/presenceMatch.js");
+const { visibleSide } = await import("../worker/inCommon.js");
+
+console.log("\n# Matching: the words");
+{
+  const w = (t) => [...words(t).keys()].join();
+  check("a wish becomes distinct, folded words with the filler dropped", w("I want to meet someone who is into Robots and robotics!") === "robot,robotic", w("I want to meet someone who is into Robots and robotics!"));
+  check("accents, case and plurals fold like tags", w("Café DESIGNERS") === "cafe,designer");
+  check("short filler and numbers: 'AI' stays, 'a' and 'to' go", w("a to AI 3d") === "ai,3d", w("a to AI 3d"));
+  check("nothing in, nothing out (and no crash on null)", w("") === "" && w(null) === "" && w(undefined) === "");
+  check("the spelling the person typed is kept for the reason", words("Robots").get("robot") === "robots");
+}
+
+console.log("\n# Matching: scoring, reasons and the top five");
+{
+  let n = 0;
+  const row = (o = {}) => ({ id: `p${++n}`, user_id: `u${n}`, selfie_key: null, intro: "", looking_for: "", checked_in_at: 1000 + n, name: `Person ${n}`, mode: "student",
+    uni: "", institution_id: null, course: "", company: "", role: "", headline: "", tags: [], card_headline: null, card_tags: "[]", ...o });
+  const me = visibleSide({ mode: "student", uni: "University of Example", institution_id: "example", course: "Law", company: "", role: "", tags: ["chess"] }, null);
+  const order = (res) => res.ranked.map((r) => r.row.id);
+  {
+    const both = row({ tags: ["Robotics", "Design"] }), one = row({ tags: ["Robotics"] }), none = row({ tags: ["Music"] });
+    const r = rank({ me, wish: "robotics design", rows: [none, one, both] });
+    check("+3 for each wish word found: two words beat one, and a person with no hit is not shown", r.mode === "matched" && order(r).join() === `${both.id},${one.id}` && r.ranked[0].score === 6 && r.ranked[1].score === 3, r.ranked.map((x) => x.score));
+    check("the reason names the tag", r.ranked[0].reason === "Into Robotics", r.ranked[0].reason);
+  }
+  {
+    const a = row({ intro: "Here to learn about robots" }), b = row({ headline: "Builds robots" }), c = row({ course: "Robotics" }), d = row({ mode: "career", role: "Robot engineer" }), e = row({ mode: "career", company: "Robotix" });
+    const r = rank({ me, wish: "robots", rows: [a] });
+    check("a word in the line they wrote counts, and the reason says Mentions with the word typed", r.ranked[0].score === 3 && r.ranked[0].reason === "Mentions robots", r.ranked);
+    check("a word in the headline counts", rank({ me, wish: "robots", rows: [b] }).ranked[0].reason === "Mentions robots");
+    check("a student's course counts", rank({ me, wish: "robotics", rows: [c] }).ranked[0].reason === "Studying Robotics");
+    check("a career role counts", rank({ me, wish: "robot", rows: [d] }).ranked[0].reason === "Works as Robot engineer");
+    check("a career company counts", rank({ me, wish: "robotix", rows: [e] }).ranked[0].reason === "Works at Robotix");
+  }
+  {
+    const instRow = row({ uni: "University of Example", institution_id: "example" });
+    const r = rank({ me, wish: "someone from University of Example", rows: [instRow] });
+    check("the institution words each score, and the reason is the institution", r.ranked[0].reason === "At University of Example" && r.ranked[0].score === 2 * 3 + 1, r.ranked[0]);
+  }
+  {
+    const f2 = row({ uni: "University of Example", institution_id: "example", tags: ["Chess"] }), f1 = row({ uni: "University of Example", institution_id: "example" }), f0 = row({});
+    const r = rank({ me, wish: "", rows: [f0, f1, f2] });
+    check("with no wish, people are ranked by shared ground alone (+1 for each)", r.mode === "matched" && order(r).join() === `${f2.id},${f1.id}` && r.ranked[0].score === 2 && r.ranked[1].score === 1, r.ranked.map((x) => x.score));
+    check("the reason is the first shared fact", r.ranked[0].reason === "Both into Chess" && r.ranked[1].reason === "Both at University of Example", r.ranked.map((x) => x.reason));
+    check("shared ground adds to word hits (3 + 2)", rank({ me, wish: "chess", rows: [f2] }).ranked[0].score === 3 + 2);
+  }
+  {
+    const a = row({ tags: ["robotics"], checked_in_at: 5000 }), b = row({ tags: ["robotics"], checked_in_at: 9000 }), c = row({ tags: ["robotics"], checked_in_at: 1000 });
+    check("equal scores: the most recent check-in first", order(rank({ me, wish: "robotics", rows: [a, c, b] })).join() === `${b.id},${a.id},${c.id}`);
+  }
+  {
+    const many = Array.from({ length: 9 }, () => row({ tags: ["robotics"] }));
+    const r = rank({ me, wish: "robotics", rows: many });
+    check("at most five are shown", r.ranked.length === TOP && TOP === 5);
+  }
+  {
+    const rows = Array.from({ length: 8 }, () => row({ tags: ["Pottery"] }));
+    const r = rank({ me, wish: "astronomy", rows });
+    check("nothing in common with anyone: three people, all 'Say hi to someone new'", r.mode === "new" && r.ranked.length === 3 && r.ranked.every((x) => x.reason === NEW_REASON && x.score === 0), r);
+    check("…at random (a fixed random picks a fixed set)", order(rank({ me, wish: "", rows, random: () => 0 })).join() !== order(rank({ me, wish: "", rows, random: () => 0.99 })).join());
+    check("two people here: two shown; nobody here: none", rank({ me, wish: "", rows: rows.slice(0, 2) }).ranked.length === 2 && rank({ me, wish: "", rows: [] }).ranked.length === 0);
+  }
+  check("a viewer with no profile has no shared ground and does not crash", rank({ me: null, wish: "", rows: [row({ tags: ["x1"] })] }).mode === "new");
+}
+
+console.log("\n# Matching never reads what a person keeps hidden (F16's visibleSide rules)");
+{
+  const mk = (o = {}) => ({ id: "h1", user_id: "uh1", intro: "", checked_in_at: 1, name: "Hidden H", mode: "student", uni: "", institution_id: null, course: "", company: "", role: "", headline: "", tags: [], card_headline: null, card_tags: "[]", ...o });
+  const me = visibleSide({ mode: "student", uni: "", course: "Law", company: "Acme", tags: [] }, null);
+  const hit = (row, wish) => rank({ me, wish, rows: [row] }).mode === "matched";
+  check("a career profile's kept course never matches", !hit(mk({ mode: "career", course: "Robotics", company: "Other" }), "robotics") && hit(mk({ mode: "student", course: "Robotics" }), "robotics"));
+  check("a student profile's kept company and role never match", !hit(mk({ mode: "student", company: "Robotix", role: "Robot maker" }), "robotix robot") && hit(mk({ mode: "career", company: "Robotix" }), "robotix"));
+  check("a profile tag the default card leaves out is not matched (the card's tags replace them)", !hit(mk({ tags: ["robotics"], card_tags: JSON.stringify(["music"]) }), "robotics") && hit(mk({ tags: ["robotics"], card_tags: JSON.stringify(["music"]) }), "music"));
+  check("a card's own headline replaces the profile's, so the hidden one is not matched", !hit(mk({ headline: "Robotics lead", card_headline: "Plays guitar" }), "robotics") && hit(mk({ headline: "Robotics lead", card_headline: "Plays guitar" }), "guitar"));
+  check("the same goes for the reason: it is never built from a hidden field", rank({ me, wish: "robotics music", rows: [mk({ mode: "career", course: "Robotics", tags: ["x1"], card_tags: JSON.stringify(["music"]) })] }).ranked[0].reason === "Into music");
+  check("shared ground (F16) with a hidden company is not a fact either", rank({ me: visibleSide({ mode: "career", company: "Acme", tags: [] }, null), wish: "", rows: [mk({ mode: "student", company: "Acme" })] }).mode === "new");
+  const f = visibleFields(mk({ mode: "career", course: "Hidden course", company: "Shown Co", role: "Shown role", card_headline: "Card line", headline: "Profile line" }));
+  check("the visible fields of a career candidate carry no course, and the card's headline", f.course === "" && f.company === "Shown Co" && f.role === "Shown role" && f.headline === "Card line");
+}
+
+console.log("\n# Matching through the endpoint");
+{
+  const M = [], mkp = async (name, extra = {}) => { const p = await signup(name, `10.17.5.${M.length + 1}`, extra); M.push(p); await checkIn(p, live); return p; };
+  const V = await mkp("Vic Viewer", { tags: ["chess"] });
+  const R1 = await mkp("Robin Robot", { tags: ["Robotics"], headline: "Builds robots" });
+  const R2 = await mkp("Rae Writer", { tags: ["writing"], headline: "Robotics editor" });
+  const R3 = await mkp("Ray Same", { tags: ["chess"] });
+  const R4 = await mkp("Rio Hidden", { mode: "career", company: "Acme", role: "Lead", course: "Robotics Engineering", tags: ["music"] });
+  const R5 = await mkp("Ron Blocked", { tags: ["robotics"] });
+  const R6 = await mkp("Roz Off", { tags: ["robotics"] });
+  for (const p of [R1, R2, R3, R4, R5]) await turnOn(p, { intro: `${p.name.split(" ")[0]} here` });
+  await turnOn(V, { lookingFor: "someone into robotics" });
+  const r = await seen(V);
+  const byName = Object.fromEntries((r.json.people || []).map((x) => [x.name, x]));
+  check("people whose tag matches come first (equal scores go to the later check-in)", r.status === 200 && r.json.mode === "matched" && ["Ron B.", "Rae W."].includes(r.json.people[0].name) && /^Into robotics/i.test(r.json.people[0].reason) && ["Robin R.", "Ron B.", "Rae W."].every((n) => r.json.people.some((x) => x.name === n)), r.json);
+  check("the person whose headline says robotics is shown with a Mentions reason", byName["Rae W."]?.reason === "Mentions robotics", byName);
+  check("the person with a kept-but-hidden robotics course is not matched on it", !(r.json.people || []).some((x) => x.name === "Rio H." && /robot/i.test(x.reason)), byName["Rio H."]);
+  check("a person who has not turned it on never appears", !byName["Roz O."]);
+  check("the response carries no score, no ids, no card and no profile fields", !/score|userId|cardId|"tags"|headline|company|course/.test(r.text) && Object.keys(r.json.people[0]).sort().join() === "intro,name,presenceId,reason,selfie");
+  const pid = byName["Ron B."]?.presenceId;
+  check("Ron is in the list before he is blocked", !!pid || (await seen(V)).json.people.length > 0);
+  const blocked = await signup("Bo Blocker", "10.17.5.40"); await checkIn(blocked, live); await turnOn(blocked, {});
+  raw.prepare("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)").run(blocked.id, V.id, Date.now());
+  check("someone who blocked me never appears, though I never blocked them", !names(await seen(V)).includes("Bo B."));
+  raw.prepare("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)").run(V.id, R5.id, Date.now());
+  check("someone I blocked never appears", !names(await seen(V)).includes("Ron B."));
+  await V.c.del(`/api/e/${live.id}/presence`);
+  check("once I withdraw, my list is refused at once", (await seen(V)).status === 403);
+  await turnOn(V, { lookingFor: "" });
+  const none = await seen(V);
+  check("with no wish, people with shared ground come first (the shared tag: chess)", none.json.people[0].name === "Ray S." && none.json.people[0].reason === "Both into chess", none.json);
+  await turnOn(V, { lookingFor: "underwater basket weaving" });
+  const fresh = await seen(V);
+  check("a wish nobody matches still shows people with shared ground first", fresh.json.people[0].name === "Ray S.");
+
+  // A candidate for whom the event has ended (no end time, checked in long ago) is not shown, though it is on for me.
+  const open = await mkEvent({ name: "No end time here", startsAt: t0 - 13 * H, directoryOn: true });
+  const L1 = await signup("Lou Late", "10.17.5.41"), L2 = await signup("Lee Early", "10.17.5.42");
+  await checkIn(L1, open); await checkIn(L2, open);
+  await turnOn(L1, {}, open); await turnOn(L2, {}, open);
+  check("both show up for each other while it is on for both", names(await seen(L1, open)).includes("Lee E."));
+  raw.prepare("UPDATE checkins SET created_at = ? WHERE event_id = ? AND user_id = ?").run(t0 - 13 * H, open.id, L2.id);
+  check("when the event is over for the other person (12 hours after their check-in) they are not shown", !names(await seen(L1, open)).includes("Lee E."));
+}
+
 console.log("\n# Hosts and the code (source guards)");
 {
   const hostFiles = ["worker/hosts.js", "worker/events.js", "worker/host-auth.js", "worker/hostorg.js", "worker/admin.js", "worker/feedback.js", "worker/integrations.js", "worker/eventmail.js", "worker/myevents.js"];
