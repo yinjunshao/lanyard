@@ -120,7 +120,7 @@ watch(() => props.options, () => { if (open.value && !enabled(active.value)) act
   <div class="ui-field">
   <button ref="trigger" type="button" class="ui-trigger ui-select" role="combobox"
           :id="id" :disabled="disabled"
-          aria-haspopup="listbox" :aria-expanded="open ? 'true' : 'false'" :aria-controls="listId"
+          aria-haspopup="listbox" :aria-expanded="open ? 'true' : 'false'" :aria-controls="open ? listId : undefined"
           :aria-label="labelledby ? undefined : label || undefined"
           :aria-labelledby="labelledby ? `${labelledby} ${id || ''}`.trim() : undefined"
           :aria-activedescendant="sheetMode ? undefined : activeId"

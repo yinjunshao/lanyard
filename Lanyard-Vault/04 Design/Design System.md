@@ -27,6 +27,7 @@ tags: [design]
 - Contrast 4.5:1 text; tap targets 44px; every input labelled.
 - No gradients, glass, emoji, sparkle icons, "New" pills, or centred three-card hero.
 - Tabular figures, no monospace; labels in small caps with slight spacing.
+- Pickers: no native `<select>`, date or time inputs. Use `UiSelect`, `UiCombobox`, `UiDatePicker`, `UiTimePicker`, `UiDateTimePicker` from `src/components/ui/` (bottom sheet under 600 px, popover above). Same rules as the rest: 1px borders, no shadows, 44px targets, at most a 120 ms fade and none under `prefers-reduced-motion`. See [[F08 Custom pickers and dropdowns]] and [[D018 Hand-built pickers outside the shared Vue chunk]].
 - Performance: under 50 KB JS on public pages; profile pages under 1 s on 4G.
 
 Related: [[Brand and Logo]], [[Features]]

@@ -22,6 +22,9 @@ From `src/router/index.js`. All views are code-split so public pages stay light 
 ## Host portal
 `/host` (dashboard), `/host/events/:id` (live), `/host/billing`, `/host/account`, `/host/signout` (signs out and reloads to the host home), `/admin`
 
+## Development only
+`/ui-test` shows every picker for checking by eye. It is registered only under `vite dev`; a production build does not contain it.
+
 ## Host subdomain
 On the `host.*` site only `/host/*` is served; everything else redirects to the main site. See [[D014 Separate host subdomain]].
 

@@ -7,6 +7,7 @@ Newest context first. Each decision has its own note (context, decision, consequ
 
 | ID | Decision | Status |
 | --- | --- | --- |
+| [[D018 Hand-built pickers outside the shared Vue chunk]] | Custom pickers by hand; no Teleport, `useId`, `<slot>` or `defineAsyncComponent` where public pages would pay | Accepted |
 | [[D017 Use academic network for pilot access]] | Ask professor for intros, access, resources | Proposed |
 | [[D016 Rotating card codes]] | Codes rotate every 3 days | Accepted |
 | [[D015 Profile split from cards]] | One profile, many cards | Accepted |

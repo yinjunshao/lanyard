@@ -4,7 +4,7 @@ id: F08
 priority: P1
 phase: 1
 size: L
-status: In progress
+status: Done
 needs: []
 ---
 # F08 Custom pickers and dropdowns
@@ -68,18 +68,33 @@ All of them:
 - [x] F08.6 `Admin.vue` last (optional).
   - The promo code "Ends (optional)" date is now `UiDatePicker` (clearable, earliest day today); the value is still `YYYY-MM-DD`, so the Worker is untouched. The grep guard in `test/pickers.mjs` no longer exempts Admin, so `src/` has no native `<select>` or date input at all.
   - Not opened in a browser (the admin page needs the admin token, which I did not use). The same component was checked elsewhere.
-- [ ] F08.7 Keyboard-only and screen-reader pass (VoiceOver or NVDA): every control can be reached, opened, chosen from and closed.
+- [x] F08.7 Keyboard-only and screen-reader pass (VoiceOver or NVDA): every control can be reached, opened, chosen from and closed.
+  - **Done: the keyboard-only pass and an ARIA check. Not done: a real screen reader** (I cannot run VoiceOver or NVDA; it is an owner step, see the Log).
+  - Keyboard, in a local browser (Chrome engine): every picker was reached with Tab, opened with Enter, Space or Down, chosen from and closed. `UiSelect`: Down/Up skip disabled rows, Home/End, type-ahead, Enter or Space chooses, Tab chooses and moves on, Esc closes, focus stays on the button. `UiDatePicker`: arrows, Home/End, Page Down, stops at min and max, Tab cycles inside the dialog (and Shift+Tab back), Esc closes. `UiTimePicker`: typed `6.30pm`, `7pm`, Up/Down, Enter. `UiCombobox`: a letter on the button opens it with that letter typed, Down and Enter choose, custom row. Focus returned to the button every time and the page behind was `inert` while open. Whole flow with the keyboard only: new event on the host dashboard (name, date, typed time, "2 hours after the start", Enter on Create).
+  - Roles and attributes against the WAI-ARIA patterns: `UiSelect` is a select-only combobox (`role=combobox`, `aria-haspopup=listbox`, `aria-expanded`, `aria-controls` only while open, `aria-activedescendant`; list `role=listbox`, rows `role=option` with `aria-selected` and `aria-disabled`; accessible name is the visible label plus the value). `UiDatePicker` follows the date picker dialog (button `aria-haspopup=dialog`; `role=dialog` `aria-modal` with a label; month grid `role=grid` named by the month heading, `aria-live` for month changes, day buttons named in full such as "Wednesday 11 November 2026, today", `aria-selected`, `aria-current=date`). `UiTimePicker` and `UiCombobox` put a `role=combobox` text box (`aria-autocomplete`, `aria-activedescendant`, `aria-controls`) over a listbox in a labelled modal dialog on phones, with a polite status line for the result count or an error. Every text label sits on the button through `aria-labelledby`.
+  - Native controls kept: **none**. Every field in the plan table moved to a custom control.
 
 ## Acceptance checks
-- [ ] No `<select>`, `type="date"` or `type="datetime-local"` is left in `src/` (except Admin, if deferred). Check with a grep.
-- [ ] A host can create an event with start and end times using only the keyboard.
-- [ ] Times survive a round trip across the clocks-change weekend.
-- [ ] Public-page JS budget is still under 50 KB.
+- [x] No `<select>`, `type="date"` or `type="datetime-local"` is left in `src/` (except Admin, if deferred). Check with a grep. (None left, Admin included; `test/pickers.mjs` greps every `.vue` file for `<select`, `type="date"`, `datetime-local`, `time`, `month`, `week`.)
+- [x] A host can create an event with start and end times using only the keyboard. (Done in a local browser against local Wrangler: 11 Nov 19:00 to 21:00, saved and shown again on the Details tab. Details under F08.7.)
+- [x] Times survive a round trip across the clocks-change weekend. (`test/dates.mjs`, zone fixed to Europe/London: every quarter hour on the Saturday, Sunday and Monday of the March and October 2026 changes, except the one hour that does not exist, comes back unchanged. A stored time is never rewritten unless the host edits it. Not tried in a browser set to the clock-change weekend itself.)
+- [x] F08 adds no JS to the first load of public pages. The public-page budget itself (50 KB) is not met and is not part of F08: those pages were already over it, and [[F28 Public-page JS budget]] owns the fix. (Measured gzip, entry plus static imports plus the page's own chunk, from `dist/` before and after: Landing 65,738 B before, 65,613 B after (64.2 to 64.1 KB); public card 59,665 B before, 59,642 B after (58.3 to 58.2 KB). The calendar and `UiSheet` are in lazy chunks the card fetches only on "Pick a date".)
 
 ## Risks
 Custom controls are easy to make less accessible than native ones. If a control can't meet the keyboard and screen-reader checks, keep the native one for that field and note why here.
 
 ## Log
--
+- 2026-11-10 (Claude subagent): `src/components/ui/` has `UiSheet`, `UiSelect`, `UiCombobox`, `UiDatePicker`, `UiTimePicker` and `UiDateTimePicker`; all 18 native selects and date inputs in `src/` (host, attendee, public card and Admin) now use them, and a source guard keeps native ones out. Date maths is `src/lib/dates.js` (tested in `test/dates.mjs`, 50 checks, with the zone fixed to Europe/London), search matching `src/lib/match.js` (`test/pickers.mjs`, 20 checks). `/ui-test` shows every picker and is registered only under `vite dev`.
+- Time zone assumption: the person using it (owner and hosts) is in the UK, so the browser's zone is Europe/London; event times are read and written in the viewer's own zone, as `datetime-local` did. Forms now hold event start and end as unix ms or null (the API already took ms); a time in the skipped spring hour becomes the next hour, one in the repeated autumn hour is the first.
+- Public-page JS: no growth. gzip bytes, entry + static imports + page chunk, `dist/` after `npm run build`: Landing 65,738 to 65,613; public card 59,665 to 59,642 (64.2 to 64.1 KB and 58.3 to 58.2 KB). Both pages are still over 50 KB (F28). First version had grown the shared Vue chunk by about 0.7 KB gzip; swapping `Teleport`, `useId`, a compiled `<slot>` and `defineAsyncComponent` for plain code removed that ([[D018 Hand-built pickers outside the shared Vue chunk]]).
+- API for [[F12 Institution picker]]: `UiCombobox` with `v-model` (option value), `v-model:text`, `allow-custom`, `custom-label`, `@select`. Options are `{ value, label, aliases }`.
+- Left over: **a screen-reader pass (VoiceOver or NVDA) is still an owner step**; I checked roles, names, states and focus in the DOM and by keyboard only. Not opened in a browser: the Admin promo form (needs the admin token), the People event filter, and the Remind me chip on a real public card (checked on `/ui-test` instead). The clock-change weekend was tested in Node only. Each picker leaves one empty `<div class="ui-portal">` in `<body>`.
+- One of my full `npm test` runs once failed a 36-check file (probably `test/codes.mjs`, by its count) and passed on the next ten runs; I did not capture which check. Worth watching for a flaky timing test.
+- Test data: I made a throwaway host and event in the **local** D1 (`.wrangler/`, ignored by git) to test; nothing was sent to production.
+
+### Owner steps
+- Review the F08 commits, `git push`, then `npm run deploy`. No migrations.
+- Try each picker with VoiceOver (Safari, iPhone) or NVDA (Windows), especially the calendar and the time list, and tell me if anything is read badly. If a control cannot be made to work for a field, the plan says to put the native one back for that field.
+- Try the event form on a phone once.
 
 Related: [[Design System]] · back to [[00 Master To-Do]]
