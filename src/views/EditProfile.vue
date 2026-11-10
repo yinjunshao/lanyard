@@ -193,7 +193,7 @@ async function save() {
       <!-- Switching keeps what is typed in the other mode; only the chosen mode shows on the card. -->
       <div class="field">
         <span id="mode-label" class="label-top">I am a</span>
-        <div class="seg" role="group" aria-labelledby="mode-label">
+        <div class="seg" role="group" aria-labelledby="mode-label" style="align-self:flex-start">
           <button v-for="m in MODES" :key="m[0]" type="button" class="seg-btn"
                   :class="{ on: f.mode === m[0] }" :aria-pressed="f.mode === m[0]"
                   @click="f.mode = m[0]">{{ m[1] }}</button>

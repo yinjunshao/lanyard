@@ -4,7 +4,7 @@ id: F11
 priority: P1
 phase: 1
 size: M
-status: In progress
+status: Done
 needs: []
 ---
 # F11 Student and Career mode
@@ -53,11 +53,18 @@ Use it everywhere a subtitle is built today: `Badge.vue`, `PublicCard.vue`, `Peo
   - Search (`src/lib/search.js`) gains Company and Role, and indexes only the chosen mode: a career profile is found by company, role and studied-at, not by its kept course; a student is not found by a kept company. The export already returned the whole profile row, so mode, company and role are in it (checked in `test/mode.mjs`). The Privacy Policy table in `Privacy.vue` lists them. Vault notes updated: Data Model, API Surface, Privacy and Data Retention, Codebase Map, Testing, Features, Screens and Routes. The Terms and Privacy version string was not changed (see Log).
 
 ## Acceptance checks
-- [ ] A career profile's badge reads "Product designer at Acme", with no course or university unless "Studied at" is filled.
-- [ ] Switching mode and back loses nothing.
-- [ ] Old profiles show exactly as before (default `student`).
+- [x] A career profile's badge reads "Product designer at Acme", with no course or university unless "Studied at" is filled. (Checked in a browser with a local account that still had a course typed: My card badge read "Product designer at Acme"; with Studied at filled the public card read "Product designer at Acme · Studied at Some University". `test/mode.mjs` checks the formatter both ways.)
+- [x] Switching mode and back loses nothing. (In the Edit profile form in a browser: Career to Student showed the kept course, back showed the kept company and role; a real save from Student mode left company and role in `/api/me`. `test/mode.mjs` checks it through the API.)
+- [x] Old profiles show exactly as before (default `student`). (`test/mode.mjs` applies migration 0019 to a profile in the old shape and checks it reads `student` with its course and university untouched; the formatter returns the same line as the old code, including the year on the badge and public card.)
 
 ## Log
--
+- 2026-11-10 (Claude subagent): Profiles now have a mode (`student` default, or `career`), a company and a role (migration 0019, additive). Edit profile has a Student / Career switch under Name; Career asks for company and role, with an optional "Studied at". One formatter, `src/lib/profile.js`, builds the line under a name everywhere; search covers company and role; the Privacy Policy table lists them. Four task commits plus fixes.
+- First-load JS, gzip of entry + static imports + page chunk, from `dist/`, same method on a clean copy of the commit before F11 and on the result: Landing 65,201 to 65,172 B (no growth; a first version pulled the formatter into the Landing chunk through the badge and the card-image chunk, so `Badge.vue` and `lib/qr.js` now take the finished line as a `subtitle` and Landing passes a literal). Public card 59,267 to 59,568 B (+301 B: the formatter's own shared chunk, about 254 B, and its use in the page for the line and the vCard). Both pages were already over 50 KB and stay with F28. Edit profile chunk 5,415 to 5,927 B gzip.
+- Decisions made without the owner: search indexes only the chosen mode (a kept course is not searchable on a career profile, a kept company not on a student), so nothing hidden on a card can be found; in Career the "Studied at" row is the institution only, and Course and Year stay student-mode fields; the plan's "Year 2 · Course if no uni" was not done because it would change how existing cards read. The verified-student mark is not drawn on any card or list today, so there was nothing to hide in Career. The Terms and Privacy version string was not bumped (two more profile fields shown as the person chooses); that is the owner's call, bumping makes everyone accept again.
+- Not done, left for later rows: the institution picker for "Studied at" and University ([[F12 Institution picker]]); the onboarding form ([[F14 Onboarding revamp]]) should reuse the same switch and the company and role fields from `EditProfile.vue`; [[F16 Shared ground without AI]] should read `mode`, `company`, `role` and `subtitleOf()` rather than `course` and `uni` directly. Event reports for hosts still count courses in aggregate from `profiles.course`, including kept courses of career profiles; consider counting only student-mode profiles there. Not checked in a browser: the People list and event room rows (same formatter, API fields covered by tests); the screen-reader reading of the switch.
+
+### Owner steps
+- Review the F11 commits, `git push`, `npm run db:remote` (applies `0019_profile_mode.sql`; it only adds three columns with defaults and is safe to apply before the new code), then `npm run deploy`.
+- Decide whether to bump the Terms and Privacy version for the two new profile fields.
 
 Related: [[Data Model]], [[D015 Profile split from cards]] · back to [[00 Master To-Do]]
