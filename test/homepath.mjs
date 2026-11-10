@@ -46,6 +46,6 @@ for (const dir of ["src", "src/views", "src/components"]) {
   }
 }
 check("no logo is still a fixed link to /", stray.length === 0, stray);
-check("Settings has an About Lanyard link to /?about=1", read("src/views/settings/SettingsAll.vue").includes('to="/?about=1"'));
+check("Settings has an About Lanyard link to /?about=1", read("src/views/settings/SettingsHelp.vue").includes('to="/?about=1"'));
 
 summary();

@@ -29,7 +29,6 @@ const rows = computed(() => [
   { key: "plan", to: "/app/settings/plan", title: "Plan", summary: me.plan.label },
   { key: "appearance", to: "/app/settings/appearance", title: "Appearance and app", summary: `Theme: ${{ auto: "auto", light: "light", dark: "dark" }[themePref.value] || "auto"}` },
   { key: "help", to: "/app/settings/help", title: "Help and legal", summary: "Contact, terms, about Lanyard" },
-  { key: "help", to: "/app/settings/all", title: "All settings (temporary)", summary: "Removed once every page is filled in" },
 ]);
 
 async function logout() {

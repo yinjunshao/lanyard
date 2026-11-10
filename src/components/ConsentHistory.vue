@@ -33,7 +33,7 @@ onMounted(async () => {
     </ul>
     <p v-else class="small muted" style="margin:12px 0">Nothing recorded yet.</p>
     <p class="small muted">
-      You can switch the email options above on or off whenever you like, and remove a shared selfie from its person's page.
+      You can switch the email options on or off whenever you like, in <router-link to="/app/settings/notifications">Email and notifications</router-link>, and remove a shared selfie from its person's page.
       <router-link to="/privacy-request">Ask for your data, ask us to delete it, or make a complaint.</router-link>
     </p>
   </details>

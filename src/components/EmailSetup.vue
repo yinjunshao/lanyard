@@ -1,6 +1,7 @@
 <script setup>
-// Add (and verify) the email that signs you in, and choose whether to hear from
-// us. Marketing is its own tick box, off by default, and never required.
+// Add (and verify) the email that signs you in. Marketing is its own tick box at
+// sign-up, off by default, and never required. The reminder and news switches live
+// in EmailPreferences, on the Email and notifications page.
 import { ref } from "vue";
 import { me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
@@ -27,16 +28,6 @@ async function confirm() {
   } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
 }
-async function toggleEvents(ev) {
-  error.value = "";
-  try { await Api.setEventEmails(ev.target.checked); await refreshMe(); }
-  catch (e) { error.value = e.message; ev.target.checked = !ev.target.checked; }
-}
-async function toggleMarketing(ev) {
-  error.value = "";
-  try { await Api.setMarketing(ev.target.checked); await refreshMe(); }
-  catch (e) { error.value = e.message; ev.target.checked = !ev.target.checked; }
-}
 </script>
 
 <template>
@@ -48,14 +39,6 @@ async function toggleMarketing(ev) {
 
     <template v-if="me.user?.emailVerified">
       <p class="small muted">You can sign in with this email from any device.</p>
-      <label class="small" style="display:flex;gap:10px;align-items:flex-start">
-        <input type="checkbox" :checked="me.user.eventEmails" style="margin-top:3px" @change="toggleEvents" />
-        <span>Remind me to give feedback after events I went to (one email per event).</span>
-      </label>
-      <label class="small" style="display:flex;gap:10px;align-items:flex-start">
-        <input type="checkbox" :checked="me.user.marketingOptin" style="margin-top:3px" @change="toggleMarketing" />
-        <span>Send me occasional news and offers from Lanyard. You can turn this off any time.</span>
-      </label>
     </template>
 
     <form v-else-if="!sent" class="stack" @submit.prevent="send">

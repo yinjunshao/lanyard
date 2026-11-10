@@ -66,7 +66,8 @@ Written before the split. Each line gets ticked, with its new place, once it wor
 ## Tasks
 - [x] F09.1 Settings index and routes, and a shared `SettingsPage` shell (title and back link).
   - The shell is in `Settings.vue` itself (back link and title, from each route's `meta.title`), not a separate component: a component with a `<slot>` would grow the Vue runtime chunk every public page loads (D018). The old page is kept for now as `settings/SettingsAll.vue` at `/app/settings/all` so nothing is unreachable between commits; F09.2 removes it.
-- [ ] F09.2 Move each section into its page without changing behaviour (one commit per page is fine).
+- [x] F09.2 Move each section into its page without changing behaviour (one commit per page is fine).
+  - One commit for all seven pages. Pages are in `src/views/settings/`. `EmailSetup` was split: the add-and-confirm form stays (Account), the two switches moved to the new `EmailPreferences` (Email and notifications). "Sign in on another device" became `SignInOnAnotherDevice`. The signed-in devices list is still `DevicesList` until F09.3. `test/homepath.mjs` now reads `SettingsHelp.vue` for the About link.
 - [ ] F09.3 Devices sheet, plus `DELETE /api/auth/sessions/:id` with a security test (you can't delete another user's session).
 - [ ] F09.4 Anchor redirects and link updates.
 - [ ] F09.5 Two-column layout on wide screens.

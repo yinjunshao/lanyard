@@ -24,7 +24,6 @@ const SettingsPrivacy = () => import("../views/settings/SettingsPrivacy.vue");
 const SettingsPlan = () => import("../views/settings/SettingsPlan.vue");
 const SettingsAppearance = () => import("../views/settings/SettingsAppearance.vue");
 const SettingsHelp = () => import("../views/settings/SettingsHelp.vue");
-const SettingsAll = () => import("../views/settings/SettingsAll.vue");
 const Events = () => import("../views/Events.vue");
 const EventDetail = () => import("../views/EventDetail.vue");
 const EventJoin = () => import("../views/EventJoin.vue");
@@ -71,7 +70,6 @@ const routes = [
       { path: "plan", component: SettingsPlan, meta: { title: "Plan" } },
       { path: "appearance", component: SettingsAppearance, meta: { title: "Appearance and app" } },
       { path: "help", component: SettingsHelp, meta: { title: "Help and legal" } },
-      { path: "all", component: SettingsAll, meta: { title: "All settings (temporary)" } },
     ],
   },
   { path: "/app/feedback/:eventId", component: Feedback, meta: { app: true } },
