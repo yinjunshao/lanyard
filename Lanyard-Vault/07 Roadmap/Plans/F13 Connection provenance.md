@@ -4,7 +4,7 @@ id: F13
 priority: P1
 phase: 1
 size: M
-status: Not started
+status: In progress
 needs: []
 ---
 # F13 Connection provenance
@@ -51,7 +51,8 @@ Migration: `ALTER TABLE connections ADD COLUMN via TEXT` with values `qr` | `cod
 - Data export includes `via`.
 
 ## Tasks
-- [ ] F13.1 Migration, plus `via` in the connect API (whitelist, first-write-only), with tests.
+- [x] F13.1 Migration, plus `via` in the connect API (whitelist, first-write-only), with tests.
+  - `migrations/0021_connection_via.sql`: one nullable `connections.via` column (additive, safe before the new code). `POST /api/connect` takes `via`: `qr`, `code` or `link`; anything else, or nothing, is stored as `link`. It is written only when the connection is first made, so a re-scan by either person never changes it, and old rows stay NULL (unknown) even after a re-scan. `GET /api/connections`, `GET /api/connections/:id` (now also `eventName`) and the connection on `GET /api/c/:cardId` return `via` (null for old rows); the data export has it. `test/provenance.mjs` (in `npm test`) covers migration 0021 on an old row, the whitelist, first write only, what the API returns, a connection whose event is gone (the host reset sets `event_id` to NULL: `via` stays, the event reads as empty), export, deletion and that no host code reads it.
 - [ ] F13.2 Set `s=` on QR, code and link paths, and clean the URL after reading.
 - [ ] F13.3 `connectedVia()` helper, People row line, person-page footer.
 - [ ] F13.4 Export and vault updates ([[Data Model]], [[API Surface]]).

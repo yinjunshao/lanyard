@@ -67,7 +67,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F10** [[F10 Separate host accounts on host subdomain]] · P1 · XL · Needs: F07 + owner decision (host reset) (in progress: Claude subagent, 2026-11-10; all tasks built, waiting on the owner steps in the plan note)
 - [x] **F11** [[F11 Student and Career mode]] · P1 · M · Needs: none (done 2026-11-10, last commit 12dfa9a)
 - [x] **F12** [[F12 Institution picker]] · P1 · M · Needs: F08, F11 (done 2026-11-10, last commit 08e9869)
-- [ ] **F13** [[F13 Connection provenance]] · P1 · M · Needs: none
+- [ ] **F13** [[F13 Connection provenance]] · P1 · M · Needs: none (in progress: Claude subagent, 2026-11-10)
 - [ ] **F14** [[F14 Onboarding revamp]] · P1 · L · Needs: F06, F11, F12
 - [ ] **F28** [[F28 Public-page JS budget]] · P1 · S · Needs: none (added 2026-11-10 from F02; the owner said to fix it later, so it sits at the end of Phase 1)
 

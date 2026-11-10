@@ -453,7 +453,7 @@ app.get("/api/account/export", async (c) => {
     cards,
     connections: connections.map((x) => ({
       id: x.id, otherUserId: x.user_a === u.id ? x.user_b : x.user_a, cardId: x.card_id,
-      eventId: x.event_id, metAt: x.created_at, sharedSelfie: selfieView(x, u.id).selfie || selfieView(x, u.id).selfieRequest, sharedSelfieStatus: selfieView(x, u.id).selfieStatus,
+      eventId: x.event_id, metAt: x.created_at, via: x.via || null, sharedSelfie: selfieView(x, u.id).selfie || selfieView(x, u.id).selfieRequest, sharedSelfieStatus: selfieView(x, u.id).selfieStatus,
     })),
     privateNotes: notes,
     feedbackGivenFor: feedbackGiven.map((r) => r.event_id),
@@ -617,6 +617,7 @@ async function connectionDetail(db, cn, meId) {
   return {
     id: cn.id,
     metAt: cn.created_at,
+    via: cn.via || null,
     ...selfieView(cn, meId),
     note: mine?.text || "",
     tags: mine?.tags || [],
@@ -854,6 +855,11 @@ async function ensureDefaultCard(db, userId) {
   return cardId;
 }
 
+// How the first scan happened. Anything else (or nothing) counts as a shared
+// link. Set once when the connection is made; a later scan never changes it.
+const VIA = ["qr", "code", "link"];
+const viaOf = (v) => (VIA.includes(v) ? v : "link");
+
 app.post("/api/connect", async (c) => {
   const me = requireUser(c);
   const body = await c.req.json().catch(() => ({}));
@@ -914,9 +920,10 @@ app.post("/api/connect", async (c) => {
     connId = newId();
     await run(
       db,
-      `INSERT INTO connections (id, user_a, user_b, event_id, selfie_key, selfie_by, selfie_at, consent_a, consent_b, card_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-      connId, me.id, peerId, eventId, selfieKey, selfieKey ? me.id : null, selfieKey ? ts : null, body.consent && selfieKey ? 1 : 0, card.id, ts
+      `INSERT INTO connections (id, user_a, user_b, event_id, selfie_key, selfie_by, selfie_at, consent_a, consent_b, card_id, created_at, via)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+      connId, me.id, peerId, eventId, selfieKey, selfieKey ? me.id : null, selfieKey ? ts : null, body.consent && selfieKey ? 1 : 0, card.id, ts,
+      viaOf(body.via)
     );
   } else if (body.selfieDataUrl && selfieKey) {
     // A new photo replaces the old one and needs accepting again.
@@ -975,7 +982,7 @@ app.get("/api/connections", async (c) => {
   const db = c.env.DB;
   const rows = await all(
     db,
-    `SELECT cn.id AS connection_id, cn.selfie_key, cn.selfie_by, cn.consent_b, cn.event_id, cn.created_at,
+    `SELECT cn.id AS connection_id, cn.selfie_key, cn.selfie_by, cn.consent_b, cn.event_id, cn.created_at, cn.via,
             CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END AS peer_id,
             p.name AS peer_name, p.photo_key AS peer_photo_key, p.course, p.uni, p.mode, p.company, p.role, p.headline,
             COALESCE((SELECT c2.id FROM cards c2 WHERE c2.id = cn.card_id
@@ -1024,7 +1031,7 @@ app.get("/api/connections", async (c) => {
         ...selfieView(r, me.id),
         cardId: r.card_id || null,
         eventId: r.event_id, eventName: r.event_name || "",
-        metAt: r.created_at, note: r.my_note || "",
+        metAt: r.created_at, via: r.via || null, note: r.my_note || "",
         myTags: parseTags(r.my_tags),
         remindAt: r.remind_at || null,
         followedUpAt: r.followed_up_at || null,
@@ -1042,6 +1049,7 @@ app.get("/api/connections/:id", async (c) => {
   const peerId = cn.user_a === me.id ? cn.user_b : cn.user_a;
   const p = await one(db, "SELECT * FROM profiles WHERE user_id = ?", peerId);
   const note = await one(db, "SELECT text FROM notes WHERE user_id = ? AND connection_id = ?", me.id, cn.id);
+  const cev = cn.event_id ? await one(db, "SELECT name FROM events WHERE id = ?", cn.event_id) : null;
   const msgs = await all(db,
     "SELECT id, from_id, text, created_at FROM messages WHERE connection_id = ? ORDER BY created_at", cn.id);
 
@@ -1072,7 +1080,7 @@ app.get("/api/connections/:id", async (c) => {
       cardNote: card?.note || "",
     },
     ...selfieView(cn, me.id),
-    eventId: cn.event_id, metAt: cn.created_at, note: note?.text || "",
+    eventId: cn.event_id, eventName: cev?.name || "", metAt: cn.created_at, via: cn.via || null, note: note?.text || "",
     messages: msgs.map((m) => ({ id: m.id, mine: m.from_id === me.id, text: m.text, at: m.created_at })),
   });
 });
