@@ -22,7 +22,7 @@ defineExpose({ ready: true, save });
 <template>
   <div class="stack-2">
     <h1>What can people come to you for?</h1>
-    <p class="muted" style="margin:0">Pick a few, or add your own. The first 4 show on your badge.</p>
+    <p class="muted" style="margin:0">Pick a few, or add your own.</p>
     <TagFields :form="f" label="Add your own, separated by commas" />
     <div class="field"><label for="headline">What you do, in one line</label>
       <input id="headline" v-model="f.headline" type="text" maxlength="80" placeholder="e.g. Building robots and Roblox games" />

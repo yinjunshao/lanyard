@@ -20,10 +20,20 @@ async function addPasskey() {
   finally { busy.value = false; }
 }
 
+// Asked here, so the account banner does not ask again the moment they open My card. It is the
+// banner's own "Not now" (same key as AccountBanner.vue), and the passkey stays in Settings.
+function save() {
+  if (!verified.value || !canPasskey || me.user?.hasPasskey) return;
+  try {
+    const KEY = "lanyard_banner_dismissed";
+    localStorage.setItem(KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(KEY) || "{}"), passkey: Date.now() }));
+  } catch { /* not remembered: the banner may ask once */ }
+}
+
 // With a code waiting (from a poster), the email is what lets them claim it, so no skipping.
 const noSkip = computed(() => !!pendingCode() && !verified.value);
 // The email form has its own button; Continue only appears once the email is saved.
-defineExpose({ ready: true, hideContinue: computed(() => !verified.value), noSkip });
+defineExpose({ ready: true, save, hideContinue: computed(() => !verified.value), noSkip });
 </script>
 
 <template>

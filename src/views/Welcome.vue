@@ -77,7 +77,9 @@ onMounted(async () => {
 });
 
 // Moving to a new step puts the reader at its heading (for a screen reader and the keyboard).
-watch(stepNo, async () => {
+// The server follows the address too, so the browser's own Back button keeps the saved place right.
+watch(stepNo, async (n) => {
+  remember(n);
   await nextTick();
   const h = stepBox.value?.querySelector("h1");
   if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
@@ -104,7 +106,6 @@ function remember(to) {
 function go(to) {
   error.value = "";
   router.push({ query: { ...route.query, step: String(to) } });
-  remember(to);
 }
 function back() {
   if (stepNo.value > 1) return go(stepNo.value - 1);

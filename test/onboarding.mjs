@@ -168,6 +168,8 @@ console.log("\n# Steps 5 and 6: save the card, and done");
 {
   const save = read("src/components/welcome/StepSave.vue"), done = read("src/components/welcome/StepDone.vue"), shell = read("src/views/Welcome.vue");
   check("step 5 uses the same EmailSetup as Settings and the redeem page, and offers a passkey after the email", has(save, "<EmailSetup", "registerPasskey", "one-tap sign-in", "back in on a new phone") && save.indexOf("<EmailSetup") < save.indexOf("Add a passkey"));
+  check("a passkey that was offered and passed on is not asked for again by the banner (same storage key)",
+    has(save, 'KEY = "lanyard_banner_dismissed"') && has(read("src/components/AccountBanner.vue"), 'KEY = "lanyard_banner_dismissed"'));
   check("the passkey is only offered once the email is saved, and only where the browser supports it", has(save, "verified && canPasskey && !me.user?.hasPasskey"));
   check("a waiting promo code means step 5 cannot be skipped, since the email is what claims it", has(save, "pendingCode()", "noSkip") && has(shell, "!stepEl?.noSkip"));
   check("the recovery-key way of saving is still one link away (the claim page is unchanged)", has(save, 'to="/claim"') && has(read("src/views/Claim.vue"), "Get a recovery key", "recoveryCreate"));

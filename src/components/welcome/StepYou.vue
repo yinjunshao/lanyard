@@ -54,12 +54,17 @@ defineExpose({ ready, save });
 
     <div id="photo" class="field">
       <span class="label-top">Photo (optional)</span>
-      <div class="file-picker">
+      <!-- One .file-picker per button: its focus ring is drawn for the button whose input has focus. -->
+      <div class="row" style="gap:14px">
         <Avatar class="avatar" style="width:64px;height:64px" :src="shownPhoto" alt="Your photo" />
-        <label for="photoCamera" class="btn">Take a photo</label>
-        <input id="photoCamera" class="visually-hidden" type="file" accept="image/*" capture="user" @change="pick" />
-        <label for="photoFile" class="btn">{{ shownPhoto ? "Change" : "Upload" }}</label>
-        <input id="photoFile" class="visually-hidden" type="file" accept="image/*" @change="pick" />
+        <div class="file-picker">
+          <label for="photoCamera" class="btn">Take a photo</label>
+          <input id="photoCamera" class="visually-hidden" type="file" accept="image/*" capture="user" @change="pick" />
+        </div>
+        <div class="file-picker">
+          <label for="photoFile" class="btn">{{ shownPhoto ? "Change" : "Upload" }}</label>
+          <input id="photoFile" class="visually-hidden" type="file" accept="image/*" @change="pick" />
+        </div>
       </div>
     </div>
 

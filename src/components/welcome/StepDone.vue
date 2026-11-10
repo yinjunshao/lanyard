@@ -25,7 +25,7 @@ function hideInstall() { dismissInstall(); showInstall.value = false; }
     <h1>Your card is ready</h1>
     <p class="muted" style="margin:0">Show this at your next event. People scan it and connect.</p>
 
-    <Badge v-if="card" :view="card" :url="qrUrl" :subtitle="subtitle" />
+    <div class="done-badge"><Badge v-if="card" :view="card" :url="qrUrl" :subtitle="subtitle" /></div>
 
     <p v-if="code" class="notice small">You have a code waiting: <strong class="tnum">{{ code }}</strong>. Claim it now.</p>
 
