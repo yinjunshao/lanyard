@@ -24,8 +24,12 @@ id = "6fa2750047f94df78dc7814bd56b17b7"
 # Daily retention purge (selfies > 12 months, feedback text > 12 months,
 # expired codes/sessions, stale guests). Required by the Privacy Policy.
 [triggers]
-crons = ["17 3 * * *"]
+crons = ["17 3 * * *", "47 * * * *"]
 
 [vars]
-APP_ORIGIN = "https://lanyard-v2.musea-moderation.workers.dev"
+# Every address the app may be used from (comma-separated).
+APP_ORIGIN = "https://lanyd.fyi,https://www.lanyd.fyi,https://lanyard-v2.musea-moderation.workers.dev"
+# Passkeys made on the old workers.dev address stay tied to RP_ID. Anything
+# served from RP_DOMAIN (and its subdomains) uses RP_DOMAIN instead.
+RP_DOMAIN = "lanyd.fyi"
 RP_ID = "lanyard-v2.musea-moderation.workers.dev"

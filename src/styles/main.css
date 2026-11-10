@@ -779,3 +779,23 @@ button.list-row { font: inherit; }
 }
 .status-pill.open { color: var(--strap-deep); border-color: var(--strap-deep); }
 .status-pill.paid { color: var(--success, #2f7d4f); border-color: var(--success, #2f7d4f); }
+
+/* Links in "I agree to the …" lines read as links. */
+.checkbox-row a { text-decoration: underline; text-underline-offset: 2px; font-weight: 700; color: var(--strap-deep, inherit); }
+
+/* Profile link editor: label, address, remove. */
+.link-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) 40px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.link-remove { min-height: 44px; border: var(--border, 1px solid currentColor); background: none; border-radius: 8px; font-size: 22px; line-height: 1; cursor: pointer; color: inherit; }
+@media (max-width: 420px) {
+  .link-row { grid-template-columns: 1fr 40px; }
+  .link-row input:nth-child(2) { grid-column: 1; }
+  .link-row .link-remove { grid-row: 1 / span 2; grid-column: 2; }
+}
+
+/* A checkbox or radio next to its text, even when the row is also a .field. */
+.checkbox-row.field { flex-direction: row; }
+.checkbox-row input[type="radio"] { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--ink); }
+
+.wordmark-host { display: inline-flex; align-items: center; gap: 8px; }
+.wordmark-host img { width: 26px; height: 26px; }
+.wordmark-host small { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--graphite); margin-left: 2px; }

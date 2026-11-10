@@ -1,33 +1,48 @@
-// Minimal host API for the pilot: one org per user, create/list events.
-// Credits are enforced softly — pilots run free until billing lands (phase 7).
+// Host API: host accounts, organisations (with approval for societies and
+// institutions), ownership transfers, tickets, events and billing.
 // The full dashboard, team roles, sponsors UI and reports build on these.
 import { Hono } from "hono";
 import { newId, now, one, all, run, uniqueCode, countJsonTerms, countAnswerTerms } from "./db.js";
 import { hostTermsScope, hasConsent, recordConsent } from "./legal.js";
-import { HOST_SKUS, FREE_EVENTS_FOR_NEW_ORG, FREE_EVENT_DAYS } from "./plans.js";
+import {
+  HOST_SKUS, FREE_EVENTS_FOR_NEW_ORG, FREE_EVENT_DAYS, ORG_KINDS, NEEDS_APPROVAL, SOCIETY_FREE,
+  checkinCapFor, skuAudience,
+} from "./plans.js";
 import { HttpError, sha256Hex } from "./session.js";
 import { bump, DAY } from "./ratelimit.js";
+import { sendMail, applicationEmail } from "./mail.js";
 import {
   sanitizeQuestions, eventInfo, questionsFor, summarize, closesAt, FEEDBACK_WINDOW_MS, MAX_HOST_QUESTIONS,
 } from "./feedback.js";
 import { validateWebhookUrl, newWebhookSecret, newApiKey, sendWebhook } from "./integrations.js";
+import { normEmail, validEmail, emailProblem, moveOwnership, openTransfer } from "./hostorg.js";
 
 export const hostApp = new Hono();
 
+// Routes a signed-in host account can reach before it has a host profile.
+const NO_PROFILE_NEEDED = new Set(["/api/host/terms", "/api/host/signup"]);
+
 // Host accounts also accept the Host Terms (and the current Privacy Policy)
 // before doing anything in the portal. Re-asked whenever the version changes.
+// After that, a host profile (name and email) is required.
 hostApp.use("/api/host/*", async (c, next) => {
-  if (new URL(c.req.url).pathname === "/api/host/terms") return next();
+  const path = new URL(c.req.url).pathname;
+  if (path === "/api/host/terms") return next();
   const me = c.get("user");
-  if ((me?.has_passkey || me?.has_recovery) && !(await hasConsent(c.env.DB, me.id, hostTermsScope()))) {
-    return c.json({ error: "Please accept the Host Terms to continue.", code: "terms_required" }, 403);
+  if (me?.has_passkey || me?.has_recovery || me?.has_totp || me?.email_verified) {
+    if (!(await hasConsent(c.env.DB, me.id, hostTermsScope()))) {
+      return c.json({ error: "Please accept the Host Terms to continue.", code: "terms_required" }, 403);
+    }
+    if (!NO_PROFILE_NEEDED.has(path) && !(await one(c.env.DB, "SELECT 1 AS x FROM host_profiles WHERE user_id = ?", me.id))) {
+      return c.json({ error: "Add your name and email to finish your host account.", code: "profile_required" }, 403);
+    }
   }
   return next();
 });
 
 hostApp.post("/api/host/terms", async (c) => {
   const me = c.get("user");
-  if (!(me?.has_passkey || me?.has_recovery)) return c.json({ error: "Create your host account first.", code: "account_required" }, 403);
+  if (!(me?.has_passkey || me?.has_recovery || me?.has_totp || me?.email_verified)) return c.json({ error: "Create your host account first.", code: "account_required" }, 403);
   const b = await c.req.json().catch(() => ({}));
   if (b.accept !== true) return c.json({ error: "Please agree to the Host Terms to continue.", code: "terms_required" }, 400);
   await recordConsent(c.env.DB, me.id, hostTermsScope());
@@ -40,16 +55,44 @@ hostApp.post("/api/host/terms", async (c) => {
 // Returns the user, or null if they still need to create their account.
 function hostUser(c) {
   const me = c.get("user");
-  return me?.has_passkey || me?.has_recovery ? me : null;
+  return me?.has_passkey || me?.has_recovery || me?.has_totp || me?.email_verified ? me : null;
 }
 const needAccount = (c) =>
   c.json({ error: "Create your host account to continue.", code: "account_required" }, 403);
 
-// Fair-use size of one event credit. Never blocks a check-in at the door; the
-// host is nudged instead.
-const EVENT_CHECKIN_CAP = 300;
+const profileOf = (db, userId) => one(db, "SELECT * FROM host_profiles WHERE user_id = ?", userId);
 
-const ORG_TYPES = ["society", "careers_service", "company", "other"];
+// The one thing a host account is asked for up front: who they are, how to
+// reach them, and a short survey. Transfers find a person by this email.
+hostApp.post("/api/host/signup", async (c) => {
+  const me = hostUser(c);
+  if (!me) return needAccount(c);
+  const b = await c.req.json().catch(() => ({}));
+  const fullName = String(b.fullName || "").trim().slice(0, 80);
+  const email = normEmail(b.email);
+  if (fullName.length < 2) return c.json({ error: "Add your full name." }, 400);
+  if (!validEmail(email)) return c.json({ error: "Add an email address we can reach you on." }, 400);
+  const sv = b.survey && typeof b.survey === "object" ? b.survey : {};
+  const useCase = String(sv.useCase || "").trim().slice(0, 600);
+  const frequency = String(sv.frequency || "").trim().slice(0, 40);
+  if (!useCase) return c.json({ error: "Tell us what you plan to use Lanyard for." }, 400);
+  if (!frequency) return c.json({ error: "Tell us how often you run events." }, 400);
+  const taken = await one(c.env.DB, "SELECT user_id FROM host_profiles WHERE email = ? AND user_id != ?", email, me.id);
+  if (taken) return c.json({ error: "A host account already uses that email. Sign in to it instead.", code: "email_taken" }, 409);
+  await run(
+    c.env.DB,
+    `INSERT INTO host_profiles (user_id, email, full_name, use_case, event_frequency, typical_size, referral, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET full_name = excluded.full_name, use_case = excluded.use_case,
+       event_frequency = excluded.event_frequency, typical_size = excluded.typical_size, referral = excluded.referral`,
+    me.id, email, fullName, useCase, frequency,
+    String(sv.size || "").trim().slice(0, 40), String(sv.referral || "").trim().slice(0, 200), now()
+  );
+  return c.json({ ok: true });
+});
+
+// Check-in caps are per organisation type (see checkinCapFor in plans.js):
+// societies are held to a hard limit at the door, everyone else is nudged.
 
 async function creditSummary(db, orgId) {
   const row = await one(
@@ -72,47 +115,80 @@ const ipOf = (c) => c.req.header("cf-connecting-ip") || "local";
 // so they can't be farmed by making throwaway accounts.
 const STARTER_ORGS_PER_IP_PER_DAY = 3;
 
-// Ensure the current user has an org; returns it.
-async function ensureOrg(db, userId, ip = "local") {
-  let org = await one(
+// The account's organisation, if it has one. One organisation per account.
+function findOrg(db, userId) {
+  return one(
     db,
     `SELECT o.* FROM orgs o JOIN org_members m ON m.org_id = o.id
      WHERE m.user_id = ? ORDER BY (m.role = 'owner') DESC, o.created_at LIMIT 1`,
     userId
   );
-  if (org) return org;
-  const id = newId();
-  const starter = (await bump(db, `day:org:ip:${ip}`, DAY)) <= STARTER_ORGS_PER_IP_PER_DAY;
-  await db.batch([
-    db.prepare("INSERT INTO orgs (id, name, plan, org_type, verification_status, created_at) VALUES (?, ?, 'starter', 'other', 'pending', ?)")
-      .bind(id, "My organisation", now()),
-    db.prepare("INSERT INTO org_members (org_id, user_id, role) VALUES (?, ?, 'owner')").bind(id, userId),
-    // Starter grant for a new organisation.
-    ...(starter ? [db.prepare("INSERT INTO credits (id, org_id, events_granted, events_used, expires_at, reason, granted_by, created_at) VALUES (?, ?, ?, 0, ?, 'starter', 'self-serve', ?)")
-      .bind(newId(), id, FREE_EVENTS_FOR_NEW_ORG, now() + FREE_EVENT_DAYS * 864e5, now())] : []),
-  ]);
-  return one(db, "SELECT * FROM orgs WHERE id = ?", id);
 }
+async function requireOrg(db, userId) {
+  const org = await findOrg(db, userId);
+  if (!org) throw new HttpError(409, "Create or join an organisation first.", "no_org");
+  return org;
+}
+
+// Societies and institutions can't run events until an admin approves them.
+function assertApproved(org) {
+  if (org.verification_status === "approved") return;
+  if (org.verification_status === "rejected") {
+    throw new HttpError(403, `Your application wasn't approved${org.review_note ? `: ${org.review_note}` : "."} Open a ticket if you think that's a mistake.`, "not_approved");
+  }
+  throw new HttpError(403, "Your application is being reviewed. You can create events as soon as it's approved.", "not_approved");
+}
+
+const orgJson = (org) => ({
+  id: org.id, name: org.name, plan: org.plan, status: org.verification_status, type: org.org_type,
+  billingEmail: org.billing_email || null, leaderName: org.leader_name || null, leaderEmail: org.leader_email || null,
+  orgLink: org.org_link || null, university: org.university || null, reviewNote: org.review_note || null,
+  appliedAt: org.applied_at || null,
+});
 
 hostApp.get("/api/host/me", async (c) => {
   const me = hostUser(c);
   if (!me) return needAccount(c);
   const db = c.env.DB;
-  const org = await ensureOrg(db, me.id, ipOf(c));
+  const profile = await profileOf(db, me.id);
+  const org = await findOrg(db, me.id);
+  const incoming = await all(
+    db,
+    `SELECT t.id, t.created_at, o.name AS org_name, o.org_type, p.full_name AS from_name
+     FROM org_transfers t JOIN orgs o ON o.id = t.org_id
+     LEFT JOIN host_profiles p ON p.user_id = t.from_user_id
+     WHERE t.to_user_id = ? AND t.status = 'pending' ORDER BY t.created_at DESC`,
+    me.id
+  );
+  const account = { hasPasskey: !!me.has_passkey, hasRecovery: !!me.has_recovery, email: profile.email, fullName: profile.full_name };
+  const pendingTransfers = incoming.map((t) => ({ id: t.id, orgName: t.org_name, orgType: t.org_type, fromName: t.from_name || null, at: t.created_at }));
+  if (!org) {
+    return c.json({
+      role: null, account, org: null, pendingTransfers,
+      credits: { granted: 0, used: 0, remaining: 0, nextExpiry: null }, events: [],
+      limits: { freePerWeek: 0, checkinCap: checkinCapFor("individual") },
+    });
+  }
   const events = await all(
     db,
     "SELECT * FROM events WHERE org_id = ? ORDER BY starts_at DESC, created_at DESC",
     org.id
   );
   const membership = await one(db, "SELECT role FROM org_members WHERE org_id = ? AND user_id = ?", org.id, me.id);
+  const society = org.org_type === "society";
+  const usedThisWeek = society
+    ? (await one(db, "SELECT COUNT(*) AS n FROM events WHERE org_id = ? AND created_at > ?", org.id, now() - 7 * DAY))?.n || 0
+    : 0;
   return c.json({
     role: membership?.role || "owner",
-    account: { hasPasskey: !!me.has_passkey, hasRecovery: !!me.has_recovery, email: me.recovery_email || null },
-    org: {
-      id: org.id, name: org.name, plan: org.plan, status: org.verification_status,
-      type: org.org_type, billingEmail: org.billing_email || null,
-    },
+    account, pendingTransfers,
+    org: orgJson(org),
     credits: await creditSummary(db, org.id),
+    limits: {
+      freePerWeek: society ? SOCIETY_FREE.eventsPerWeek : 0,
+      freeLeftThisWeek: society ? Math.max(0, SOCIETY_FREE.eventsPerWeek - usedThisWeek) : 0,
+      checkinCap: checkinCapFor(org.org_type),
+    },
     events: events.map((e) => ({
       id: e.id, code: e.code, name: e.name, startsAt: e.starts_at,
       venue: e.venue, theme: e.theme, strapColor: e.strap_color,
@@ -123,20 +199,72 @@ hostApp.get("/api/host/me", async (c) => {
   });
 });
 
+// Create the account's organisation, or run events under the host's own name
+// ("individual"). Societies and institutions apply and wait for an admin.
+hostApp.post("/api/host/orgs", async (c) => {
+  const me = hostUser(c);
+  if (!me) return needAccount(c);
+  const db = c.env.DB;
+  const profile = await profileOf(db, me.id);
+  if (await findOrg(db, me.id)) return c.json({ error: "Your account already has an organisation.", code: "has_org" }, 409);
+  const b = await c.req.json().catch(() => ({}));
+  const kind = b.kind;
+  if (!ORG_KINDS.includes(kind)) return c.json({ error: "Choose what kind of organisation this is." }, 400);
+
+  const text = (v, n) => String(v || "").trim().slice(0, n);
+  const name = kind === "individual" ? profile.full_name : text(b.name, 100);
+  if (!name) return c.json({ error: kind === "society" ? "Add your society's name." : "Add your organisation's name." }, 400);
+  const problem = emailProblem(kind, profile.email);
+  if (problem) return c.json({ error: problem, code: "email_not_eligible" }, 400);
+
+  let leaderName = null, orgLink = null, university = null;
+  if (NEEDS_APPROVAL.has(kind)) {
+    leaderName = text(b.leaderName, 80);
+    orgLink = text(b.orgLink, 300);
+    university = text(b.university, 120);
+    if (leaderName.length < 2) return c.json({ error: "Add the leader's full name." }, 400);
+    if (!/^https?:\/\/\S+\.\S+/.test(orgLink)) return c.json({ error: `Add a link to your ${kind === "society" ? "society's page (union listing, website or social page)" : "institution's website"}, starting with https://` }, 400);
+    if (kind === "society" && !university) return c.json({ error: "Add your university." }, 400);
+  }
+
+  const id = newId();
+  const ts = now();
+  const approved = !NEEDS_APPROVAL.has(kind);
+  // A starter allowance for companies and individuals. Societies have a free
+  // weekly allowance instead; institutions buy discounted packs.
+  const starter = (kind === "company" || kind === "individual")
+    && (await bump(db, `day:org:ip:${ipOf(c)}`, DAY)) <= STARTER_ORGS_PER_IP_PER_DAY;
+  await db.batch([
+    db.prepare(
+      `INSERT INTO orgs (id, name, plan, org_type, verification_status, billing_email, leader_name, leader_email, org_link, university, applied_at, reviewed_at, created_at)
+       VALUES (?, ?, 'starter', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(id, name, kind, approved ? "approved" : "pending", profile.email, leaderName || profile.full_name, profile.email,
+      orgLink, university, approved ? null : ts, approved ? ts : null, ts),
+    db.prepare("INSERT INTO org_members (org_id, user_id, role) VALUES (?, ?, 'owner')").bind(id, me.id),
+    ...(starter ? [db.prepare("INSERT INTO credits (id, org_id, events_granted, events_used, expires_at, reason, granted_by, created_at) VALUES (?, ?, ?, 0, ?, 'starter', 'self-serve', ?)")
+      .bind(newId(), id, FREE_EVENTS_FOR_NEW_ORG, ts + FREE_EVENT_DAYS * 864e5, ts)] : []),
+  ]);
+  if (!approved) {
+    await sendMail(c.env, "decisions", { to: profile.email, ...applicationEmail({ orgName: name, origin: new URL(c.req.url).origin }) })
+      .catch((e) => console.error(e));
+  }
+  return c.json({ ok: true, id, status: approved ? "approved" : "pending" }, 201);
+});
+
+// Small edits to the organisation. Its type and a society's identity are fixed
+// once created; changing them goes through a ticket.
 hostApp.post("/api/host/org", async (c) => {
   const me = hostUser(c);
   if (!me) return needAccount(c);
+  const org = await requireOrg(c.env.DB, me.id);
+  const m = await one(c.env.DB, "SELECT role FROM org_members WHERE org_id = ? AND user_id = ?", org.id, me.id);
+  if (m?.role !== "owner") return c.json({ error: "Only the owner can change this." }, 403);
   const b = await c.req.json().catch(() => ({}));
-  if (!String(b.name || "").trim()) return c.json({ error: "organisation name required" }, 400);
-  const org = await ensureOrg(c.env.DB, me.id, ipOf(c));
-  const type = ORG_TYPES.includes(b.type) ? b.type : org.org_type;
-  const email = String(b.billingEmail || "").trim().slice(0, 120);
-  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: "that email doesn't look right" }, 400);
-  await run(
-    c.env.DB,
-    "UPDATE orgs SET name = ?, org_type = ?, billing_email = COALESCE(NULLIF(?, ''), billing_email) WHERE id = ?",
-    String(b.name).trim().slice(0, 100), type, email, org.id
-  );
+  const email = normEmail(b.billingEmail);
+  if (email && !validEmail(email)) return c.json({ error: "that email doesn't look right" }, 400);
+  const open = org.org_type === "company";
+  const name = open && String(b.name || "").trim() ? String(b.name).trim().slice(0, 100) : org.name;
+  await run(c.env.DB, "UPDATE orgs SET name = ?, billing_email = COALESCE(NULLIF(?, ''), billing_email) WHERE id = ?", name, email, org.id);
   return c.json({ ok: true });
 });
 
@@ -172,8 +300,16 @@ function checkinQuestions(list) {
 
 // One credit per event, spent from the credits that expire soonest.
 async function insertEvent(db, org, fields, questions) {
-  if ((await creditSummary(db, org.id)).remaining <= 0) {
-    throw new HttpError(402, "No event credits left. Buy more from Billing.", "no_credits");
+  assertApproved(org);
+  // A student society's first event in any 7 days is free. Beyond that it
+  // spends a credit like everyone else.
+  const society = org.org_type === "society";
+  const freeWeek = society
+    && !(await one(db, "SELECT 1 AS x FROM events WHERE org_id = ? AND created_at > ?", org.id, now() - 7 * DAY));
+  if (!freeWeek && (await creditSummary(db, org.id)).remaining <= 0) {
+    throw new HttpError(402, society
+      ? `Your free event for this week is used (societies get ${SOCIETY_FREE.eventsPerWeek} a week). Buy an event pack from Billing for more.`
+      : "No event credits left. Buy more from Billing.", "no_credits");
   }
   const id = newId();
   const code = await uniqueCode(db, "events", 5);
@@ -181,12 +317,12 @@ async function insertEvent(db, org, fields, questions) {
   const keys = Object.keys(cols);
   await db.batch([
     db.prepare(`INSERT INTO events (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`).bind(...Object.values(cols)),
-    db.prepare(
+    ...(freeWeek ? [] : [db.prepare(
       `UPDATE credits SET events_used = events_used + 1 WHERE id = (
          SELECT id FROM credits
          WHERE org_id = ? AND events_used < events_granted AND (expires_at IS NULL OR expires_at > ?)
          ORDER BY COALESCE(expires_at, 9007199254740991) LIMIT 1)`
-    ).bind(org.id, now()),
+    ).bind(org.id, now())]),
   ]);
   return { id, code };
 }
@@ -195,7 +331,7 @@ hostApp.post("/api/host/events", async (c) => {
   const me = hostUser(c);
   if (!me) return needAccount(c);
   const db = c.env.DB;
-  const org = await ensureOrg(db, me.id, ipOf(c));
+  const org = await requireOrg(db, me.id);
   const b = await c.req.json().catch(() => ({}));
   const fields = eventFields(b);
   if (!fields.name) return c.json({ error: "event name required" }, 400);
@@ -283,7 +419,7 @@ async function eventTotals(db, eventId) {
     `SELECT
        (SELECT COUNT(*) FROM checkins WHERE event_id = ?) checkins,
        (SELECT COUNT(*) FROM connections WHERE event_id = ?) connections,
-       (SELECT COUNT(*) FROM connections WHERE event_id = ? AND selfie_key IS NOT NULL) selfies,
+       (SELECT COUNT(*) FROM connections WHERE event_id = ? AND selfie_key IS NOT NULL AND consent_b = 1) selfies,
        (SELECT COUNT(*) FROM feedback_responses WHERE event_id = ?) feedback`,
     eventId, eventId, eventId, eventId
   );
@@ -336,6 +472,8 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
   if (!me) return needAccount(c);
   const ev = await hostEvent(c, me);
   const t = await eventTotals(c.env.DB, ev.id);
+  const orgRow = await one(c.env.DB, "SELECT org_type FROM orgs WHERE id = ?", ev.org_id);
+  const EVENT_CHECKIN_CAP = checkinCapFor(orgRow?.org_type);
   return c.json({
     event: {
       id: ev.id, code: ev.code, name: ev.name, startsAt: ev.starts_at, venue: ev.venue,
@@ -503,7 +641,7 @@ hostApp.get("/api/host/billing", async (c) => {
   const me = hostUser(c);
   if (!me) return needAccount(c);
   const db = c.env.DB;
-  const org = await ensureOrg(db, me.id, ipOf(c));
+  const org = await requireOrg(db, me.id);
   const credits = await creditSummary(db, org.id);
   const ledger = await all(
     db,
@@ -515,9 +653,10 @@ hostApp.get("/api/host/billing", async (c) => {
     "SELECT id, sku, quantity, amount_pence, status, po_number, created_at FROM billing_requests WHERE org_id = ? ORDER BY created_at DESC LIMIT 20",
     org.id
   );
-  const audience = org.org_type === "society" ? "society" : "standard";
+  const audience = skuAudience(org.org_type);
   return c.json({
-    org: { id: org.id, name: org.name, type: org.org_type, plan: org.plan, status: org.verification_status, billingEmail: org.billing_email || null },
+    org: orgJson(org),
+    freeTier: org.org_type === "society" ? SOCIETY_FREE : null,
     credits,
     ledger: ledger.map((r) => ({
       id: r.id, granted: r.events_granted, used: r.events_used,
@@ -534,7 +673,7 @@ hostApp.get("/api/host/billing", async (c) => {
       id: r.id, sku: r.sku, quantity: r.quantity, amountPence: r.amount_pence,
       status: r.status, po: r.po_number, at: r.created_at,
     })),
-    cap: EVENT_CHECKIN_CAP,
+    cap: checkinCapFor(org.org_type),
   });
 });
 
@@ -542,10 +681,11 @@ hostApp.post("/api/host/billing/request", async (c) => {
   const me = hostUser(c);
   if (!me) return needAccount(c);
   const db = c.env.DB;
-  const org = await ensureOrg(db, me.id, ipOf(c));
+  const org = await requireOrg(db, me.id);
+  assertApproved(org);
   const b = await c.req.json().catch(() => ({}));
   const sku = HOST_SKUS[b.sku];
-  const audience = org.org_type === "society" ? "society" : "standard";
+  const audience = skuAudience(org.org_type);
   if (!sku || (sku.audience !== audience && sku.audience !== "quote")) {
     return c.json({ error: "that option isn't available for your organisation" }, 400);
   }
@@ -582,7 +722,7 @@ const normaliseInvite = (raw) => String(raw || "").toUpperCase().replace(/[^A-Z0
 async function ownerOrg(c) {
   const me = hostUser(c);
   if (!me) return { error: needAccount(c) };
-  const org = await ensureOrg(c.env.DB, me.id, ipOf(c));
+  const org = await requireOrg(c.env.DB, me.id);
   const m = await one(c.env.DB, "SELECT role FROM org_members WHERE org_id = ? AND user_id = ?", org.id, me.id);
   return { me, org, role: m?.role || "owner" };
 }
@@ -677,6 +817,128 @@ hostApp.delete("/api/host/team/:userId", async (c) => {
   return c.json({ ok: true });
 });
 
+
+/* ---------------------- transfers and tickets ---------------------- */
+// An organisation can change hands. The new owner needs their own host account
+// (found by email) and must accept. Societies and institutions were approved
+// as a particular leader, so for them a change of leader or email is a ticket
+// an admin checks first. Companies can hand over directly.
+
+const TICKET_KINDS = ["leader_change", "email_change", "other"];
+
+async function ownerOfOrg(c) {
+  const { error, me, org, role } = await ownerOrg(c);
+  if (error) return { error };
+  if (role !== "owner") return { error: c.json({ error: "Only the owner can do that." }, 403) };
+  return { me, org };
+}
+
+// Why this host account can't take over `org`, or "" if it can.
+async function transferProblem(db, org, profile) {
+  const elsewhere = await one(db, "SELECT 1 AS x FROM org_members WHERE user_id = ? AND org_id != ?", profile.user_id, org.id);
+  if (elsewhere) return { status: 409, error: "That account already belongs to another organisation. Each account can have only one.", code: "has_org" };
+  const bad = emailProblem(org.org_type, profile.email);
+  if (bad) return { status: 400, error: bad, code: "email_not_eligible" };
+  return null;
+}
+
+hostApp.post("/api/host/transfer", async (c) => {
+  const { error, me, org } = await ownerOfOrg(c);
+  if (error) return error;
+  const db = c.env.DB;
+  if (org.org_type === "society" || org.org_type === "institution") {
+    return c.json({ error: "Changing the leader of a society or institution goes through a ticket, so an admin can check it.", code: "ticket_required" }, 400);
+  }
+  if (org.org_type === "individual") return c.json({ error: "Events under your own name stay with you. Create an organisation to hand events over.", code: "not_transferable" }, 400);
+  const b = await c.req.json().catch(() => ({}));
+  const email = normEmail(b.email);
+  if (!validEmail(email)) return c.json({ error: "Enter the email they signed up to the host portal with." }, 400);
+  const target = await one(db, "SELECT * FROM host_profiles WHERE email = ?", email);
+  if (!target) return c.json({ error: "No host account uses that email yet. Ask them to sign up to the host portal first, then try again.", code: "no_account" }, 404);
+  if (target.user_id === me.id) return c.json({ error: "That's your own account." }, 400);
+  const problem = await transferProblem(db, org, target);
+  if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
+  const id = await openTransfer(db, org, me.id, target);
+  return c.json({ ok: true, id }, 201);
+});
+
+hostApp.post("/api/host/transfers/:id/accept", async (c) => {
+  const me = hostUser(c);
+  if (!me) return needAccount(c);
+  const db = c.env.DB;
+  const t = await one(db, "SELECT * FROM org_transfers WHERE id = ? AND to_user_id = ? AND status = 'pending'", c.req.param("id"), me.id);
+  if (!t) return c.json({ error: "That transfer is no longer waiting for you." }, 404);
+  const org = await one(db, "SELECT * FROM orgs WHERE id = ?", t.org_id);
+  const profile = await profileOf(db, me.id);
+  const problem = await transferProblem(db, org, profile);
+  if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
+  await moveOwnership(db, org, me.id, profile, t.id);
+  return c.json({ ok: true });
+});
+
+hostApp.post("/api/host/transfers/:id/decline", async (c) => {
+  const me = hostUser(c);
+  if (!me) return needAccount(c);
+  const r = await run(c.env.DB, "UPDATE org_transfers SET status = 'declined', resolved_at = ? WHERE id = ? AND to_user_id = ? AND status = 'pending'", now(), c.req.param("id"), me.id);
+  if (!r.meta?.changes) return c.json({ error: "That transfer is no longer waiting for you." }, 404);
+  return c.json({ ok: true });
+});
+
+hostApp.delete("/api/host/transfers/:id", async (c) => {
+  const { error, org } = await ownerOfOrg(c);
+  if (error) return error;
+  await run(c.env.DB, "UPDATE org_transfers SET status = 'cancelled', resolved_at = ? WHERE id = ? AND org_id = ? AND status = 'pending'", now(), c.req.param("id"), org.id);
+  return c.json({ ok: true });
+});
+
+hostApp.get("/api/host/tickets", async (c) => {
+  const { error, org } = await ownerOfOrg(c);
+  if (error) return error;
+  const db = c.env.DB;
+  const tickets = await all(db, "SELECT * FROM host_tickets WHERE org_id = ? ORDER BY created_at DESC LIMIT 20", org.id);
+  const outgoing = await all(db, "SELECT id, to_email, created_at FROM org_transfers WHERE org_id = ? AND status = 'pending' ORDER BY created_at DESC", org.id);
+  return c.json({
+    tickets: tickets.map((t) => ({
+      id: t.id, kind: t.kind, newEmail: t.new_email, message: t.message, status: t.status,
+      adminNote: t.admin_note || null, at: t.created_at, resolvedAt: t.resolved_at || null,
+    })),
+    outgoing: outgoing.map((t) => ({ id: t.id, toEmail: t.to_email, at: t.created_at })),
+  });
+});
+
+hostApp.post("/api/host/tickets", async (c) => {
+  const { error, me, org } = await ownerOfOrg(c);
+  if (error) return error;
+  const db = c.env.DB;
+  const b = await c.req.json().catch(() => ({}));
+  const kind = b.kind;
+  if (!TICKET_KINDS.includes(kind)) return c.json({ error: "Choose what you need help with." }, 400);
+  const message = String(b.message || "").trim().slice(0, 1000);
+  if (message.length < 10) return c.json({ error: "Tell us a little more about why, so an admin can check it." }, 400);
+  let newEmail = null;
+  if (kind !== "other") {
+    newEmail = normEmail(b.newEmail);
+    if (!validEmail(newEmail)) return c.json({ error: kind === "leader_change" ? "Enter the new leader's email." : "Enter the new email address." }, 400);
+    const bad = emailProblem(org.org_type, newEmail);
+    if (bad) return c.json({ error: bad, code: "email_not_eligible" }, 400);
+    const holder = await one(db, "SELECT * FROM host_profiles WHERE email = ?", newEmail);
+    if (kind === "leader_change") {
+      // The new leader must already have signed up, and be free to take over.
+      if (!holder) return c.json({ error: "No host account uses that email yet. Ask the new leader to sign up to the host portal first, then open the ticket.", code: "no_account" }, 404);
+      if (holder.user_id === me.id) return c.json({ error: "That's your own account." }, 400);
+      const problem = await transferProblem(db, org, holder);
+      if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
+    } else if (holder && holder.user_id !== me.id) {
+      return c.json({ error: "A different host account already uses that email.", code: "email_taken" }, 409);
+    }
+  }
+  const open = await one(db, "SELECT COUNT(*) AS n FROM host_tickets WHERE org_id = ? AND status = 'open'", org.id);
+  if ((open?.n || 0) >= 5) return c.json({ error: "You already have open tickets. We'll be in touch." }, 429);
+  const id = newId();
+  await run(db, "INSERT INTO host_tickets (id, org_id, user_id, kind, new_email, message, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'open', ?)",
+    id, org.id, me.id, kind, newEmail, message, now());
+  return c.json({ ok: true, id }, 201);
+});
 
 /* ------------------------------ integrations ------------------------------ */
 // Owner-only: one outbound webhook (signed) and one inbound API key per organisation.

@@ -1,8 +1,9 @@
 // Feature tests: feedback, reports, duplicate/edit/end, integrations, follow-ups, purge.
-import { makeEnv, check, summary, PNG } from "./harness.mjs";
+import { makeEnv, check, summary, PNG, becomeHost } from "./harness.mjs";
 import { purgeExpired } from "../worker/purge.js";
+import { HOST_SKUS } from "../worker/plans.js";
 
-const T = await makeEnv();
+const T = await makeEnv({ ADMIN_TOKEN: "test-admin-token" });
 const { client, q, q1 } = T;
 const HOUR = 3600e3, DAY = 24 * HOUR;
 
@@ -15,8 +16,7 @@ async function signup(name, opts) {
 }
 async function host(name = "Soc", ip = "10.0.0.1") {
   const h = await signup(name, { ip });
-  await h.c.post("/api/auth/recovery");
-  await h.c.post("/api/host/terms", { accept: true });
+  await becomeHost(h.c, { kind: "company", name });
   return h;
 }
 
@@ -170,6 +170,179 @@ check("card page carries my follow-up state", card.json.viewer.connection.follow
 const note = await A.c.put(`/api/connections/${cid}/note`, { text: "Met at the AI social" });
 const after = q1("SELECT text, tags FROM notes WHERE connection_id = ? AND user_id = ?", cid, A.id);
 check("saving a note keeps tags", after.text === "Met at the AI social" && after.tags.includes("mentor"), after);
+
+console.log("\n# Per-card details and host survey");
+const mk = await A.c.post("/api/cards", { name: "Careers", headline: "Looking for placements", about: "Second-year CS", tags: ["CV reviews", "mock interviews", "placements", "CAD", "robots", "hackathons"] });
+const mkId = mk.json.id;
+const careers = await A.c.get(`/api/c/${mkId}`);
+check("a card can carry its own what-you-do and about", careers.text.includes("Looking for placements") && careers.text.includes("Second-year CS"), careers.text.slice(0, 200));
+check("…and all six come-to-me tags survive", careers.text.includes("hackathons") && careers.text.includes("CV reviews"));
+const back = await A.c.get("/api/me");
+const mine = back.json.cards.find((x) => x.cardId === mkId);
+check("owner gets the raw overrides for editing", mine.headlineOverride === "Looking for placements" && mine.aboutOverride === "Second-year CS" && mine.tagsOverride.length === 6);
+await A.c.put(`/api/cards/${mkId}`, { headline: "" });
+const cleared = (await A.c.get("/api/me")).json.cards.find((x) => x.cardId === mkId);
+check("clearing an override falls back to the profile", cleared.profile.headline === (back.json.profile.headline || "") && cleared.headlineOverride === "");
+const h2 = await signup("Survey Soc", { ip: "10.0.0.9" });
+await h2.c.post("/api/auth/recovery");
+await h2.c.post("/api/host/terms", { accept: true });
+const noUse = await h2.c.post("/api/host/signup", { fullName: "Sam Lee", email: "sam@corp.example.com", survey: { useCase: "", frequency: "Weekly or more" } });
+check("host survey needs a use case", noUse.status === 400, noUse.text);
+const okSu = await h2.c.post("/api/host/signup", { fullName: "Sam Lee", email: "Sam@Corp.example.com", survey: { useCase: "Weekly socials", frequency: "Weekly or more", size: "50 to 200" } });
+const orgRow = q1("SELECT email, use_case, event_frequency, typical_size FROM host_profiles WHERE full_name = 'Sam Lee'");
+check("host survey is saved on the host profile, email lower-cased", okSu.status === 200 && orgRow.use_case === "Weekly socials" && orgRow.email === "sam@corp.example.com", orgRow);
+
+console.log("\n# Host accounts, societies, transfers and tickets");
+{
+  const ADMIN = { authorization: "Bearer test-admin-token" };
+  const fresh = async (ip) => { const s = await signup("Host " + Math.random().toString(36).slice(2, 6), { ip }); return s.c; };
+
+  // No profile yet: the portal asks for it.
+  const bare = await fresh("10.1.0.1");
+  await bare.post("/api/auth/recovery");
+  await bare.post("/api/host/terms", { accept: true });
+  const early = await bare.get("/api/host/me");
+  check("a host account without a name and email is asked for them", early.status === 403 && early.json.code === "profile_required", early.json);
+  const survey = { useCase: "Weekly socials", frequency: "Weekly or more" };
+  const su = await bare.post("/api/host/signup", { fullName: "Ada Leader", email: "ada@ucl.ac.uk", survey });
+  check("signup stores the profile", su.status === 200, su.text);
+  const empty = await bare.get("/api/host/me");
+  check("a new host sees an empty portal: no organisation yet", empty.status === 200 && empty.json.org === null && empty.json.events.length === 0, empty.json);
+  const noOrgEvent = await bare.post("/api/host/events", { name: "X" });
+  check("no events before choosing own name or an organisation", noOrgEvent.status === 409 && noOrgEvent.json.code === "no_org", noOrgEvent.json);
+
+  const dupe = await (async () => {
+    const o = await fresh("10.1.0.2");
+    await o.post("/api/auth/recovery"); await o.post("/api/host/terms", { accept: true });
+    return o.post("/api/host/signup", { fullName: "Ada Two", email: "ADA@ucl.ac.uk", survey });
+  })();
+  check("one host account per email", dupe.status === 409 && dupe.json.code === "email_taken", dupe.json);
+
+  // Applying as a society needs the leader details and an education email.
+  const missing = await bare.post("/api/host/orgs", { kind: "society", name: "UCL Robotics" });
+  check("a society application needs leader name, link and university", missing.status === 400, missing.json);
+  const apply = await bare.post("/api/host/orgs", { kind: "society", name: "UCL Robotics", leaderName: "Ada Leader", orgLink: "https://studentsunionucl.org/robotics", university: "UCL" });
+  check("society application is accepted and pending", apply.status === 201 && apply.json.status === "pending", apply.json);
+  const second = await bare.post("/api/host/orgs", { kind: "company", name: "Other" });
+  check("one organisation per account", second.status === 409, second.json);
+  const blocked = await bare.post("/api/host/events", { name: "Welcome social" });
+  check("a pending society cannot create events", blocked.status === 403 && blocked.json.code === "not_approved", blocked.json);
+
+  // Webmail cannot apply as a society or company.
+  const gm = await fresh("10.1.0.3");
+  await gm.post("/api/auth/recovery"); await gm.post("/api/host/terms", { accept: true });
+  await gm.post("/api/host/signup", { fullName: "Gus Gmail", email: "gus@gmail.com", survey });
+  const gmApply = await gm.post("/api/host/orgs", { kind: "society", name: "Gmail Soc", leaderName: "Gus Gmail", orgLink: "https://example.org/x", university: "UCL" });
+  check("a society cannot apply with webmail", gmApply.status === 400 && gmApply.json.code === "email_not_eligible", gmApply.json);
+  const gmCo = await gm.post("/api/host/orgs", { kind: "company", name: "Gus Ltd" });
+  check("a company cannot sign up with webmail", gmCo.status === 400 && gmCo.json.code === "email_not_eligible", gmCo.json);
+
+  const gotIt = T.env.MAIL_OUTBOX.find((m) => m.kind === "decisions" && m.to[0] === "ada@ucl.ac.uk" && /UCL Robotics/.test(m.subject));
+  check("a pending application emails a confirmation to the applicant", !!gotIt);
+
+  // Admin approval.
+  const noTok = await bare.get("/api/admin/queue");
+  check("the admin queue refuses without the token", noTok.status === 401, noTok.status);
+  const queue = await bare.get("/api/admin/queue", ADMIN);
+  const pending = queue.json?.applications?.find((a) => a.name === "UCL Robotics");
+  check("admin sees the application with leader, link, university and email kind",
+    pending && pending.leaderEmail === "ada@ucl.ac.uk" && pending.emailKind === "education" && pending.university === "UCL", queue.json);
+  const rej = await bare.post(`/api/admin/orgs/${pending.id}/review`, { decision: "reject" }, ADMIN);
+  check("rejecting needs a reason", rej.status === 400, rej.json);
+  const appr = await bare.post(`/api/admin/orgs/${pending.id}/review`, { decision: "approve" }, ADMIN);
+  check("admin can approve", appr.status === 200, appr.json);
+  const decided = T.env.MAIL_OUTBOX.at(-1);
+  check("approving emails the applicant from the decisions sender", appr.json.emailed === true && decided?.kind === "decisions" && /approved/i.test(decided.subject), decided);
+
+  // Free allowance: 1 event a week, then packs; hard cap of 200 check-ins.
+  const e1 = await bare.post("/api/host/events", { name: "Welcome social" });
+  check("an approved society's first event this week is free", e1.status === 201, e1.json);
+  const e2 = await bare.post("/api/host/events", { name: "Second social" });
+  check("a second event in the same week needs a pack", e2.status === 402 && e2.json.code === "no_credits", e2.json);
+  const meSoc = await bare.get("/api/host/me");
+  check("limits are reported to the portal", meSoc.json.limits.freePerWeek === 1 && meSoc.json.limits.checkinCap === 200 && meSoc.json.limits.freeLeftThisWeek === 0, meSoc.json.limits);
+  check("a free event spends no credit", meSoc.json.credits.granted === 0, meSoc.json.credits);
+  const bill = await bare.get("/api/host/billing");
+  check("societies see society prices", bill.json.audience === "society" && bill.json.skus.every((s) => s.pence <= 2500), bill.json.skus);
+  const evId = e1.json.id, evCode = e1.json.code;
+  const t0 = Date.now();
+  const ins = T.env.DB.raw.prepare("INSERT INTO users (id, created_at, is_guest) VALUES (?, ?, 1)");
+  const insC = T.env.DB.raw.prepare("INSERT INTO checkins (event_id, user_id, answers, sponsor, created_at) VALUES (?, ?, '{}', '[]', ?)");
+  for (let i = 0; i < 200; i++) { ins.run("capuser" + i, t0); insC.run(evId, "capuser" + i, t0); }
+  const late = client({ ip: "10.1.9.9" });
+  const full = await late.post(`/api/e/${evCode}/checkin`, { name: "Late Larry", acceptTerms: true, over18: true });
+  check("the 201st check-in at a society event is refused", full.status === 403 && full.json.code === "event_full", full.json);
+
+  // Institutions: discounted packs, after approval.
+  const uni = await fresh("10.1.0.4");
+  await uni.post("/api/auth/recovery"); await uni.post("/api/host/terms", { accept: true });
+  await uni.post("/api/host/signup", { fullName: "Una Admin", email: "una@kcl.ac.uk", survey });
+  const uniApply = await uni.post("/api/host/orgs", { kind: "institution", name: "Kings College London", leaderName: "Una Admin", orgLink: "https://www.kcl.ac.uk" });
+  check("an institution applies and waits for approval", uniApply.status === 201 && uniApply.json.status === "pending", uniApply.json);
+  const uniBillEarly = await uni.post("/api/host/billing/request", { sku: "institution_5", email: "una@kcl.ac.uk" });
+  check("a pending institution cannot buy packs yet", uniBillEarly.status === 403, uniBillEarly.json);
+  const uq = (await uni.get("/api/admin/queue", ADMIN)).json.applications.find((a) => a.name === "Kings College London");
+  await uni.post(`/api/admin/orgs/${uq.id}/review`, { decision: "approve" }, ADMIN);
+  const uniBill = await uni.get("/api/host/billing");
+  const std = HOST_SKUS.standard_5.pence;
+  const inst5 = uniBill.json.skus.find((s) => s.id === "institution_5");
+  check("institutions get discounted packs (cheaper than standard)", uniBill.json.audience === "institution" && inst5 && inst5.pence < std, uniBill.json.skus);
+
+  // Company pays standard prices.
+  const co = await fresh("10.1.0.5");
+  await becomeHost(co, { kind: "company", name: "Acme Ltd" });
+  const coBill = await co.get("/api/host/billing");
+  check("companies see standard prices", coBill.json.audience === "standard" && coBill.json.skus.find((s) => s.id === "standard_5").pence === std, coBill.json.skus);
+
+  // Transfers: a company hands over to another host account, who must accept.
+  const heir = await fresh("10.1.0.6");
+  await heir.post("/api/auth/recovery"); await heir.post("/api/host/terms", { accept: true });
+  await heir.post("/api/host/signup", { fullName: "Hana Heir", email: "hana@acme.example.com", survey });
+  const ghost = await co.post("/api/host/transfer", { email: "nobody@acme.example.com" });
+  check("transfer checks the account exists", ghost.status === 404 && ghost.json.code === "no_account", ghost.json);
+  const tr = await co.post("/api/host/transfer", { email: "hana@acme.example.com" });
+  check("transfer to an existing host account is offered", tr.status === 201, tr.json);
+  const inbox = await heir.get("/api/host/me");
+  check("the new owner sees it waiting", inbox.json.pendingTransfers.length === 1 && inbox.json.org === null, inbox.json);
+  const stillOwner = await co.get("/api/host/me");
+  check("nothing moves until it is accepted", stillOwner.json.role === "owner" && stillOwner.json.org.name === "Acme Ltd");
+  const acc = await heir.post(`/api/host/transfers/${inbox.json.pendingTransfers[0].id}/accept`);
+  check("accepting hands over the organisation", acc.status === 200, acc.json);
+  const heirMe = await heir.get("/api/host/me");
+  const coMe = await co.get("/api/host/me");
+  check("the heir owns it and billing follows their email", heirMe.json.org?.name === "Acme Ltd" && heirMe.json.role === "owner" && heirMe.json.org.billingEmail === "hana@acme.example.com", heirMe.json.org);
+  check("the old owner is back to an empty portal", coMe.json.org === null, coMe.json);
+
+  // A society leader change is a ticket an admin checks, then the new leader accepts.
+  const direct = await bare.post("/api/host/transfer", { email: "x@ucl.ac.uk" });
+  check("societies cannot hand over directly", direct.status === 400 && direct.json.code === "ticket_required", direct.json);
+  const newLead = await fresh("10.1.0.7");
+  await newLead.post("/api/auth/recovery"); await newLead.post("/api/host/terms", { accept: true });
+  const noAcct = await bare.post("/api/host/tickets", { kind: "leader_change", newEmail: "ben@ucl.ac.uk", message: "Ada is graduating, Ben takes over" });
+  check("a leader-change ticket checks the new leader has signed up", noAcct.status === 404 && noAcct.json.code === "no_account", noAcct.json);
+  await newLead.post("/api/host/signup", { fullName: "Ben Next", email: "ben@ucl.ac.uk", survey });
+  const tk = await bare.post("/api/host/tickets", { kind: "leader_change", newEmail: "ben@ucl.ac.uk", message: "Ada is graduating, Ben takes over" });
+  check("a leader-change ticket is opened", tk.status === 201, tk.json);
+  const adminQ = (await bare.get("/api/admin/queue", ADMIN)).json;
+  const tkRow = adminQ.tickets.find((t) => t.newEmail === "ben@ucl.ac.uk");
+  check("admin sees the ticket and that the account exists", tkRow && tkRow.accountExists && tkRow.newEmailKind === "education", adminQ.tickets);
+  const tkOk = await bare.post(`/api/admin/tickets/${tkRow.id}/resolve`, { decision: "approve" }, ADMIN);
+  check("approving the ticket sends the transfer", tkOk.status === 200 && tkOk.json.next === "transfer_sent", tkOk.json);
+  const benMe = await newLead.get("/api/host/me");
+  check("the new leader must press accept", benMe.json.pendingTransfers.length === 1 && benMe.json.org === null, benMe.json);
+  await newLead.post(`/api/host/transfers/${benMe.json.pendingTransfers[0].id}/accept`);
+  const benAfter = await newLead.get("/api/host/me");
+  check("the society is now led by the new person, still approved", benAfter.json.org?.name === "UCL Robotics" && benAfter.json.org.status === "approved" && benAfter.json.org.leaderEmail === "ben@ucl.ac.uk", benAfter.json.org);
+
+  // Email change for the same person.
+  const em = await newLead.post("/api/host/tickets", { kind: "email_change", newEmail: "ben.next@ucl.ac.uk", message: "My department moved me to a new address" });
+  const emRow = (await newLead.get("/api/admin/queue", ADMIN)).json.tickets.find((t) => t.newEmail === "ben.next@ucl.ac.uk");
+  await newLead.post(`/api/admin/tickets/${emRow.id}/resolve`, { decision: "approve" }, ADMIN);
+  const emAfter = await newLead.get("/api/host/me");
+  check("an approved email-change ticket updates the account and billing", em.status === 201 && emAfter.json.account.email === "ben.next@ucl.ac.uk" && emAfter.json.org.billingEmail === "ben.next@ucl.ac.uk", emAfter.json);
+  const wrongTok = await newLead.get("/api/admin/queue", { authorization: "Bearer nope" });
+  check("a wrong admin token is refused", wrongTok.status === 401, wrongTok.status);
+}
 
 console.log("\n# Anonymous visitors");
 const anon = client();

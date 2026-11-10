@@ -2,31 +2,18 @@
 import { computed, onMounted, ref } from "vue";
 import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
+import CardForm from "../components/CardForm.vue";
 
+const blank = () => ({ name: "", theme: "default", note: "", headline: "", about: "", tagsText: "", visibleLinks: [], strapColor: "" });
 const creating = ref(false);
-const form = ref({ name: "", theme: "default", note: "", tagsText: "", visibleLinks: [] });
+const form = ref(blank());
 const editingId = ref(null);
-const editForm = ref({ name: "", note: "", theme: "default", visibleLinks: [], strapColor: "" });
+const editForm = ref(blank());
 const busy = ref(false);
 const error = ref("");
 const atLimit = computed(() => me.cards.length >= me.plan.cards);
 
-const THEMES = [
-  { value: "default", label: "Default" },
-  { value: "formal", label: "Formal" },
-  { value: "night", label: "Night" },
-];
-
-// Every link label on the profile, so a card can show a subset of them
-// (a careers-fair card shows LinkedIn + portfolio, a social one shows
-// Instagram). Empty selection = show every profile link, same as the API.
-const profileLinkLabels = computed(() => Object.keys(me.profile?.links || {}));
-
-function toggleLink(f, label) {
-  const i = f.visibleLinks.indexOf(label);
-  if (i === -1) f.visibleLinks.push(label);
-  else f.visibleLinks.splice(i, 1);
-}
+const tagList = (text) => text.split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean).slice(0, 30);
 
 onMounted(refreshMe);
 
@@ -35,15 +22,10 @@ async function createCard() {
   if (!form.value.name.trim()) return;
   busy.value = true;
   try {
-    await Api.createCard({
-      name: form.value.name,
-      theme: form.value.theme,
-      note: form.value.note,
-      tags: form.value.tagsText.split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean).slice(0, 5),
-      visibleLinks: form.value.visibleLinks,
-    });
+    const { tagsText, strapColor, ...rest } = form.value;
+    await Api.createCard({ ...rest, tags: tagList(tagsText) });
     creating.value = false;
-    form.value = { name: "", theme: "default", note: "", tagsText: "", visibleLinks: [] };
+    form.value = blank();
     await refreshMe();
   } catch (e) {
     error.value = e.message;
@@ -58,15 +40,19 @@ function startEdit(card) {
     name: card.name,
     note: card.note || "",
     theme: card.theme,
+    headline: card.headlineOverride || "",
+    about: card.aboutOverride || "",
+    tagsText: (card.tagsOverride || []).join(", "),
     visibleLinks: [...(card.visibleLinks || [])],
     strapColor: card.strapColor || "",
   };
 }
 
 async function saveEdit() {
-  const { strapColor, ...rest } = editForm.value;
+  const { strapColor, tagsText, ...rest } = editForm.value;
   // Custom colours are a Plus feature; free accounts never send the field.
-  const body = me.plan.customStrap ? { ...rest, strap_color: strapColor || "" } : rest;
+  const body = { ...rest, tags: tagList(tagsText) };
+  if (me.plan.customStrap) body.strap_color = strapColor || "";
   try {
     await Api.updateCard(editingId.value, body);
     editingId.value = null;
@@ -105,33 +91,7 @@ async function remove(card) {
     <p v-if="error && !creating && !editingId" class="error-text">{{ error }}</p>
 
     <div v-if="creating" class="list stack" style="padding:16px">
-      <div class="field"><label>Card name</label>
-        <input v-model="form.name" type="text" maxlength="24" placeholder="Careers fair" /></div>
-      <div class="field"><label>Theme</label>
-        <div class="select-wrap">
-          <select v-model="form.theme">
-            <option v-for="t in THEMES" :key="t.value" :value="t.value">{{ t.label }}</option>
-          </select>
-        </div>
-      </div>
-      <div class="field"><label>Note on the card</label>
-        <textarea v-model="form.note" maxlength="300"></textarea></div>
-      <div class="field"><label>Tags for this card (comma separated)</label>
-        <input v-model="form.tagsText" type="text" /></div>
-      <div v-if="profileLinkLabels.length" class="field">
-        <label>Links shown on this card</label>
-        <div class="chip-row">
-          <button
-            v-for="label in profileLinkLabels"
-            :key="label"
-            type="button"
-            class="chip chip-toggle"
-            :class="{ on: form.visibleLinks.includes(label) }"
-            @click="toggleLink(form, label)"
-          >{{ label }}</button>
-        </div>
-        <p class="small muted" style="margin-top:6px">Leave none selected to show every link from your profile.</p>
-      </div>
+      <CardForm v-model="form" />
       <p v-if="error" class="error-text">{{ error }}</p>
       <button class="btn btn-primary" :disabled="busy" @click="createCard">Create card</button>
     </div>
@@ -139,36 +99,8 @@ async function remove(card) {
     <div class="list">
       <div v-for="c in me.cards" :key="c.cardId" class="list-row" style="flex-direction:column;align-items:stretch;gap:8px">
         <template v-if="editingId === c.cardId">
-          <input v-model="editForm.name" type="text" maxlength="24" aria-label="Card name" />
-          <textarea v-model="editForm.note" aria-label="Note"></textarea>
-          <div class="select-wrap">
-            <select v-model="editForm.theme" aria-label="Theme">
-              <option v-for="t in THEMES" :key="t.value" :value="t.value">{{ t.label }}</option>
-            </select>
-          </div>
-          <div v-if="profileLinkLabels.length" class="chip-row">
-            <button
-              v-for="label in profileLinkLabels"
-              :key="label"
-              type="button"
-              class="chip chip-toggle"
-              :class="{ on: editForm.visibleLinks.includes(label) }"
-              @click="toggleLink(editForm, label)"
-            >{{ label }}</button>
-          </div>
-          <div class="field">
-            <label>Strap colour</label>
-            <div v-if="me.plan.customStrap" class="row">
-              <input type="color" v-model="editForm.strapColor" aria-label="Strap colour"
-                     style="width:56px;height:44px;padding:2px;flex:none" />
-              <span class="small muted" style="flex:1">{{ editForm.strapColor || "Using the theme colour" }}</span>
-              <button class="btn" style="width:auto;flex:none" type="button" @click="editForm.strapColor = ''">Reset</button>
-            </div>
-            <p v-else class="small muted" style="margin:0">
-              Custom colours are part of Lanyard Plus.
-              <router-link to="/app/settings#plus" style="text-decoration:underline">See Plus</router-link>
-            </p>
-          </div>
+          <CardForm v-model="editForm" show-strap />
+          <p v-if="error" class="error-text">{{ error }}</p>
           <div class="btn-row">
             <button class="btn btn-primary" @click="saveEdit">Save</button>
             <button class="btn" @click="editingId = null">Cancel</button>

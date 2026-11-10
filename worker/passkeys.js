@@ -14,13 +14,18 @@ import {
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { newId, newToken, now, one, run, all } from "./db.js";
 import { createSession, requireUser, HttpError } from "./session.js";
+import { notifySignIn } from "./alerts.js";
 
 const CHALLENGE_COOKIE = "lanyard_ch";
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 function rpConfig(c) {
   const origin = c.env.APP_ORIGIN || new URL(c.req.url).origin;
-  const rpId = c.env.RP_ID || new URL(c.req.url).hostname;
+  const host = new URL(c.req.url).hostname;
+  const dom = c.env.RP_DOMAIN;
+  // Passkeys are bound to the domain they were made on. The custom domain gets
+  // its own; the old workers.dev address keeps RP_ID so existing passkeys work.
+  const rpId = dom && (host === dom || host.endsWith("." + dom)) ? dom : (c.env.RP_ID || host);
   return { origins: origin.split(",").map((s) => s.trim()).filter(Boolean), rpId };
 }
 
@@ -134,5 +139,6 @@ export async function loginVerify(c, db, body) {
   await run(db, "UPDATE webauthn_credentials SET counter = ? WHERE id = ?",
     verification.authenticationInfo.newCounter, record.id);
   await createSession(c, db, record.user_id);
+  await notifySignIn(c, db, record.user_id, "passkey");
   return { userId: record.user_id };
 }

@@ -101,7 +101,7 @@ async function submitManual() {
       </div>
       <p class="small muted" style="margin:0">
         The 4-character code under their QR, or an event's 5-character code.
-        Badge codes change every few days, so ask for their current one.
+        Check the code with them, or scan their QR instead.
       </p>
       <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     </form>

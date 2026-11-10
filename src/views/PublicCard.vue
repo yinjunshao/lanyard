@@ -52,6 +52,9 @@ const p = computed(() => view.value?.profile || {});
 const first = computed(() => (p.value.name || "").split(/\s+/)[0]);
 const meta = computed(() => [p.value.course, p.value.uni, p.value.year].filter(Boolean).join(" · "));
 const links = computed(() => Object.entries(p.value.links || {}));
+// Nothing to show beyond a name: say so, rather than a page that looks broken.
+const isBare = computed(() => !view.value?.limited && !p.value.headline && !p.value.about && !meta.value && !view.value?.note
+  && !(p.value.tags || []).length && !(p.value.projects || []).length && !links.value.length);
 const connection = computed(() => view.value?.viewer?.connection || null);
 const metOn = computed(() =>
   connection.value
@@ -121,6 +124,15 @@ function vcard() {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+const selfieBusy = ref(false);
+async function selfieAction(fn) {
+  selfieBusy.value = true;
+  try { await fn(connection.value.id); await load(); } catch (e) { alert(e.message); }
+  finally { selfieBusy.value = false; }
+}
+const acceptSelfie = () => selfieAction(Api.selfieAccept);
+const removeSelfie = () => { if (confirm("Delete this selfie for both of you? The connection stays.")) selfieAction(Api.selfieRemove); };
+
 async function removeConnection() {
   if (!confirm("Remove this connection? The shared selfie is deleted for both of you.")) return;
   await Api.removeConnection(connection.value.id);
@@ -197,9 +209,28 @@ async function sendReport() {
             <img :src="connection.selfie" :alt="`Selfie of you and ${first}, taken when you met`" class="zoomable" tabindex="0" role="button" @click="openPhoto(connection.selfie, `You and ${first}`)" @keydown.enter="openPhoto(connection.selfie, `You and ${first}`)" />
             <figcaption class="label">You met on {{ metOn }}</figcaption>
           </figure>
-          <p v-else-if="connection" class="profile-met label">Connected · {{ metOn }}</p>
+          <p v-else-if="connection && !connection.selfieRequest" class="profile-met label">Connected · {{ metOn }}</p>
+          <div v-if="connection?.selfieStatus === 'request'" class="panel stack" role="status">
+            <strong>{{ first }} took a selfie with you</strong>
+            <img :src="connection.selfieRequest" :alt="`Selfie of you and ${first}`" style="max-width:100%;border-radius:8px" />
+            <p class="small muted" style="margin:0">It is only kept if you accept. If you don't answer it is deleted after 7 days.</p>
+            <div class="btn-row">
+              <button class="btn btn-primary" :disabled="selfieBusy" @click="acceptSelfie">Keep it</button>
+              <button class="btn" :disabled="selfieBusy" @click="removeSelfie">Delete it</button>
+            </div>
+          </div>
+          <p v-else-if="connection?.selfieStatus === 'pending'" class="small muted">
+            Waiting for {{ first }} to accept this selfie. If they don't, it is deleted after 7 days.
+            <button type="button" class="link-btn" :disabled="selfieBusy" @click="removeSelfie">Delete it now</button>
+          </p>
+          <button v-else-if="connection?.selfieStatus === 'accepted'" type="button" class="link-btn small" :disabled="selfieBusy" @click="removeSelfie">Remove this selfie</button>
 
           <blockquote v-if="view.note" class="profile-quote">“{{ view.note }}”</blockquote>
+
+          <p v-if="isBare" class="profile-section small muted" role="status">
+            {{ view.viewer.isOwner ? "Your card only shows your name so far." : `${first} hasn't filled in their card yet, so there's only their name for now.` }}
+            <router-link v-if="view.viewer.isOwner" to="/app/profile" class="link-btn">Add what you can help with</router-link>
+          </p>
 
           <section v-if="p.tags?.length" class="profile-section">
             <span class="label">Come to me for</span>

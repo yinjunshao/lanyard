@@ -32,6 +32,7 @@ export async function securityHeaders(c, next) {
   if (https) h.set("strict-transport-security", "max-age=31536000");
   if (!h.has("content-security-policy")) h.set("content-security-policy", CSP + (https ? "; upgrade-insecure-requests" : ""));
   h.set("x-frame-options", "DENY");
+  h.set("x-robots-tag", "noindex, nofollow"); // cards and profiles are for people with the link, not search engines
   if (path.startsWith("/api/")) {
     if (!h.has("cache-control")) h.set("cache-control", "no-store");
   } else if (path.startsWith("/assets/") && res.ok) {

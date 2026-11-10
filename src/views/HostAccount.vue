@@ -5,6 +5,9 @@ import { useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { refreshMe } from "../lib/store";
 import { registerPasskey, passkeysSupported } from "../lib/passkeys";
+import DevicesList from "../components/DevicesList.vue";
+import EmailSetup from "../components/EmailSetup.vue";
+import AuthenticatorSetup from "../components/AuthenticatorSetup.vue";
 import { drawQR } from "../lib/qr";
 import { ON_HOST_SITE } from "../lib/site";
 
@@ -15,15 +18,19 @@ const error = ref("");
 const msg = ref("");
 const me = ref(null); // /api/host/me
 const team = ref(null); // /api/host/team
+const tix = ref({ tickets: [], outgoing: [] }); // /api/host/tickets
 const host = location.host;
 
 async function load() {
   try {
     me.value = await Api.hostMe();
-    team.value = await Api.hostTeam();
-    loadInteg();
+    if (me.value.org) {
+      team.value = await Api.hostTeam();
+      if (team.value.role === "owner") tix.value = await Api.hostTickets();
+      loadInteg();
+    }
   } catch (e) {
-    if (e.code === "account_required") needsAccount.value = true;
+    if (["account_required", "profile_required", "terms_required"].includes(e.code)) needsAccount.value = true;
     else error.value = e.message;
   } finally { loading.value = false; }
 }
@@ -91,6 +98,41 @@ async function join() {
   catch (e) { error.value = e.message; }
 }
 
+// ----- hand the organisation to someone / ask an admin -----
+const approvalOrg = () => ["society", "institution"].includes(me.value?.org?.type);
+const handoverEmail = ref("");
+const ticketForm = ref({ kind: "leader_change", newEmail: "", message: "" });
+const sentTicket = ref(false);
+const TICKET_KINDS = [
+  { value: "leader_change", label: "Change the leader (someone new takes over)" },
+  { value: "email_change", label: "Change my email address" },
+  { value: "other", label: "Something else" },
+];
+async function handOver() {
+  error.value = ""; msg.value = "";
+  try {
+    await Api.hostTransfer(handoverEmail.value);
+    handoverEmail.value = "";
+    msg.value = "Sent. Nothing changes until they accept it in their host portal.";
+    tix.value = await Api.hostTickets();
+  } catch (e) { error.value = e.message; }
+}
+async function cancelHandover(t) {
+  await Api.hostCancelTransfer(t.id);
+  tix.value = await Api.hostTickets();
+}
+async function sendTicket() {
+  error.value = ""; msg.value = ""; sentTicket.value = false;
+  try {
+    const t = ticketForm.value;
+    await Api.hostCreateTicket({ kind: t.kind, newEmail: t.kind === "other" ? undefined : t.newEmail, message: t.message });
+    ticketForm.value = { kind: t.kind, newEmail: "", message: "" };
+    sentTicket.value = true;
+    tix.value = await Api.hostTickets();
+  } catch (e) { error.value = e.message; }
+}
+const TICKET_LABEL = { leader_change: "Change of leader", email_change: "Change of email", other: "Request" };
+
 // ----- integrations (owner only) -----
 const integ = ref(null);
 const hookUrl = ref("");
@@ -141,15 +183,15 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
     <div class="page-head">
       <router-link to="/host" class="small muted">‹ Host portal</router-link>
       <h1 style="margin-top:8px">Account and team</h1>
-      <p v-if="me" class="sub">{{ me.org.name }}</p>
+      <p v-if="me?.org" class="sub">{{ me.org.name }}</p>
     </div>
 
     <p v-if="loading" class="muted">Loading…</p>
 
     <section v-else-if="needsAccount" class="panel stack-2">
-      <h2>Create your host account first</h2>
+      <h2>Finish your host account first</h2>
       <p class="muted">You need a host account to manage security and your team.</p>
-      <router-link to="/host" class="btn btn-primary">Create host account</router-link>
+      <router-link to="/host" class="btn btn-primary">Go to the host portal</router-link>
       <router-link to="/host/signin" class="btn">I already have one</router-link>
     </section>
 
@@ -173,6 +215,12 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
           <button class="btn" @click="copy(recoveryKey)">Copy key</button>
         </div>
 
+        <EmailSetup />
+
+        <AuthenticatorSetup />
+
+        <DevicesList />
+
         <button v-if="!link" class="btn" @click="showLink">Sign in on another device</button>
         <div v-else class="stack" style="align-items:center;text-align:center">
           <p class="small muted">On the other device open <strong>{{ host }}/host/signin</strong> and enter this code, or scan the QR.</p>
@@ -182,7 +230,79 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
         </div>
       </section>
 
-      <section class="panel stack">
+      <section v-if="me.org" class="panel stack">
+        <span class="label">Organisation</span>
+        <div class="list">
+          <div class="list-row spread"><span class="muted">Name</span><strong>{{ me.org.name }}</strong></div>
+          <div class="list-row spread"><span class="muted">Type</span>
+            <strong>{{ { society: "Student society", institution: "Educational institution", company: "Company", individual: "Under your own name" }[me.org.type] }}</strong></div>
+          <div v-if="approvalOrg()" class="list-row spread"><span class="muted">Approval</span>
+            <strong>{{ me.org.status === "approved" ? "Approved" : me.org.status === "rejected" ? "Not approved" : "Waiting for review" }}</strong></div>
+          <div v-if="me.org.leaderName" class="list-row spread"><span class="muted">Leader</span><strong>{{ me.org.leaderName }}</strong></div>
+          <div class="list-row spread"><span class="muted">Leader and billing email</span><strong>{{ me.org.billingEmail || me.account.email }}</strong></div>
+          <div v-if="me.org.university" class="list-row spread"><span class="muted">University</span><strong>{{ me.org.university }}</strong></div>
+          <div v-if="me.org.orgLink" class="list-row spread"><span class="muted">Link</span>
+            <a :href="me.org.orgLink" target="_blank" rel="noopener" style="text-decoration:underline;overflow-wrap:anywhere;text-align:right">{{ me.org.orgLink }}</a></div>
+        </div>
+      </section>
+
+      <section v-if="me.org && team?.role === 'owner' && me.org.type !== 'individual'" class="panel stack">
+        <span class="label">{{ approvalOrg() ? "Change the leader or email" : "Hand over this organisation" }}</span>
+
+        <template v-if="!approvalOrg()">
+          <p class="small muted" style="margin:0">
+            Enter the email your colleague signed up to the host portal with. They need their own host account first,
+            and can only have one organisation. Nothing changes until they accept it; then you're back to an empty portal.
+          </p>
+          <form class="row" @submit.prevent="handOver">
+            <label for="hand-email" class="visually-hidden">Their host account email</label>
+            <input id="hand-email" v-model="handoverEmail" type="email" inputmode="email" placeholder="colleague@company.com" style="flex:1" />
+            <button class="btn" style="width:auto" type="submit" :disabled="!handoverEmail.trim()">Send</button>
+          </form>
+        </template>
+
+        <template v-else>
+          <p class="small muted" style="margin:0">
+            {{ me.org.type === "society" ? "Your society" : "Your institution" }} was approved for a particular leader, so a change goes through an admin.
+            For a new leader, they must sign up to the host portal first; once an admin approves, they press Accept to take over.
+          </p>
+          <form class="stack" @submit.prevent="sendTicket">
+            <div class="select-wrap">
+              <select v-model="ticketForm.kind" aria-label="What do you need?">
+                <option v-for="k in TICKET_KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
+              </select>
+            </div>
+            <input v-if="ticketForm.kind !== 'other'" v-model="ticketForm.newEmail" type="email" inputmode="email"
+                   :placeholder="ticketForm.kind === 'leader_change' ? 'New leader\'s university email' : 'New university email'"
+                   :aria-label="ticketForm.kind === 'leader_change' ? 'New leader email' : 'New email'" />
+            <textarea v-model="ticketForm.message" maxlength="1000" aria-label="Why"
+                      placeholder="Why the change is needed, e.g. the committee changed after elections."></textarea>
+            <button class="btn btn-primary" type="submit">Open a ticket</button>
+          </form>
+          <p v-if="sentTicket" class="success-text small" role="status">Ticket opened. We'll review it and the status shows below.</p>
+        </template>
+
+        <div v-for="o in tix.outgoing" :key="o.id" class="notice small stack">
+          <span>Waiting for <strong>{{ o.toEmail }}</strong> to accept. Sent {{ fmtDate(o.at) }}.</span>
+          <button class="btn" type="button" @click="cancelHandover(o)">Cancel</button>
+        </div>
+        <div v-if="tix.tickets.length" class="stack">
+          <span class="label">Your tickets</span>
+          <div class="list">
+            <div v-for="t in tix.tickets" :key="t.id" class="list-row" style="flex-direction:column;align-items:stretch;gap:4px">
+              <div class="spread">
+                <strong>{{ TICKET_LABEL[t.kind] }}<span v-if="t.newEmail" class="muted"> to {{ t.newEmail }}</span></strong>
+                <span class="status-pill" :class="t.status">{{ t.status }}</span>
+              </div>
+              <span class="small muted">{{ fmtDate(t.at) }} · {{ t.message }}</span>
+              <span v-if="t.adminNote" class="small">Admin: {{ t.adminNote }}</span>
+              <span v-if="t.status === 'approved' && t.kind === 'leader_change'" class="small">Approved. The new leader now needs to accept the transfer in their host portal.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="me.org" class="panel stack">
         <div class="spread">
           <span class="label">Team</span>
           <button v-if="team?.role === 'owner'" class="btn" style="width:auto" @click="newInvite">Invite a colleague</button>

@@ -8,7 +8,7 @@ export const USER_PLANS = {
   plus: { label: "Plus", cards: 12, customStrap: true },
 };
 
-export const PLUS_PRICE = { monthlyPence: 299, yearlyPence: 2400 };
+export const PLUS_PRICE = { monthlyPence: 149, yearlyPence: 1199 };
 
 export function planOf(userRow) {
   const active = userRow?.plan === "plus" && (!userRow.plan_until || userRow.plan_until > now());
@@ -20,12 +20,16 @@ export function planOf(userRow) {
 // use 2 credits, 1,000+ is quoted. `term` passes are "unlimited" for a term
 // (modelled as 99 credits that expire), fair use is 300 check-ins per event.
 export const HOST_SKUS = {
-  society_1:    { label: "1 event",           credits: 1,  days: 365, pence: 500,   audience: "society" },
-  society_5:    { label: "5 events",          credits: 5,  days: 365, pence: 2000,  audience: "society" },
-  society_term: { label: "Term pass",         credits: 99, days: 120, pence: 2500,  audience: "society" },
-  standard_1:   { label: "1 event",           credits: 1,  days: 365, pence: 2500,  audience: "standard" },
-  standard_5:   { label: "5 events",          credits: 5,  days: 365, pence: 9900,  audience: "standard" },
-  standard_15:  { label: "15 events",         credits: 15, days: 365, pence: 24900, audience: "standard" },
+  society_1:    { label: "1 event",           credits: 1,  days: 365, pence: 250,   audience: "society" },
+  society_5:    { label: "5 events",          credits: 5,  days: 365, pence: 1000,  audience: "society" },
+  society_term: { label: "Term pass",         credits: 99, days: 120, pence: 1250,  audience: "society" },
+  standard_1:   { label: "1 event",           credits: 1,  days: 365, pence: 1250,  audience: "standard" },
+  standard_5:   { label: "5 events",          credits: 5,  days: 365, pence: 4950,  audience: "standard" },
+  standard_15:  { label: "15 events",         credits: 15, days: 365, pence: 12450, audience: "standard" },
+  // Universities and other educational institutions: about 40% off standard.
+  institution_1:  { label: "1 event",   credits: 1,  days: 365, pence: 750,   audience: "institution" },
+  institution_5:  { label: "5 events",  credits: 5,  days: 365, pence: 2950,  audience: "institution" },
+  institution_15: { label: "15 events", credits: 15, days: 365, pence: 7450,  audience: "institution" },
   // Not self-serve: recorded as a request so we can quote.
   quote_service:    { label: "Careers service / students' union plan", credits: 0, days: 0, pence: 0, audience: "quote" },
   quote_enterprise: { label: "Enterprise or university licence",       credits: 0, days: 0, pence: 0, audience: "quote" },
@@ -33,3 +37,15 @@ export const HOST_SKUS = {
 
 export const FREE_EVENTS_FOR_NEW_ORG = 3;
 export const FREE_EVENT_DAYS = 365;
+
+// Organisation kinds. Societies and institutions apply and wait for an admin;
+// companies and individuals pay standard prices straight away.
+export const ORG_KINDS = ["society", "institution", "company", "individual"];
+export const NEEDS_APPROVAL = new Set(["society", "institution"]);
+
+// Student societies run for free within these limits, and buy packs beyond them.
+export const SOCIETY_FREE = { eventsPerWeek: 1, checkinCap: 200 };
+export const STANDARD_CHECKIN_CAP = 300;
+/** Societies are hard-capped at the door; everyone else is nudged at 300. */
+export const checkinCapFor = (orgType) => (orgType === "society" ? SOCIETY_FREE.checkinCap : STANDARD_CHECKIN_CAP);
+export const skuAudience = (orgType) => (orgType === "society" ? "society" : orgType === "institution" ? "institution" : "standard");

@@ -1,6 +1,7 @@
 // Offline integration harness: runs the real Worker (Hono app) against an
 // in-memory SQLite database with every migration applied, a Map-backed R2
 // bucket and a stub static-assets binding. Node 22+ (node:sqlite).
+import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -48,13 +49,14 @@ export function makeBucket() {
 }
 
 export async function makeEnv(extra = {}) {
-  const { default: worker } = await import(join(root, "worker/index.js"));
+  const { default: worker } = await import(pathToFileURL(join(root, "worker/index.js")).href);
   const env = {
     DB: makeDb(),
     MEDIA: makeBucket(),
     ASSETS: { fetch: async (req) => new Response("<!doctype html><title>app</title>", { headers: { "content-type": "text/html" } }) },
     APP_ORIGIN: "https://lanyard.test",
     RP_ID: "lanyard.test",
+    MAIL_OUTBOX: [], // sendMail() pushes here instead of calling Resend
     ...extra,
   };
   const waits = [];
@@ -106,3 +108,18 @@ export function summary() {
   if (failed) process.exitCode = 1;
 }
 export const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+// Turns a client into a host: account, Host Terms, host profile, then an
+// organisation of `kind` (default: events under their own name).
+let hostCounter = 0;
+export async function becomeHost(c, { email, kind = "individual", name = "Test Org", extra = {} } = {}) {
+  hostCounter += 1;
+  const em = email || `host${hostCounter}@work${hostCounter}.example.com`;
+  await c.post("/api/auth/recovery");
+  await c.post("/api/host/terms", { accept: true });
+  const su = await c.post("/api/host/signup", {
+    fullName: "Test Host", email: em, survey: { useCase: "Weekly socials", frequency: "Weekly or more" },
+  });
+  const org = await c.post("/api/host/orgs", { kind, name, ...extra });
+  return { email: em, signup: su, org };
+}

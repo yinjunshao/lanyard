@@ -1,3 +1,12 @@
 # Local dev secrets — copy to `.dev.vars` (gitignored). For production, use:
 #   wrangler secret put CLAUDE_API_KEY
 CLAUDE_API_KEY=your_anthropic_key_here
+# Admin page (/admin) and /api/admin/*. Production: wrangler secret put ADMIN_TOKEN
+ADMIN_TOKEN=pick_a_long_random_string
+# Encrypts authenticator-app (TOTP) secrets at rest. Production: wrangler secret put TOTP_KEY
+# (a long random string; changing it later invalidates existing authenticator setups).
+TOTP_KEY=pick_another_long_random_string
+# Resend (email). Two keys: account mail (sign-in codes) and host decisions.
+# Production: wrangler secret put RESEND_ACCOUNTS_KEY / RESEND_DECISIONS_KEY
+RESEND_ACCOUNTS_KEY=re_your_accounts_key
+RESEND_DECISIONS_KEY=re_your_decisions_key

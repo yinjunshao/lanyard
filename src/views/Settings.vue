@@ -5,6 +5,12 @@ import { me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 import { registerPasskey, passkeysSupported } from "../lib/passkeys";
 import { drawQR } from "../lib/qr";
+import ConsentHistory from "../components/ConsentHistory.vue";
+import InstallGuide from "../components/InstallGuide.vue";
+import { HELP_EMAIL } from "../lib/contact";
+import DevicesList from "../components/DevicesList.vue";
+import EmailSetup from "../components/EmailSetup.vue";
+import AuthenticatorSetup from "../components/AuthenticatorSetup.vue";
 import Icon from "../components/Icon.vue";
 import { getThemePref, setThemePref } from "../lib/theme";
 
@@ -93,7 +99,7 @@ async function erase() {
       <div class="spread">
         <span>
           <span class="label">Sign-in</span><br />
-          <strong>{{ me.user?.hasPasskey ? "Passkey saved" : me.user?.hasRecovery ? "Recovery key saved" : "Not saved yet" }}</strong>
+          <strong>{{ me.user?.hasPasskey ? "Passkey saved" : me.user?.emailVerified ? "Email saved" : me.user?.hasRecovery ? "Recovery key saved" : me.user?.hasTotp ? "Authenticator app on" : "Not saved yet" }}</strong>
         </span>
         <router-link v-if="!me.user?.hasPasskey || !me.user?.hasRecovery" to="/claim" class="btn btn-primary" style="width:auto">
           {{ me.user?.claimed ? "Add more" : "Save my card" }}
@@ -104,6 +110,12 @@ async function erase() {
       </p>
       <p v-if="me.user?.recoveryEmail" class="small muted">Recovery email: {{ me.user.recoveryEmail }}</p>
       <button v-if="!me.user?.hasPasskey && passkeysSupported()" class="btn" @click="addPasskey">Add a passkey</button>
+
+      <EmailSetup />
+
+      <AuthenticatorSetup />
+
+      <DevicesList />
 
       <template v-if="!link">
         <button class="btn" :disabled="linkBusy" @click="showLink">Sign in on another device</button>
@@ -127,6 +139,10 @@ async function erase() {
       </div>
     </div>
 
+    <section id="install" class="panel">
+      <InstallGuide />
+    </section>
+
     <section id="plus" class="panel stack-2">
       <div class="spread">
         <span class="label">Your plan</span>
@@ -136,21 +152,23 @@ async function erase() {
         <h2>Lanyard Plus</h2>
         <p class="small muted">
           One paid plan, priced for students:
-          <strong>{{ gbp(me.plan.plusPrice?.yearlyPence || 2400) }} a year</strong>
-          or {{ gbp(me.plan.plusPrice?.monthlyPence || 299) }} a month.
+          <strong>{{ gbp(me.plan.plusPrice?.yearlyPence || 1199) }} a year</strong>
+          or {{ gbp(me.plan.plusPrice?.monthlyPence || 149) }} a month.
           Everything you use today stays free.
         </p>
         <ul class="small plan-list">
           <li><strong>Up to 12 cards</strong>, one for each room you walk into (Free: {{ me.plan.freeCards || 3 }}).</li>
           <li><strong>Custom strap colours</strong> on every card.</li>
+          <li><strong>Choose your own card code</strong>, like your name, and change it once a week.</li>
           <li><strong>Coming first:</strong> card views and connection stats, CSV and vCard export of your people, your own link name, follow-up reminders.</li>
         </ul>
+        <router-link to="/redeem" class="small link-btn" style="text-align:left">Have a code? Redeem it</router-link>
         <button v-if="!me.plan.onWaitlist" class="btn btn-primary" :disabled="joining" @click="joinWaitlist">
           Tell me when Plus opens
         </button>
         <p v-else class="success-text small">You're on the list. We'll email if you've added a recovery email, otherwise you'll see it here first.</p>
       </template>
-      <p v-else class="small muted">Thanks for backing Lanyard. You have {{ me.plan.cards }} cards and custom colours.</p>
+      <p v-else class="small muted">Thanks for backing Lanyard. You have {{ me.plan.cards }} cards, custom colours and your own card codes.</p>
     </section>
 
     <div class="list">
@@ -161,6 +179,9 @@ async function erase() {
       <a class="list-row spread" :href="Api.exportUrl" target="_blank" rel="noopener">
         <span>Download my data</span><span class="muted" style="display:inline-flex"><Icon name="download" :size="18" /></span>
       </a>
+      <a class="list-row spread" :href="`mailto:${HELP_EMAIL}`">
+        <span>Get help <span class="small muted">· {{ HELP_EMAIL }}</span></span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
+      </a>
       <router-link to="/app/profile" class="list-row spread">
         <span>Edit profile</span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
       </router-link>
@@ -168,6 +189,8 @@ async function erase() {
         <span>Log out of this device</span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
       </button>
     </div>
+
+    <ConsentHistory />
 
     <details class="list" style="padding:16px">
       <summary class="error-text" style="cursor:pointer;font-weight:700">Delete account</summary>

@@ -5,6 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Lanyard" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="preload" href="/fonts/atkinson-latin.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#F4F1EA" />
@@ -12,7 +16,15 @@
     <title>Lanyard — remember everyone you meet</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app"><div class="boot" aria-hidden="true">lanyard<b>.</b></div></div>
+    <style>
+      /* Shown until the app has drawn its first page, so nobody stares at a blank screen.
+         Styles only the splash itself (never body), so it can't override the chosen theme. */
+      .boot { position: fixed; inset: 0; display: grid; place-items: center; font: 700 28px/1 system-ui, sans-serif; letter-spacing: -.02em;
+              background: #f4f1ea; color: #15130f; border-top: 6px solid #D9502B; }
+      .boot b { color: #D9502B; }
+      @media (prefers-color-scheme: dark) { .boot { background: #141311; color: #f4f1ea; } }
+    </style>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

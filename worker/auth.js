@@ -4,6 +4,7 @@
 import { one, run, now } from "./db.js";
 import { isThrottled, recordMiss } from "./codes.js";
 import { createSession, requireUser, sha256Hex } from "./session.js";
+import { notifySignIn } from "./alerts.js";
 
 export const LINK_TTL_MS = 5 * 60 * 1000;
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 symbols, so byte & 31 is unbiased
@@ -18,8 +19,9 @@ export const normaliseSecret = (raw) => String(raw || "").toUpperCase().replace(
 const throttleKeys = (c) => [`auth:ip:${c.req.header("cf-connecting-ip") || "local"}`];
 
 // Opens a session for userId and sets the cookie (hashed at rest, see session.js).
-export async function startSession(c, db, userId) {
+export async function startSession(c, db, userId, how) {
   await createSession(c, db, userId);
+  if (how) await notifySignIn(c, db, userId, how);
 }
 
 // Signed-in device asks for a code to sign in somewhere else.
@@ -52,7 +54,7 @@ export async function redeemLinkCode(c, db, raw) {
   }
   const used = await db.prepare("DELETE FROM login_codes WHERE code = ?").bind(code).run();
   if (used.meta?.changes === 0) return c.json({ error: "That code was already used.", code: "bad_code" }, 404);
-  await startSession(c, db, row.user_id);
+  await startSession(c, db, row.user_id, "one-time code");
   return c.json({ ok: true });
 }
 
@@ -84,6 +86,6 @@ export async function redeemRecoveryKey(c, db, raw) {
     await recordMiss(db, keys);
     return c.json({ error: "That recovery key doesn't match. Check for typos.", code: "bad_key" }, 404);
   }
-  await startSession(c, db, row.user_id);
+  await startSession(c, db, row.user_id, "recovery key");
   return c.json({ ok: true });
 }

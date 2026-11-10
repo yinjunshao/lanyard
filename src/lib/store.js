@@ -14,12 +14,13 @@ export const me = reactive({
 let pending = null;
 export function ensureMe() {
   if (me.loaded) return Promise.resolve(me);
-  if (!pending) pending = refreshMe().catch(() => me).finally(() => { pending = null; });
+  // The first load may be answered from the offline copy on bad signal (see sw.js).
+  if (!pending) pending = refreshMe(true).catch(() => me).finally(() => { pending = null; });
   return pending;
 }
 
-export async function refreshMe() {
-  const data = await Api.me();
+export async function refreshMe(boot = false) {
+  const data = await Api.me(boot);
   me.user = data.user;
   me.profile = data.profile;
   me.cards = data.cards || [];

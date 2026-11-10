@@ -1,11 +1,20 @@
 // Retention + erasure helpers (UK GDPR storage limitation / right to erasure).
 import { all, one, run } from "./db.js";
 import { deleteImage } from "./media.js";
+import { sendMail } from "./mail.js";
+import { inactiveEmail } from "./mail-templates.js";
+import { publicOrigin } from "./unsub.js";
 
 const DAY = 86400_000;
 export const SELFIE_MAX_AGE = 365 * DAY;
 export const GUEST_MAX_AGE = 30 * DAY;
-export const CONSENT_KEEP = 6 * 365 * DAY;
+export const CONSENT_KEEP = 6 * 365 * DAY;       // consent_log: proof of what was agreed
+export const PENDING_SELFIE_MAX_AGE = 7 * DAY;    // a shared selfie nobody accepted
+export const REPORT_KEEP = 365 * DAY;             // abuse reports about other people
+export const AUDIT_KEEP = 365 * DAY;              // admin audit log
+export const REQUEST_KEEP = 3 * 365 * DAY;        // privacy requests and complaints, after closing
+export const INACTIVE_AFTER = 730 * DAY;          // 24 months unused
+export const INACTIVE_WARNING = 30 * DAY;         // warned this long before deletion
 
 const tryDel = (env, key) => (key ? deleteImage(env, key).catch(() => {}) : null);
 
@@ -41,8 +50,13 @@ export async function eraseUser(env, userId) {
     await run(db, "DELETE FROM events WHERE org_id = ?", org_id);
     await run(db, "DELETE FROM orgs WHERE id = ?", org_id);
   }
+  // The consent history stays (it has no foreign key); record that the account went.
+  await run(db, "INSERT INTO consent_log (id, user_id, scope, action, ref, at) VALUES (?, ?, 'account', 'withdrawn', 'erased', ?)",
+    lowerHex(), userId, Date.now());
   await run(db, "DELETE FROM users WHERE id = ?", userId); // cascades the rest
 }
+
+const lowerHex = () => [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 /** Scheduled clean-up. Safe to run repeatedly. */
 export async function purgeExpired(env, ts = Date.now()) {
@@ -57,6 +71,23 @@ export async function purgeExpired(env, ts = Date.now()) {
     await run(db, "UPDATE connections SET selfie_key = NULL WHERE id = ?", c.id);
   }
   out.selfies = old.length;
+
+  // Shared selfies the second person never accepted.
+  const pending = await all(db,
+    "SELECT id, selfie_key FROM connections WHERE selfie_key IS NOT NULL AND consent_b = 0 AND selfie_at IS NOT NULL AND selfie_at < ?",
+    ts - PENDING_SELFIE_MAX_AGE);
+  for (const c of pending) {
+    await tryDel(env, c.selfie_key);
+    await run(db, "UPDATE connections SET selfie_key = NULL, selfie_by = NULL, selfie_at = NULL, consent_a = 0 WHERE id = ?", c.id);
+  }
+  out.pendingSelfies = pending.length;
+
+  await run(db, "DELETE FROM reports WHERE created_at < ?", ts - REPORT_KEEP);
+  await run(db, "DELETE FROM consent_log WHERE at < ?", ts - CONSENT_KEEP);
+  await run(db, "DELETE FROM admin_audit WHERE at < ?", ts - AUDIT_KEEP);
+  await run(db, "DELETE FROM privacy_requests WHERE status = 'closed' AND closed_at < ?", ts - REQUEST_KEEP);
+  await run(db, "DELETE FROM event_mail_log WHERE sent_at < ?", ts - 365 * DAY);
+  Object.assign(out, await expireInactive(env, ts));
 
   await run(db, "DELETE FROM sessions WHERE expires_at < ?", ts);
   await run(db, "DELETE FROM login_codes WHERE expires_at < ?", ts);
@@ -84,5 +115,31 @@ export async function purgeExpired(env, ts = Date.now()) {
       LIMIT 500`, ts - GUEST_MAX_AGE, ts);
   for (const u of stale) await run(db, "DELETE FROM users WHERE id = ?", u.id);
   out.guests = stale.length;
+  return out;
+}
+
+// Accounts nobody has used for 24 months. Anyone with a verified email gets a
+// warning 30 days before deletion; signing in at all resets the clock.
+export async function expireInactive(env, ts = Date.now()) {
+  const db = env.DB;
+  const out = { inactiveWarned: 0, inactiveDeleted: 0 };
+  const origin = publicOrigin(env);
+  const warn = await all(db,
+    `SELECT id, recovery_email AS email FROM users
+      WHERE is_guest = 0 AND last_seen_at < ? AND inactive_warned_at IS NULL AND email_verified = 1 LIMIT 200`,
+    ts - INACTIVE_AFTER + INACTIVE_WARNING);
+  for (const u of warn) {
+    try {
+      await sendMail(env, "accounts", { to: u.email, ...inactiveEmail({ origin, days: Math.round(INACTIVE_WARNING / DAY) }) });
+      await run(db, "UPDATE users SET inactive_warned_at = ? WHERE id = ?", ts, u.id);
+      out.inactiveWarned += 1;
+    } catch (e) { console.error(e); }
+  }
+  // Warned and still silent a month later, or never reachable by email.
+  const gone = await all(db,
+    `SELECT id FROM users WHERE is_guest = 0 AND last_seen_at < ?
+       AND ((inactive_warned_at IS NOT NULL AND inactive_warned_at < ?) OR email_verified = 0) LIMIT 100`,
+    ts - INACTIVE_AFTER, ts - INACTIVE_WARNING);
+  for (const u of gone) { await eraseUser(env, u.id); out.inactiveDeleted += 1; }
   return out;
 }

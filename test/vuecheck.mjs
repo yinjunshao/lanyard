@@ -29,7 +29,7 @@ for (const f of [...new Set(files)]) {
   }
   const m = /<script setup>([\s\S]*?)<\/script>/.exec(src);
   if (m) {
-    const p = join(tmp, f.replace(/[\/]/g, "_") + ".mjs");
+    const p = join(tmp, f.replace(/[\\/]/g, "_") + ".mjs");
     writeFileSync(p, m[1]);
     try { execFileSync(process.execPath, ["--check", p], { stdio: "pipe" }); }
     catch (e) { errs.push("script: " + String(e.stderr).split("\n").slice(0, 5).join(" | ")); }

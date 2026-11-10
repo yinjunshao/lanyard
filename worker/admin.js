@@ -1,0 +1,271 @@
+// Admin tool: approve society and institution applications, handle tickets.
+// Guarded by a shared secret (ADMIN_TOKEN, set with `wrangler secret put`), not
+// by a user account, so it cannot be reached from a host or personal session.
+import { Hono } from "hono";
+import { now, one, all, run } from "./db.js";
+import { sha256Hex } from "./session.js";
+import { sendMail, sendBatch, decisionEmail, ticketEmail, marketingEmail } from "./mail.js";
+import { unsubUrl } from "./unsub.js";
+import { newId } from "./db.js";
+import { peek, bump, HOUR } from "./ratelimit.js";
+import { emailProblem, emailKind, openTransfer, normEmail } from "./hostorg.js";
+
+export const adminApp = new Hono();
+
+adminApp.use("/api/admin/*", async (c, next) => {
+  const token = c.env.ADMIN_TOKEN;
+  if (!token) return c.json({ error: "Admin isn't set up. Set the ADMIN_TOKEN secret." }, 503);
+  const db = c.env.DB;
+  const key = `adm:${c.req.header("cf-connecting-ip") || "local"}`;
+  if ((await peek(db, key, HOUR)) >= 10) return c.json({ error: "Too many wrong tries. Wait an hour." }, 429);
+  const given = (c.req.header("authorization") || "").replace(/^Bearer\s+/i, "");
+  const [a, b] = await Promise.all([sha256Hex(given), sha256Hex(token)]);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < a.length && i < b.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  if (diff !== 0) {
+    await bump(db, key, HOUR);
+    return c.json({ error: "Wrong admin token." }, 401);
+  }
+  // Every admin action is logged: what was done and from where (search words are
+  // kept, since looking someone up is itself access to personal data).
+  const url = new URL(c.req.url);
+  await run(db, "INSERT INTO admin_audit (id, at, action, detail, ip) VALUES (?, ?, ?, ?, ?)",
+    newId() + newId(), now(), `${c.req.method} ${url.pathname}`, url.search.slice(0, 200) || null, c.req.header("cf-connecting-ip") || "local");
+  return next();
+});
+
+adminApp.get("/api/admin/queue", async (c) => {
+  const db = c.env.DB;
+  const orgs = await all(
+    db,
+    `SELECT o.*, u.user_id AS owner_id, hp.full_name AS owner_name, hp.email AS owner_email,
+            hp.use_case, hp.event_frequency, hp.typical_size
+     FROM orgs o
+     LEFT JOIN (SELECT org_id, user_id FROM org_members WHERE role = 'owner') u ON u.org_id = o.id
+     LEFT JOIN host_profiles hp ON hp.user_id = u.user_id
+     WHERE o.verification_status = 'pending' ORDER BY o.applied_at`
+  );
+  const tickets = await all(
+    db,
+    `SELECT t.*, o.name AS org_name, o.org_type, o.leader_name, o.leader_email
+     FROM host_tickets t JOIN orgs o ON o.id = t.org_id
+     WHERE t.status = 'open' ORDER BY t.created_at`
+  );
+  const withAccount = await Promise.all(tickets.map(async (t) => {
+    const holder = t.new_email ? await one(db, "SELECT user_id FROM host_profiles WHERE email = ?", t.new_email) : null;
+    return { ...t, accountExists: !!holder };
+  }));
+  return c.json({
+    applications: orgs.map((o) => ({
+      id: o.id, name: o.name, type: o.org_type, leaderName: o.leader_name, leaderEmail: o.leader_email,
+      emailKind: emailKind(o.leader_email), orgLink: o.org_link, university: o.university, appliedAt: o.applied_at,
+      useCase: o.use_case || null, frequency: o.event_frequency || null, size: o.typical_size || null,
+    })),
+    tickets: withAccount.map((t) => ({
+      id: t.id, kind: t.kind, orgName: t.org_name, orgType: t.org_type, leaderName: t.leader_name, leaderEmail: t.leader_email,
+      newEmail: t.new_email, newEmailKind: t.new_email ? emailKind(t.new_email) : null, accountExists: t.accountExists,
+      message: t.message, at: t.created_at,
+    })),
+  });
+});
+
+adminApp.post("/api/admin/orgs/:id/review", async (c) => {
+  const db = c.env.DB;
+  const b = await c.req.json().catch(() => ({}));
+  const decision = b.decision === "approve" ? "approved" : b.decision === "reject" ? "rejected" : null;
+  if (!decision) return c.json({ error: "decision must be approve or reject" }, 400);
+  const note = String(b.note || "").trim().slice(0, 300);
+  if (decision === "rejected" && !note) return c.json({ error: "Give a short reason so the applicant knows why." }, 400);
+  const r = await run(db, "UPDATE orgs SET verification_status = ?, reviewed_at = ?, review_note = ? WHERE id = ? AND verification_status = 'pending'",
+    decision, now(), note || null, c.req.param("id"));
+  if (!r.meta?.changes) return c.json({ error: "That application isn't waiting for review." }, 404);
+  // Tell the applicant. A mail failure must not undo the decision.
+  const org = await one(db, "SELECT name, leader_email FROM orgs WHERE id = ?", c.req.param("id"));
+  let emailed = false;
+  if (org?.leader_email) {
+    emailed = await sendMail(c.env, "decisions", {
+      to: org.leader_email,
+      ...decisionEmail({ orgName: org.name, approved: decision === "approved", note, origin: new URL(c.req.url).origin }),
+    }).then(() => true, (e) => { console.error(e); return false; });
+  }
+  return c.json({ ok: true, emailed });
+});
+
+adminApp.post("/api/admin/tickets/:id/resolve", async (c) => {
+  const db = c.env.DB;
+  const t = await one(db, "SELECT * FROM host_tickets WHERE id = ? AND status = 'open'", c.req.param("id"));
+  if (!t) return c.json({ error: "That ticket isn't open." }, 404);
+  const org = await one(db, "SELECT * FROM orgs WHERE id = ?", t.org_id);
+  const b = await c.req.json().catch(() => ({}));
+  const note = String(b.note || "").trim().slice(0, 300);
+  // Tell the leader how it went; a mail failure must not undo the decision.
+  const done = async (status) => {
+    await run(db, "UPDATE host_tickets SET status = ?, admin_note = ?, resolved_at = ? WHERE id = ?", status, note || null, now(), t.id);
+    if (status !== "resolved" && org?.leader_email) {
+      await sendMail(c.env, "decisions", {
+        to: org.leader_email,
+        ...ticketEmail({ orgName: org.name, approved: status === "approved", note, origin: new URL(c.req.url).origin }),
+      }).catch((e) => console.error(e));
+    }
+  };
+
+  if (b.decision === "reject") {
+    if (!note) return c.json({ error: "Give a short reason." }, 400);
+    await done("rejected");
+    return c.json({ ok: true });
+  }
+  if (b.decision !== "approve") return c.json({ error: "decision must be approve or reject" }, 400);
+
+  if (t.kind === "leader_change") {
+    const target = await one(db, "SELECT * FROM host_profiles WHERE email = ?", normEmail(t.new_email));
+    if (!target) return c.json({ error: "No host account uses that email yet. Ask them to sign up first." }, 409);
+    const elsewhere = await one(db, "SELECT 1 AS x FROM org_members WHERE user_id = ? AND org_id != ?", target.user_id, org.id);
+    if (elsewhere) return c.json({ error: "That account already belongs to another organisation." }, 409);
+    const bad = emailProblem(org.org_type, target.email);
+    if (bad) return c.json({ error: bad }, 400);
+    const owner = await one(db, "SELECT user_id FROM org_members WHERE org_id = ? AND role = 'owner'", org.id);
+    // The new leader still has to press Accept.
+    await openTransfer(db, org, owner?.user_id || null, target);
+    await done("approved");
+    return c.json({ ok: true, next: "transfer_sent" });
+  }
+  if (t.kind === "email_change") {
+    const email = normEmail(t.new_email);
+    const bad = emailProblem(org.org_type, email);
+    if (bad) return c.json({ error: bad }, 400);
+    const holder = await one(db, "SELECT user_id FROM host_profiles WHERE email = ?", email);
+    if (holder && holder.user_id !== t.user_id) return c.json({ error: "A different host account already uses that email." }, 409);
+    await db.batch([
+      db.prepare("UPDATE host_profiles SET email = ? WHERE user_id = ?").bind(email, t.user_id),
+      db.prepare("UPDATE orgs SET leader_email = ?, billing_email = ? WHERE id = ?").bind(email, email, org.id),
+    ]);
+    await done("approved");
+    return c.json({ ok: true });
+  }
+  await done("resolved");
+  return c.json({ ok: true });
+});
+
+// Account recovery for people who signed up with nothing but a cookie. Find them
+// by name / university / card code, check it's really them, then give them a
+// one-time sign-in code (30 minutes) to type on /signin.
+adminApp.get("/api/admin/users", async (c) => {
+  const q = String(c.req.query("q") || "").trim().slice(0, 60);
+  if (q.length < 2) return c.json({ users: [] });
+  const like = `%${q.replace(/[%_]/g, "")}%`;
+  const users = await all(c.env.DB,
+    `SELECT u.id, u.created_at, u.recovery_email, u.email_verified, u.has_passkey, u.has_totp, p.name, p.uni, p.course,
+            (SELECT MAX(created_at) FROM sessions s WHERE s.user_id = u.id) AS last_seen
+     FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+     WHERE p.name LIKE ? OR p.uni LIKE ? OR u.recovery_email LIKE ? OR u.id = ?
+        OR EXISTS (SELECT 1 FROM cards k WHERE k.user_id = u.id AND k.code = ?)
+     ORDER BY u.created_at DESC LIMIT 20`, like, like, like, q.toLowerCase(), q.toUpperCase());
+  return c.json({ users });
+});
+
+adminApp.post("/api/admin/users/:id/signin-code", async (c) => {
+  const db = c.env.DB;
+  const user = await one(db, "SELECT id FROM users WHERE id = ?", c.req.param("id"));
+  if (!user) return c.json({ error: "No such user." }, 404);
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const code = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => alphabet[b & 31]).join("");
+  const ts = now();
+  await run(db, "DELETE FROM login_codes WHERE user_id = ? OR expires_at < ?", user.id, ts);
+  await run(db, "INSERT INTO login_codes (code, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)", code, user.id, ts, ts + 30 * 60 * 1000);
+  return c.json({ code: `${code.slice(0, 4)}-${code.slice(4)}`, expiresInMinutes: 30 });
+});
+
+// Promo codes (/redeem). Codes are upper-case letters and numbers.
+adminApp.get("/api/admin/promos", async (c) => {
+  const { results } = await c.env.DB.prepare("SELECT * FROM promo_codes ORDER BY created_at DESC").all();
+  return c.json({ promos: results || [] });
+});
+
+adminApp.post("/api/admin/promos", async (c) => {
+  const db = c.env.DB;
+  const b = await c.req.json().catch(() => ({}));
+  const code = String(b.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const days = Math.round(Number(b.days));
+  const maxUses = b.maxUses === "" || b.maxUses == null ? null : Math.round(Number(b.maxUses));
+  const expiresAt = b.expiresAt ? Number(new Date(b.expiresAt)) : null;
+  if (code.length < 4 || code.length > 24) return c.json({ error: "Code: 4 to 24 letters or numbers." }, 400);
+  if (!(days >= 1 && days <= 3650)) return c.json({ error: "Days: 1 to 3650." }, 400);
+  if (maxUses != null && !(maxUses >= 1 && maxUses <= 1e6)) return c.json({ error: "Limit: a positive number, or blank for no limit." }, 400);
+  if (expiresAt != null && !(expiresAt > now())) return c.json({ error: "The end date must be in the future." }, 400);
+  if (await one(db, "SELECT code FROM promo_codes WHERE code = ?", code)) return c.json({ error: "That code already exists." }, 409);
+  await run(db, "INSERT INTO promo_codes (code, reward, days, max_uses, expires_at, note, created_at) VALUES (?, 'plus', ?, ?, ?, ?, ?)",
+    code, days, maxUses, expiresAt, String(b.note || "").slice(0, 200) || null, now());
+  return c.json({ ok: true, code });
+});
+
+adminApp.post("/api/admin/promos/:code/active", async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  await run(c.env.DB, "UPDATE promo_codes SET active = ? WHERE code = ?", b.active ? 1 : 0, c.req.param("code"));
+  return c.json({ ok: true });
+});
+
+// News and offers: only to people who ticked the box and have a verified email.
+// With `testTo` it sends one copy to that address and nothing else. A real send
+// handles up to 800 people per call; call again with the returned id to continue.
+adminApp.post("/api/admin/broadcast", async (c) => {
+  const db = c.env.DB;
+  const b = await c.req.json().catch(() => ({}));
+  const subject = String(b.subject || "").trim().slice(0, 150);
+  const body = String(b.body || "").trim().slice(0, 8000);
+  if (!subject || !body) return c.json({ error: "Add a subject and a message." }, 400);
+  const mk = async (userId) => ({ ...marketingEmail({ subject, body, unsubUrl: await unsubUrl(c, userId) }) });
+
+  if (b.testTo) {
+    const to = String(b.testTo).trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return c.json({ error: "That test address doesn't look right." }, 400);
+    await sendBatch(c.env, "accounts", [{ to, ...(await mk("0000000000")), subject: `[TEST] ${subject}` }]);
+    return c.json({ ok: true, test: true });
+  }
+
+  let id = String(b.id || "");
+  if (id) {
+    const known = await one(db, "SELECT id FROM broadcasts WHERE id = ?", id);
+    if (!known) return c.json({ error: "Unknown broadcast." }, 404);
+  } else {
+    id = newId();
+    await run(db, "INSERT INTO broadcasts (id, subject, body, created_at) VALUES (?, ?, ?, ?)", id, subject, body, now());
+  }
+  const people = await all(db,
+    `SELECT u.id, u.recovery_email AS email FROM users u
+     WHERE u.marketing_optin = 1 AND u.email_verified = 1
+       AND NOT EXISTS (SELECT 1 FROM broadcast_sends s WHERE s.broadcast_id = ? AND s.user_id = u.id)
+     ORDER BY u.id LIMIT 800`, id);
+  const stored = await one(db, "SELECT subject, body FROM broadcasts WHERE id = ?", id);
+  const msgs = [];
+  for (const p of people) msgs.push({ to: p.email, ...marketingEmail({ subject: stored.subject, body: stored.body, unsubUrl: await unsubUrl(c, p.id) }) });
+  try { await sendBatch(c.env, "accounts", msgs); }
+  catch (e) { console.error(e); return c.json({ error: "Sending failed part-way. Run it again to continue; nobody is sent twice." }, 502); }
+  const ts = now();
+  for (let i = 0; i < people.length; i += 50) {
+    await db.batch(people.slice(i, i + 50).map((p) => db.prepare("INSERT OR IGNORE INTO broadcast_sends (broadcast_id, user_id, sent_at) VALUES (?, ?, ?)").bind(id, p.id, ts)));
+  }
+  const left = await one(db,
+    `SELECT COUNT(*) AS n FROM users u WHERE u.marketing_optin = 1 AND u.email_verified = 1
+       AND NOT EXISTS (SELECT 1 FROM broadcast_sends s WHERE s.broadcast_id = ? AND s.user_id = u.id)`, id);
+  return c.json({ ok: true, id, sent: people.length, remaining: left?.n || 0 });
+});
+
+// Privacy requests and complaints: oldest deadline first.
+adminApp.get("/api/admin/privacy-requests", async (c) => {
+  const rows = await all(c.env.DB,
+    "SELECT * FROM privacy_requests WHERE status = 'open' ORDER BY respond_by LIMIT 100");
+  return c.json({ requests: rows.map((r) => ({
+    id: r.id, kind: r.kind, email: r.email, message: r.message, createdAt: r.created_at, respondBy: r.respond_by,
+    acknowledged: !!r.acknowledged_at, overdue: r.respond_by < now(), userId: r.user_id,
+  })) });
+});
+
+adminApp.post("/api/admin/privacy-requests/:id/close", async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  const outcome = String(b.outcome || "").trim().slice(0, 500);
+  if (!outcome) return c.json({ error: "Write down the outcome." }, 400);
+  const r = await run(c.env.DB, "UPDATE privacy_requests SET status = 'closed', closed_at = ?, outcome = ? WHERE id = ? AND status = 'open'",
+    now(), outcome, c.req.param("id"));
+  if (!r.meta?.changes) return c.json({ error: "That request isn't open." }, 404);
+  return c.json({ ok: true });
+});

@@ -127,6 +127,7 @@ const fmt = (t) =>
           <span class="small muted" style="display:block">
             {{ [r.peer.course, r.peer.uni].filter(Boolean).join(" · ") || r.peer.headline }}
           </span>
+          <span v-if="r.selfieStatus === 'request'" class="small" style="display:block;color:var(--strap-deep);font-weight:700">Selfie waiting for you</span>
           <span v-if="needsFollowUp(r)" class="small" style="display:block;color:var(--strap-deep);font-weight:700">Follow up {{ relDay(r.remindAt) }}</span>
           <span v-if="hint" class="small search-hint">
             <span class="label">{{ hint.label }}</span>

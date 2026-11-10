@@ -18,6 +18,13 @@ export function recordConsentStmt(db, userId, scope) {
   ).bind(newId(), userId, scope, now());
 }
 
+// Append-only history (consent_log) that outlives the account: what was agreed
+// or withdrawn, and when. Kept 6 years as proof (see purge.js).
+export function logConsentStmt(db, userId, scope, action = "granted", ref = null) {
+  return db.prepare("INSERT INTO consent_log (id, user_id, scope, action, ref, at) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(newId() + newId(), userId, scope, action, ref, now());
+}
+
 export async function recordConsent(db, userId, scope) {
-  await recordConsentStmt(db, userId, scope).run();
+  await db.batch([recordConsentStmt(db, userId, scope), logConsentStmt(db, userId, scope)]);
 }

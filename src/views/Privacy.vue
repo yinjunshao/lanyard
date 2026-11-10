@@ -2,8 +2,10 @@
 // Privacy Policy (UK GDPR). Bracketed items are for the operator to fill in before launch.
 const OPERATOR = "ARCK Softworks";
 const ADDRESS = "WC1E 6BT";
-const CONTACT = "yinjun@arck.industries";
-const UPDATED = "27 October 2026";
+import { HELP_EMAIL, LEGAL_EMAIL } from "../lib/contact";
+const CONTACT = LEGAL_EMAIL;
+const HELP = HELP_EMAIL;
+const UPDATED = "6 November 2026";
 </script>
 
 <template>
@@ -28,10 +30,12 @@ const UPDATED = "27 October 2026";
         <tr><td>Users</td><td>Connections you make, which card was scanned, optional note, private notes, messages, and shared selfies</td><td>To keep your connections and let both people see them</td></tr>
         <tr><td>Users</td><td>Event check-ins, answers to optional questions, and your optional directory and sponsor choices</td><td>To join events and respect your choices</td></tr>
         <tr><td>Users</td><td>Your private follow-up reminders and the tags you put on your connections</td><td>So you can remember who to follow up with; only you see them</td></tr>
+        <tr><td>Users</td><td>Promo codes you redeem, when, and your place in the queue for that code</td><td>To give out limited offers fairly, one per person (this is why redeeming needs a confirmed email)</td></tr>
         <tr><td>Users</td><td>Event feedback answers (ratings, choices and optional written answers), stored without your name or account, plus a separate record that you have answered</td><td>To give organisers anonymous feedback, and to ask you only once</td></tr>
-        <tr><td>Everyone</td><td>Session cookie or device token, passkey public key, hashed recovery key, sign-in codes (short-lived), and records of your terms and consent choices</td><td>To keep you signed in, secure your account, and prove what you agreed to</td></tr>
+        <tr><td>Everyone</td><td>Session cookie or device token, passkey public key, hashed recovery key, sign-in codes (short-lived), and, if you add them, your verified email address (we email you a note when someone signs in, and one reminder per event you checked in to asking for feedback, which you can switch off) and your authenticator-app secret (stored encrypted), and records of your terms and consent choices</td><td>To keep you signed in, secure your account, and prove what you agreed to</td></tr>
+        <tr><td>Users</td><td>Reports you make about another person (the reason you write) and people you block</td><td>To keep people safe and keep blocks working; only our admin can read reports</td></tr>
         <tr><td>Everyone</td><td>IP address and basic request data, kept briefly in rate-limit counters and security logs</td><td>To stop abuse and guessing of codes</td></tr>
-        <tr><td>Hosts</td><td>Organisation name and type, billing email, team members and roles, events you create, credits and invoice requests</td><td>To run the host portal and bill you</td></tr>
+        <tr><td>Hosts</td><td>Your full name and email, your answers to the sign-up questions, organisation name and type, for societies and institutions the leader's name, the society or institution link and university, billing email, ownership transfers and support tickets, team members and roles, events you create, credits and invoice requests</td><td>To run the host portal and bill you</td></tr>
         <tr><td>Hosts</td><td>Integration settings: a webhook address and its signing secret, and a one-way hash of your API key; sign-up counts you send us</td><td>To connect Lanyard to your other tools</td></tr>
       </tbody>
     </table>
@@ -43,16 +47,16 @@ const UPDATED = "27 October 2026";
     <h2>3. Why we may use it (lawful bases)</h2>
     <ul>
       <li><b>Contract</b>: running your account, card, connections and events, which you asked us to provide.</li>
-      <li><b>Consent</b>: shared selfies, appearing in an event directory, and sharing details with a named sponsor. You can withdraw these at any time and it is as easy to withdraw as to give.</li>
+      <li><b>Consent</b>: news and offers by email (a separate tick box, off by default), shared selfies, appearing in an event directory, and sharing details with a named sponsor. You can withdraw these at any time and it is as easy to withdraw as to give.</li>
       <li><b>Legitimate interests</b>: keeping the service secure, preventing abuse, and counting usage in aggregate. We weigh this against your rights and you can object.</li>
       <li><b>Legal obligation</b>: keeping financial records, and responding to lawful requests.</li>
     </ul>
 
     <h2>4. Who sees your data</h2>
     <ul>
-      <li><b>Other users</b> see what is on the card you share, and what you choose to show in a connection. A private profile shows only a limited view.</li>
+      <li><b>Other users</b> see what is on the card you share, and what you choose to show in a connection.</li>
       <li><b>Hosts</b> only receive anonymous, aggregated figures about their events. They are not told who attended by name or who connected with whom. Feedback reaches them only as totals once at least 3 people have answered, and written answers only once at least 5 have, without names. Sponsors only receive details you opted in to share with that named sponsor.</li>
-      <li><b>Our service providers</b> process data for us under contract. Today that is Cloudflare, which hosts the app, database and image storage. If we add payments or email, we will name those providers here first.</li>
+      <li><b>Our service providers</b> process data for us under contract. Today that is Cloudflare, which hosts the app, database and image storage. Resend sends our emails (sign-in codes, account and host application messages, and news if you opt in), so your email address and the message go to them. If we add payments or other providers, we will name them here first.</li>
       <li><b>Hosts' own tools</b>: if a host connects a webhook, we send it the same anonymous event totals they see in their report, never personal data.</li>
       <li>We may disclose data where the law requires it, or to protect people from serious harm.</li>
       <li>We never sell your data.</li>
@@ -69,11 +73,18 @@ const UPDATED = "27 October 2026";
       <thead><tr><th>Data</th><th>Kept for</th></tr></thead>
       <tbody>
         <tr><td>Profile, card, connections, notes</td><td>Until you delete them or your account</td></tr>
-        <tr><td>Shared selfies</td><td>Until either person deletes the connection, and no more than 12 months after it was taken</td></tr>
-        <tr><td>Sign-in codes</td><td>5 minutes, single use</td></tr>
+        <tr><td>Shared selfies</td><td>7 days if the other person has not accepted it, then deleted. Once accepted, until either person removes it or the connection, and no more than 12 months after it was taken</td></tr>
+        <tr><td>Sign-in codes</td><td>5 to 10 minutes, single use</td></tr>
+        <tr><td>Your email address</td><td>Until you delete your account. News emails stop as soon as you untick the box or use the unsubscribe link</td></tr>
         <tr><td>Rate-limit counters, expired sessions</td><td>Days; removed automatically</td></tr>
         <tr><td>Unclaimed guest sessions with no profile</td><td>Removed automatically after a period of inactivity</td></tr>
-        <tr><td>Consent and terms records</td><td>While your account exists, then up to 6 years as proof of what you agreed to</td></tr>
+        <tr><td>Consent history (what you agreed to or withdrew, and when; not your profile)</td><td>6 years, kept after your account is deleted, as proof of what you agreed to</td></tr>
+        <tr><td>Reports you make about other people, with your reason</td><td>12 months</td></tr>
+        <tr><td>Blocks</td><td>While both accounts exist</td></tr>
+        <tr><td>Privacy requests and complaints</td><td>3 years after we close them</td></tr>
+        <tr><td>Admin access log (who looked up what)</td><td>12 months</td></tr>
+        <tr><td>Accounts nobody has used</td><td>24 months. If you have a verified email we warn you 30 days before we delete it; signing in once keeps it</td></tr>
+        <tr><td>Database backups</td><td>Short-term point-in-time backups by our database provider, up to 30 days, after which deleted data is gone from them too</td></tr>
         <tr><td>Host invoices and billing records</td><td>6 years, as the law requires</td></tr>
         <tr><td>Follow-up reminders and your tags</td><td>Until you remove them, the connection, or your account</td></tr>
         <tr><td>Written feedback answers</td><td>12 months, then removed automatically; anonymous ratings and choices are kept so organisers can compare events</td></tr>
@@ -92,9 +103,11 @@ const UPDATED = "27 October 2026";
       <li>not be subject to decisions made only by automated means with legal or similar effects. We do not make any.</li>
     </ul>
     <p>
-      Hosts can use the same rights for their own account data by emailing us. To use any right, use Settings or email
-      <a :href="`mailto:${CONTACT}`">{{ CONTACT }}</a>. We aim to reply within one month. If you are unhappy with how we handled your data,
-      you can complain to the Information Commissioner's Office (<a href="https://ico.org.uk" rel="noopener">ico.org.uk</a>, 0303 123 1113).
+      Hosts have the same rights over their own account data (name, email, sign-up answers, billing requests and tickets).
+      Use Settings, or <router-link to="/privacy-request">send us a request or complaint</router-link>, which needs no account. We email an
+      acknowledgement straight away, log every request, and answer within one month (30 days for a complaint, and sooner where we can).
+      You can also write to <a :href="`mailto:${CONTACT}`">{{ CONTACT }}</a>. If you are unhappy with how we handled your data, you can
+      complain to the Information Commissioner's Office (<a href="https://ico.org.uk" rel="noopener">ico.org.uk</a>, 0303 123 1113).
     </p>
 
     <h2>8. Event feedback</h2>
@@ -107,8 +120,10 @@ const UPDATED = "27 October 2026";
 
     <h2>8a. Shared selfies and other people's data</h2>
     <p>
-      A shared selfie can show someone else. We store it only because both people connected, and either of them can
-      delete it, which deletes it for both. If you appear in a photo you did not agree to, tell us and we will remove it.
+      A shared selfie can show someone else. The person who takes it confirms everyone in it agrees, and the other person then
+      has to accept it in the app before it is kept. Until they do it is only a request to them (they can see it to decide), and
+      we delete it after 7 days. Either person can remove it at any time, which deletes it for both, and the connection stays.
+      If you appear in a photo you did not agree to, tell us and we will remove it.
     </p>
 
     <h2>9. Children</h2>

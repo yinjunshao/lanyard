@@ -6,7 +6,7 @@ const portal = `${HOST_ORIGIN}/host`;
 
 <template>
   <div class="wide-col stack-2" style="max-width:760px">
-    <router-link to="/" class="wordmark">lanyard<b>.</b></router-link>
+    <router-link to="/" class="wordmark wordmark-host"><img src="/host-icon.svg" alt="" />lanyard<b>.</b><small>host</small></router-link>
 
     <h1 style="font-size:40px;margin-top:24px">
       Know who actually came — and who they met.
@@ -31,33 +31,43 @@ const portal = `${HOST_ORIGIN}/host`;
 
     <h2 style="margin-top:28px">Early pricing</h2>
     <p class="small muted" style="margin:0">
-      Attendees always use Lanyard for free. These are launch prices; societies
-      get the first 3 events on us.
+      Attendees always use Lanyard for free. Student societies and educational
+      institutions apply for approval first, using a university email.
     </p>
     <div class="price-grid">
       <div class="price-card featured">
         <strong>Student societies</strong>
-        <span class="price">£5</span>
-        <span class="per">per event, after 3 free</span>
+        <span class="price">Free</span>
+        <span class="per">1 event a week, up to 200 check-ins</span>
         <ul>
-          <li>5 events for £20</li>
-          <li>Term pass £25, unlimited events</li>
+          <li>More events: £2.50 each, 5 for £10</li>
+          <li>Term pass £12.50, unlimited events</li>
           <li>Live room, album and report</li>
         </ul>
       </div>
       <div class="price-card">
-        <strong>Organisers</strong>
-        <span class="price">£25</span>
+        <strong>Universities and institutions</strong>
+        <span class="price">£7.50</span>
         <span class="per">per event of up to 300 check-ins</span>
         <ul>
-          <li>5 events £99, 15 events £249</li>
+          <li>5 events £29.50, 15 events £74.50</li>
+          <li>Discounted education pricing</li>
+          <li>Approval and a university email needed</li>
+        </ul>
+      </div>
+      <div class="price-card">
+        <strong>Companies and organisers</strong>
+        <span class="price">£12.50</span>
+        <span class="per">per event of up to 300 check-ins</span>
+        <ul>
+          <li>5 events £49.50, 15 events £124.50</li>
           <li>Your branding and perks</li>
           <li>Sponsor opt-in leads</li>
         </ul>
       </div>
       <div class="price-card">
         <strong>Careers services and unions</strong>
-        <span class="price">From £300</span>
+        <span class="price">From £150</span>
         <span class="per">per term</span>
         <ul>
           <li>Unlimited events and team seats</li>

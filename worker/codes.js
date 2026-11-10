@@ -1,18 +1,22 @@
-// Card codes: the 4-character "scan to connect" code.
+// Card codes: the short code you type under Scan when a QR won't scan.
 //
-// A code is a second way to reach a card, so it has to be harder to abuse than
-// the 10-hex card link it stands in for:
-//   - it ROTATES (every CODE_TTL_MS); the previous code keeps working for
-//     CODE_GRACE_MS so nobody mid-conversation is cut off
-//   - a wrong guess is counted per IP and per session, and too many wrong
-//     guesses lock lookups for a few minutes
+// A card's code is PERMANENT, so it can be printed on a badge or a slide.
+//   - the owner can swap it for a new random one (e.g. it was posted somewhere
+//     they didn't want); the old one stops working straight away
+//   - Plus members can choose their own code, once every CUSTOM_EVERY_MS; the
+//     old one keeps working for OLD_CODE_GRACE_MS so printed badges still land
+//   - a retired code is held for CODE_HOLD_MS before anyone else can take it,
+//     so an old badge never quietly opens a stranger's card
+//   - wrong guesses are counted per IP and per session, and too many lock
+//     lookups for a few minutes (codes are short, so this matters)
 //   - only the owner is ever sent the code; the public card JSON omits it
-// Rotation is lazy (no cron): a card's code is renewed the next time its owner
-// loads their cards, and an expired code simply stops resolving.
 import { now, one, all, run, randomCode } from "./db.js";
 
-export const CODE_TTL_MS = 3 * 24 * 60 * 60 * 1000; // rotate every 3 days
-export const CODE_GRACE_MS = 6 * 60 * 60 * 1000; // old code still works for 6h
+export const FOREVER = 9007199254740991;
+export const OLD_CODE_GRACE_MS = 30 * 24 * 60 * 60 * 1000; // a changed custom code still works for 30 days
+export const CODE_HOLD_MS = 180 * 24 * 60 * 60 * 1000;     // and nobody else can take it for 6 months
+export const CUSTOM_EVERY_MS = 7 * 24 * 60 * 60 * 1000;    // Plus: choose a code once a week
+export const CUSTOM_MIN = 4, CUSTOM_MAX = 8;
 export const MISS_LIMIT = 10; // wrong guesses allowed ...
 export const MISS_WINDOW_MS = 10 * 60 * 1000; // ... per 10 minutes
 
@@ -20,71 +24,123 @@ export function normaliseCode(raw) {
   return String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+// Is this code free for `cardId` to use? Held/retired codes of other cards,
+// live cards and event check-in codes all count as taken.
+async function codeTaken(db, code, cardId = null) {
+  const hit = await one(
+    db,
+    `SELECT 1 AS x FROM card_codes WHERE code = ? AND card_id IS NOT ?
+     UNION SELECT 1 FROM cards WHERE code = ? AND id IS NOT ?
+     UNION SELECT 1 FROM events WHERE code = ?`,
+    code, cardId, code, cardId, code
+  );
+  return !!hit;
+}
+export const isCodeTaken = codeTaken;
+
 async function allocCardCode(db) {
   for (let i = 0; i < 25; i++) {
     const code = randomCode(4);
-    const hit = await one(
-      db,
-      "SELECT 1 AS x FROM card_codes WHERE code = ? UNION SELECT 1 FROM cards WHERE code = ?",
-      code, code
-    );
-    if (!hit) return code;
+    if (!(await codeTaken(db, code))) return code;
   }
   throw new Error("could not allocate card code");
 }
 
 // For code paths that INSERT a brand-new card: returns the code plus the extra
 // statement that registers it. Usage: insert the card with `code` and
-// `code_rotates_at`, and add `parts.registerStmt(cardId)` to the same batch.
+// `code_rotates_at` (always null now), and add `registerStmt(cardId)` to the batch.
 export async function newCardCode(db) {
   const code = await allocCardCode(db);
-  const ts = now();
   return {
     code,
-    rotatesAt: ts + CODE_TTL_MS,
+    rotatesAt: null,
     registerStmt: (cardId) =>
-      db.prepare("INSERT INTO card_codes (code, card_id, valid_until) VALUES (?, ?, ?)")
-        .bind(code, cardId, ts + CODE_TTL_MS + CODE_GRACE_MS),
+      db.prepare("INSERT OR REPLACE INTO card_codes (code, card_id, valid_until) VALUES (?, ?, ?)")
+        .bind(code, cardId, FOREVER),
   };
 }
 
-// Replace a card's code. `immediate` kills the old code on the spot (the
-// owner pressed "New code now" because it leaked); otherwise it lingers for
-// the grace period.
-export async function rotateCardCode(db, card, { immediate = false } = {}) {
+// Statements that move `card` from its current code to `code`. The old code
+// stops resolving at `oldUntil` and is held for CODE_HOLD_MS after that.
+function switchStmts(db, card, code, oldUntil, extraSet = "") {
   const ts = now();
-  const code = await allocCardCode(db);
-  const rotatesAt = ts + CODE_TTL_MS;
   const stmts = [];
-  if (card.code) {
-    // Cards imported from v1 have a code but no card_codes row yet.
+  if (card.code && card.code !== code) {
     stmts.push(
-      db.prepare("INSERT OR IGNORE INTO card_codes (code, card_id, valid_until) VALUES (?, ?, ?)")
-        .bind(card.code, card.id, ts + CODE_GRACE_MS)
+      db.prepare("INSERT OR REPLACE INTO card_codes (code, card_id, valid_until) VALUES (?, ?, ?)")
+        .bind(card.code, card.id, oldUntil)
     );
   }
   stmts.push(
-    db.prepare("UPDATE card_codes SET valid_until = MIN(valid_until, ?) WHERE card_id = ?")
-      .bind(immediate ? ts : ts + CODE_GRACE_MS, card.id),
-    db.prepare("INSERT INTO card_codes (code, card_id, valid_until) VALUES (?, ?, ?)")
-      .bind(code, card.id, rotatesAt + CODE_GRACE_MS),
-    db.prepare("UPDATE cards SET code = ?, code_rotates_at = ? WHERE id = ?")
-      .bind(code, rotatesAt, card.id),
-    db.prepare("DELETE FROM card_codes WHERE valid_until < ?").bind(ts)
+    // Any earlier codes of this card that were still live forever: end them too.
+    db.prepare("UPDATE card_codes SET valid_until = MIN(valid_until, ?) WHERE card_id = ? AND code <> ?")
+      .bind(oldUntil, card.id, code),
+    db.prepare("INSERT OR REPLACE INTO card_codes (code, card_id, valid_until) VALUES (?, ?, ?)")
+      .bind(code, card.id, FOREVER),
+    db.prepare(`UPDATE cards SET code = ?, code_rotates_at = NULL${extraSet} WHERE id = ?`)
+      .bind(code, card.id),
+    db.prepare("DELETE FROM card_codes WHERE valid_until < ?").bind(ts - CODE_HOLD_MS)
   );
-  await db.batch(stmts);
-  return { code, rotatesAt };
+  return stmts;
 }
 
-// Renew any stale codes in a list of card rows (mutates them).
-export async function freshenCards(db, cards) {
+// "Replace with a random code": the old code dies on the spot.
+export async function rotateCardCode(db, card) {
+  const code = await allocCardCode(db);
+  await db.batch(switchStmts(db, card, code, now()));
+  return { code, rotatesAt: null };
+}
+
+const RESERVED = new Set([
+  "ADMIN", "ADMINS", "ROOT", "STAFF", "SUPPORT", "HELP", "HELPDESK", "LANYARD", "LANYD", "OFFICIAL",
+  "SECURITY", "MOD", "MODS", "MODERATOR", "HOST", "HOSTS", "EVENT", "EVENTS", "SCAN", "LOGIN", "SIGNIN",
+  "PASSWORD", "VERIFY", "UCL", "UCLSU", "NULL", "UNDEFINED", "TEST",
+]);
+// Not a full filter: catches the obvious ones. Reports cover the rest.
+const BLOCKED = ["FUCK", "SHIT", "CUNT", "NIGG", "FAG", "RAPE", "NAZI", "PORN", "SLUT", "WHORE", "KILL", "DICK", "COCK", "PUSSY", "BITCH", "WANK", "TWAT"];
+
+export function checkCustomCode(raw) {
+  const code = normaliseCode(raw);
+  if (code.length < CUSTOM_MIN || code.length > CUSTOM_MAX) {
+    return { error: `Use ${CUSTOM_MIN} to ${CUSTOM_MAX} letters or numbers.` };
+  }
+  if (!/[A-Z]/.test(code)) return { error: "Include at least one letter." };
+  if (RESERVED.has(code)) return { error: "That code is reserved. Try another." };
+  const plain = code.replace(/0/g, "O").replace(/1/g, "I").replace(/3/g, "E").replace(/4/g, "A").replace(/5/g, "S").replace(/7/g, "T");
+  if (BLOCKED.some((w) => plain.includes(w))) return { error: "That code isn't allowed. Try another." };
+  return { code };
+}
+
+// Plus: choose your own code. Caller checks the plan and the weekly limit.
+export async function setCustomCode(db, card, code) {
+  if (card.code === code) return { code, same: true };
+  if (await codeTaken(db, code, card.id)) return { error: "Someone already has that code. Try another.", taken: true };
   const ts = now();
+  try {
+    await db.batch(switchStmts(db, card, code, ts + OLD_CODE_GRACE_MS, ", code_custom = 1, code_changed_at = " + ts));
+  } catch (e) {
+    // Two people claimed the same code at the same moment: the primary key wins.
+    if (/UNIQUE|constraint/i.test(String(e?.message || e))) return { error: "Someone already has that code. Try another.", taken: true };
+    throw e;
+  }
+  return { code, changedAt: ts };
+}
+
+// Make sure every card has a permanent, registered code (mutates the rows).
+// Cards from before codes became permanent still have code_rotates_at set;
+// their current code is kept and made permanent.
+export async function freshenCards(db, cards) {
   for (const card of cards) {
-    if (!card.code || !card.code_rotates_at || card.code_rotates_at <= ts) {
+    if (!card.code) {
       const r = await rotateCardCode(db, card);
       card.code = r.code;
-      card.code_rotates_at = r.rotatesAt;
+    } else if (card.code_rotates_at) {
+      await db.batch([
+        db.prepare("INSERT OR REPLACE INTO card_codes (code, card_id, valid_until) VALUES (?, ?, ?)").bind(card.code, card.id, FOREVER),
+        db.prepare("UPDATE cards SET code_rotates_at = NULL WHERE id = ?").bind(card.id),
+      ]);
     }
+    card.code_rotates_at = null;
   }
   return cards;
 }

@@ -6,7 +6,8 @@
 // - your own /api/me response (network-first), which is what draws your badge and QR
 // Nothing else from the API is stored, and no photos (shared selfies stay private).
 // Signing out or deleting your account clears the stored /api/me copy.
-const VERSION = "v1";
+const VERSION = "v2";
+const BOOT_WAIT_MS = 2500; // first /api/me of a page load: don't wait longer than this on bad signal
 const SHELL = `lanyard-shell-${VERSION}`;
 const DATA = `lanyard-data-${VERSION}`;
 
@@ -53,6 +54,25 @@ async function networkFirst(request, cacheName, cacheKey = request) {
   }
 }
 
+// Like networkFirst, but if the network is slow and we already have a copy,
+// answer with the copy and let the network response refresh it for next time.
+async function networkFirstFast(request, cacheName, cacheKey) {
+  const cache = await caches.open(cacheName);
+  const network = fetch(request).then(async (res) => {
+    if (res.ok) await cache.put(cacheKey, res.clone());
+    return res;
+  });
+  const cached = await cache.match(cacheKey);
+  if (!cached) return network.catch(() => Response.error());
+  const slow = new Promise((resolve) => setTimeout(() => resolve(null), BOOT_WAIT_MS));
+  try {
+    const first = await Promise.race([network, slow]);
+    return first || cached;
+  } catch {
+    return cached;
+  }
+}
+
 async function cacheFirst(request) {
   const cache = await caches.open(SHELL);
   const hit = await cache.match(request);
@@ -69,7 +89,8 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (url.pathname === "/api/me") {
-    event.respondWith(networkFirst(req, DATA, "/api/me"));
+    // ?boot=1 marks the first load of the app; later reloads (after a save) always wait for the network.
+    event.respondWith(url.searchParams.has("boot") ? networkFirstFast(req, DATA, "/api/me") : networkFirst(req, DATA, "/api/me"));
     return;
   }
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/media/") || url.pathname === "/sw.js") return;

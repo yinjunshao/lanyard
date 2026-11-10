@@ -20,7 +20,7 @@ async function load() {
     form.value.email = data.value.org.billingEmail || "";
     state.value = "ready";
   } catch (e) {
-    state.value = e.code === "account_required" ? "account" : "error";
+    state.value = ["account_required", "profile_required", "no_org", "terms_required"].includes(e.code) ? "account" : "error";
     error.value = e.message;
   }
 }
@@ -67,19 +67,32 @@ async function submit() {
 
     <p v-if="state === 'loading'" class="muted">Loading…</p>
     <div v-else-if="state === 'account'" class="notice">
-      Create your host account first. <router-link to="/host" style="text-decoration:underline">Go to the host portal</router-link>
+      Finish setting up in the host portal first. <router-link to="/host" style="text-decoration:underline">Go to the host portal</router-link>
     </div>
     <p v-else-if="state === 'error'" class="error-text">{{ error }}</p>
 
     <template v-else-if="data">
+      <div v-if="data.org.status === 'pending'" class="notice">
+        Your application is still being reviewed. You can buy event packs once it's approved.
+      </div>
+      <div v-else-if="data.org.status === 'rejected'" class="notice">
+        Your application wasn't approved{{ data.org.reviewNote ? ': ' + data.org.reviewNote : '.' }}
+      </div>
+
+      <div v-if="data.freeTier" class="panel">
+        <span class="label">Student society plan</span>
+        <p style="margin:6px 0 0"><strong>Free:</strong> {{ data.freeTier.eventsPerWeek }} event a week, up to {{ data.freeTier.checkinCap }} check-ins each.
+          Need more? Society packs below are our cheapest prices.</p>
+      </div>
+
       <div class="panel spread">
         <div>
-          <span class="label">Event credits left</span>
+          <span class="label">{{ data.freeTier ? 'Paid events banked' : 'Event credits left' }}</span>
           <div class="tnum" style="font-size:32px;font-weight:700">{{ data.credits.remaining }}</div>
           <span v-if="data.credits.nextExpiry" class="small muted">next expire {{ fmt(data.credits.nextExpiry) }}</span>
         </div>
         <span class="small muted" style="max-width:240px;text-align:right">
-          1 credit = 1 event of up to {{ data.cap }} check-ins.
+          1 credit = 1 event of up to {{ data.cap }} check-ins{{ data.freeTier ? ' (a hard limit for societies)' : '' }}.
         </span>
       </div>
 
@@ -89,20 +102,22 @@ async function submit() {
       </div>
 
       <section class="stack-2">
-        <span class="label">{{ data.audience === 'society' ? 'Student society prices' : 'Event credits' }}</span>
+        <span class="label">{{ data.audience === 'society' ? 'Student society prices' : data.audience === 'institution' ? 'Education prices' : 'Event credits' }}</span>
         <div class="price-grid">
           <div v-for="s in data.skus" :key="s.id" class="price-card" :class="{ featured: s.id.endsWith('_5') }">
             <strong>{{ s.label }}</strong>
             <span class="price tnum">{{ gbp(s.pence) }}</span>
             <span class="per">{{ perEvent(s) || (s.credits >= 99 ? 'Unlimited events for a term' : 'One-off') }}</span>
-            <button class="btn" style="margin-top:8px" @click="pick(s)">Request invoice</button>
+            <button class="btn" style="margin-top:8px" :disabled="data.org.status !== 'approved'" @click="pick(s)">Request invoice</button>
           </div>
         </div>
-        <p v-if="data.audience !== 'society'" class="small muted">
-          Running a student society? Set your organisation type to “Student society” in the host portal for society prices.
+        <p v-if="data.audience === 'standard'" class="small muted">
+          Student societies and educational institutions have their own, lower prices. They apply for approval
+          when creating their organisation.
         </p>
         <p class="small muted">
-          Events over {{ data.cap }} check-ins use a second credit up to 1,000; bigger than that, ask for a quote.
+          <template v-if="data.audience === 'society'">Society events are capped at {{ data.cap }} check-ins.</template>
+          <template v-else>Events over {{ data.cap }} check-ins use a second credit up to 1,000; bigger than that, ask for a quote.</template>
           Card payments are coming. For now we invoice, and you can quote a purchase order number.
         </p>
       </section>

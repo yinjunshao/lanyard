@@ -3,8 +3,10 @@
 // Bump TERMS_VERSION in worker/legal.js when this changes materially.
 const OPERATOR = "ARCK Softworks";
 const ADDRESS = "WC1E 6BT";
-const CONTACT = "yinjun@arck.industries";
-const UPDATED = "27 October 2026";
+import { HELP_EMAIL, LEGAL_EMAIL } from "../lib/contact";
+const CONTACT = LEGAL_EMAIL;
+const HELP = HELP_EMAIL;
+const UPDATED = "6 November 2026";
 </script>
 
 <template>
@@ -20,7 +22,8 @@ const UPDATED = "27 October 2026";
     <h3>1. Who we are</h3>
     <p>
       Lanyard is a service for sharing a digital card at events and keeping the connections you make.
-      It is run by {{ OPERATOR }} ("Lanyard", "we", "us"), {{ ADDRESS }}. You can reach us at
+      It is run by {{ OPERATOR }} ("Lanyard", "we", "us"), {{ ADDRESS }}. For help using Lanyard, email
+      <a :href="`mailto:${HELP}`">{{ HELP }}</a>. For anything about these terms or the law, email
       <a :href="`mailto:${CONTACT}`">{{ CONTACT }}</a>. These terms are a contract between you and us. Please also
       read our <router-link to="/privacy">Privacy Policy</router-link>, which explains how we handle personal data.
     </p>
@@ -43,14 +46,14 @@ const UPDATED = "27 October 2026";
     <h3>4. What you share, and what we do with it</h3>
     <ul>
       <li>You own the content you add (your profile, photos, links, notes). You give us a licence to store it and show it to other people as you have chosen, so the service can work. The licence ends when you delete the content or your account, except for copies already held by other people as part of a connection you made, and backups that are deleted on our normal schedule.</li>
-      <li>Each card shows only the details and links you choose for it. A private profile stays private, except for the limited identity you agree to show in an event directory.</li>
+      <li>Each card shows only the details and links you choose for it, and can only be opened with its QR code, link or short code. Your event-directory listing shows only the limited identity you agree to.</li>
       <li>Only share things you have the right to share. Do not upload content that infringes someone else's rights.</li>
     </ul>
 
     <h3>5. Connections, notes and shared selfies</h3>
     <ul>
       <li>A connection belongs to both people. Either person can remove it at any time, and removing it deletes the connection, its notes thread and the shared selfie for both of you.</li>
-      <li>A shared selfie is optional. Only take or upload one if every person in it has agreed, and tick the confirmation when you do. If someone in the photo asks you to delete it, delete it.</li>
+      <li>A shared selfie is optional. Only take or upload one if every person in it has agreed, and tick the confirmation when you do. The other person must also accept it in the app, or it is deleted after 7 days. If someone in the photo asks you to delete it, delete it.</li>
       <li>Your private notes about a connection are only visible to you.</li>
       <li>A note left in a card's QR code is delivered once, to the next person who connects through it.</li>
     </ul>
@@ -68,7 +71,7 @@ const UPDATED = "27 October 2026";
 
     <h3>7. Reporting and moderation</h3>
     <p>
-      If you see something that breaks these terms, tell us at <a :href="`mailto:${CONTACT}`">{{ CONTACT }}</a> with a link to the card or
+      If you see something that breaks these terms, tell us at <a :href="`mailto:${HELP}`">{{ HELP }}</a> with a link to the card or
       connection. We may remove content, limit features, or suspend or close accounts that break these terms or put
       others at risk. Where we can, we will tell you why. You can ask us to review a decision by replying to our message.
     </p>
@@ -134,11 +137,14 @@ const UPDATED = "27 October 2026";
       <li>A host account is a separate account from any personal card. You must be 18 or over and authorised to act for the society, department, company or other organisation you set up. You confirm you are when you create the account.</li>
       <li>The person who creates the organisation is its owner. Owners can invite colleagues with an invite code. Everyone you invite works under your organisation, and you are responsible for the people you invite and for what they do in it. Remove people who should no longer have access.</li>
       <li>Keep your organisation details accurate, including its type and billing email.</li>
+      <li>Each host account has your name and email, and can belong to one organisation. Student societies and educational institutions must apply with a university or school email, and we approve each application by hand before they can create events or buy packs. We may reject an application or withdraw approval if the details are wrong or the organisation is not what it says it is.</li>
+      <li>Organisations can be handed to another host account. The new owner must have their own host account and accept the transfer. For societies and institutions, a change of leader or email is a request an administrator checks first, because approval was given for a particular leader.</li>
     </ul>
 
     <h3>16. Events and credits</h3>
     <ul>
       <li>One credit covers one event. New organisations receive some free starter credits, which expire after the period shown in the portal.</li>
+      <li>Approved student societies can run one event in any 7 days for free, with a hard limit of 200 check-ins for each event. They can buy event packs for more events. Companies pay standard prices, and educational institutions pay discounted prices.</li>
       <li>Each credit is for an event with up to 300 check-ins. If you go over, we will not block people at the door but we may ask you to buy additional credits.</li>
       <li>Credits cannot be exchanged for cash, are not transferable between organisations, and expire as shown when you buy them.</li>
       <li>You are responsible for your events: the venue, safety, accessibility, and compliance with the law and the rules of any host venue or institution (for example a students' union or university).</li>

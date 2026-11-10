@@ -23,9 +23,12 @@ const HostDashboard = () => import("../views/HostDashboard.vue");
 const HostLive = () => import("../views/HostLive.vue");
 const HostAccount = () => import("../views/HostAccount.vue");
 const HostBilling = () => import("../views/HostBilling.vue");
+const Admin = () => import("../views/Admin.vue");
 const Terms = () => import("../views/Terms.vue");
 const Privacy = () => import("../views/Privacy.vue");
+const PrivacyRequest = () => import("../views/PrivacyRequest.vue");
 const Feedback = () => import("../views/Feedback.vue");
+const Redeem = () => import("../views/Redeem.vue");
 const NotFound = () => import("../views/NotFound.vue");
 
 const routes = [
@@ -47,8 +50,11 @@ const routes = [
   { path: "/app/feedback/:eventId", component: Feedback, meta: { app: true } },
 
   { path: "/terms", component: Terms },
+  { path: "/privacy-request", component: PrivacyRequest },
   { path: "/privacy", component: Privacy },
   { path: "/claim", component: Claim },
+  { path: "/redeem", component: Redeem },
+  { path: "/redeem/:code", component: Redeem },
   { path: "/signin", component: SignIn },
   { path: "/host/signin", component: SignIn },
   { path: "/hosts", component: Hosts },
@@ -56,6 +62,7 @@ const routes = [
   { path: "/host/events/:id", component: HostLive },
   { path: "/host/billing", component: HostBilling },
   { path: "/host/account", component: HostAccount },
+  { path: "/admin", component: Admin },
 
   { path: "/:pathMatch(.*)*", component: NotFound },
 ];
@@ -63,7 +70,15 @@ const routes = [
 export const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior: (to) => (to.hash ? { el: to.hash, behavior: "smooth" } : { top: 0 }),
+  // Pages load lazily, so give a #section a moment to exist before scrolling to it.
+  scrollBehavior: (to) => (to.hash
+    ? new Promise((resolve) => setTimeout(() => resolve(document.querySelector(to.hash) ? { el: to.hash, top: 80, behavior: "smooth" } : { top: 0 }), 200))
+    : { top: 0 }),
+});
+
+router.afterEach((to) => {
+  const link = document.querySelector('link[rel="icon"]');
+  if (link) link.href = to.path.startsWith("/host") ? "/host-icon.svg" : "/favicon.svg";
 });
 
 router.beforeEach(async (to) => {
@@ -76,7 +91,7 @@ router.beforeEach(async (to) => {
   }
   // Pages that depend on who you are wait for it; public pages (landing, a
   // scanned card, terms) render straight away and fill in when it arrives.
-  const needsMe = to.meta.app || to.path.startsWith("/host") || ["/claim", "/signin"].includes(to.path);
+  const needsMe = to.meta.app || to.path.startsWith("/host") || ["/claim", "/signin"].includes(to.path) || to.path.startsWith("/redeem");
   if (needsMe) await ensureMe();
   else ensureMe();
   return true;

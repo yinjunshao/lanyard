@@ -189,7 +189,7 @@ onBeforeUnmount(() => {
           <input type="checkbox" v-model="consent" />
           <span class="small">
             Everyone in the shared selfie agrees to it. Either of us can delete it at any time,
-            and it disappears for both.
+            and it disappears for both. The other person has to accept it in the app, or it is deleted after 7 days.
           </span>
         </label>
 

@@ -115,7 +115,7 @@ async function submit() {
         <input type="checkbox" v-model="consent" />
         <span class="small">
           We both agree to this photo. Either of us can delete it at any time,
-          and it disappears for both.
+          and it disappears for both. The other person has to accept it in the app, or it is deleted after 7 days.
         </span>
       </label>
 

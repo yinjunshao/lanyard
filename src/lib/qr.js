@@ -113,9 +113,7 @@ export async function drawBadge(canvas, view, url) {
   const tags = (p.tags || []).slice(0, 4);
   const note = (view?.note || "").slice(0, 160);
   const meta = [p.course, p.uni, p.year].filter(Boolean).join(" · ");
-  const caption = view?.code && view?.codeRotatesAt
-    ? `Code valid until ${new Date(view.codeRotatesAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
-    : "";
+  const caption = ""; // codes are permanent now, so nothing to warn about under the card
 
   const mctx = document.createElement("canvas").getContext("2d");
   const bodyW = CARD_W - 2 * B - 40; // 309
@@ -293,8 +291,8 @@ export async function drawBadge(canvas, view, url) {
   ctx.strokeStyle = t.ink; ctx.lineWidth = 1.5;
   rr(ctx, cx + 0.75, cy + 0.75, CARD_W - 1.5, cardH - 1.5, 7.25); ctx.stroke();
 
-  // The typed code expires; the QR doesn't. Say so under the card, outside it,
-  // so the card itself stays identical to the one on screen.
+  // Optional line under the card, outside it, so the card itself stays
+  // identical to the one on screen.
   if (caption) {
     line(ctx, caption, W / 2, cy + cardH + PAD - 4, { size: 13, lineH: 19.5, color: "#6B675F", align: "center" });
   }

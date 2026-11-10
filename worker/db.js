@@ -61,11 +61,15 @@ export function randomCode(len = 4) {
 }
 
 // Collision-free code for a table column (used for event codes; card codes
-// have their own allocator in codes.js because they rotate).
+// have their own allocator in codes.js).
 export async function uniqueCode(db, table, len = 4) {
   for (let i = 0; i < 12; i++) {
     const code = randomCode(len);
-    const hit = await one(db, `SELECT code FROM ${table} WHERE code = ?`, code);
+    // Event and card codes share the Scan box, so an event code must not
+    // match any card code (live, or retired and still held).
+    const hit = table === "events"
+      ? await one(db, "SELECT 1 AS x FROM events WHERE code = ? UNION SELECT 1 FROM card_codes WHERE code = ? UNION SELECT 1 FROM cards WHERE code = ?", code, code, code)
+      : await one(db, `SELECT code FROM ${table} WHERE code = ?`, code);
     if (!hit) return code;
   }
   throw new Error("could not allocate unique code");

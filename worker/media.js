@@ -45,7 +45,7 @@ export async function getImage(env, key, { isPrivate = false } = {}) {
   return new Response(obj.body, {
     headers: {
       "content-type": obj.httpMetadata?.contentType || "image/webp",
-      "cache-control": isPrivate ? "private, max-age=3600" : "public, max-age=31536000, immutable",
+      "cache-control": isPrivate ? "private, max-age=3600" : "public, max-age=86400",
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",
       "cross-origin-resource-policy": "same-origin",

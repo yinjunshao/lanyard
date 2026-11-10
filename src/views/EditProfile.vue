@@ -1,15 +1,17 @@
 <script setup>
-import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
 import Avatar from "../components/Avatar.vue";
 import PhotoCropper from "../components/PhotoCropper.vue";
+import { afterAccountPath } from "../lib/redeem";
 
 const router = useRouter();
+const route = useRoute();
 const f = ref({
   name: "", uni: "", course: "", year: "", headline: "", about: "",
-  tags: "", linksText: "", projects: [], showAge: false, isPublic: true,
+  tags: "", links: [{ label: "", url: "" }], projects: [], showAge: false,
 });
 const photo = ref(null);
 const existingPhoto = ref("");
@@ -17,21 +19,36 @@ const busy = ref(false);
 const error = ref("");
 const saved = ref(false);
 const agreed = ref(false);
+// First time here: a short "make your card" form. About and links wait
+// behind "Add more" so a new person is done in under a minute.
+const firstRun = computed(() => !me.profile);
+const showMore = ref(false);
+const SUGGESTED = ["CV reviews", "internships", "hackathons", "startups", "coding help", "design", "finding a team", "research"];
+const tagList = computed(() => f.value.tags.split(",").map((t) => t.trim()).filter(Boolean));
+function toggleTag(t) {
+  const have = tagList.value;
+  const i = have.findIndex((x) => x.toLowerCase() === t.toLowerCase());
+  f.value.tags = (i >= 0 ? have.filter((_, j) => j !== i) : [...have, t]).join(", ");
+}
+const hasTag = (t) => tagList.value.some((x) => x.toLowerCase() === t.toLowerCase());
 
 onMounted(() => {
+  // Arrived from "Finish your card": put the cursor in the field that's missing.
+  if (route.hash) setTimeout(() => {
+    const el = document.querySelector(route.hash);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    (el?.matches("input, textarea") ? el : el?.querySelector("input:not([type=file]), textarea"))?.focus({ preventScroll: true });
+  }, 250);
   const p = me.profile;
   if (p) {
-    // A guest who connected or checked in got a private name-only stub.
-    // Finishing it should start from the same default as signing up: public.
-    const bareStub = !p.is_public && !p.photo && !(p.tags || []).length && !Object.keys(p.links || {}).length
-      && ![p.uni, p.course, p.year, p.headline, p.about].some((x) => x && x.trim());
+    const links = Object.entries(p.links || {}).map(([label, url]) => ({ label, url }));
     f.value = {
       name: p.name || "", uni: p.uni || "", course: p.course || "",
       year: p.year || "", headline: p.headline || "", about: p.about || "",
       tags: (p.tags || []).join(", "),
-      linksText: Object.entries(p.links || {}).map(([k, v]) => `${k} ${v}`).join("\n"),
+      links: links.length ? links : [{ label: "", url: "" }],
       projects: p.projects || [],
-      showAge: !!p.show_age, isPublic: bareStub || !!p.is_public,
+      showAge: !!p.show_age,
     };
     existingPhoto.value = p.photo || "";
   }
@@ -67,11 +84,24 @@ async function onCropped(dataUrl) {
   }
 }
 
-function parseLinks(text) {
+const MAX_LINKS = 20;
+function addLink() {
+  if (f.value.links.length < MAX_LINKS) f.value.links.push({ label: "", url: "" });
+}
+function removeLink(i) {
+  f.value.links.splice(i, 1);
+  if (!f.value.links.length) f.value.links.push({ label: "", url: "" });
+}
+// Rows to the {label: url} object the API stores. A bare "github.com/you"
+// gets https:// put in front of it; rows missing either half are dropped.
+function buildLinks(rows) {
   const links = {};
-  for (const line of text.split("\n")) {
-    const m = line.trim().match(/^(\S.+?)\s+(https?:\/\/\S+)$/);
-    if (m) links[m[1]] = m[2];
+  for (const { label, url } of rows) {
+    const l = label.trim().slice(0, 40);
+    let u = url.trim();
+    if (!l || !u) continue;
+    if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
+    links[l] = u;
   }
   return links;
 }
@@ -95,9 +125,9 @@ async function save() {
     const payload = {
       name: f.value.name, uni: f.value.uni, course: f.value.course,
       year: f.value.year, headline: f.value.headline, about: f.value.about,
-      tags: f.value.tags.split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean).slice(0, 5),
-      links: parseLinks(f.value.linksText),
-      showAge: f.value.showAge, isPublic: f.value.isPublic,
+      tags: f.value.tags.split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean).slice(0, 12),
+      links: buildLinks(f.value.links),
+      showAge: f.value.showAge,
     };
     if (photo.value) payload.photoDataUrl = photo.value;
 
@@ -105,6 +135,7 @@ async function save() {
     // (refreshing the cached `me`, navigating back) is best-effort: if either
     // of those stumbles, the save itself still happened, so we say so rather
     // than showing an error that makes it look like nothing was kept.
+    const wasNew = !me.profile;
     if (me.profile) await Api.updateProfile(payload);
     else await Api.createProfile({ ...payload, over18: true, acceptTerms: true, note: "" });
 
@@ -112,7 +143,8 @@ async function save() {
     photo.value = null;
     try {
       await refreshMe();
-      setTimeout(() => router.push("/app"), 700);
+      // New card: back to a promo code they arrived with, else the welcome.
+      setTimeout(() => router.push(wasNew ? afterAccountPath("/app?welcome=1") : "/app"), wasNew ? 0 : 700);
     } catch {
       error.value = "Saved, but couldn't refresh your card here — it'll show the change next time you open the app.";
     }
@@ -127,12 +159,17 @@ async function save() {
 <template>
   <div class="stack-2">
     <PhotoCropper v-if="cropFile" :file="cropFile" @done="onCropped" @cancel="cropFile = null" />
-    <h1>Edit profile</h1>
+    <div v-if="firstRun" class="page-head">
+      <span class="label">New here</span>
+      <h1>Make your card</h1>
+      <p class="sub">Takes about a minute. People see this when they scan you, and you can change it any time.</p>
+    </div>
+    <h1 v-else>Edit profile</h1>
 
     <div class="form-section">
       <span class="form-section-title">Basics</span>
 
-      <div class="field">
+      <div id="photo" class="field">
         <label class="label-top">Photo</label>
         <div class="file-picker">
           <Avatar class="avatar" style="width:64px;height:64px" :src="photo || existingPhoto || null" alt="Your photo" />
@@ -145,9 +182,9 @@ async function save() {
       <div class="field"><label for="name">Name</label>
         <input id="name" v-model="f.name" type="text" autocomplete="name" /></div>
       <div class="field"><label for="uni">University</label>
-        <input id="uni" v-model="f.uni" type="text" /></div>
+        <input id="uni" v-model="f.uni" type="text" placeholder="e.g. UCL" /></div>
       <div class="field"><label for="course">Course</label>
-        <input id="course" v-model="f.course" type="text" /></div>
+        <input id="course" v-model="f.course" type="text" placeholder="e.g. Computer Science" /></div>
       <div class="field"><label for="year">Year (optional)</label>
         <input id="year" v-model="f.year" type="text" /></div>
     </div>
@@ -158,28 +195,35 @@ async function save() {
         <input id="headline" v-model="f.headline" type="text" maxlength="80"
                placeholder="e.g. Building robots and Roblox games" />
         <span class="small muted" style="align-self:flex-end">{{ f.headline.length }}/80 — this is one line on your badge</span></div>
-      <div class="field"><label for="about">About</label>
+      <div v-if="!firstRun || showMore" class="field"><label for="about">About</label>
         <textarea id="about" v-model="f.about" maxlength="600"></textarea></div>
     </div>
 
     <div class="form-section">
       <span class="form-section-title">Networking</span>
+      <p v-if="!firstRun" class="small muted" style="margin:0 0 12px">These are your defaults. Each card can say something different under My cards.</p>
       <div class="field"><label for="tags">Come to me for — comma separated</label>
         <input id="tags" v-model="f.tags" type="text" placeholder="hackathons, CV reviews, CAD" />
+        <div class="chip-row" role="group" aria-label="Suggestions" style="margin-top:6px">
+          <button v-for="t in SUGGESTED" :key="t" type="button" class="chip chip-toggle"
+                  :aria-pressed="hasTag(t)" :class="{ on: hasTag(t) }" @click="toggleTag(t)">{{ hasTag(t) ? "✓ " : "+ " }}{{ t }}</button>
+        </div>
         <span class="small muted">The first 4 show on your badge — keep each one short, e.g. "CV reviews"</span></div>
 
-      <div class="field">
-        <label for="links">Links — one per line as “Label https://…”</label>
-        <textarea id="links" v-model="f.linksText" :placeholder="'LinkedIn https://linkedin.com/in/you\nGitHub https://github.com/you'"></textarea>
-      </div>
-    </div>
+      <button v-if="firstRun && !showMore" type="button" class="link-btn small" style="text-align:left" @click="showMore = true">
+        Add more: a short bio and links (optional)
+      </button>
 
-    <div class="form-section">
-      <span class="form-section-title">Visibility</span>
-      <label class="checkbox-row field">
-        <input type="checkbox" v-model="f.isPublic" />
-        <span class="small">Profile page is public</span>
-      </label>
+      <div v-if="!firstRun || showMore" id="links" class="field">
+        <label>Links <span class="muted">({{ f.links.filter((l) => l.label.trim() && l.url.trim()).length }} of {{ MAX_LINKS }})</span></label>
+        <div v-for="(l, i) in f.links" :key="i" class="link-row">
+          <input v-model="l.label" type="text" maxlength="40" placeholder="LinkedIn" :aria-label="`Link ${i + 1} label`" />
+          <input v-model="l.url" type="url" inputmode="url" placeholder="linkedin.com/in/you" :aria-label="`Link ${i + 1} address`" />
+          <button type="button" class="link-remove" :aria-label="`Remove link ${i + 1}`" @click="removeLink(i)">×</button>
+        </div>
+        <button type="button" class="btn" :disabled="f.links.length >= MAX_LINKS" @click="addLink">Add a link</button>
+        <span class="small muted">Each card picks which of these to show, so add as many as you like.</span>
+      </div>
     </div>
 
     <label v-if="!me.profile" class="checkbox-row field">
@@ -198,7 +242,7 @@ async function save() {
     <div class="thumb-bar" :style="me.profile ? 'bottom:calc(64px + env(safe-area-inset-bottom, 0px));z-index:70' : ''">
       <div class="inner">
         <button class="btn btn-primary" :disabled="busy" @click="save">
-          {{ busy ? "Saving…" : saved ? "Saved ✓" : "Save changes" }}
+          {{ busy ? "Saving…" : saved ? "Saved ✓" : firstRun ? "Create my card" : "Save changes" }}
         </button>
       </div>
     </div>

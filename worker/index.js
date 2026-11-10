@@ -8,14 +8,23 @@ import { feedbackApp, pendingFeedback } from "./feedback.js";
 import { integrationsApp } from "./integrations.js";
 import * as Passkeys from "./passkeys.js";
 import * as Auth from "./auth.js";
-import { TERMS_VERSION, termsScope, hasConsent, recordConsent, recordConsentStmt } from "./legal.js";
+import * as Totp from "./totp.js";
+import * as EmailAuth from "./email-auth.js";
+import { probeBlocker } from "./probes.js";
+import { TERMS_VERSION, termsScope, hasConsent, recordConsent, recordConsentStmt, logConsentStmt } from "./legal.js";
 import { putImage, getImage, deleteImage } from "./media.js";
 import { eraseUser, purgeExpired } from "./purge.js";
 import { eventsApp } from "./events.js";
 import { hostApp } from "./hosts.js";
+import { adminApp } from "./admin.js";
+import { promoApp } from "./promo.js";
+import { unsubApp } from "./unsub.js";
+import { privacyApp } from "./privacy.js";
+import * as Alerts from "./alerts.js";
+import { sendEventEmails } from "./eventmail.js";
 import {
   newCardCode, rotateCardCode, freshenCards, findCardByCode, normaliseCode,
-  isThrottled, recordMiss, throttleKeys,
+  isThrottled, recordMiss, throttleKeys, checkCustomCode, setCustomCode, CUSTOM_EVERY_MS,
 } from "./codes.js";
 import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 
@@ -23,10 +32,11 @@ const app = new Hono();
 
 // Order matters: headers wrap everything; cross-site writes are refused before
 // a session (or guest account) is touched; static assets never hit the database.
+app.use("*", probeBlocker);
 app.use("*", securityHeaders);
 app.use("/api/*", sameOriginWrites);
 const withSession = sessionMiddleware("DB");
-app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/integrations/") ? next() : withSession(c, next)));
+app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/privacy-request" ? next() : withSession(c, next)));
 app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
 
 app.onError((err, c) => {
@@ -66,12 +76,21 @@ function profilePayload(input) {
       );
     }
   }
-  // The app sends camelCase (isPublic / showAge); accept both spellings.
-  const isPublic = input.isPublic ?? input.is_public;
+  // The app sends camelCase (showAge); accept both spellings.
   const showAge = input.showAge ?? input.show_age;
-  if (typeof isPublic === "boolean") out.is_public = isPublic ? 1 : 0;
   if (typeof showAge === "boolean") out.show_age = showAge ? 1 : 0;
   return out;
+}
+
+// A shared selfie belongs to two people. The one who took it always sees it; the
+// other only sees it as a request (to accept or remove) until they accept.
+function selfieView(cn, meId) {
+  if (!cn.selfie_key) return { selfie: null, selfieStatus: null, selfieRequest: null };
+  const url = `/media/${cn.selfie_key}`;
+  const accepted = !!cn.consent_b;
+  if (accepted) return { selfie: url, selfieStatus: "accepted", selfieRequest: null };
+  if (cn.selfie_by === meId) return { selfie: url, selfieStatus: "pending", selfieRequest: null };
+  return { selfie: null, selfieStatus: "request", selfieRequest: url };
 }
 
 async function loadFullUser(db, userId) {
@@ -79,7 +98,7 @@ async function loadFullUser(db, userId) {
   if (!user) return null;
   const profile = await one(db, "SELECT * FROM profiles WHERE user_id = ?", userId);
   const cards = await all(db, "SELECT * FROM cards WHERE user_id = ? ORDER BY is_default DESC, created_at", userId);
-  await freshenCards(db, cards); // lazy code rotation
+  await freshenCards(db, cards); // every card has a permanent code
   return { user, profile, cards };
 }
 
@@ -95,7 +114,6 @@ async function loadFullUser(db, userId) {
 async function cardView(db, card, { forOwner = false, limited = false, shared = false, profile } = {}) {
   const p = profile !== undefined ? profile : await one(db, "SELECT * FROM profiles WHERE user_id = ?", card.user_id);
   if (!p) return null;
-  if (!p.is_public && !forOwner && !limited && !shared) return null;
   const links = card.visible_links?.length
     ? Object.fromEntries(card.visible_links.map((k) => [k, p.links?.[k]]).filter(([, v]) => v))
     : p.links || {};
@@ -113,16 +131,22 @@ async function cardView(db, card, { forOwner = false, limited = false, shared = 
     // The code is only ever sent to the card's owner.
     ...(forOwner ? {
       code: card.code,
-      codeRotatesAt: card.code_rotates_at || null,
+      codeCustom: !!card.code_custom,
+      // When a Plus member can next choose a code (null = now).
+      codeNextChangeAt: card.code_changed_at && card.code_changed_at + CUSTOM_EVERY_MS > Date.now()
+        ? card.code_changed_at + CUSTOM_EVERY_MS : null,
       visibleLinks: card.visible_links || [],
       tagsOverride: card.tags || [],
+      headlineOverride: card.headline || "",
+      aboutOverride: card.about || "",
     } : {}),
     profile: {
       userId: p.user_id,
       name: p.name,
       photo: p.photo_key ? `/media/${p.photo_key}` : null,
       uni: p.uni, course: p.course, year: p.year,
-      headline: p.headline, about: limited ? "" : p.about,
+      headline: card.headline || p.headline,
+      about: limited ? "" : (card.about || p.about),
       links: limited ? {} : links, tags,
       projects: limited ? [] : (p.projects || []).map((pr) => ({ ...pr, image: pr.image_key ? `/media/${pr.image_key}` : null })),
     },
@@ -154,12 +178,13 @@ app.get("/api/me", async (c) => {
   return c.json({
     user: {
       id: u.id, isGuest: u.is_guest, hasPasskey: !!u.has_passkey,
-      hasRecovery: !!u.has_recovery, claimed: !!(u.has_passkey || u.has_recovery),
+      hasRecovery: !!u.has_recovery, hasTotp: !!u.has_totp, claimed: !!(u.has_passkey || u.has_recovery || u.has_totp || u.email_verified),
       termsVersion: TERMS_VERSION, termsAccepted,
       // Anyone with a profile must have accepted the current Terms and Privacy Policy.
       needsTerms: !!profile && !termsAccepted,
-      recoveryEmail: u.recovery_email || null,
+      recoveryEmail: u.recovery_email || null, emailVerified: !!u.email_verified, marketingOptin: !!u.marketing_optin, eventEmails: u.notify_events !== 0,
       verifiedStudent: !!u.verified_student, over18: !!u.over_18,
+      appInstalled: !!data.user?.app_installed_at,
     },
     plan: {
       tier: plan.tier, label: plan.label, cards: plan.cards, customStrap: plan.customStrap,
@@ -261,14 +286,27 @@ app.put("/api/profile", async (c) => {
 
 /* ------------------------------- recovery -------------------------------- */
 
+// Adding an email takes two steps: we send a code, and the address is only
+// saved once the code comes back (so nobody can claim someone else's address).
 app.post("/api/account/email", async (c) => {
-  const u = requireUser(c);
   const body = await c.req.json().catch(() => ({}));
-  const email = String(body.email || "").trim();
-  if (email.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: "That email doesn't look right." }, 400);
-  await run(c.env.DB, "UPDATE users SET recovery_email = ?, email_domain = ? WHERE id = ?",
-    email.toLowerCase(), email.split("@")[1].toLowerCase(), u.id);
-  return c.json({ ok: true });
+  return EmailAuth.addStart(c, c.env.DB, body.email);
+});
+app.post("/api/account/email/confirm", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return EmailAuth.addConfirm(c, c.env.DB, body.email, body.code, body.marketing === true);
+});
+app.post("/api/account/marketing", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return EmailAuth.setMarketing(c, c.env.DB, body.optin === true);
+});
+app.post("/api/auth/email/start", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return EmailAuth.start(c, c.env.DB, body.email);
+});
+app.post("/api/auth/email/verify", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return EmailAuth.verify(c, c.env.DB, body.email, body.code);
 });
 
 /* ------------------------------- passkeys -------------------------------- */
@@ -304,6 +342,27 @@ app.post("/api/auth/recovery/redeem", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   return Auth.redeemRecoveryKey(c, c.env.DB, body.key);
 });
+app.post("/api/auth/totp/setup", (c) => Totp.setup(c, c.env.DB));
+app.post("/api/auth/totp/confirm", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return Totp.confirm(c, c.env.DB, body.code);
+});
+app.delete("/api/auth/totp", (c) => Totp.disable(c, c.env.DB));
+app.post("/api/auth/totp/redeem", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return Totp.redeem(c, c.env.DB, body.id, body.code);
+});
+app.get("/api/account/consents", async (c) => {
+  const u = requireUser(c);
+  const rows = await all(c.env.DB, "SELECT scope, action, at FROM consent_log WHERE user_id = ? ORDER BY at DESC LIMIT 60", u.id);
+  return c.json({ history: rows });
+});
+app.get("/api/auth/sessions", (c) => Alerts.listSessions(c, c.env.DB));
+app.post("/api/auth/signout-others", (c) => Alerts.signOutOthers(c, c.env.DB));
+app.post("/api/account/event-emails", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return Alerts.setEventEmails(c, c.env.DB, body.on === true);
+});
 app.post("/api/logout", async (c) => {
   await endSession(c, c.env.DB);
   return c.json({ ok: true });
@@ -330,20 +389,33 @@ app.get("/api/account/export", async (c) => {
     q("SELECT id, created_at FROM webauthn_credentials WHERE user_id = ?", u.id).catch(() => []),
   ]);
   const feedbackGiven = await q("SELECT event_id FROM feedback_done WHERE user_id = ?", u.id).catch(() => []);
+  const promoCodes = await q("SELECT code, position, granted, created_at FROM promo_claims WHERE user_id = ?", u.id).catch(() => []);
+  const [consentHistory, hostProfile, hostTickets, billingRequests, privacyRequests] = await Promise.all([
+    q("SELECT scope, action, ref, at FROM consent_log WHERE user_id = ? ORDER BY at", u.id).catch(() => []),
+    one(db, "SELECT email, full_name, use_case, event_frequency, typical_size, referral, created_at FROM host_profiles WHERE user_id = ?", u.id).catch(() => null),
+    q("SELECT kind, new_email, message, status, admin_note, created_at, resolved_at FROM host_tickets WHERE user_id = ?", u.id).catch(() => []),
+    q("SELECT sku, quantity, amount_pence, contact_email, po_number, note, status, created_at FROM billing_requests WHERE user_id = ?", u.id).catch(() => []),
+    q("SELECT id, kind, message, status, created_at, outcome FROM privacy_requests WHERE user_id = ? OR email = ?", u.id, u.recovery_email || "-").catch(() => []),
+  ]);
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
     exportedAt: now(),
     note: "Image links need you to be signed in to open them. Passkey keys, recovery keys and session tokens are not included for security.",
+    consentHistory, hostProfile, hostTickets, billingRequests, privacyRequests,
     user: { id: u.id, isGuest: !!u.is_guest, plan: u.plan || "free", recoveryEmail: u.recovery_email || null,
+            emailVerified: !!u.email_verified, newsEmails: !!u.marketing_optin, eventReminders: u.notify_events !== 0,
+            authenticatorApp: !!u.has_totp, passkey: !!u.has_passkey, recoveryKeySet: !!u.has_recovery,
             verifiedStudent: !!u.verified_student, createdAt: u.created_at },
     profile: profile && { ...profile, photo: media(profile.photo_key) },
     cards,
     connections: connections.map((x) => ({
       id: x.id, otherUserId: x.user_a === u.id ? x.user_b : x.user_a, cardId: x.card_id,
-      eventId: x.event_id, metAt: x.created_at, sharedSelfie: media(x.selfie_key),
+      eventId: x.event_id, metAt: x.created_at, sharedSelfie: selfieView(x, u.id).selfie || selfieView(x, u.id).selfieRequest, sharedSelfieStatus: selfieView(x, u.id).selfieStatus,
     })),
     privateNotes: notes,
     feedbackGivenFor: feedbackGiven.map((r) => r.event_id),
+    promoCodes,
+    planUntil: u.plan_until || null,
     feedbackNote: "Event feedback answers are stored without your account, so they can't be listed or returned here.",
     messages: messages.map((m) => ({ ...m, photo: media(m.photo_key) })),
     eventCheckins: checkins,
@@ -390,14 +462,16 @@ app.post("/api/cards", async (c) => {
   const cc = await newCardCode(db);
   await db.batch([
     db.prepare(
-      `INSERT INTO cards (id, user_id, code, code_rotates_at, name, note, visible_links, tags, theme, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO cards (id, user_id, code, code_rotates_at, name, note, visible_links, tags, headline, about, theme, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       id, u.id, cc.code, cc.rotatesAt,
       String(body.name || "Card").slice(0, 60),
       String(body.note || "").slice(0, 300),
       JSON.stringify(strings(body.visibleLinks, 20, 40)),
       JSON.stringify(strings(body.tags, 30, 60)),
+      String(body.headline || "").trim().slice(0, 80),
+      String(body.about || "").trim().slice(0, 600),
       ["default", "formal", "night", "host"].includes(body.theme) ? body.theme : "default",
       now()
     ),
@@ -426,6 +500,8 @@ app.put("/api/cards/:id", async (c) => {
       fields.strap_color = String(strap);
     }
   }
+  if (b.headline !== undefined) fields.headline = String(b.headline).trim().slice(0, 80);
+  if (b.about !== undefined) fields.about = String(b.about).trim().slice(0, 600);
   if (Array.isArray(b.visibleLinks)) fields.visible_links = JSON.stringify(strings(b.visibleLinks, 20, 40));
   if (Array.isArray(b.tags)) fields.tags = JSON.stringify(strings(b.tags, 30, 60));
   const sets = Object.keys(fields);
@@ -499,7 +575,7 @@ async function connectionDetail(db, cn, meId) {
   return {
     id: cn.id,
     metAt: cn.created_at,
-    selfie: cn.selfie_key ? `/media/${cn.selfie_key}` : null,
+    ...selfieView(cn, meId),
     note: mine?.text || "",
     tags: mine?.tags || [],
     remindAt: mine?.remind_at || null,
@@ -639,17 +715,58 @@ app.get("/api/code/:code", async (c) => {
   }
   await recordMiss(db, keys);
   return c.json({
-    error: "That code isn't valid. Card codes change every few days, so ask them for their current one.",
+    error: "That code isn't valid. Check it with them, or scan their QR instead.",
     code: "bad_code",
   }, 404);
 });
 
-// "New code now": the owner replaces the code immediately (old one dies too).
+// "Replace with a random code": for a code that got out somewhere it
+// shouldn't. The old one stops working at once. Free for everyone, a few a day.
 app.post("/api/cards/:id/rotate-code", async (c) => {
   const card = await ownCard(c);
   if (!card) return c.json({ error: "not found" }, 404);
-  const r = await rotateCardCode(c.env.DB, card, { immediate: true });
-  return c.json({ ok: true, code: r.code, codeRotatesAt: r.rotatesAt });
+  const db = c.env.DB;
+  if ((await bump(db, `code:replace:${card.user_id}`, DAY)) > 3) {
+    return c.json({ error: "You've replaced your code a few times today. Try again tomorrow.", code: "throttled" }, 429);
+  }
+  const r = await rotateCardCode(db, card);
+  await run(db, "UPDATE cards SET code_custom = 0 WHERE id = ?", card.id);
+  return c.json({ ok: true, code: r.code });
+});
+
+// Plus: choose your own code (4 to 8 letters or numbers), once a week.
+app.post("/api/cards/:id/custom-code", async (c) => {
+  const card = await ownCard(c);
+  if (!card) return c.json({ error: "not found" }, 404);
+  const db = c.env.DB;
+  const plan = planOf(await one(db, "SELECT plan, plan_until FROM users WHERE id = ?", card.user_id));
+  if (plan.tier !== "plus") {
+    return c.json({ error: "Choosing your own code is part of Lanyard Plus.", code: "plus_required" }, 402);
+  }
+  const next = card.code_changed_at ? card.code_changed_at + CUSTOM_EVERY_MS : 0;
+  if (next > now()) {
+    return c.json({ error: "You can choose a new code once a week.", code: "too_soon", nextChangeAt: next }, 429);
+  }
+  // Stops anyone using this to test which codes exist.
+  if ((await bump(db, `code:custom:${card.user_id}`, HOUR)) > 20) {
+    return c.json({ error: "Too many tries. Wait an hour and try again.", code: "throttled" }, 429);
+  }
+  const body = await c.req.json().catch(() => ({}));
+  const checked = checkCustomCode(body.code);
+  if (checked.error) return c.json({ error: checked.error, code: "bad_code" }, 400);
+  const r = await setCustomCode(db, card, checked.code);
+  if (r.error) return c.json({ error: r.error, code: "code_taken" }, 409);
+  return c.json({ ok: true, code: r.code, nextChangeAt: r.same ? next || null : r.changedAt + CUSTOM_EVERY_MS });
+});
+
+// Opened from a home-screen icon: remember it on the account, so the browser
+// (a different cookie jar on iPhone) stops showing the "add to home screen" guide.
+app.post("/api/me/installed", async (c) => {
+  const u = requireUser(c);
+  try {
+    await run(c.env.DB, "UPDATE users SET app_installed_at = COALESCE(app_installed_at, ?) WHERE id = ?", now(), u.id);
+  } catch { /* migration 0016 not applied yet: harmless, the device remembers it too */ }
+  return c.json({ ok: true });
 });
 
 // Interest in Plus (pricing validation until payments exist).
@@ -717,7 +834,7 @@ app.post("/api/connect", async (c) => {
     await run(
       db,
       `INSERT INTO profiles (user_id, name, uni, course, headline, about, links, tags, projects, is_public, updated_at)
-       VALUES (?, ?, '', '', '', '', '{}', '[]', '[]', 0, ?)`,
+       VALUES (?, ?, '', '', '', '', '{}', '[]', '[]', 1, ?)`,
       me.id, name.slice(0, 80), now()
     );
     myProfile = await one(db, "SELECT * FROM profiles WHERE user_id = ?", me.id);
@@ -738,10 +855,9 @@ app.post("/api/connect", async (c) => {
   let connId = existing?.id;
   let selfieKey = existing?.selfie_key || null;
 
-  // Shared selfie: consent is an explicit tick from the person capturing.
-  // We record consent for the capturer; the other person consents via the
-  // "accept/remove" affordance on their People screen (consent_b defaults 0
-  // until they first view/keep it; deleting at any time removes it for both).
+  // Shared selfie: the person taking it ticks that everyone in it agrees. The
+  // other person still has to accept it in the app (consent_b); until they do
+  // it stays "pending", is only a request for them, and is deleted after 7 days.
   if (body.selfieDataUrl) {
     if (!body.consent) return c.json({ error: "consent required for selfie" }, 400);
     selfieKey = await putImage(c.env, body.selfieDataUrl, "selfie");
@@ -756,16 +872,23 @@ app.post("/api/connect", async (c) => {
     connId = newId();
     await run(
       db,
-      `INSERT INTO connections (id, user_a, user_b, event_id, selfie_key, consent_a, consent_b, card_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-      connId, me.id, peerId, eventId, selfieKey, body.consent ? 1 : 0, card.id, ts
+      `INSERT INTO connections (id, user_a, user_b, event_id, selfie_key, selfie_by, selfie_at, consent_a, consent_b, card_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      connId, me.id, peerId, eventId, selfieKey, selfieKey ? me.id : null, selfieKey ? ts : null, body.consent && selfieKey ? 1 : 0, card.id, ts
     );
+  } else if (body.selfieDataUrl && selfieKey) {
+    // A new photo replaces the old one and needs accepting again.
+    if (existing.selfie_key && existing.selfie_key !== selfieKey) await deleteImage(c.env, existing.selfie_key).catch(() => {});
     await run(db,
-      `INSERT INTO consents (id, user_id, scope, granted, created_at) VALUES (?, ?, 'selfie', 1, ?)
-       ON CONFLICT(user_id, scope) DO UPDATE SET granted = 1, created_at = ?`,
-      newId(), me.id, ts, ts);
-  } else if (selfieKey) {
-    await run(db, "UPDATE connections SET selfie_key = ?, consent_a = 1 WHERE id = ?", selfieKey, connId);
+      "UPDATE connections SET selfie_key = ?, selfie_by = ?, selfie_at = ?, consent_a = 1, consent_b = 0, consent_b_at = NULL WHERE id = ?",
+      selfieKey, me.id, ts, connId);
+  }
+  if (body.selfieDataUrl && selfieKey) {
+    await db.batch([
+      db.prepare(`INSERT INTO consents (id, user_id, scope, granted, created_at) VALUES (?, ?, 'selfie', 1, ?)
+                  ON CONFLICT(user_id, scope) DO UPDATE SET granted = 1, created_at = ?`).bind(newId(), me.id, ts, ts),
+      logConsentStmt(db, me.id, "selfie", "granted", connId),
+    ]);
   }
   if (eventId && !existing?.event_id) {
     await run(db, "UPDATE connections SET event_id = ? WHERE id = ?", eventId, connId);
@@ -810,7 +933,7 @@ app.get("/api/connections", async (c) => {
   const db = c.env.DB;
   const rows = await all(
     db,
-    `SELECT cn.id AS connection_id, cn.selfie_key, cn.event_id, cn.created_at,
+    `SELECT cn.id AS connection_id, cn.selfie_key, cn.selfie_by, cn.consent_b, cn.event_id, cn.created_at,
             CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END AS peer_id,
             p.name AS peer_name, p.photo_key AS peer_photo_key, p.course, p.uni, p.headline,
             COALESCE((SELECT c2.id FROM cards c2 WHERE c2.id = cn.card_id
@@ -855,7 +978,7 @@ app.get("/api/connections", async (c) => {
           projects: (v?.profile.projects || []).map((pr) => ({ title: pr.title || "", line: pr.line || "" })),
           cardName: v?.name || "", cardNote: v?.note || "",
         },
-        selfie: r.selfie_key ? `/media/${r.selfie_key}` : null,
+        ...selfieView(r, me.id),
         cardId: r.card_id || null,
         eventId: r.event_id, eventName: r.event_name || "",
         metAt: r.created_at, note: r.my_note || "",
@@ -904,7 +1027,7 @@ app.get("/api/connections/:id", async (c) => {
       cardName: card?.name || null,
       cardNote: card?.note || "",
     },
-    selfie: cn.selfie_key ? `/media/${cn.selfie_key}` : null,
+    ...selfieView(cn, me.id),
     eventId: cn.event_id, metAt: cn.created_at, note: note?.text || "",
     messages: msgs.map((m) => ({ id: m.id, mine: m.from_id === me.id, text: m.text, at: m.created_at })),
   });
@@ -989,6 +1112,36 @@ app.delete("/api/connections/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// The second person in a shared selfie accepts it (or removes it, below). Until
+// then it is only a request to them and is deleted after 7 days.
+app.post("/api/connections/:id/selfie/accept", async (c) => {
+  const me = requireUser(c);
+  const db = c.env.DB;
+  const cn = await one(db, "SELECT * FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)", c.req.param("id"), me.id, me.id);
+  if (!cn || !cn.selfie_key) return c.json({ error: "not found" }, 404);
+  if (cn.selfie_by === me.id) return c.json({ error: "The other person has to accept this one." }, 400);
+  await db.batch([
+    db.prepare("UPDATE connections SET consent_b = 1, consent_b_at = ? WHERE id = ?").bind(now(), cn.id),
+    logConsentStmt(db, me.id, "selfie_accept", "granted", cn.id),
+  ]);
+  return c.json({ ok: true });
+});
+
+// "Remove me from this photo": either person, any time, deletes it for both.
+// The connection itself stays.
+app.post("/api/connections/:id/selfie/remove", async (c) => {
+  const me = requireUser(c);
+  const db = c.env.DB;
+  const cn = await one(db, "SELECT * FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)", c.req.param("id"), me.id, me.id);
+  if (!cn || !cn.selfie_key) return c.json({ error: "not found" }, 404);
+  await deleteImage(c.env, cn.selfie_key);
+  await db.batch([
+    db.prepare("UPDATE connections SET selfie_key = NULL, selfie_by = NULL, selfie_at = NULL, consent_a = 0, consent_b = 0, consent_b_at = NULL WHERE id = ?").bind(cn.id),
+    logConsentStmt(db, me.id, cn.selfie_by === me.id ? "selfie" : "selfie_accept", "withdrawn", cn.id),
+  ]);
+  return c.json({ ok: true });
+});
+
 /* -------------------------------- media ---------------------------------- */
 
 app.get("/media/:key{.+}", async (c) => {
@@ -1042,6 +1195,10 @@ app.post("/api/connections/:id/report", async (c) => {
 app.route("/", eventsApp);
 app.route("/", feedbackApp);
 app.route("/", hostApp);
+app.route("/", adminApp);
+app.route("/", promoApp);
+app.route("/", unsubApp);
+app.route("/", privacyApp);
 app.route("/", integrationsApp);
 
 /* ------------------------------- SPA fallback ----------------------------- */
@@ -1051,5 +1208,9 @@ app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
 export default {
   fetch: app.fetch,
   // Daily retention clean-up (see [triggers] in wrangler.toml).
-  scheduled: (_event, env, ctx) => { ctx.waitUntil(purgeExpired(env)); },
+  scheduled: (event, env, ctx) => {
+    // Hourly: post-event emails. Daily (03:17): retention clean-up.
+    if (event.cron === "17 3 * * *") ctx.waitUntil(purgeExpired(env));
+    else ctx.waitUntil(sendEventEmails(env).catch((e) => console.error(e)));
+  },
 };

@@ -1,26 +1,34 @@
 <script setup>
-// One page, three ways in. Passkey is the one-tap path; a code from a device
-// that is already signed in and a recovery key work anywhere, with no email.
+// One page, a few ways in, all opening the same account. Passkey is the one-tap
+// path; email is the one nobody has to remember anything for (we email a code,
+// or they type the code from their authenticator app). A code from a signed-in
+// device and a recovery key work when neither is at hand.
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 import { loginPasskey, passkeysSupported } from "../lib/passkeys";
+import { afterAccountPath } from "../lib/redeem";
 
 const route = useRoute();
 const router = useRouter();
 const onHost = route.path.startsWith("/host");
 const canPasskey = passkeysSupported();
+const q = (k) => (typeof route.query[k] === "string" ? route.query[k] : "");
 
 const busy = ref("");
 const error = ref("");
-const code = ref(typeof route.query.code === "string" ? route.query.code : "");
+const email = ref(q("email"));
+const sent = ref(false);
+const otp = ref(q("otp"));
+const useApp = ref(false); // type an authenticator code instead of waiting for the email
+const code = ref(q("code"));
 const key = ref("");
-const showKey = ref(false);
+const showMore = ref(!!q("code"));
 
 async function done() {
   await refreshMe();
-  router.replace(onHost ? "/host" : me.profile ? "/app" : "/app/profile");
+  router.replace(onHost ? "/host" : me.profile ? afterAccountPath("/app") : "/app/profile");
 }
 
 async function withPasskey() {
@@ -30,9 +38,27 @@ async function withPasskey() {
     await done();
   } catch (e) {
     error.value = e?.name === "NotAllowedError" || /unknown passkey/.test(e?.message || "")
-      ? "No passkey found for Lanyard here. Use a code from your other device, or your recovery key."
+      ? "No passkey found for Lanyard here. Use your email instead."
       : e?.message || "Passkey sign-in failed.";
   } finally { busy.value = ""; }
+}
+
+async function sendEmail() {
+  error.value = ""; busy.value = "send";
+  try { await Api.emailStart(email.value.trim()); sent.value = true; }
+  catch (e) { error.value = e.message; }
+  finally { busy.value = ""; }
+}
+
+async function withEmailCode() {
+  error.value = ""; busy.value = "otp";
+  try {
+    const who = email.value.trim();
+    if (useApp.value) await Api.totpRedeem(who, otp.value);
+    else await Api.emailVerify(who, otp.value);
+    await done();
+  } catch (e) { error.value = e.message; }
+  finally { busy.value = ""; }
 }
 
 async function withCode() {
@@ -51,61 +77,89 @@ async function withKey() {
 
 onMounted(async () => {
   try { await refreshMe(); } catch { /* guest */ }
-  // A scanned sign-in QR carries ?code=, so it signs in with no typing.
+  // A scanned sign-in QR carries ?code=; an emailed link carries ?email=&otp=.
   if (code.value) withCode();
+  else if (email.value && otp.value.length === 6) { sent.value = true; withEmailCode(); }
 });
 </script>
 
 <template>
   <main class="app-col stack-2">
-    <router-link :to="onHost ? '/host' : '/'" class="wordmark">lanyard<b>.</b></router-link>
+    <router-link v-if="onHost" to="/host" class="wordmark wordmark-host"><img src="/host-icon.svg" alt="" />lanyard<b>.</b><small>host</small></router-link>
+    <router-link v-else to="/" class="wordmark">lanyard<b>.</b></router-link>
     <div>
       <h1>{{ onHost ? "Host sign in" : "Sign in" }}</h1>
       <p class="muted">Pick whichever is easiest. They all open the same account.</p>
     </div>
 
-    <section class="panel stack">
-      <span class="label">Passkey</span>
-      <p class="small muted">
-        Face ID, fingerprint or screen lock. If your passkey is on your phone,
-        choose "use a phone or tablet" and scan the QR your browser shows.
-      </p>
-      <button class="btn btn-primary" :disabled="!!busy || !canPasskey" @click="withPasskey">
+    <section v-if="canPasskey" class="panel stack">
+      <span class="label">Fastest: passkey</span>
+      <p class="small muted">Face ID, fingerprint or screen lock. One tap, nothing to type.</p>
+      <button class="btn btn-primary" :disabled="!!busy" @click="withPasskey">
         {{ busy === "passkey" ? "Waiting for passkey…" : "Sign in with passkey" }}
       </button>
-      <p v-if="!canPasskey" class="small muted">This browser can't use passkeys. Use one of the options below.</p>
     </section>
 
     <section class="panel stack">
-      <span class="label">Code from your other device</span>
-      <p class="small muted">
-        On a device where you're signed in: Settings, then "Sign in on another
-        device". It shows a short code and a QR.
-      </p>
-      <form class="stack" @submit.prevent="withCode">
-        <input v-model="code" aria-label="Sign-in code" placeholder="ABCD-EFGH" autocomplete="one-time-code"
-               autocapitalize="characters" spellcheck="false" inputmode="text" maxlength="12"
-               style="font-size:22px;letter-spacing:3px;text-transform:uppercase;text-align:center" />
-        <button class="btn" :disabled="!!busy || code.replace(/[^a-z0-9]/gi, '').length < 8">
-          {{ busy === "code" ? "Checking…" : "Sign in with code" }}
+      <span class="label">Email</span>
+      <form v-if="!sent" class="stack" @submit.prevent="sendEmail">
+        <p class="small muted">We'll email you a 6-digit code. No password.</p>
+        <input v-model="email" type="email" aria-label="Email" placeholder="you@example.com" autocomplete="email"
+               autocapitalize="none" spellcheck="false" maxlength="254" />
+        <button class="btn" :class="{ 'btn-primary': !canPasskey }" :disabled="!!busy || !email.includes('@')">
+          {{ busy === "send" ? "Sending…" : "Email me a code" }}
         </button>
+        <button type="button" class="small muted" style="background:none;border:none;padding:0;text-align:left;cursor:pointer"
+                @click="sent = true; useApp = true">I use an authenticator app</button>
+      </form>
+      <form v-else class="stack" @submit.prevent="withEmailCode">
+        <p class="small muted">
+          <template v-if="useApp">Enter your email (or account ID) and the 6-digit code from your authenticator app.</template>
+          <template v-else>If <strong>{{ email }}</strong> has a Lanyard account, a code is on its way. It lasts 10 minutes.</template>
+        </p>
+        <input v-if="useApp" v-model="email" aria-label="Email or account ID" placeholder="Email or account ID" autocapitalize="none"
+               spellcheck="false" maxlength="254" />
+        <input v-model="otp" aria-label="6-digit code" placeholder="123456" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="7" style="font-size:22px;letter-spacing:4px;text-align:center" />
+        <button class="btn btn-primary" :disabled="!!busy || otp.replace(/\D/g, '').length < 6 || !email.trim()">
+          {{ busy === "otp" ? "Checking…" : "Sign in" }}
+        </button>
+        <button type="button" class="small muted" style="background:none;border:none;padding:0;text-align:left;cursor:pointer"
+                @click="useApp = !useApp; otp = ''; error = ''">
+          {{ useApp ? "Email me a code instead" : "Use my authenticator app instead" }}
+        </button>
+        <button type="button" class="small muted" style="background:none;border:none;padding:0;text-align:left;cursor:pointer"
+                @click="sent = false; useApp = false; otp = ''; error = ''">Use a different email</button>
       </form>
     </section>
 
     <section class="panel stack">
       <button type="button" class="label" style="background:none;border:none;padding:0;text-align:left;cursor:pointer"
-              :aria-expanded="showKey" @click="showKey = !showKey">
-        Lost your device? Use your recovery key {{ showKey ? "–" : "+" }}
+              :aria-expanded="showMore" @click="showMore = !showMore">
+        No email on your account? Other ways in {{ showMore ? "–" : "+" }}
       </button>
-      <form v-if="showKey" class="stack" @submit.prevent="withKey">
-        <p class="small muted">The 16-character key you saved when you set up your account.</p>
-        <input v-model="key" aria-label="Recovery key" placeholder="XXXX-XXXX-XXXX-XXXX" autocapitalize="characters"
-               spellcheck="false" maxlength="24"
-               style="font-size:18px;letter-spacing:2px;text-transform:uppercase;text-align:center" />
-        <button class="btn" :disabled="!!busy || key.replace(/[^a-z0-9]/gi, '').length < 16">
-          {{ busy === "key" ? "Checking…" : "Sign in with recovery key" }}
-        </button>
-      </form>
+      <template v-if="showMore">
+        <form class="stack" @submit.prevent="withCode">
+          <span class="label">Code from your other device</span>
+          <p class="small muted">On a device where you're signed in: Settings, then "Sign in on another device".</p>
+          <input v-model="code" aria-label="Sign-in code" placeholder="ABCD-EFGH" autocomplete="one-time-code"
+                 autocapitalize="characters" spellcheck="false" maxlength="12"
+                 style="font-size:22px;letter-spacing:3px;text-transform:uppercase;text-align:center" />
+          <button class="btn" :disabled="!!busy || code.replace(/[^a-z0-9]/gi, '').length < 8">
+            {{ busy === "code" ? "Checking…" : "Sign in with code" }}
+          </button>
+        </form>
+        <form class="stack" @submit.prevent="withKey">
+          <span class="label">Recovery key</span>
+          <p class="small muted">The 16-character key you saved when you set up your account.</p>
+          <input v-model="key" aria-label="Recovery key" placeholder="XXXX-XXXX-XXXX-XXXX" autocapitalize="characters"
+                 spellcheck="false" maxlength="24"
+                 style="font-size:18px;letter-spacing:2px;text-transform:uppercase;text-align:center" />
+          <button class="btn" :disabled="!!busy || key.replace(/[^a-z0-9]/gi, '').length < 16">
+            {{ busy === "key" ? "Checking…" : "Sign in with recovery key" }}
+          </button>
+        </form>
+      </template>
     </section>
 
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>

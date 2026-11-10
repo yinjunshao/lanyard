@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { Api } from "../lib/api";
 import Avatar from "../components/Avatar.vue";
+import EventChoices from "../components/EventChoices.vue";
 
 const route = useRoute();
 const tab = ref("room");
@@ -59,6 +60,8 @@ function switchTab(t) {
         <span class="btn btn-primary" style="width:auto">Give feedback</span>
       </router-link>
       <p v-else-if="feedback?.status === 'done'" class="small muted">Thanks for your feedback on this event.</p>
+
+      <EventChoices :event-id="route.params.id" />
 
       <div class="btn-row" role="tablist" aria-label="Event" style="margin-bottom:8px">
         <button class="btn" role="tab" :aria-selected="tab === 'room'" :class="{ 'btn-primary': tab === 'room' }" @click="switchTab('room')">Room</button>

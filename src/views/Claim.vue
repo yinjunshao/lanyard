@@ -6,6 +6,7 @@ import { useRouter } from "vue-router";
 import { me, refreshMe } from "../lib/store";
 import { registerPasskey, passkeysSupported } from "../lib/passkeys";
 import { Api } from "../lib/api";
+import EmailSetup from "../components/EmailSetup.vue";
 
 const router = useRouter();
 const error = ref("");
@@ -55,7 +56,7 @@ async function copy() {
       <h1>{{ claimed ? "Account saved" : "Save your card" }}</h1>
       <p class="muted">
         Right now your card only lives in this browser. If you clear it or change
-        phone, it's gone. Saving takes one tap and needs no password or email.
+        phone, it's gone. Saving takes a minute and needs no password.
       </p>
 
       <section class="panel stack">
@@ -65,6 +66,11 @@ async function copy() {
           {{ busy ? "Working…" : me.user?.hasPasskey ? "Passkey saved" : "Save with passkey" }}
         </button>
         <p v-if="!canPasskey" class="small muted">This browser doesn't support passkeys. Use a recovery key.</p>
+      </section>
+
+      <section class="panel stack">
+        <span class="label">Easiest to remember</span>
+        <EmailSetup />
       </section>
 
       <section class="panel stack">

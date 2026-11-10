@@ -46,6 +46,10 @@ function userFromRow(row) {
     verified_student: row.verified_student,
     has_passkey: row.has_passkey,
     has_recovery: row.has_recovery,
+    has_totp: row.has_totp,
+    email_verified: row.email_verified,
+    marketing_optin: row.marketing_optin,
+    notify_events: row.notify_events,
     over_18: row.over_18,
   };
 }
@@ -62,6 +66,7 @@ export async function createSession(c, db, userId) {
   );
   setCookie(c, COOKIE, token, cookieOptions(c));
   c.set("sessionId", hashed);
+  await run(db, "UPDATE users SET last_seen_at = ?, inactive_warned_at = NULL WHERE id = ?", ts, userId);
 }
 
 // Loads the session for this request. With { create: true }, a browser with no
@@ -80,6 +85,10 @@ export async function ensureSession(c, db, { create = false } = {}) {
       if (row.sid === token) await run(db, "UPDATE sessions SET id = ? WHERE id = ?", hashed, token); // upgrade legacy row
       c.set("sessionId", hashed);
       c.set("user", userFromRow(row));
+      // Once a day is enough: it only decides when an unused account expires.
+      if (!row.last_seen_at || now() - row.last_seen_at > 86_400_000) {
+        await run(db, "UPDATE users SET last_seen_at = ?, inactive_warned_at = NULL WHERE id = ?", now(), row.id);
+      }
       return;
     }
   }
