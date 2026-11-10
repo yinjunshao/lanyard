@@ -106,6 +106,23 @@ export function rank({ me, wish, rows, random = Math.random }) {
   return { mode: "new", ranked: pool.slice(0, NEW_COUNT).map((row) => ({ row, score: 0, reason: NEW_REASON })) };
 }
 
+// Topics people here show, for the chips under the wish field: tags that at least two other people
+// show, so a chip never points at one person. Only visible tags (the card they would share).
+export function topicsOf(rows, limit = 6) {
+  const seen = new Map();
+  for (const row of rows) {
+    const mine = new Set();
+    for (const tag of visibleFields(row).tags) {
+      const k = normTag(tag);
+      if (!k || mine.has(k)) continue;
+      mine.add(k);
+      const t = seen.get(k) || { text: tag, n: 0 };
+      t.n += 1; seen.set(k, t);
+    }
+  }
+  return [...seen.values()].filter((t) => t.n >= 2).sort((a, b) => b.n - a.n || a.text.localeCompare(b.text)).slice(0, limit).map((t) => t.text);
+}
+
 export async function suggest(db, { eventId, viewerId, mine, clock = Date.now() }) {
   const [rows, profile, card] = await Promise.all([
     presenceCandidates(db, eventId, viewerId, clock),
@@ -114,5 +131,5 @@ export async function suggest(db, { eventId, viewerId, mine, clock = Date.now() 
   ]);
   const me = visibleSide(profile, card); // your side is your default card, what a scan would give
   const { mode, ranked } = rank({ me, wish: mine?.looking_for || "", rows });
-  return { mode, people: ranked.map((r) => ({ ...r.row, reason: r.reason })) };
+  return { mode, topics: topicsOf(rows), people: ranked.map((r) => ({ ...r.row, reason: r.reason })) };
 }

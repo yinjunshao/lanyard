@@ -7,6 +7,7 @@ import { useRoute, useRouter } from "vue-router";
 import { api, Api } from "../lib/api";
 import Avatar from "../components/Avatar.vue";
 import EventChoices from "../components/EventChoices.vue";
+import EventPresence from "../components/EventPresence.vue";
 import Icon from "../components/Icon.vue";
 import UiSheet from "../components/ui/UiSheet.vue";
 import { connectedShort, subtitleOf } from "../lib/profile";
@@ -144,7 +145,8 @@ const choicesTrigger = ref(null);
         </div>
       </section>
 
-      <!-- Who to meet (F17) slots in here, above the tabs. -->
+      <!-- Be easy to find and who to meet (F17): only while the event is on, and only if the host has the room on. -->
+      <EventPresence v-if="event.directoryOn && status !== 'upcoming'" :event-id="eventId" :status="status" />
 
       <div class="btn-row" role="tablist" aria-label="Event" style="margin-bottom:8px">
         <button class="btn" role="tab" :aria-selected="tab === 'room'" :class="{ 'btn-primary': tab === 'room' }" @click="switchTab('room')">Room</button>

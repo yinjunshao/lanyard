@@ -141,9 +141,9 @@ presenceApp.get("/api/e/:id/suggestions", async (c) => {
   const st = await presenceStanding(db, c.req.param("id"), me.id);
   if (st.why) return refuse(c, st.why);
   if (!st.mine) return c.json({ error: "Turn on 'Show me to people here' to see who else is easy to find.", code: "presence_off" }, 403);
-  const { people, mode } = await suggest(db, { eventId: st.ev.id, viewerId: me.id, mine: st.mine });
+  const { people, mode, topics } = await suggest(db, { eventId: st.ev.id, viewerId: me.id, mine: st.mine });
   return c.json({
-    mode,
+    mode, topics,
     people: people.map((p) => ({
       presenceId: p.id, name: displayName(p.name), selfie: p.selfie_key ? `/media/${p.selfie_key}` : null,
       intro: p.intro, reason: p.reason,

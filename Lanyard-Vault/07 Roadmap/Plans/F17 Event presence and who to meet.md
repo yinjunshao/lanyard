@@ -70,7 +70,8 @@ For a viewer with `looking_for` text, score each other visible person at the sam
   - `worker/presenceApp.js`: `GET`, `PUT` and `DELETE /api/e/:id/presence`, `GET /api/e/:id/suggestions`, `POST /api/e/:id/presence/:presenceId/report`; selfies are served by `/media/presence/...` only to people allowed to see that person, never cached; `putImage` can strip metadata. 112 checks in `test/presence.mjs`.
 - [x] F17.3 Matching function, with unit tests and reasons text.
   - `worker/presenceMatch.js`: `words`, `rank` (pure) and `suggest`. +3 for each word of the wish found in what a person shows, +1 for each F16 shared-ground fact, ties to the later check-in, top five; with nothing in common, three at random as 'Say hi to someone new'. It reads only what `visibleSide` keeps plus their line, the default card's headline and the role of a career profile.
-- [ ] F17.4 Hub UI: presence card, "I want to meet" field, suggestions row and sheet.
+- [x] F17.4 Hub UI: presence card, "I want to meet" field, suggestions row and sheet.
+  - `src/components/EventPresence.vue` in the event hub (above the tabs): the opt-in card, selfie and line, the wish field with chips (tags two or more people show), a row of people, a sheet with the hint and Report or block. Checked in the browser pane against the local Worker at 375 and 1280 px, light and dark. Not checked: taking a selfie with the camera or the file chooser (the pane blocks both); the photo was sent through the API instead.
 - [ ] F17.5 Policy and DPIA text, host aggregate count.
 
 ## Acceptance checks

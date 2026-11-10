@@ -518,6 +518,10 @@ console.log("\n# Matching through the endpoint");
   check("the person with a kept-but-hidden robotics course is not matched on it", !(r.json.people || []).some((x) => x.name === "Rio H." && /robot/i.test(x.reason)), byName["Rio H."]);
   check("a person who has not turned it on never appears", !byName["Roz O."]);
   check("the response carries no score, no ids, no card and no profile fields", !/score|userId|cardId|"tags"|headline|company|course/.test(r.text) && Object.keys(r.json.people[0]).sort().join() === "intro,name,presenceId,reason,selfie");
+  check("the chips are tags two or more people here show, never a tag only one person shows", Array.isArray(r.json.topics) && r.json.topics.length === 1 && /^robotics$/i.test(r.json.topics[0]) && !r.json.topics.some((t) => /chess|writing|music/i.test(t)), r.json.topics);
+  const { topicsOf } = await import("../worker/presenceMatch.js");
+  const trow = (o) => ({ mode: "student", uni: "", institution_id: null, course: "", company: "", role: "", tags: [], card_tags: "[]", ...o });
+  check("a tag the card leaves out is not a topic, and one person twice is still one", JSON.stringify(topicsOf([trow({ tags: ["Pottery", "pottery"] }), trow({ tags: ["pottery"], card_tags: JSON.stringify(["Chess"]) }), trow({ tags: ["x1"], card_tags: JSON.stringify(["chess"]) })])) === "[\"Chess\"]");
   const pid = byName["Ron B."]?.presenceId;
   check("Ron is in the list before he is blocked", !!pid || (await seen(V)).json.people.length > 0);
   const blocked = await signup("Bo Blocker", "10.17.5.40"); await checkIn(blocked, live); await turnOn(blocked, {});
@@ -542,6 +546,22 @@ console.log("\n# Matching through the endpoint");
   check("both show up for each other while it is on for both", names(await seen(L1, open)).includes("Lee E."));
   raw.prepare("UPDATE checkins SET created_at = ? WHERE event_id = ? AND user_id = ?").run(t0 - 13 * H, open.id, L2.id);
   check("when the event is over for the other person (12 hours after their check-in) they are not shown", !names(await seen(L1, open)).includes("Lee E."));
+}
+
+console.log("\n# The hub card and list (source guards)");
+{
+  const ui = read("src/components/EventPresence.vue"), hub = read("src/views/EventDetail.vue");
+  check("the card says who sees it, what they see and when it is deleted (48 hours)", /Who sees it/.test(ui) && /What they see/.test(ui) && /When it is deleted/.test(ui) && /48 hours/.test(ui) && /only see[s]? how many/.test(ui));
+  check("it is off until the box is ticked, and ticking it is what sends consent", /type="checkbox" :checked="me\.on"/.test(ui) && /change\(\{ consent: true \}/.test(ui));
+  check("turning it off calls DELETE, which removes the row and the photo", /"DELETE"/.test(ui));
+  check("a person in the list is a button that opens a sheet, with no link to a card or contact detail", !/router-link|\/c\/|href=|mailto|cardId|userId/.test(ui) && /Find them in the room and scan their badge to connect\./.test(ui));
+  check("the list can be reported or blocked", /Report or block/.test(ui) && /presence\/\$\{encodeURIComponent\(p\.presenceId\)\}\/report/.test(ui));
+  check("the hub shows it above the tabs, only while the event is not upcoming and the room is on", /<EventPresence v-if="event\.directoryOn && status !== 'upcoming'"/.test(hub) && hub.indexOf("<EventPresence") < hub.indexOf('role="tablist"'));
+  check("when the event is over the card offers to delete now and says nobody can see it", /Delete my photo and line now/.test(ui) && /nobody can see your photo or line any more/.test(ui));
+  check("colours are tokens only", !/#[0-9a-f]{3,8}\b/i.test(ui.slice(ui.indexOf("<style"))));
+  const entry = ["src/main.js", "src/App.vue", "src/router/index.js", "src/lib/store.js", "src/lib/api.js", "src/lib/profile.js", "src/lib/shell.js", "src/components/Icon.vue"].filter((f) => /EventPresence|presence/i.test(read(f)));
+  check("no shared or entry file knows about presence (it stays in the /app event hub chunk)", entry.length === 0, entry);
+  check("the camera input asks for the front camera and the photo is made small first", /capture="user"/.test(ui) && /fileToDataUrl\(file, 720/.test(ui));
 }
 
 console.log("\n# Hosts and the code (source guards)");
