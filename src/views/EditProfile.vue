@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
@@ -8,7 +8,6 @@ import PhotoCropper from "../components/PhotoCropper.vue";
 import ModeFields from "../components/ModeFields.vue";
 import TagFields from "../components/TagFields.vue";
 import { buildLinks } from "../lib/links";
-import { afterAccountPath } from "../lib/redeem";
 
 const router = useRouter();
 const route = useRoute();
@@ -21,11 +20,6 @@ const existingPhoto = ref("");
 const busy = ref(false);
 const error = ref("");
 const saved = ref(false);
-const agreed = ref(false);
-// First time here: a short "make your card" form. About and links wait
-// behind "Add more" so a new person is done in under a minute.
-const firstRun = computed(() => !me.profile);
-const showMore = ref(false);
 onMounted(() => {
   // No card yet: the welcome steps are where a card is made (F14); this page is for editing one.
   if (!me.profile) { router.replace("/app/welcome"); return; }
@@ -102,7 +96,6 @@ async function save() {
   error.value = "";
   saved.value = false;
   if (!f.value.name.trim()) { error.value = "Name is required."; return; }
-  if (!me.profile && !agreed.value) { error.value = "Please confirm you're 18 or over and agree to the Terms and Privacy Policy."; return; }
   busy.value = true;
   try {
     const payload = {
@@ -119,16 +112,13 @@ async function save() {
     // (refreshing the cached `me`, navigating back) is best-effort: if either
     // of those stumbles, the save itself still happened, so we say so rather
     // than showing an error that makes it look like nothing was kept.
-    const wasNew = !me.profile;
-    if (me.profile) await Api.updateProfile(payload);
-    else await Api.createProfile({ ...payload, over18: true, acceptTerms: true, note: "" });
+    await Api.updateProfile(payload);
 
     saved.value = true;
     photo.value = null;
     try {
       await refreshMe();
-      // New card: back to a promo code they arrived with, else the welcome.
-      setTimeout(() => router.push(wasNew ? afterAccountPath("/app?welcome=1") : "/app"), wasNew ? 0 : 700);
+      setTimeout(() => router.push("/app"), 700);
     } catch {
       error.value = "Saved, but couldn't refresh your card here — it'll show the change next time you open the app.";
     }
@@ -143,12 +133,7 @@ async function save() {
 <template>
   <div class="stack-2">
     <PhotoCropper v-if="cropFile" :file="cropFile" @done="onCropped" @cancel="cropFile = null" />
-    <div v-if="firstRun" class="page-head">
-      <span class="label">New here</span>
-      <h1>Make your card</h1>
-      <p class="sub">Takes about a minute. People see this when they scan you, and you can change it any time.</p>
-    </div>
-    <h1 v-else>Edit profile</h1>
+    <h1>Edit profile</h1>
 
     <div class="form-section">
       <span class="form-section-title">Basics</span>
@@ -174,20 +159,16 @@ async function save() {
         <input id="headline" v-model="f.headline" type="text" maxlength="80"
                placeholder="e.g. Building robots and Roblox games" />
         <span class="small muted" style="align-self:flex-end">{{ f.headline.length }}/80 — this is one line on your badge</span></div>
-      <div v-if="!firstRun || showMore" class="field"><label for="about">About</label>
+      <div class="field"><label for="about">About</label>
         <textarea id="about" v-model="f.about" maxlength="600"></textarea></div>
     </div>
 
     <div class="form-section">
       <span class="form-section-title">Networking</span>
-      <p v-if="!firstRun" class="small muted" style="margin:0 0 12px">These are your defaults. Each card can say something different under My cards.</p>
+      <p class="small muted" style="margin:0 0 12px">These are your defaults. Each card can say something different under My cards.</p>
       <TagFields :form="f" />
 
-      <button v-if="firstRun && !showMore" type="button" class="link-btn small" style="text-align:left" @click="showMore = true">
-        Add more: a short bio and links (optional)
-      </button>
-
-      <div v-if="!firstRun || showMore" id="links" class="field">
+      <div id="links" class="field">
         <label>Links <span class="muted">({{ f.links.filter((l) => l.label.trim() && l.url.trim()).length }} of {{ MAX_LINKS }})</span></label>
         <div v-for="(l, i) in f.links" :key="i" class="link-row">
           <input v-model="l.label" type="text" maxlength="40" placeholder="LinkedIn" :aria-label="`Link ${i + 1} label`" />
@@ -199,23 +180,14 @@ async function save() {
       </div>
     </div>
 
-    <label v-if="!me.profile" class="checkbox-row field">
-      <input v-model="agreed" type="checkbox" />
-      <span class="small">
-        I'm 18 or over, and I agree to the
-        <router-link to="/terms" target="_blank">Terms of Service</router-link> and
-        <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
-      </span>
-    </label>
-
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     <p v-if="saved" class="success-text" role="status">Saved.</p>
 
     <!-- Sits above the bottom tab bar (which would otherwise cover it). -->
-    <div class="thumb-bar" :style="me.profile ? 'bottom:calc(64px + env(safe-area-inset-bottom, 0px));z-index:70' : ''">
+    <div class="thumb-bar" style="bottom:calc(64px + env(safe-area-inset-bottom, 0px));z-index:70">
       <div class="inner">
         <button class="btn btn-primary" :disabled="busy" @click="save">
-          {{ busy ? "Saving…" : saved ? "Saved ✓" : firstRun ? "Create my card" : "Save changes" }}
+          {{ busy ? "Saving…" : saved ? "Saved ✓" : "Save changes" }}
         </button>
       </div>
     </div>

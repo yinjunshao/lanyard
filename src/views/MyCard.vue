@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import { me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 import Badge from "../components/Badge.vue";
@@ -14,7 +14,6 @@ import InstallGuide, { offerInstall } from "../components/InstallGuide.vue";
 import { dismissInstall } from "../lib/install";
 
 const router = useRouter();
-const route = useRoute();
 
 // Still in the welcome steps (a new card, or a guest who connected first)? Carry on there, unless
 // they chose Leave in this session. The page draws nothing meanwhile.
@@ -23,35 +22,32 @@ try { left = sessionStorage.getItem("lanyard-onboarding-left") === "1"; } catch 
 const redirecting = !!me.profile && me.profile.onboarding_step != null && !left;
 if (redirecting) router.replace("/app/welcome");
 
-// Just made your card: a short "how it works" the first time.
-const welcome = ref(route.query.welcome === "1");
-function closeWelcome() {
-  welcome.value = false;
-  router.replace({ query: {} });
-}
 // On a phone only, and only once (the rules are in offerInstall).
 const showInstall = ref(false);
 offerInstall(me.user).then((yes) => { showInstall.value = yes; });
 function hideInstall() { dismissInstall(); showInstall.value = false; }
 
-// "Finish your card": what's missing from the profile, each a tap away from
-// the right field. People who scan you see these, so a bare card wastes the scan.
+// "Finish your card": only what is still missing from the profile, each a tap away from its
+// welcome step (F14). People who scan you see these, so a bare card wastes the scan.
 const STEPS = [
-  { key: "photo", label: "Add a photo", why: "so people remember your face", done: (p) => !!p.photo },
-  { key: "headline", label: "Say what you do", why: "one line on your badge", done: (p) => !!p.headline?.trim() },
-  { key: "tags", label: "Add what people can come to you for", why: "the first thing people read", done: (p) => (p.tags || []).length > 0 },
-  { key: "course", label: "Add your course and university", why: "", done: (p) => !!(p.course?.trim() && p.uni?.trim()) },
-  { key: "links", label: "Add a link", why: "LinkedIn, GitHub, a portfolio", done: (p) => Object.keys(p.links || {}).length > 0 },
+  { key: "photo", step: 1, label: "Add a photo", why: "so people remember your face", done: (p) => !!p.photo },
+  { key: "course", step: 2, label: "Add your course and university", why: "", done: (p) => !!(p.course?.trim() && p.uni?.trim()) },
+  { key: "headline", step: 3, label: "Say what you do", why: "one line on your badge", done: (p) => !!p.headline?.trim() },
+  { key: "tags", step: 3, label: "Add what people can come to you for", why: "the first thing people read", done: (p) => (p.tags || []).length > 0 },
+  { key: "links", step: 4, label: "Add a link", why: "LinkedIn, GitHub, a portfolio", done: (p) => Object.keys(p.links || {}).length > 0 },
 ];
 // In Career mode the course-and-university step asks for company and role instead.
-const CAREER_STEP = { key: "company", label: "Add your company and role", why: "", done: (p) => !!(p.company?.trim() && p.role?.trim()) };
+const CAREER_STEP = { key: "company", step: 2, label: "Add your company and role", why: "", done: (p) => !!(p.company?.trim() && p.role?.trim()) };
 const steps = computed(() => (me.profile
   ? STEPS.map((s) => (s.key === "course" && me.profile.mode === "career" ? CAREER_STEP : s)).map((s) => ({ ...s, ok: s.done(me.profile) }))
   : []));
 const doneCount = computed(() => steps.value.filter((s) => s.ok).length);
 const SNOOZE_KEY = "lanyard-finish-card-snoozed";
 const snoozed = ref((() => { try { return Date.now() - Number(localStorage.getItem(SNOOZE_KEY) || 0) < 3 * 864e5; } catch { return false; } })());
-const showFinish = computed(() => !welcome.value && steps.value.length && doneCount.value < steps.value.length && !snoozed.value);
+// Still in the welcome steps but left them for now: one way back in, not the list.
+const inSteps = computed(() => me.profile?.onboarding_step != null);
+const missing = computed(() => steps.value.filter((s) => !s.ok));
+const showFinish = computed(() => !inSteps.value && missing.value.length > 0 && !snoozed.value);
 function snoozeFinish() {
   snoozed.value = true;
   try { localStorage.setItem(SNOOZE_KEY, String(Date.now())); } catch { /* not remembered */ }
@@ -211,21 +207,13 @@ async function share() {
       </div>
     </div>
 
-    <section v-if="welcome" class="panel stack-2" aria-label="Your card is ready">
-      <div class="spread">
-        <strong>Your card is ready</strong>
-        <button type="button" class="link-btn small" @click="closeWelcome">Got it</button>
-      </div>
-      <ol class="small welcome-steps">
-        <li><strong>Show it.</strong> At an event, open this page and hold the card to brighten it.</li>
-        <li><strong>They scan, you're connected.</strong> They tap Connect, and you can take a selfie together.</li>
-        <li><strong>Remember them.</strong> Everyone you meet is under People, with where you met and your notes.</li>
-      </ol>
-      <p class="small muted" style="margin:0">Scanning someone else? Use the Scan tab, or type the code under their QR.</p>
-      <router-link v-if="doneCount < steps.length" to="/app/profile#photo" class="btn">Finish your card ({{ doneCount }} of {{ steps.length }} done)</router-link>
+    <section v-if="inSteps" class="panel stack-2 finish" aria-label="Finish your card">
+      <strong>Your card isn't finished</strong>
+      <p class="small muted" style="margin:0">A few quick questions, one at a time. You can skip any of them.</p>
+      <router-link to="/app/welcome" class="btn">Pick up where you left off</router-link>
     </section>
 
-    <section v-if="showFinish" class="panel stack-2 finish" aria-label="Finish your card">
+    <section v-else-if="showFinish" class="panel stack-2 finish" aria-label="Finish your card">
       <div class="spread">
         <strong>Finish your card</strong>
         <span class="small muted tnum">{{ doneCount }} of {{ steps.length }} done</span>
@@ -234,16 +222,15 @@ async function share() {
         <span :style="{ width: `${(doneCount / steps.length) * 100}%` }"></span>
       </div>
       <ul class="finish-list">
-        <li v-for="st in steps" :key="st.key" :class="{ ok: st.ok }">
-          <span class="finish-tick" aria-hidden="true">{{ st.ok ? "✓" : "" }}</span>
-          <router-link v-if="!st.ok" :to="`/app/profile#${st.key}`">{{ st.label }}<span v-if="st.why" class="small muted"> — {{ st.why }}</span></router-link>
-          <span v-else class="muted">{{ st.label }}</span>
+        <li v-for="st in missing" :key="st.key">
+          <span class="finish-tick" aria-hidden="true"></span>
+          <router-link :to="`/app/welcome?step=${st.step}`">{{ st.label }}<span v-if="st.why" class="small muted"> — {{ st.why }}</span></router-link>
         </li>
       </ul>
       <button type="button" class="link-btn small" style="text-align:left" @click="snoozeFinish">Remind me later</button>
     </section>
 
-    <section v-else-if="showInstall && !welcome" class="panel" aria-label="Add to home screen">
+    <section v-else-if="showInstall" class="panel" aria-label="Add to home screen">
       <InstallGuide heading="Open Lanyard in one tap" @done="hideInstall" />
       <button type="button" class="link-btn small" style="margin-top:8px" @click="hideInstall">Not now</button>
     </section>
@@ -377,7 +364,6 @@ async function share() {
   .card-head { grid-template-columns: 1fr auto; align-items: end; }
   .card-actions .btn-quiet { flex: 0 0 auto; min-width: 128px; }
 }
-.welcome-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .finish { border-left: 4px solid var(--strap); }
 .finish-bar { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }
 .finish-bar span { display: block; height: 100%; background: var(--strap); }
@@ -385,5 +371,4 @@ async function share() {
 .finish-list li { display: flex; gap: 10px; align-items: baseline; }
 .finish-list a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .finish-tick { flex: 0 0 18px; height: 18px; border: 1.5px solid var(--ink); border-radius: 4px; display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; transform: translateY(3px); }
-.finish-list li.ok .finish-tick { background: var(--ink); color: var(--paper); }
 </style>

@@ -6,7 +6,6 @@
 //     required, so "Later" only snoozes it for a few days);
 //  3. no passkey: it's the fastest way to sign in next time.
 import { computed, ref, shallowRef } from "vue";
-import { useRoute } from "vue-router";
 import { me } from "../lib/store";
 import { Api } from "../lib/api";
 
@@ -19,7 +18,6 @@ const passkeysSupported = () => typeof window !== "undefined" && typeof window.P
 
 const NEW_ORIGIN = import.meta.env.VITE_NEW_ORIGIN || "https://lanyd.fyi";
 const KEY = "lanyard_banner_dismissed";
-const route = useRoute();
 const EMAIL_SNOOZE_MS = 3 * 24 * 60 * 60 * 1000;
 const emailOpen = ref(false);
 const busy = ref(false);
@@ -39,7 +37,7 @@ const kind = computed(() => {
   const u = me.user;
   if (!u || !me.profile) return "";
   if (oldAddress) return "move"; // can't be dismissed: the account is stranded here
-  if (route.query.welcome === "1") return ""; // let the "your card is ready" moment breathe
+  if (me.profile.onboarding_step != null) return ""; // the welcome steps ask for the email and the passkey themselves (F14)
   if (!u.emailVerified && !(dismissed.value.email && Date.now() - dismissed.value.email < EMAIL_SNOOZE_MS)) return "email";
   if (!u.hasPasskey && passkeysSupported() && !dismissed.value.passkey) return "passkey";
   return "";

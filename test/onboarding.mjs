@@ -232,4 +232,18 @@ console.log("\n# Connecting from a scanned card: no extra steps, and how it was 
   check("step 1 says who, for that guest", has(read("src/views/Welcome.vue"), 'api("/api/connections")') && has(read("src/components/welcome/StepYou.vue"), "Finish your card so {{ from }} can find you again."));
 }
 
+console.log("\n# While in the steps, nothing else nags; after them My card lists only what is missing");
+{
+  const banner = read("src/components/AccountBanner.vue"), my = read("src/views/MyCard.vue"), edit = read("src/views/EditProfile.vue");
+  const kind = banner.slice(banner.indexOf("const kind = computed"), banner.indexOf("async function move"));
+  check("the account banner says nothing while someone is in the welcome steps, but still moves a workers.dev account first",
+    kind.indexOf('return "move"') > 0 && kind.indexOf('return "move"') < kind.indexOf("onboarding_step != null") && kind.indexOf("onboarding_step != null") < kind.indexOf('return "email"'), kind);
+  check("My card shows one way back in, not the list, while the steps are unfinished", has(my, 'v-if="inSteps"', "Pick up where you left off") && has(my, "const showFinish = computed(() => !inSteps.value"));
+  check("the old Your card is ready panel and its ?welcome=1 are gone", !/welcome=1|closeWelcome|welcome-steps/.test(my + read("src/views/EditProfile.vue") + banner));
+  check("the Finish your card list shows only what is missing and each item opens its own step", has(my, 'v-for="st in missing"', "/app/welcome?step=${st.step}") && !/finish-tick[^>]*>\{\{ st\.ok/.test(my));
+  check("each item is on the step that asks for it: photo 1, school or work 2, headline and tags 3, links 4",
+    has(my, 'key: "photo", step: 1', 'key: "course", step: 2', 'key: "headline", step: 3', 'key: "tags", step: 3', 'key: "links", step: 4', 'key: "company", step: 2'));
+  check("Edit profile only edits now: it cannot create a card and has no Terms tick of its own", !/createProfile|acceptTerms|agreed|firstRun/.test(edit));
+}
+
 summary();
