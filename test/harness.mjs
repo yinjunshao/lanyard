@@ -9,7 +9,12 @@ import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-export function makeDb() {
+export const migrationFiles = () => readdirSync(join(root, "migrations")).filter((f) => f.endsWith(".sql")).sort();
+export const readMigration = (f) => readFileSync(join(root, "migrations", f), "utf8");
+
+// `before`: apply only the migrations whose file name sorts before it (for
+// testing a migration against data in the older shape).
+export function makeDb({ before } = {}) {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
   const wrap = (sql) => ({
@@ -29,8 +34,9 @@ export function makeDb() {
     },
     exec: (sql) => db.exec(sql),
   };
-  for (const f of readdirSync(join(root, "migrations")).filter((f) => f.endsWith(".sql")).sort()) {
-    db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of migrationFiles()) {
+    if (before && f >= before) break;
+    db.exec(readMigration(f));
   }
   return api;
 }

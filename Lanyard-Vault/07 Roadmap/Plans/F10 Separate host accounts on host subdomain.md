@@ -4,7 +4,7 @@ id: F10
 priority: P1
 phase: 1
 size: XL
-status: Not started
+status: In progress
 needs: [F07]
 ---
 # F10 Separate host accounts on host subdomain
@@ -65,7 +65,10 @@ New tables, in a new migration (next free number; 0017 is the latest today):
 
 ## Tasks
 - [x] F10.1 Owner decision A or B recorded above.
-- [ ] F10.2 Migration: new host tables and repointed org tables. Test on a fixture DB in `test/hosts-accounts.mjs`.
+- [x] F10.2 Migration: new host tables and repointed org tables. Test on a fixture DB in `test/hosts-accounts.mjs`.
+  - `migrations/0018_host_accounts.sql` only adds: `host_accounts`, `host_sessions`, `host_login_codes`, and the organisation tables on host accounts as new tables `host_org_members`, `host_org_transfers`, `host_org_invites`, `host_org_tickets`, plus `host_mail_log` for the owner recap (`event_mail_log.user_id` points at `users`). The old tables are **not** dropped or renamed: the migration has to be safe to apply on production before the reset, while the old code still runs, and must not delete data. The reset empties them; dropping them is a later migration once the reset is done.
+  - `billing_requests` is rebuilt with every row copied: `org_id` is now `ON DELETE SET NULL` (it was `CASCADE`, so the full wipe would have deleted invoice records), the organisation's name is kept on the row (`org_name`), and `host_account_id` records who raised it from now on. Host Terms acceptance lives on `host_accounts` (`terms_version`, `terms_at`) plus a `consent_log` row, because `consents.user_id` points at `users`.
+  - `test/hosts-accounts.mjs` applies 0018 on top of 0017 with `test/fixtures/old-hosts.sql` loaded: no row lost, invoices copied field by field, new tables empty and not pointing at `users`, and deleting an organisation keeps its invoices.
 - [ ] F10.3 Host session middleware and cookie isolation, with security tests: an attendee cookie gets 401 on `/api/host/me`, a host cookie gets 401 on `/api/me`, and main-origin calls to the host API are refused.
 - [ ] F10.4 Email-code sign-in and sign-up endpoints, with rate limits and generic errors (tests).
 - [ ] F10.5 Move every `hostApp` route from `hostUser(c)` to the host account.
@@ -75,7 +78,7 @@ New tables, in a new migration (next free number; 0017 is the latest today):
 - [ ] F10.9 Admin: host list, attach org to email.
 - [ ] F10.10 Reset script for the chosen option, plus a dry-run mode that prints counts. Run it locally on an export copy and paste the counts here.
 - [ ] F10.11 Config: add `https://host.lanyd.fyi` to `APP_ORIGIN` in `wrangler.production.toml`, set `VITE_HOST_ORIGIN=https://host.lanyd.fyi` for the build. Write the owner steps below.
-- [ ] F10.12 Update the vault: [[Auth and Sessions]], [[Host Portal and Billing]], [[Data Model]], [[Screens and Routes]], [[API Surface]], and a new decision note "D018 Host accounts separate from attendee accounts" that supersedes the session part of [[D014 Separate host subdomain]] and the host part of [[D003 Guest first with passkeys]].
+- [ ] F10.12 Update the vault: [[Auth and Sessions]], [[Host Portal and Billing]], [[Data Model]], [[Screens and Routes]], [[API Surface]], and a new decision note "D020 Host accounts separate from attendee accounts" (D018 and D019 were taken by then) that supersedes the session part of [[D014 Separate host subdomain]] and the host part of [[D003 Guest first with passkeys]].
 
 ## Owner steps (outside the code)
 1. Cloudflare: add the custom domain `host.lanyd.fyi` to the `lanyard-v2` Worker, or add a `routes` entry with `custom_domain = true`.
@@ -90,6 +93,6 @@ New tables, in a new migration (next free number; 0017 is the latest today):
 - [ ] After the reset (local dry run), the counts match the chosen option and billing requests are untouched.
 
 ## Log
--
+- 2026-11-10 (Claude subagent): started. First-load JS before F10 (gzip, entry + static imports + page chunk, from `dist/` at e9bed01): Landing 65,437 B, public card 59,486 B.
 
 Related: [[Host Portal and Billing]], [[Auth and Sessions]], [[Security]] · back to [[00 Master To-Do]]
