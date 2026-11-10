@@ -1,18 +1,21 @@
 <script setup>
-// Host portal home: a host account (passkey + name + email) -> an organisation
-// or events under your own name -> events.
+// Host portal home (F10): sign in with an email code, then details, Host Terms
+// and "under my own name or an organisation" (HostSetup and the org step
+// below), then events. The step shown is the one the server says, so a refresh
+// or another device resumes in the right place; Back only shows an earlier
+// saved step. Sign out is in the header on every step.
 import { computed, onMounted, ref } from "vue";
-import { Api } from "../lib/api";
-import { HostApi } from "../lib/hostapi";
-import { me, refreshMe, signOutAndReload } from "../lib/store";
-import { registerPasskey, loginPasskey } from "../lib/passkeys";
-import { ON_HOST_SITE, MAIN_ORIGIN } from "../lib/site";
+import { HostApi, hostSignOutAndReload } from "../lib/hostapi";
+import { MAIN_ORIGIN } from "../lib/site";
+import HostSetup from "../components/HostSetup.vue";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
 import { defaultEnd } from "../lib/dates";
 
-const state = ref("loading"); // loading | account | terms | profile | welcome | ready
+// loading | email | code (signed out) | details | terms | org (setup) | ready
+const view = ref("loading");
+const serverStep = ref(null);
 const org = ref(null);
 const account = ref(null);
 const pendingTransfers = ref([]);
@@ -23,16 +26,16 @@ const creating = ref(false);
 const error = ref("");
 const busy = ref(false);
 const createdCode = ref(null);
+const signedIn = computed(() => !!serverStep.value);
+const SETUP = ["email", "code", "details", "terms"];
 
-const accountError = ref("");
-
-// Every step has a way out: a half-finished setup is remembered by the session
-// cookie, so leaving the page is not enough. Sign out clears it.
+// Every step has a way out: Sign out ends the host session on the server, so
+// nothing about a half-finished setup survives on this browser.
 const signOutError = ref("");
 const signingOut = ref(false);
 async function signOut() {
   signOutError.value = ""; signingOut.value = true;
-  try { await signOutAndReload("/"); }
+  try { await hostSignOutAndReload("/"); }
   catch (e) { signOutError.value = e?.message || "Couldn't sign out. Check your connection and try again."; signingOut.value = false; }
 }
 
@@ -45,113 +48,22 @@ const f = ref(blankForm());
 
 onMounted(load);
 async function load() {
+  error.value = "";
   try {
     const d = await HostApi.hostMe();
-    org.value = d.org;
+    serverStep.value = d.step;
     account.value = d.account;
+    org.value = d.org;
     pendingTransfers.value = d.pendingTransfers || [];
-    limits.value = d.limits;
-    credits.value = d.credits;
-    events.value = d.events;
-    state.value = d.org ? "ready" : "welcome";
+    if (d.limits) limits.value = d.limits;
+    if (d.credits) credits.value = d.credits;
+    events.value = d.events || [];
+    view.value = d.step;
+    if (location.pathname === "/signin") history.replaceState(null, "", "/");
   } catch (e) {
-    if (e.code === "account_required") state.value = "account";
-    else if (e.code === "terms_required") state.value = "terms";
-    else if (e.code === "profile_required") { det.value.fullName ||= me.profile?.name || ""; state.value = "profile"; }
-    else { error.value = e.message; state.value = "ready"; }
-  }
-}
-
-// ----- host account: name, email, short survey, terms -----
-const hostAgreed = ref(false);
-const needAgree = "Please agree to the Host Terms and Privacy Policy first.";
-const det = ref({ fullName: "", email: "", useCase: "", frequency: "", size: "", referral: "" });
-const FREQUENCIES = ["One-off event", "A few times a year", "About once a month", "Weekly or more"];
-const SIZES = ["Under 50 people", "50 to 200", "200 to 1,000", "Over 1,000"];
-const FROM_OPTIONS = computed(() => [{ value: "", label: "A blank event" }, ...events.value.map((e) => ({ value: e.id, label: `A copy of ${e.name}` }))]);
-const SIZE_OPTIONS = [{ value: "", label: "Not sure yet" }, ...SIZES];
-const THEME_OPTIONS = [
-  { value: "default", label: "Default — Persimmon" },
-  { value: "formal", label: "Formal — navy strap" },
-  { value: "night", label: "Night — dark" },
-];
-
-function detailsProblem() {
-  const d = det.value;
-  if (d.fullName.trim().length < 2) return "Add your full name.";
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email.trim())) return "Add an email address we can reach you on.";
-  if (!d.useCase.trim()) return "Tell us what you plan to use Lanyard for.";
-  if (!d.frequency) return "Tell us how often you run events.";
-  return "";
-}
-function saveDetails() {
-  const d = det.value;
-  return HostApi.hostSignup({
-    fullName: d.fullName.trim(), email: d.email.trim(),
-    survey: { useCase: d.useCase, frequency: d.frequency, size: d.size, referral: d.referral },
-  });
-}
-async function acceptHostTerms() {
-  accountError.value = ""; busy.value = true;
-  try { await HostApi.hostAcceptTerms(); await load(); }
-  catch (e) { accountError.value = e.message; }
-  finally { busy.value = false; }
-}
-async function createAccount() {
-  accountError.value = "";
-  const problem = detailsProblem();
-  if (problem) { accountError.value = problem; return; }
-  if (!hostAgreed.value) { accountError.value = needAgree; return; }
-  busy.value = true;
-  try {
-    await registerPasskey();
-    await HostApi.hostAcceptTerms();
-    await saveDetails();
-    await refreshMe();
-    await load();
-  } catch (e) {
-    accountError.value = e?.message || "Passkey setup was cancelled.";
-  } finally {
-    busy.value = false;
-  }
-}
-const recoveryKey = ref("");
-async function createWithKey() {
-  accountError.value = "";
-  const problem = detailsProblem();
-  if (problem) { accountError.value = problem; return; }
-  if (!hostAgreed.value) { accountError.value = needAgree; return; }
-  busy.value = true;
-  try {
-    recoveryKey.value = (await Api.recoveryCreate()).key;
-    await HostApi.hostAcceptTerms();
-    await saveDetails();
-  } catch (e) {
-    accountError.value = e?.message || "Couldn't create the key.";
-  } finally { busy.value = false; }
-}
-// A host account that exists but never gave a name and email (made before
-// they were asked for) finishes here.
-async function finishProfile() {
-  accountError.value = "";
-  const problem = detailsProblem();
-  if (problem) { accountError.value = problem; return; }
-  busy.value = true;
-  try { await saveDetails(); await load(); }
-  catch (e) { accountError.value = e.message; }
-  finally { busy.value = false; }
-}
-async function signIn() {
-  accountError.value = "";
-  busy.value = true;
-  try {
-    await loginPasskey();
-    await refreshMe();
-    await load();
-  } catch {
-    accountError.value = "No host account found for a passkey on this device.";
-  } finally {
-    busy.value = false;
+    serverStep.value = null;
+    if (e.code === "signed_out") view.value = "email";
+    else { error.value = e.message; view.value = "error"; }
   }
 }
 
@@ -254,104 +166,24 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
   <div class="wide-col stack-3" style="max-width:760px">
     <div class="page-head">
       <div class="host-head-row">
-        <a v-if="ON_HOST_SITE" :href="MAIN_ORIGIN" class="small muted">‹ Back to Lanyard</a>
-        <router-link v-else to="/hosts" class="small muted">‹ For hosts</router-link>
-        <button type="button" class="link-btn small" :disabled="signingOut" @click="signOut">{{ signingOut ? "Signing out…" : "Sign out" }}</button>
+        <a :href="MAIN_ORIGIN" class="small muted">‹ Back to Lanyard</a>
+        <button v-if="signedIn" type="button" class="link-btn small" :disabled="signingOut" @click="signOut">{{ signingOut ? "Signing out…" : "Sign out" }}</button>
       </div>
       <p v-if="signOutError" class="error-text small" role="alert">{{ signOutError }}</p>
       <h1 style="margin-top:8px"><img src="/host-icon.svg" alt="" style="width:32px;height:32px;vertical-align:-6px;margin-right:8px" />Host portal</h1>
-      <p v-if="org && state === 'ready'" class="sub">{{ org.name }}</p>
-      <p v-if="state === 'ready' || state === 'welcome'" class="small" style="margin-top:6px">
+      <p v-if="org && view === 'ready'" class="sub">{{ org.name }}</p>
+      <p v-if="view === 'ready' || view === 'org'" class="small" style="margin-top:6px">
         <router-link to="/account">Account and team</router-link>
       </p>
     </div>
 
-    <p v-if="state === 'loading'" class="muted">Loading…</p>
+    <p v-if="view === 'loading'" class="muted">Loading…</p>
+    <p v-else-if="view === 'error'" class="error-text" role="alert">{{ error }} <button type="button" class="link-btn" @click="load">Try again</button></p>
 
-    <!-- 1. Account -->
-    <section v-else-if="state === 'account'" class="panel stack-2">
-      <h2>Create your host account</h2>
-      <p class="muted">
-        Your events and invoices live on a host account, separate from your
-        personal Lanyard card. It signs in with a passkey (Face ID, fingerprint
-        or screen lock). No password. Organisations can be handed to another host
-        account later, so a new committee can take over.
-      </p>
-      <div class="form-section">
-        <span class="form-section-title">About you</span>
-        <div class="field"><label for="sv-name">Full name</label>
-          <input id="sv-name" v-model="det.fullName" type="text" maxlength="80" autocomplete="name" /></div>
-        <div class="field"><label for="host-email">Email</label>
-          <input id="host-email" v-model="det.email" type="email" autocomplete="email" inputmode="email" />
-          <span class="small muted">Use your university or work email. Societies and institutions need a university address to qualify for their prices.</span></div>
-        <div class="field"><label for="sv-use">What do you plan to use Lanyard for?</label>
-          <textarea id="sv-use" v-model="det.useCase" maxlength="600"
-                    placeholder="e.g. Helping members meet each other at our weekly socials and the annual careers fair"></textarea></div>
-        <div class="field"><label id="sv-freq-l">How often do you run events?</label>
-          <UiSelect id="sv-freq" v-model="det.frequency" labelledby="sv-freq-l" placeholder="Choose one" :options="FREQUENCIES" /></div>
-        <div class="field"><label id="sv-size-l">How many people usually come? (optional)</label>
-          <UiSelect id="sv-size" v-model="det.size" labelledby="sv-size-l" :options="SIZE_OPTIONS" /></div>
-        <div class="field"><label for="sv-ref">How did you hear about Lanyard? (optional)</label>
-          <input id="sv-ref" v-model="det.referral" type="text" maxlength="200" /></div>
-      </div>
-      <label class="checkbox-row field">
-        <input v-model="hostAgreed" type="checkbox" />
-        <span class="small">
-          I'm 18 or over, I'm authorised to act for this organisation, and I agree to the
-          <router-link to="/terms#hosts" target="_blank">Host Terms</router-link> and
-          <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
-        </span>
-      </label>
-      <p v-if="accountError" class="error-text" role="alert">{{ accountError }}</p>
-      <button class="btn btn-primary" :disabled="busy" @click="createAccount">
-        {{ busy ? "Waiting for passkey…" : "Create account with a passkey" }}
-      </button>
-      <router-link to="/signin" class="btn">I already have a host account</router-link>
-      <button v-if="!recoveryKey" class="btn" :disabled="busy" @click="createWithKey">
-        No passkey on this device? Use a recovery key instead
-      </button>
-      <div v-else class="stack">
-        <p class="small muted">Your recovery key. Shown once, so save it somewhere safe. It signs you in from any device.</p>
-        <p class="tnum" style="font-size:22px;font-weight:800;letter-spacing:2px;margin:0;word-break:break-all">{{ recoveryKey }}</p>
-        <button class="btn btn-primary" @click="recoveryKey = ''; load()">I've saved it, continue</button>
-      </div>
-    </section>
+    <HostSetup v-else-if="SETUP.includes(view)" :view="view" :account="account" @go="(v) => (view = v)" @reload="load" />
 
-    <!-- 1b. Host terms (new version, or an account made before they existed) -->
-    <section v-else-if="state === 'terms'" class="panel stack-2">
-      <h2>Host Terms</h2>
-      <p class="muted">Please agree to the current Host Terms and Privacy Policy to keep using the host portal.</p>
-      <label class="checkbox-row field">
-        <input v-model="hostAgreed" type="checkbox" />
-        <span class="small">
-          I'm authorised to act for this organisation and I agree to the
-          <router-link to="/terms#hosts" target="_blank">Host Terms</router-link> and
-          <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
-        </span>
-      </label>
-      <p v-if="accountError" class="error-text" role="alert">{{ accountError }}</p>
-      <button class="btn btn-primary" :disabled="busy || !hostAgreed" @click="acceptHostTerms">Agree and continue</button>
-    </section>
-
-    <!-- 1c. Name and email, for accounts that don't have them yet -->
-    <section v-else-if="state === 'profile'" class="panel stack-2">
-      <h2>Finish your host account</h2>
-      <p class="muted">We need your name and an email you can be reached on, so organisations can be handed to you and invoices find you.</p>
-      <div class="field"><label for="pf-name">Full name</label>
-        <input id="pf-name" v-model="det.fullName" type="text" maxlength="80" autocomplete="name" /></div>
-      <div class="field"><label for="pf-email">Email</label>
-        <input id="pf-email" v-model="det.email" type="email" autocomplete="email" inputmode="email" />
-        <span class="small muted">Use your university or work email if you want student or institution prices.</span></div>
-      <div class="field"><label for="pf-use">What do you plan to use Lanyard for?</label>
-        <textarea id="pf-use" v-model="det.useCase" maxlength="600"></textarea></div>
-      <div class="field"><label id="pf-freq-l">How often do you run events?</label>
-        <UiSelect id="pf-freq" v-model="det.frequency" labelledby="pf-freq-l" placeholder="Choose one" :options="FREQUENCIES" /></div>
-      <p v-if="accountError" class="error-text" role="alert">{{ accountError }}</p>
-      <button class="btn btn-primary" :disabled="busy" @click="finishProfile">Continue</button>
-    </section>
-
-    <!-- 2. Empty portal: your own name, an organisation, or a transfer waiting for you -->
-    <template v-else-if="state === 'welcome'">
+    <!-- Setup 3 of 3: your own name, an organisation, or a transfer waiting for you -->
+    <template v-else-if="view === 'org'">
       <section v-if="pendingTransfers.length" class="panel stack-2">
         <h2>Waiting for you</h2>
         <div v-for="t in pendingTransfers" :key="t.id" class="notice stack">
@@ -364,8 +196,10 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         </div>
       </section>
 
-      <section class="panel stack-2">
-        <h2>Where will your events live?</h2>
+      <section class="panel stack-2" aria-labelledby="org-h">
+        <button type="button" class="link-btn small" style="align-self:flex-start" @click="view = 'terms'">‹ Back</button>
+        <span class="label">Step 3 of 3</span>
+        <h2 id="org-h">Where will your events live?</h2>
         <p class="muted">Pick one. Each host account has a single organisation, and you can hand it to someone else later.</p>
         <div class="stack">
           <label v-for="k in KINDS" :key="k.value" class="checkbox-row field" style="align-items:flex-start">
@@ -392,6 +226,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
           </p>
         </template>
         <p v-if="emailHint" class="notice small">{{ emailHint }}</p>
+        <p class="small muted" style="margin:0">Joining a colleague's organisation instead? <router-link to="/account#join" style="text-decoration:underline">Use their invite code</router-link>.</p>
         <p v-if="error" class="error-text" role="alert">{{ error }}</p>
         <button class="btn btn-primary" :disabled="busy || !!emailHint" @click="createOrg">
           {{ busy ? "Saving…" : needsApproval ? "Send application" : orgForm.kind === 'individual' ? "Continue under my name" : "Create organisation" }}
@@ -399,7 +234,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       </section>
     </template>
 
-    <!-- 3. Dashboard -->
+    <!-- Dashboard -->
     <template v-else>
       <div v-if="org && org.status === 'pending'" class="notice stack">
         <strong>Your application is being reviewed.</strong>

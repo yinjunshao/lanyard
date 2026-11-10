@@ -59,10 +59,24 @@ check("signing out when already signed out is fine", twice.status === 200);
 check("no attendee session is ever made on the host site", !c.jar.has("lanyard_session"), [...c.jar.keys()]);
 
 console.log("\n# The screens keep their way out (source guards; the browser steps are in the F07 and F10 plan notes)");
-const dash = readFileSync(new URL("../src/views/HostDashboard.vue", import.meta.url), "utf8");
-const head = dash.slice(dash.indexOf('<div class="page-head">'), dash.indexOf('<p v-if="state ==='));
-check("the dashboard header has a Sign out button that is not tied to any one step",
-  head.includes('@click="signOut"') && !head.slice(0, head.indexOf('@click="signOut"')).includes("state ==="), head.slice(0, 300));
+const read = (f) => readFileSync(new URL("../" + f, import.meta.url), "utf8");
+const dash = read("src/views/HostDashboard.vue");
+const setup = read("src/components/HostSetup.vue");
+const head = dash.slice(dash.indexOf('<div class="page-head">'), dash.indexOf("<p v-if=\"view === 'loading'\""));
+check("the dashboard header has Sign out on every signed-in step (not tied to any one step)",
+  head.includes('v-if="signedIn"') && head.includes('@click="signOut"') && !/view ===|serverStep ===/.test(head.slice(0, head.indexOf('@click="signOut"'))), head.slice(0, 400));
+check("…signedIn is true on every step once the server knows the account", /const signedIn = computed\(\(\) => !!serverStep\.value\)/.test(dash));
+check("the step on screen is the one the server says", /view\.value = d\.step;/.test(dash) && /serverStep\.value = d\.step;/.test(dash));
+const section = (v) => setup.slice(setup.indexOf(`view === '${v}'`), setup.indexOf("</section>", setup.indexOf(`view === '${v}'`)));
+check("the code step has Back", section("code").includes("emit('go', 'email')"));
+check("the details step has Back (a different email, which signs out)", section("details").includes('@click="differentEmail"') && setup.includes('hostSignOutAndReload("/")'));
+check("the terms step has Back", section("terms").includes("emit('go', 'details')"));
+check("the organisation step has Back", /view === 'org'[\s\S]*@click="view = 'terms'"/.test(dash));
+const hostFiles = ["src/views/HostDashboard.vue", "src/components/HostSetup.vue", "src/views/HostAccount.vue", "src/views/HostBilling.vue",
+  "src/views/HostLive.vue", "src/views/HostSignOut.vue", "src/router/routes.host.js", "src/lib/hostapi.js"];
+const words = hostFiles.filter((f) => /passkey|recovery key|authenticator/i.test(read(f)));
+check("no passkey, recovery key or authenticator app anywhere on the host site", words.length === 0, words);
+check("host sign-out ends the session on the server before reloading", /await HostApi\.logout\(\);\s*window\.location\.replace\(to\)/.test(read("src/lib/hostapi.js")));
 const hostRoutes = readFileSync(new URL("../src/router/routes.host.js", import.meta.url), "utf8");
 check("/signout is a host page (old /host/signout addresses redirect to it)", hostRoutes.includes('path: "/signout"') && hostRoutes.includes('path: "/host/:rest(.*)*", redirect:'));
 const api = readFileSync(new URL("../src/lib/api.js", import.meta.url), "utf8");

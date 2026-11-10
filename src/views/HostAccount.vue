@@ -1,17 +1,12 @@
 <script setup>
-// Host account: how you sign in, who else is on the organisation, and sign out.
-import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+// Host account (F10): how you sign in, your devices, who else is on the
+// organisation, handing it over, integrations, and sign out. The host account
+// signs in with an email code only; it has nothing to do with a Lanyard card.
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { Api } from "../lib/api";
-import { HostApi } from "../lib/hostapi";
-import { signOutAndReload } from "../lib/store";
-import { registerPasskey, passkeysSupported } from "../lib/passkeys";
+import { HostApi, hostSignOutAndReload } from "../lib/hostapi";
 import UiSelect from "../components/ui/UiSelect.vue";
-import DevicesList from "../components/DevicesList.vue";
-import EmailSetup from "../components/EmailSetup.vue";
-import AuthenticatorSetup from "../components/AuthenticatorSetup.vue";
-import { drawQR } from "../lib/qr";
-import { ON_HOST_SITE } from "../lib/site";
+import { HELP_EMAIL } from "../lib/contact";
 
 const router = useRouter();
 const loading = ref(true);
@@ -21,60 +16,44 @@ const msg = ref("");
 const me = ref(null); // /api/host/me
 const team = ref(null); // /api/host/team
 const tix = ref({ tickets: [], outgoing: [] }); // /api/host/tickets
-const host = location.host;
 
 async function load() {
   try {
     me.value = await HostApi.hostMe();
+    if (me.value.step !== "ready" && me.value.step !== "org") { needsAccount.value = true; return; }
+    loadDevices();
     if (me.value.org) {
       team.value = await HostApi.hostTeam();
       if (team.value.role === "owner") tix.value = await HostApi.hostTickets();
       loadInteg();
     }
   } catch (e) {
-    if (["account_required", "profile_required", "terms_required"].includes(e.code)) needsAccount.value = true;
+    if (e.code === "signed_out") needsAccount.value = true;
     else error.value = e.message;
   } finally { loading.value = false; }
 }
 onMounted(load);
 
-// ----- sign-in methods -----
-async function addPasskey() {
-  error.value = ""; msg.value = "";
-  try { await registerPasskey(); msg.value = "Passkey saved."; await load(); }
-  catch (e) { error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled." : e?.message || "Passkey setup failed."; }
-}
-const recoveryKey = ref("");
-async function makeKey() {
-  error.value = "";
-  try { recoveryKey.value = (await Api.recoveryCreate()).key; await load(); }
-  catch (e) { error.value = e.message; }
-}
 async function copy(text) {
   try { await navigator.clipboard.writeText(text); msg.value = "Copied."; } catch { /* manual */ }
 }
 
-const link = ref(null);
-const linkCanvas = ref(null);
-const secondsLeft = ref(0);
-let tick = null;
-async function showLink() {
-  error.value = "";
-  try {
-    const r = await Api.authLink();
-    link.value = { ...r, url: `${location.origin}/host/signin?code=${r.code}` };
-    clearInterval(tick);
-    const update = () => {
-      secondsLeft.value = Math.max(0, Math.round((r.expiresAt - Date.now()) / 1000));
-      if (!secondsLeft.value) { clearInterval(tick); link.value = null; }
-    };
-    update(); tick = setInterval(update, 1000);
-    await nextTick();
-    if (linkCanvas.value) await drawQR(linkCanvas.value, link.value.url, 360);
-  } catch (e) { error.value = e.message; }
+// ----- devices signed in to this host account -----
+const devices = ref([]);
+async function loadDevices() {
+  try { devices.value = (await HostApi.sessions()).sessions; } catch { /* shown as empty */ }
 }
-onBeforeUnmount(() => clearInterval(tick));
-const mmss = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+async function signOutDevice(d) {
+  error.value = "";
+  try { await HostApi.signOutDevice(d.id); await loadDevices(); }
+  catch (e) { error.value = e.message; }
+}
+async function signOutOthers() {
+  error.value = "";
+  try { await HostApi.signOutOthers(); await loadDevices(); msg.value = "Other devices are signed out."; }
+  catch (e) { error.value = e.message; }
+}
+const fmtDay = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 // ----- team -----
 const invite = ref(null);
@@ -90,7 +69,7 @@ async function revoke(code) {
 }
 async function remove(m) {
   if (!confirm(`Remove ${m.label} from the organisation?`)) return;
-  try { await HostApi.hostRemoveMember(m.userId); team.value = await HostApi.hostTeam(); }
+  try { await HostApi.hostRemoveMember(m.id); team.value = await HostApi.hostTeam(); }
   catch (e) { error.value = e.message; }
 }
 const joinCode = ref("");
@@ -173,7 +152,7 @@ const curlExample = () =>
   `curl -X POST ${integ.value?.rsvpEndpoint} \\\n  -H "Authorization: Bearer ${apiKey.value || "lyk_…"}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"eventCode":"ABC12","count":120}'`;
 
 async function signOut() {
-  try { await signOutAndReload("/"); }
+  try { await hostSignOutAndReload("/"); }
   catch (e) { error.value = e.message; }
 }
 const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
@@ -191,44 +170,25 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
 
     <section v-else-if="needsAccount" class="panel stack-2">
       <h2>Finish your host account first</h2>
-      <p class="muted">You need a host account to manage security and your team.</p>
+      <p class="muted">Sign in and finish setting up in the host portal, then come back here.</p>
       <router-link to="/" class="btn btn-primary">Go to the host portal</router-link>
-      <router-link to="/signin" class="btn">I already have one</router-link>
     </section>
 
     <template v-else-if="me">
-      <section class="panel stack">
-        <span class="label">How you sign in</span>
-        <div class="spread">
-          <span>Passkey</span>
-          <strong v-if="me.account.hasPasskey">Saved</strong>
-          <button v-else-if="passkeysSupported()" class="btn" style="width:auto" @click="addPasskey">Add passkey</button>
-          <span v-else class="small muted">Not supported here</span>
+      <section class="panel stack" aria-labelledby="signin-h">
+        <span id="signin-h" class="label">How you sign in</span>
+        <p style="margin:0">With a code we email to <strong>{{ me.account.email }}</strong>. To change the address, email <a :href="`mailto:${HELP_EMAIL}`">{{ HELP_EMAIL }}</a>.</p>
+        <div class="stack" style="gap:0">
+          <span class="label" style="margin-top:8px">Signed-in devices</span>
+          <div class="list">
+            <div v-for="d in devices" :key="d.id" class="list-row spread">
+              <span>{{ d.device }}<span class="small muted" style="display:block">Since {{ fmtDay(d.at) }}{{ d.current ? " · This device" : "" }}</span></span>
+              <button v-if="!d.current" class="btn" style="width:auto" type="button" @click="signOutDevice(d)">Sign out</button>
+            </div>
+          </div>
         </div>
-        <div class="spread">
-          <span>Recovery key</span>
-          <strong v-if="me.account.hasRecovery && !recoveryKey">Saved</strong>
-        </div>
-        <button class="btn" @click="makeKey">{{ me.account.hasRecovery ? "Make a new recovery key" : "Get a recovery key" }}</button>
-        <div v-if="recoveryKey" class="stack">
-          <p class="small muted">Shown once. Keep it somewhere safe; it opens this account from any device.</p>
-          <p class="tnum" style="font-size:22px;font-weight:800;letter-spacing:2px;margin:0;word-break:break-all">{{ recoveryKey }}</p>
-          <button class="btn" @click="copy(recoveryKey)">Copy key</button>
-        </div>
-
-        <EmailSetup />
-
-        <AuthenticatorSetup />
-
-        <DevicesList />
-
-        <button v-if="!link" class="btn" @click="showLink">Sign in on another device</button>
-        <div v-else class="stack" style="align-items:center;text-align:center">
-          <p class="small muted">On the other device open <strong>{{ host }}/host/signin</strong> and enter this code, or scan the QR.</p>
-          <p class="tnum" style="font-size:36px;font-weight:800;letter-spacing:4px;margin:0">{{ link.code }}</p>
-          <canvas ref="linkCanvas" width="360" height="360" style="width:180px;height:180px" aria-label="Sign-in QR code"></canvas>
-          <p class="small muted">One use, expires in {{ mmss(secondsLeft) }}.</p>
-        </div>
+        <button v-if="devices.length > 1" class="btn" type="button" @click="signOutOthers">Sign out all other devices</button>
+        <a :href="HostApi.exportUrl" class="small" style="text-decoration:underline" download>Download my host account data</a>
       </section>
 
       <section v-if="me.org" class="panel stack">
@@ -305,7 +265,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
           <button v-if="team?.role === 'owner'" class="btn" style="width:auto" @click="newInvite">Invite a colleague</button>
         </div>
         <div class="list">
-          <div v-for="m in team?.members || []" :key="m.userId" class="list-row spread">
+          <div v-for="m in team?.members || []" :key="m.id" class="list-row spread">
             <span><strong>{{ m.label }}</strong>{{ m.you ? " (you)" : "" }}
               <span class="small muted" style="display:block">{{ m.role === "owner" ? "Owner" : "Staff" }}</span></span>
             <button v-if="team.role === 'owner' && m.role !== 'owner'" class="btn" style="width:auto" @click="remove(m)">Remove</button>

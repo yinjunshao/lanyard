@@ -20,7 +20,7 @@ async function load() {
     form.value.email = data.value.org.billingEmail || "";
     state.value = "ready";
   } catch (e) {
-    state.value = ["account_required", "profile_required", "no_org", "terms_required"].includes(e.code) ? "account" : "error";
+    state.value = ["signed_out", "details_required", "terms_required", "no_org"].includes(e.code) ? "account" : "error";
     error.value = e.message;
   }
 }

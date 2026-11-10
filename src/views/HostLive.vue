@@ -4,6 +4,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
+import { MAIN_ORIGIN } from "../lib/site";
 import { drawQR } from "../lib/qr";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import FeedbackResults from "../components/FeedbackResults.vue";
@@ -21,8 +22,10 @@ const error = ref("");
 const qrCanvas = ref(null);
 let timer = null;
 
-const joinUrl = () => (live.value ? `${location.origin}/e/${live.value.event.code}` : "");
-const feedbackUrl = () => (live.value ? `${location.origin}/e/${live.value.event.code}/feedback` : "");
+// Attendees check in and give feedback on the main site, not the host portal (F10).
+const joinUrl = () => (live.value ? `${MAIN_ORIGIN}/e/${live.value.event.code}` : "");
+const feedbackUrl = () => (live.value ? `${MAIN_ORIGIN}/e/${live.value.event.code}/feedback` : "");
+const signedOut = ref(false);
 
 onMounted(async () => {
   try {
@@ -31,7 +34,8 @@ onMounted(async () => {
     await renderQr();
     timer = setInterval(refresh, 5000);
   } catch (e) {
-    error.value = e.message;
+    if (e.code === "signed_out" || e.code === "details_required" || e.code === "terms_required") signedOut.value = true;
+    else error.value = e.message;
   }
 });
 onBeforeUnmount(() => clearInterval(timer));
@@ -180,6 +184,7 @@ async function copyFeedbackLink() {
     <router-link to="/" class="small muted back">‹ Dashboard</router-link>
 
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
+    <div v-if="signedOut" class="notice">Sign in to the host portal to see this event. <router-link to="/" style="text-decoration:underline">Go to the host portal</router-link></div>
     <template v-if="live">
       <div>
         <span class="label tnum">Check-in code {{ live.event.code }}</span>
