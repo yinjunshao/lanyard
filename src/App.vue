@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { me } from "./lib/store";
+import { homePath, me } from "./lib/store";
 import { Api } from "./lib/api";
 import { isStandalone, markInstalledHere } from "./lib/install";
 import Icon from "./components/Icon.vue";
@@ -40,7 +40,7 @@ const tabs = [
   <template v-else-if="r.meta.app">
     <div class="strap-rail"></div>
     <header class="topbar">
-      <router-link to="/" class="wordmark">lanyard<b>.</b></router-link>
+      <router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
       <router-link to="/app/settings" class="topbar-link">Settings</router-link>
     </header>
 

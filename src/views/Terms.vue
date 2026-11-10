@@ -1,4 +1,5 @@
 <script setup>
+import { homePath } from "../lib/store";
 // Terms of Service. Bracketed items are for the operator to fill in before launch.
 // Bump TERMS_VERSION in worker/legal.js when this changes materially.
 const OPERATOR = "ARCK Softworks";
@@ -12,7 +13,7 @@ const UPDATED = "6 November 2026";
 <template>
   <div class="strap-rail"></div>
   <main class="app-col legal">
-    <header class="profile-top"><router-link to="/" class="wordmark">lanyard<b>.</b></router-link></header>
+    <header class="profile-top"><router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link></header>
 
     <h1>Terms of Service</h1>
     <p class="muted">Last updated {{ UPDATED }}. Part A applies to everyone. Part B also applies if you use Lanyard as a host (<a href="#hosts">jump to Part B</a>).</p>

@@ -3,7 +3,7 @@
 // acknowledgement straight away and log it until it is answered.
 import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { me, refreshMe } from "../lib/store";
+import { homePath, me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 
 const route = useRoute();
@@ -34,7 +34,7 @@ async function submit() {
 
 <template>
   <main class="app-col stack-2">
-    <router-link to="/" class="wordmark">lanyard<b>.</b></router-link>
+    <router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
     <h1>Privacy requests and complaints</h1>
 
     <div v-if="done" class="panel stack">

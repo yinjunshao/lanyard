@@ -1,4 +1,5 @@
 <script setup>
+import { homePath } from "../lib/store";
 // Host pitch page: what hosts get, early pricing, and the way into the portal.
 import { HOST_ORIGIN } from "../lib/site";
 const portal = `${HOST_ORIGIN}/host`;
@@ -6,7 +7,7 @@ const portal = `${HOST_ORIGIN}/host`;
 
 <template>
   <div class="wide-col stack-2" style="max-width:760px">
-    <router-link to="/" class="wordmark wordmark-host"><img src="/host-icon.svg" alt="" />lanyard<b>.</b><small>host</small></router-link>
+    <router-link :to="homePath()" class="wordmark wordmark-host"><img src="/host-icon.svg" alt="" />lanyard<b>.</b><small>host</small></router-link>
 
     <h1 style="font-size:40px;margin-top:24px">
       Know who actually came — and who they met.

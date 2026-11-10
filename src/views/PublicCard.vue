@@ -1,4 +1,5 @@
 <script setup>
+import { homePath } from "../lib/store";
 // What a scan opens: a real profile page, not the badge again.
 // Shows only what this card permits (its chosen links and tags), the shared
 // selfie if the viewer has already connected, and a note the owner left for
@@ -159,7 +160,7 @@ async function sendReport() {
   <div class="strap-rail"></div>
   <main class="app-col profile-page">
     <header class="profile-top" style="justify-content:space-between">
-      <router-link to="/" class="wordmark">lanyard<b>.</b></router-link>
+      <router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
       <router-link v-if="connection" to="/app/people" class="topbar-link">‹ People</router-link>
     </header>
 

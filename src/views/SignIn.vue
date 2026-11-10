@@ -5,7 +5,7 @@
 // device and a recovery key work when neither is at hand.
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { me, refreshMe } from "../lib/store";
+import { homePath, me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 import { loginPasskey, passkeysSupported } from "../lib/passkeys";
 import { afterAccountPath } from "../lib/redeem";
@@ -86,7 +86,7 @@ onMounted(async () => {
 <template>
   <main class="app-col stack-2">
     <router-link v-if="onHost" to="/host" class="wordmark wordmark-host"><img src="/host-icon.svg" alt="" />lanyard<b>.</b><small>host</small></router-link>
-    <router-link v-else to="/" class="wordmark">lanyard<b>.</b></router-link>
+    <router-link v-else :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
     <div>
       <h1>{{ onHost ? "Host sign in" : "Sign in" }}</h1>
       <p class="muted">Pick whichever is easiest. They all open the same account.</p>

@@ -5,7 +5,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";
-import { me, refreshMe } from "../lib/store";
+import { homePath, me, refreshMe } from "../lib/store";
 import { savePendingCode, clearPendingCode, pendingCode } from "../lib/redeem";
 import EmailSetup from "../components/EmailSetup.vue";
 
@@ -89,7 +89,7 @@ function submitTyped() {
   <div class="strap-rail"></div>
   <main class="app-col stack-3 redeem">
     <header class="profile-top" style="justify-content:space-between">
-      <router-link to="/" class="wordmark">lanyard<b>.</b></router-link>
+      <router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
       <router-link v-if="me.profile" to="/app" class="topbar-link">My card</router-link>
     </header>
 

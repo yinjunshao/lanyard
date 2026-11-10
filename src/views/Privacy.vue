@@ -1,4 +1,5 @@
 <script setup>
+import { homePath } from "../lib/store";
 // Privacy Policy (UK GDPR). Bracketed items are for the operator to fill in before launch.
 const OPERATOR = "ARCK Softworks";
 const ADDRESS = "WC1E 6BT";
@@ -11,7 +12,7 @@ const UPDATED = "6 November 2026";
 <template>
   <div class="strap-rail"></div>
   <main class="app-col legal">
-    <header class="profile-top"><router-link to="/" class="wordmark">lanyard<b>.</b></router-link></header>
+    <header class="profile-top"><router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link></header>
 
     <h1>Privacy Policy</h1>
     <p class="muted">Last updated {{ UPDATED }}. This covers people who use Lanyard to carry a card (users) and organisations that run events on it (hosts).</p>
