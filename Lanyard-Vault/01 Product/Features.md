@@ -5,6 +5,7 @@ tags: [product, features]
 
 ## Attendee side
 - **Student and Career mode:** a profile is either a student (course and university) or working (company and role, with where they studied optional). Switching keeps everything typed; the card, people list and search show only the chosen mode (F11).
+- **Welcome steps** (F14): a new card is made one question a screen at `/app/welcome`: name and photo (with the 18+ and Terms tick), Student or Working, what you can help with and one line, links, save your card (email by code, then an optional passkey), and a done screen with the badge. Each answer is saved as it is given, so the steps resume on any device; every step after the first can be skipped (the email only while no promo code is waiting). A guest who connected before making a card is asked to finish by name. [[D023 Welcome steps keep their place on the server and count only]].
 - **Institution picker:** University, Studied at and a society's university are searched from a UK list (names, short names such as UCL, accents ignored) or typed if not listed; an email like name@students.example.ac.uk suggests its institution. The list was written by an agent and needs owner review (F12, [[D021 Institution list from knowledge, loaded when the picker opens]]).
 - **Cards:** one profile, many cards ("Careers fair", "Hackathon", "Weekend"). Each card has its own note, visible links, tags, theme, QR and code. Free plan: 3 cards; Plus: 12. See [[D015 Profile split from cards]].
 - **Rotating codes:** 4-character card code rotates every 3 days (6h grace). See [[D016 Rotating card codes]].
@@ -30,7 +31,7 @@ tags: [product, features]
 - Billing requests (invoice / PO). See [[Host Portal and Billing]].
 
 ## Admin
-`/admin` (token-protected): approve societies and institutions, grant credits, see usage.
+`/admin` (token-protected): approve societies and institutions, grant credits, see usage, and the welcome-steps funnel (counts per step for 30 days, nothing about who).
 
 ## Not built yet (as far as the project files show)
 Stripe checkout, sponsor talent search page, Apple/Google Wallet pass, NFC tap, Eventbrite/Luma native integrations (only generic webhook + RSVP count), AI follow-up drafts (an env var `CLAUDE_API_KEY` exists; confirm whether used).

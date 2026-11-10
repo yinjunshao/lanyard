@@ -9,7 +9,7 @@ Grouped from route definitions in `worker/*.js`. All under `/api` unless noted.
 
 **Sign-in:** passkey register/login (`/passkey/...`), email (`/auth/email/start`, `/verify`), TOTP (`/auth/totp/setup`, `/confirm`, `/redeem`, `DELETE`), recovery (`/auth/recovery`, `/recovery/redeem`), `POST /auth/redeem`, `/auth/link`
 
-**Profile and cards:** `GET/POST/PUT /profile` (`mode` must be `student` or `career`, otherwise 400; `company` and `role` are trimmed to 80 characters; `institutionId` (or `institution_id`) must be an id from the institution list or null, otherwise 400, and a listed id sets `uni` to the official name; typed `uni` text is capped at 120 characters and, when it changes without an id, clears `institution_id`. `GET /me` also returns `user.emailDomain` for the institution suggestion. `GET /c/:cardId`, `GET /connections`, `GET /connections/:id` and `GET /e/:id/room` return `mode`, `company` and `role` alongside `uni`, `course` and `year`), `POST /cards`, `PUT/DELETE /cards/:id`, `POST /cards/:id/rotate-code`, personal-note routes, `GET /c/:cardId`, `GET /code/:code`
+**Profile and cards:** `PUT /onboarding` (F14: `{ step: 1 to 6 }` moves a person in the welcome steps, `{ done: true }` finishes; anything else is 400, no profile is 404, and for anyone not in the steps it changes nothing and counts nothing), `GET/POST/PUT /profile` (`POST` with `onboarding: true` starts the welcome steps at step 2; it still needs `acceptTerms` and `over18`; `mode` must be `student` or `career`, otherwise 400; `company` and `role` are trimmed to 80 characters; `institutionId` (or `institution_id`) must be an id from the institution list or null, otherwise 400, and a listed id sets `uni` to the official name; typed `uni` text is capped at 120 characters and, when it changes without an id, clears `institution_id`. `GET /me` also returns `user.emailDomain` for the institution suggestion. `GET /c/:cardId`, `GET /connections`, `GET /connections/:id` and `GET /e/:id/room` return `mode`, `company` and `role` alongside `uni`, `course` and `year`), `POST /cards`, `PUT/DELETE /cards/:id`, `POST /cards/:id/rotate-code`, personal-note routes, `GET /c/:cardId`, `GET /code/:code`
 
 **Connections:** `POST /connect` (takes `via`: `qr`, `code` or `link`; anything else or nothing is stored as `link`; set only when the connection is first made), `GET /connections` (each has `via`, `eventName`, `metAt`), `GET /connections/:id` (same, and `eventName`), `GET /c/:cardId` (`viewer.connection` has `via`, `event`, `metAt`; `via` is `null` for connections made before F13) and the data export (`connections[].via`), `PUT /connections/:id/note`, `/meta`, `POST /connections/:id/report`, `DELETE /connections/:id`
 
@@ -20,6 +20,8 @@ Grouped from route definitions in `worker/*.js`. All under `/api` unless noted.
 **Integrations:** `POST /integrations/rsvp` (API key sets an event's RSVP count)
 
 **Promo codes:** `GET /redeem/:code` (look up; 30 per 10 minutes per IP and per person, wrong codes 30 an hour per IP), `POST /redeem/:code` (claim; 20 an hour per person). See `worker/promo.js`.
+
+**Admin onboarding** (token): `GET /admin/onboarding` (counts per step for the last 30 days: `steps[].step`, `reached`, `completed`; no ids).
 
 **Admin hosts** (token): `GET /admin/hosts?q=` (host accounts and organisations with no host), `POST /admin/hosts/:id/status`, `POST /admin/orgs/:id/attach` (by host email)
 

@@ -34,10 +34,16 @@ A connection records how the first scan happened (QR code, typed code or shared 
 - connections made before F13 have none and show only "Connected"; a connection whose event has been deleted or reset keeps its method and loses the event name;
 - the card address carries `?s=q`, `?s=c` or `?s=l` only to say how it was opened. The page reads it once and removes it from the address bar, and the server stores only the three allowed values. The Privacy Policy data table lists it.
 
+## Welcome steps (F14)
+- A person's place in the welcome steps (`profiles.onboarding_step`, `onboarding_max`) is product state, not analytics: it lets the steps resume on any device. It is on the profile row, so it is in the data download and goes when the account is deleted. It is NULL after the steps are finished.
+- The funnel is a table of daily counts per step (`onboarding_stats`: day, step, reached, completed). It has no user id, session, address or time of day, so it holds no personal data. Rows over 400 days old are deleted by the daily purge. No cookie and no third-party analytics are used. The admin page shows it (`GET /api/admin/onboarding`); hosts never see it. Step 1 counts people who have saved a name, so a visitor who opens the page and leaves is not counted.
+- Terms, the 18+ confirmation and consent recording are unchanged: step 1 holds the same tick (`consents`, `consent_log`, Terms version `2026-10-26`); see the table in [[F14 Onboarding revamp]].
+
 ## Retention (implemented in `worker/purge.js`)
 - Selfies: 12 months. Feedback text: 12 months.
 - Inactive guests: 30 days. Expired codes and sessions: daily purge.
 - Consent records: 6 years.
+- Welcome-step counts: 400 days (no personal data).
 - Cron: daily 03:17 and hourly :47.
 - User can export and delete their own data; delete removes R2 objects too.
 - Host accounts (F10) are separate: a host can download their host account data on the host portal (`/api/host/account/export`). Expired host sessions, sign-in codes and invites are purged daily. Deleting a host account is by request for now (no self-serve button). Invoice records are kept 6 years even when the organisation is deleted (the organisation's name stays on the row).

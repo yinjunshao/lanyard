@@ -4,7 +4,7 @@ id: F14
 priority: P1
 phase: 1
 size: L
-status: In progress
+status: Done
 needs: [F06, F11, F12]
 ---
 # F14 Onboarding revamp
@@ -63,9 +63,9 @@ Plain, warm, short. No named universities ([[F03 Neutral copy with no named univ
   - Not checked: Take a photo and Upload (the camera is blocked in the browser pane and a file chooser cannot be driven, so the photo cropper and a photo saved in step 1 were not tried; the code path is the one Edit profile already used), a passkey being created (no authenticator), a real email, a screen reader, a phone, a printed poster QR, the admin funnel table by eye (its text was read in the browser; it was not looked at in light and dark).
 
 ## Acceptance checks
-- [ ] A new person goes from QR scan of the poster → `/redeem` → account → onboarding → code claimed, without hitting a dead end.
-- [ ] Closing the tab at step 3 and reopening resumes at step 3.
-- [ ] The funnel table shows step counts after a test run.
+- [x] A new person goes from QR scan of the poster → `/redeem` → account → onboarding → code claimed, without hitting a dead end. (Local browser, fresh session, `/redeem/FIRST50` from the seeded poster code: Make my card opened step 1, a name and the tick, steps 2 to 4 skipped, step 5 had no Skip and said the email is needed to claim, the emailed code (read from the local log; nothing was sent) confirmed it, the done screen's one primary action was Claim your code, and it ended "It's yours. You were #1 of 50." Not tried: scanning a printed poster QR with a phone camera.)
+- [x] Closing the tab at step 3 and reopening resumes at step 3. (Browser: at step 3 with step 2 saved, opened `/app` in the same tab with no `?step`: My card sent it to `/app/welcome?step=3`; local and session storage were cleared at that point, so the place comes from the server. `test/onboarding.mjs` checks the saved step, Back, forward and the browser Back button. Not tried on a second real device.)
+- [x] The funnel table shows step counts after a test run. (After the walks above, with the admin token set for a local test run only, the admin page showed "Welcome steps, last 30 days" with reached, got past and share of step 1 for all six steps, for example step 5 at 4 reached and 3 got past, step 6 at 3 and 3. `test/onboarding.mjs` runs people through the steps and checks every count, that Back and forward is not counted twice, that a card made outside the steps is not counted, and that the response and table hold nothing about who. The table was read as text, not looked at in light and dark.)
 
 ## Consent and legal steps: old and new
 Every consent or legal step the old first run had, and where it is now. Each is checked by `test/onboarding.mjs`.
@@ -81,6 +81,16 @@ Every consent or legal step the old first run had, and where it is now. Each is 
 | 8 | Guest-first with passkeys (D003), the claim page with the recovery key, the signed-in hint | Unchanged: step 5 links to `/claim`, the passkey is an extra after the email, and nothing here touches `src/lib/signedin.js` |
 
 ## Log
--
+- 2026-11-10 (Claude subagent): New cards are now made one question a screen at `/app/welcome`: name and photo (with the one 18+ and Terms tick), Student or Working, what you can help with and a one-line headline, links (labels fill in from a pasted address), save your card (email by code, then an optional passkey), and a done screen with the badge and Claim your code when a promo code is waiting. Each answer is saved as it is given and the place is kept on the server, so closing the tab resumes on any device. Landing, Sign in, the redeem page and My card all open it; a guest who connected first is asked by name from People and My card. Edit profile only edits now and shares the mode, tags and links fields with the steps. The admin page has a counts-only funnel table. Migration 0022 (additive).
+- First-load JS, gzip of entry + static imports + page chunk, from `dist/`, before F14 (commit b3f9ffe) and after: **Landing 65,178 to 60,677 B (-4,501 B)**, **public card 60,113 to 55,704 B (-4,409 B)**. Adding the lazy route first grew both by 67 B, so `AccountBanner.vue`, which is in the entry every page loads, now loads the email form and the passkey library with a plain `import()` when tapped; that took about 4.6 KB out of the entry and paid for the route, the new shared chunk names and the rest. The steps are in their own lazy chunks (`Welcome` 5.6 KB gzip, plus the `links` chunk shared with Edit profile 4.2 KB gzip). Both public pages are still over 50 KB and stay with [[F28 Public-page JS budget]], which now has about 4.5 KB less to find.
+- Tests: `test/onboarding.mjs` (new, in `npm test`, 102 checks): the API (migration 0022 on an old profile, creation with mode, institution, consent rows and validation, the progress API, a guest who connected first, the funnel, the admin response, the purge, deletion) and source guards for every consent and legal step, for the shared fields, for the connect sheet being untouched and `?s=` surviving, and for the banner and My card. `test/institutions.mjs` read `EditProfile.vue` for the institution picker; the picker moved to `ModeFields.vue`, so its guards now read that file (the data file is named only by `HostDashboard.vue` and `ModeFields.vue`, both with a plain `import()`; no plain text field for the university; exactly two comboboxes there) and also check that Edit profile and the mode step use it and build none of their own. Same strength, new file. Nothing else was changed, loosened or removed; the whole suite passes.
+- Decisions I made without the owner ([[D023 Welcome steps keep their place on the server and count only]]): the place is on the profile (`onboarding_step`, NULL = not in the steps) and in the address; the welcome page is not an `/app` page; step 5 can be skipped except while a promo code is waiting (email is "becoming compulsory" but is not today); a guest who connected first has a stub that starts at step 1 and the connect sheet is left alone, with the ask on People and My card; step 1 counts people who saved a name (no visitor counter); the Terms version and the Privacy Policy text were not changed; the Done screen scrolls while the install prompt shows; "Working" is the tile title and "Career" stays the switch label on Edit profile; `/app/profile` with no card redirects to the steps; the "Your card is ready" panel and `?welcome=1` were removed.
+- Left over: the Privacy Policy data table does not name the welcome-step place (`onboarding_step`); it is product state in the data download, not a new kind of data, but the owner may want a line. Email at step 5 is skippable: say if it should become compulsory. People who open the welcome page and leave without a name are not counted anywhere. `MyCard.vue` still loads its own data for a moment before it redirects someone who is in the steps. A screen-reader pass, the photo and passkey steps on a real phone, and the 375 x 667 fit are still to do.
+
+### Owner steps
+- Review the F14 commits, `git push`, `npm run db:remote` (applies `0022_onboarding.sql`: two columns and one table, safe before the new code; 0018 to 0021 are also still to be applied), then `npm run deploy`.
+- Try the steps on a real phone: take a photo, upload a photo, add a passkey, and the install prompt on the done screen; and scan a printed poster to the redeem page and through to the claim.
+- Decide whether the email at step 5 should become compulsory, and whether the Privacy Policy should mention the welcome-step place.
+- Check the admin page's Welcome steps table after the first real sign-ups.
 
 Related: [[F02 Logo goes to My card when signed in]], [[Features]] · back to [[00 Master To-Do]]
