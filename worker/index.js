@@ -35,6 +35,7 @@ import { selfieView } from "./selfie.js";
 import { sharedGround } from "./inCommon.js";
 import { exportPresence, canViewPresenceSelfie } from "./presence.js";
 import { presenceApp } from "./presenceApp.js";
+import { exportAi } from "./ai/data.js";
 
 const app = new Hono();
 
@@ -453,6 +454,7 @@ app.get("/api/account/export", async (c) => {
     q("SELECT id, kind, message, status, created_at, outcome FROM privacy_requests WHERE user_id = ? OR email = ?", u.id, u.recovery_email || "-").catch(() => []),
   ]);
   const eventPresence = await exportPresence(db, u.id); // F17
+  const ai = await exportAi(db, "user", u.id); // F21
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
     exportedAt: now(),
@@ -476,6 +478,7 @@ app.get("/api/account/export", async (c) => {
     messages: messages.map((m) => ({ ...m, photo: media(m.photo_key) })),
     eventCheckins: checkins,
     eventPresence,
+    ai,
     consents,
     reportsMade: reports,
     blocked: blocks,

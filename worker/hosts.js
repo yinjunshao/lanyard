@@ -18,6 +18,7 @@ import {
 import { validateWebhookUrl, newWebhookSecret, newApiKey, sendWebhook } from "./integrations.js";
 import { readInstitution } from "./institutions.js";
 import { normEmail, validEmail, emailProblem, moveOwnership, openTransfer } from "./hostorg.js";
+import { exportAi } from "./ai/data.js";
 import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
 
 export const hostApp = new Hono();
@@ -110,6 +111,7 @@ hostApp.get("/api/host/account/export", async (c) => {
       referral: me.referral, termsVersion: me.terms_version, termsAt: me.terms_at, createdAt: me.created_at, lastLoginAt: me.last_login_at,
     },
     organisations: orgs, tickets, transfers, billingRequests: billing, consentHistory: consents, devices: sessions,
+    ai: await exportAi(db, "host", me.id), // F21
   });
 });
 

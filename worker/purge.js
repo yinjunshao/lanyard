@@ -5,6 +5,7 @@ import { sendMail } from "./mail.js";
 import { inactiveEmail } from "./mail-templates.js";
 import { publicOrigin } from "./unsub.js";
 import { eraseUserPresence, purgePresence } from "./presence.js";
+import { eraseAi, purgeAi } from "./ai/data.js";
 
 const DAY = 86400_000;
 export const SELFIE_MAX_AGE = 365 * DAY;
@@ -34,6 +35,7 @@ export async function eraseUser(env, userId) {
      WHERE m.photo_key IS NOT NULL AND (c.user_a = ? OR c.user_b = ?)`, userId, userId);
   for (const m of msgs) await tryDel(env, m.photo_key);
   await eraseUserPresence(env, userId); // F17 event-presence selfies (the rows go with the user)
+  await eraseAi(db, "user", userId); // F21 usage counts and any cached reply (no foreign key, so removed here)
   const prof = await one(db, "SELECT photo_key, projects FROM profiles WHERE user_id = ?", userId);
   if (prof) {
     await tryDel(env, prof.photo_key);
@@ -75,6 +77,9 @@ export async function purgeExpired(env, ts = Date.now()) {
 
   // F17: presence rows and their selfies, 48 hours after the event ends.
   out.presence = await purgePresence(env, ts);
+
+  // F21: cached AI replies after 7 days, usage counts after 13 months, rows for accounts that are gone.
+  Object.assign(out, await purgeAi(db, ts));
 
   await run(db, "DELETE FROM reports WHERE created_at < ?", ts - REPORT_KEEP);
   await run(db, "DELETE FROM consent_log WHERE at < ?", ts - CONSENT_KEEP);

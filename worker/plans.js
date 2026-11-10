@@ -59,8 +59,10 @@ export const AI_LIMITS = {
   followup:         { label: "drafts",      free: { day: 3, month: 15 }, plus: { day: 15, month: 150 } },
   people_search:    { label: "searches",    optOut: true, free: { day: 5 }, plus: { day: 30 } },
   who_to_meet:      { label: "suggestions", optOut: true, free: { perScope: 3 }, plus: { perScope: 10 } },
-  // Written once per event automatically (not counted); these limits are for regenerating it.
-  feedback_summary: { label: "summaries",   host: { day: 3 } },
+  // The summary a host asks for again is limited to 3 a day. The one written for them when feedback closes
+  // is a separate feature with a high cap that only stops a loop, so it never uses up those 3.
+  feedback_summary:      { label: "summaries", host: { day: 3 } },
+  feedback_summary_auto: { label: "summaries", host: { day: 30 } },
   // The admin page's "test the connection" button.
   admin_test:       { label: "tests",       admin: { day: 20 } },
 };
