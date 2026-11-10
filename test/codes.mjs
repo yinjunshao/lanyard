@@ -65,7 +65,9 @@ const C = await signup("Cat"); plus(C.id);
 const taken = await C.c.post(`/api/cards/${C.card.cardId}/custom-code`, { code: "BEN24" });
 check("someone else's code is taken", taken.status === 409, taken.json);
 const takenRandom = await C.c.post(`/api/cards/${C.card.cardId}/custom-code`, { code: A.card.code });
-check("a held (retired) random code can't be claimed", takenRandom.status === 409, takenRandom.json);
+// A random code made only of digits is refused as a chosen code (400) before the
+// "taken" check runs. Either way it can't be claimed.
+check("a held (retired) random code can't be claimed", takenRandom.status === (/^\d+$/.test(A.card.code) ? 400 : 409), takenRandom.json);
 
 back(B.card.cardId, CUSTOM_EVERY_MS + 1000);
 const change = await B.c.post(`/api/cards/${B.card.cardId}/custom-code`, { code: "BENNY" });
