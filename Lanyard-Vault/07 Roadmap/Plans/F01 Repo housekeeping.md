@@ -25,8 +25,8 @@ The `.gitignore` in the project folder is still the old one. An earlier session 
   - generated: `brag-output-*/` (timestamped render copies), `*.pptx` (rebuilt by `build-deck.mjs`), `*.zip`, `*.tar.gz`, `*.exe`
   - local tool state: `.claude/settings.local.json`, `Lanyard-Vault/.obsidian/workspace*.json`, `Lanyard-Vault/.obsidian/cache`
   - OS: `Thumbs.db`, `desktop.ini`
-- [ ] F01.2 Run `git ls-files -ci --exclude-standard`. For each file listed, run `git rm --cached <file>` (removes it from git, keeps it on disk). List what was untracked in the commit body.
-- [ ] F01.3 Confirm `.dev.vars` and `.migrations/` have never been committed: `git log --all --oneline -- .dev.vars .migrations`. If they have, stop and tell the owner (secrets in history need rotating, and history rewriting is the owner's call).
+- [x] F01.2 Run `git ls-files -ci --exclude-standard`. For each file listed, run `git rm --cached <file>` (removes it from git, keeps it on disk). List what was untracked in the commit body.
+- [x] F01.3 Confirm `.dev.vars` and `.migrations/` have never been committed: `git log --all --oneline -- .dev.vars .migrations`. If they have, stop and tell the owner (secrets in history need rotating, and history rewriting is the owner's call).
 - [ ] F01.4 Ask the owner (do not decide alone) whether `demo-v1/`, `brag-output/`, `logo-concepts/` should stay in git. Record the answer here.
 
 ## Acceptance checks
