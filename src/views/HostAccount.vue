@@ -5,6 +5,7 @@ import { useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { signOutAndReload } from "../lib/store";
 import { registerPasskey, passkeysSupported } from "../lib/passkeys";
+import UiSelect from "../components/ui/UiSelect.vue";
 import DevicesList from "../components/DevicesList.vue";
 import EmailSetup from "../components/EmailSetup.vue";
 import AuthenticatorSetup from "../components/AuthenticatorSetup.vue";
@@ -266,11 +267,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
             For a new leader, they must sign up to the host portal first; once an admin approves, they press Accept to take over.
           </p>
           <form class="stack" @submit.prevent="sendTicket">
-            <div class="select-wrap">
-              <select v-model="ticketForm.kind" aria-label="What do you need?">
-                <option v-for="k in TICKET_KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
-              </select>
-            </div>
+            <UiSelect v-model="ticketForm.kind" label="What do you need?" :options="TICKET_KINDS" />
             <input v-if="ticketForm.kind !== 'other'" v-model="ticketForm.newEmail" type="email" inputmode="email"
                    :placeholder="ticketForm.kind === 'leader_change' ? 'New leader\'s university email' : 'New university email'"
                    :aria-label="ticketForm.kind === 'leader_change' ? 'New leader email' : 'New email'" />

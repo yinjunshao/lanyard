@@ -7,7 +7,9 @@ import { Api } from "../lib/api";
 import { drawQR } from "../lib/qr";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import FeedbackResults from "../components/FeedbackResults.vue";
-import { toLocalInput, fromLocalInput, fmtDateTime } from "../lib/time";
+import { fmtDateTime } from "../lib/time";
+import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
+import { defaultEnd } from "../lib/dates";
 
 const route = useRoute();
 const id = computed(() => route.params.id);
@@ -104,7 +106,7 @@ function fillDetails() {
   const e = live.value.event;
   d.value = {
     name: e.name, venue: e.venue || "",
-    startsAt: toLocalInput(e.startsAt), endsAt: toLocalInput(e.endsAt),
+    startsAt: e.startsAt || null, endsAt: e.endsAt || null,
     rsvpCount: e.rsvpCount ?? "",
     access: e.info?.access || "", dress: e.info?.dress || "", food: e.info?.food || "", other: e.info?.other || "",
   };
@@ -114,7 +116,7 @@ async function saveDetails() {
   try {
     await Api.hostUpdateEvent(id.value, {
       name: d.value.name, venue: d.value.venue,
-      startsAt: fromLocalInput(d.value.startsAt), endsAt: fromLocalInput(d.value.endsAt),
+      startsAt: d.value.startsAt, endsAt: d.value.endsAt,
       rsvpCount: d.value.rsvpCount === "" ? null : Number(d.value.rsvpCount),
       info: { access: d.value.access, dress: d.value.dress, food: d.value.food, other: d.value.other },
     });
@@ -235,8 +237,8 @@ async function copyFeedbackLink() {
         <div class="field"><label for="d-name">Event name</label><input id="d-name" v-model="d.name" type="text" maxlength="120" /></div>
         <div class="field"><label for="d-venue">Venue</label><input id="d-venue" v-model="d.venue" type="text" maxlength="120" /></div>
         <div class="two-col">
-          <div class="field"><label for="d-start">Starts</label><input id="d-start" v-model="d.startsAt" type="datetime-local" /></div>
-          <div class="field"><label for="d-end">Ends</label><input id="d-end" v-model="d.endsAt" type="datetime-local" /></div>
+          <div class="field"><label id="d-start-l">Starts</label><UiDateTimePicker id="d-start" v-model="d.startsAt" labelledby="d-start-l" clearable /></div>
+          <div class="field"><label id="d-end-l">Ends</label><UiDateTimePicker id="d-end" v-model="d.endsAt" labelledby="d-end-l" clearable :min="d.startsAt" :suggest="d.startsAt ? defaultEnd(d.startsAt) : null" /></div>
         </div>
         <div class="field">
           <label for="d-rsvp">Sign-ups (from Luma, the Union site, etc.)</label>

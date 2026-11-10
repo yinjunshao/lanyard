@@ -56,7 +56,10 @@ All of them:
   - API for [[F12 Institution picker]]: `options` = `[{ value, label, aliases }]`; `v-model` is the option's `value` (null when custom or empty); `v-model:text` is what the field shows (the official name, or the custom text as typed); `@select` gives `{ value, label, custom }`. `allow-custom` adds the last row and `custom-label` sets its words (F12 passes `(t) => "Not listed? Use '" + t + "'"`). `clearable`, `limit` (60 rows shown) and `placeholder` are there too.
   - Matching is in `src/lib/match.js` (case and accents ignored, word starts first, aliases, highlight ranges); `test/pickers.mjs` (15 checks, in `npm test`) covers it with made-up names.
   - Checked in a local browser: a letter on the button opens it with that letter typed, an alias (`ncl`) finds the long name, Down and Enter choose, a custom row keeps the typed text with a null value, focus returns to the button.
-- [ ] F08.4 Replace the host controls (`HostDashboard`, `HostLive`, `HostAccount`).
+- [x] F08.4 Replace the host controls (`HostDashboard`, `HostLive`, `HostAccount`).
+  - `HostDashboard`: the two frequency selects, size, start-from, theme, and Starts / Ends. `HostLive`: Starts / Ends. `HostAccount`: the ticket kind. Event start and end are now held as unix ms (or null) in the forms, so `fromLocalInput` / `toLocalInput` are no longer called from the host screens (the helpers stay in `src/lib/time.js`).
+  - The old `<label for>` became `<label id>` plus `labelledby`, because a label click on a button would open the list.
+  - Checked against local Wrangler and Vite with a throwaway local host (made through the API; nothing touched production): created an event with the keyboard only (name, start date, typed time `7pm`, "Set to 2 hours after the start", Enter on Create). It saved 11 Nov 19:00 to 21:00 and the Details tab shows the same back. Looked at the Details form at 1280 and 375 px (dark).
 - [ ] F08.5 Replace the attendee controls (`MyCard`, `People`, `CardForm`, `FeedbackEditor`, `PrivacyRequest`, `PublicCard` lazily).
 - [ ] F08.6 `Admin.vue` last (optional).
 - [ ] F08.7 Keyboard-only and screen-reader pass (VoiceOver or NVDA): every control can be reached, opened, chosen from and closed.

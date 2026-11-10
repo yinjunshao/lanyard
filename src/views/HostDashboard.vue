@@ -7,7 +7,9 @@ import { me, refreshMe, signOutAndReload } from "../lib/store";
 import { registerPasskey, loginPasskey } from "../lib/passkeys";
 import { ON_HOST_SITE, MAIN_ORIGIN } from "../lib/site";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
-import { fromLocalInput } from "../lib/time";
+import UiSelect from "../components/ui/UiSelect.vue";
+import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
+import { defaultEnd } from "../lib/dates";
 
 const state = ref("loading"); // loading | account | terms | profile | welcome | ready
 const org = ref(null);
@@ -34,7 +36,7 @@ async function signOut() {
 }
 
 const blankForm = () => ({
-  from: "", name: "", venue: "", startsAt: "", endsAt: "", theme: "default",
+  from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default",
   perksText: "", directoryOn: true, q1: "", q2: "",
   rsvpCount: "", access: "", food: "", feedbackOn: true, feedbackQuestions: [],
 });
@@ -65,6 +67,13 @@ const needAgree = "Please agree to the Host Terms and Privacy Policy first.";
 const det = ref({ fullName: "", email: "", useCase: "", frequency: "", size: "", referral: "" });
 const FREQUENCIES = ["One-off event", "A few times a year", "About once a month", "Weekly or more"];
 const SIZES = ["Under 50 people", "50 to 200", "200 to 1,000", "Over 1,000"];
+const FROM_OPTIONS = computed(() => [{ value: "", label: "A blank event" }, ...events.value.map((e) => ({ value: e.id, label: `A copy of ${e.name}` }))]);
+const SIZE_OPTIONS = [{ value: "", label: "Not sure yet" }, ...SIZES];
+const THEME_OPTIONS = [
+  { value: "default", label: "Default — Persimmon" },
+  { value: "formal", label: "Formal — navy strap" },
+  { value: "night", label: "Night — dark" },
+];
 
 function detailsProblem() {
   const d = det.value;
@@ -203,15 +212,15 @@ async function create() {
       // Start from a past event: the server copies its details, questions, form and sponsors.
       res = await Api.hostDuplicateEvent(f.value.from, {
         name: f.value.name.trim() || undefined,
-        startsAt: fromLocalInput(f.value.startsAt), endsAt: fromLocalInput(f.value.endsAt),
+        startsAt: f.value.startsAt, endsAt: f.value.endsAt,
       });
     } else {
       if (!f.value.name.trim()) { error.value = "Event name is required."; return; }
       res = await Api.hostCreateEvent({
         name: f.value.name,
         venue: f.value.venue,
-        startsAt: fromLocalInput(f.value.startsAt),
-        endsAt: fromLocalInput(f.value.endsAt),
+        startsAt: f.value.startsAt,
+        endsAt: f.value.endsAt,
         theme: f.value.theme,
         directoryOn: f.value.directoryOn,
         perks: f.value.perksText.split("\n").map((s) => s.trim()).filter(Boolean),
@@ -277,20 +286,10 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         <div class="field"><label for="sv-use">What do you plan to use Lanyard for?</label>
           <textarea id="sv-use" v-model="det.useCase" maxlength="600"
                     placeholder="e.g. Helping members meet each other at our weekly socials and the annual careers fair"></textarea></div>
-        <div class="field"><label for="sv-freq">How often do you run events?</label>
-          <div class="select-wrap">
-            <select id="sv-freq" v-model="det.frequency">
-              <option value="" disabled>Choose one</option>
-              <option v-for="o in FREQUENCIES" :key="o" :value="o">{{ o }}</option>
-            </select>
-          </div></div>
-        <div class="field"><label for="sv-size">How many people usually come? (optional)</label>
-          <div class="select-wrap">
-            <select id="sv-size" v-model="det.size">
-              <option value="">Not sure yet</option>
-              <option v-for="o in SIZES" :key="o" :value="o">{{ o }}</option>
-            </select>
-          </div></div>
+        <div class="field"><label id="sv-freq-l">How often do you run events?</label>
+          <UiSelect id="sv-freq" v-model="det.frequency" labelledby="sv-freq-l" placeholder="Choose one" :options="FREQUENCIES" /></div>
+        <div class="field"><label id="sv-size-l">How many people usually come? (optional)</label>
+          <UiSelect id="sv-size" v-model="det.size" labelledby="sv-size-l" :options="SIZE_OPTIONS" /></div>
         <div class="field"><label for="sv-ref">How did you hear about Lanyard? (optional)</label>
           <input id="sv-ref" v-model="det.referral" type="text" maxlength="200" /></div>
       </div>
@@ -344,13 +343,8 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         <span class="small muted">Use your university or work email if you want student or institution prices.</span></div>
       <div class="field"><label for="pf-use">What do you plan to use Lanyard for?</label>
         <textarea id="pf-use" v-model="det.useCase" maxlength="600"></textarea></div>
-      <div class="field"><label for="pf-freq">How often do you run events?</label>
-        <div class="select-wrap">
-          <select id="pf-freq" v-model="det.frequency">
-            <option value="" disabled>Choose one</option>
-            <option v-for="o in FREQUENCIES" :key="o" :value="o">{{ o }}</option>
-          </select>
-        </div></div>
+      <div class="field"><label id="pf-freq-l">How often do you run events?</label>
+        <UiSelect id="pf-freq" v-model="det.frequency" labelledby="pf-freq-l" placeholder="Choose one" :options="FREQUENCIES" /></div>
       <p v-if="accountError" class="error-text" role="alert">{{ accountError }}</p>
       <button class="btn btn-primary" :disabled="busy" @click="finishProfile">Continue</button>
     </section>
@@ -437,33 +431,22 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
 
       <div v-if="creating" class="panel stack-2">
         <h2>Create event</h2>
-        <div v-if="events.length" class="field"><label for="ev-from">Start from</label>
-          <div class="select-wrap">
-            <select id="ev-from" v-model="f.from">
-              <option value="">A blank event</option>
-              <option v-for="e in events" :key="e.id" :value="e.id">A copy of {{ e.name }}</option>
-            </select>
-          </div>
+        <div v-if="events.length" class="field"><label id="ev-from-l">Start from</label>
+          <UiSelect id="ev-from" v-model="f.from" labelledby="ev-from-l" :options="FROM_OPTIONS" />
           <span v-if="f.from" class="small muted">Copies the venue, perks, questions, feedback form and sponsors. Change anything afterwards under Details.</span>
         </div>
         <div class="field"><label for="ev-name">Event name</label>
           <input id="ev-name" v-model="f.name" type="text" :placeholder="f.from ? 'Same name as before' : 'Spring networking night'" /></div>
-        <div class="field"><label for="ev-start">Starts (optional)</label>
-          <input id="ev-start" v-model="f.startsAt" type="datetime-local" /></div>
-        <div class="field"><label for="ev-end">Ends (optional)</label>
-          <input id="ev-end" v-model="f.endsAt" type="datetime-local" />
+        <div class="field"><label id="ev-start-l">Starts (optional)</label>
+          <UiDateTimePicker id="ev-start" v-model="f.startsAt" labelledby="ev-start-l" clearable /></div>
+        <div class="field"><label id="ev-end-l">Ends (optional)</label>
+          <UiDateTimePicker id="ev-end" v-model="f.endsAt" labelledby="ev-end-l" clearable :min="f.startsAt" :suggest="f.startsAt ? defaultEnd(f.startsAt) : null" />
           <span class="small muted">Feedback opens when the event ends. Without an end time it opens 3 hours after the start, or when you press End event.</span></div>
         <template v-if="!f.from">
         <div class="field"><label for="ev-venue">Venue</label>
           <input id="ev-venue" v-model="f.venue" type="text" /></div>
-        <div class="field"><label for="ev-theme">Theme</label>
-          <div class="select-wrap">
-            <select id="ev-theme" v-model="f.theme">
-              <option value="default">Default — Persimmon</option>
-              <option value="formal">Formal — navy strap</option>
-              <option value="night">Night — dark</option>
-            </select>
-          </div>
+        <div class="field"><label id="ev-theme-l">Theme</label>
+          <UiSelect id="ev-theme" v-model="f.theme" labelledby="ev-theme-l" :options="THEME_OPTIONS" />
         </div>
         <div class="field"><label for="ev-perks">Perks — one per line</label>
           <textarea id="ev-perks" v-model="f.perksText" placeholder="Free coffee&#10;Raffle entry"></textarea></div>
