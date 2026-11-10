@@ -23,6 +23,7 @@ D1 schema from `migrations/0001`-`0022`. Conventions: ids are 10-character ungue
 - `consents` (record of who agreed to what, kept 6 years)
 
 ## Hosts and events
+- Nothing is stored for the Events tab or the event hub (F15, no migration): the list and the hub read `checkins`, `events` and `connections` and work out upcoming, ongoing or ended on each request with `worker/eventstatus.js`. `connections.event_id` may point at an event that no longer exists (F10 reset); the hub then returns 404 and the list leaves it out
 - `host_accounts` (email UNIQUE lower-case, email_verified_at, full_name, use_case, event_frequency, typical_size, referral, terms_version, terms_at, status active|disabled, created_at, last_login_at, deleted_at): host accounts, separate from `users` (F10, migration 0018)
 - `host_sessions` (SHA-256 of the cookie token, host_account_id, expiry, user agent), `host_login_codes` (email, hashed code, attempts, expiry, used_at)
 - `orgs` (plan, org_type society|institution|company|individual, verification_status, leader, university, **institution_id** (F12, as on `profiles`), review notes)
