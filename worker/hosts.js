@@ -447,8 +447,9 @@ async function eventTotals(db, eventId) {
        (SELECT COUNT(*) FROM checkins WHERE event_id = ?) checkins,
        (SELECT COUNT(*) FROM connections WHERE event_id = ?) connections,
        (SELECT COUNT(*) FROM connections WHERE event_id = ? AND selfie_key IS NOT NULL AND consent_b = 1) selfies,
-       (SELECT COUNT(*) FROM feedback_responses WHERE event_id = ?) feedback`,
-    eventId, eventId, eventId, eventId
+       (SELECT COUNT(*) FROM feedback_responses WHERE event_id = ?) feedback,
+       (SELECT presence_used FROM events WHERE id = ?) presence`,
+    eventId, eventId, eventId, eventId, eventId
   );
 }
 
@@ -508,6 +509,8 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
     connections: t.connections,
     selfies: t.selfies,
     feedback: t.feedback,
+    // F17: how many people used "Be easy to find". A count only, hidden under 3 so it cannot point at anyone (D004).
+    presenceUsed: t.presence >= 3 ? t.presence : null,
     cap: EVENT_CHECKIN_CAP,
     overCap: t.checkins > EVENT_CHECKIN_CAP,
   });
@@ -565,7 +568,7 @@ async function buildReport(db, ev) {
         ? "Cohort under 10: only repeated answers are shown to limit singling people out."
         : "Buckets with fewer than 3 responses are hidden.",
     },
-    totals,
+    totals: { ...totals, presence: totals.presence >= minBucket ? totals.presence : null },
     rsvp: rsvp === null ? null : {
       count: rsvp,
       turnout: rsvp > 0 ? Math.round((totals.checkins / rsvp) * 100) : null,
@@ -610,6 +613,7 @@ hostApp.get("/api/host/events/:id/report.csv", async (c) => {
   add("Totals", "Check-ins", r.totals.checkins);
   add("Totals", "Connections", r.totals.connections);
   add("Totals", "Shared selfies", r.totals.selfies);
+  if (r.totals.presence !== null) add("Totals", "People who used Be easy to find", r.totals.presence);
   add("Totals", "Connections per attendee", r.connectionsPerAttendee);
   if (r.rsvp) { add("Totals", "RSVPs", r.rsvp.count); add("Totals", "Turnout %", r.rsvp.turnout ?? ""); }
   add("Totals", "Feedback responses", r.feedback.responses);

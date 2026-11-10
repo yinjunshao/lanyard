@@ -28,6 +28,7 @@ Newest context first. Each decision has its own note (context, decision, consequ
 | [[D008 Societies near cost, profit higher up]] | Free society tier with caps | Accepted |
 | [[D007 Validate before building]] | Pilots before features | Partly overtaken |
 | [[D006 UK campus beachhead first]] | UK before China | Accepted (in practice) |
+| [[D027 Event presence is opt-in, private and deleted 48 hours after the event]] | Face photo shown only to opted-in people at the event while it is on | Accepted |
 | [[D005 Shared selfie needs both consents]] | Dual consent, either deletes | Accepted |
 | [[D004 Aggregate-only host analytics]] | Hosts see totals only | Accepted |
 | [[D003 Guest first with passkeys]] | No account to connect | Accepted (host part superseded by D020) |

@@ -219,6 +219,7 @@ async function copyFeedbackLink() {
           <div v-if="live.event.rsvpCount" class="stat"><span class="stat-n tnum">{{ live.event.rsvpCount }}</span><span class="label">Signed up</span></div>
           <div class="stat"><span class="stat-n tnum">{{ live.connections }}</span><span class="label">Connections</span></div>
           <div class="stat"><span class="stat-n tnum">{{ live.selfies }}</span><span class="label">Selfies</span></div>
+          <div v-if="live.presenceUsed" class="stat"><span class="stat-n tnum">{{ live.presenceUsed }}</span><span class="label">Used Be easy to find</span></div>
           <div class="stat"><span class="stat-n tnum">{{ live.feedback }}</span><span class="label">Feedback</span></div>
           <p v-if="live.overCap" class="notice small">
             Over {{ live.cap }} check-ins. Nobody is turned away, but events this size
@@ -329,6 +330,7 @@ async function copyFeedbackLink() {
             <div><strong class="tnum">{{ report.totals.connections }}</strong><span class="label">Connections</span></div>
             <div><strong class="tnum">{{ report.connectionsPerAttendee }}</strong><span class="label">Per attendee</span></div>
             <div><strong class="tnum">{{ report.totals.selfies }}</strong><span class="label">Selfies</span></div>
+            <div v-if="report.totals.presence"><strong class="tnum">{{ report.totals.presence }}</strong><span class="label">Used Be easy to find</span></div>
             <div><strong class="tnum">{{ report.feedback.responses }}</strong><span class="label">Feedback</span></div>
           </div>
           <p class="notice small">{{ report.privacy.note }}</p>

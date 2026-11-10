@@ -14,6 +14,7 @@ function name(scope) {
   if (scope.startsWith("terms:")) return `Terms and Privacy Policy (${scope.slice(6)})`;
   if (scope.startsWith("host_terms:")) return `Host Terms (${scope.slice(11)})`;
   if (scope.startsWith("event_directory:")) return "Showing me in an event's room";
+  if (scope.startsWith("event_presence:")) return "Being easy to find at an event (photo and line)";
   if (scope.startsWith("event_sponsor:")) return "Sharing my details with an event sponsor";
   return NAMES[scope] || scope;
 }

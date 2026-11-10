@@ -16,6 +16,7 @@ Not legal advice; a checklist from ICO guidance to be reviewed by a lawyer or UC
 | Account and profile | Contract |
 | Shared selfie | Consent from both people, deletable by either |
 | Event check-in | Consent / legitimate interest |
+| Event presence: face photo, line and wish (F17) | Consent, separate per event, off by default, withdrawable at once |
 | Details shared with a sponsor | Consent, separate per sponsor, never pre-ticked |
 | Marketing email | Consent, separate unticked box |
 | Aggregate stats | No personal data |
@@ -39,6 +40,16 @@ A connection records how the first scan happened (QR code, typed code or shared 
 - It uses only what each person shows: the fields of the mode they chose (a kept course on a career profile, or a kept company on a student profile, is never used), and the "come to me for" tags of the card they shared. So it cannot tell the other person something you keep hidden.
 - Event facts are limited to past events you were already able to know the other attended: the event you connected at, or one whose attendee directory they joined. Hosts never see it. Blocked people, signed-out viewers and your own card get nothing. Mutual connections are not counted.
 
+## Event presence and who to meet (F17)
+- **What:** at an event that is on, a person may choose "Show me to people here": a face photo (optional), a line of up to 80 characters and a wish of up to 120 ("I want to meet someone who..."). It is per event, off by default and never pre-ticked. It is stored in `event_presence` (one row per person per event) with the photo in R2 under `presence/`. The consent is recorded as scope `event_presence:<eventId>` in `consents` and `consent_log` (granted, withdrawn, and `photo` lines when a selfie is added or deleted).
+- **Who sees it:** only people checked in to the same event, while it is Ongoing, with the host's directory on, who have turned it on themselves (so you cannot look without being findable). Not signed-out visitors, not people at other events, not anyone once the event has ended, not a blocked person (both ways). An entry is the photo, first name and last initial, the line, and one reason ("Into robotics"); no card link, no user id, no contact details. Reasons use only what each person shows (F16's `visibleSide`, [[D026 Shared ground is worked out from what each person shows, and never stored]]).
+- **The photo is private media:** served only by `/media/presence/...` to the owner or someone allowed to see that person, `private, no-store`, never from a public URL. The Worker checks the bytes are a real WebP, JPEG or PNG (as for all uploads), caps it at 600 KB, and removes EXIF, XMP and text chunks before storing. It is never used for recognition.
+- **Retention:** deleted when the person turns it off or withdraws (row, R2 object and consent, at once); otherwise by the daily purge 48 hours after the event ends (owner decision 2026-11-10), by the same end rule as the event status. Also deleted with the account, and by the host reset script (which deletes the R2 objects first). The consent record stays 6 years like the others.
+- **Data download:** `eventPresence` lists a person's own rows (event, photo link, line, wish, times).
+- **Hosts:** see only how many people ever turned it on at an event (`events.presence_used`), and only from 3 up ([[D004 Aggregate-only host analytics]]). No host-facing file reads `event_presence`.
+- **Risks and the DPIA:** see the F17 DPIA in [[UK GDPR Audit 2026-11-01]]. Decision: [[D027 Event presence is opt-in, private and deleted 48 hours after the event]].
+- **Owner decision still open:** a face-photo feature probably warrants a new Terms and Privacy version so everyone re-accepts. It has not been bumped.
+
 ## Events tab and event hub (F15)
 Nothing new is stored. The hub shows a person only their own connections at that event (the same name, subtitle fields, photo, how you met and time they already see on People) and, when the host has the room on, how many other people chose to be in it (a number, never names). It does not show who anyone else connected with, and the data export and account deletion are unchanged because no new row exists. Hosts get no new field: `worker/myevents.js` is attendee-only and `test/provenance.mjs` still treats `worker/events.js` as host-facing code that must never read `via`. When an event has been deleted (the F10 host reset) its connections stay in People without the event name and its hub is a plain 404.
 
@@ -49,6 +60,7 @@ Nothing new is stored. The hub shows a person only their own connections at that
 
 ## Retention (implemented in `worker/purge.js`)
 - Selfies: 12 months. Feedback text: 12 months.
+- Event presence (F17): at once on withdrawal, otherwise 48 hours after the event ends.
 - Inactive guests: 30 days. Expired codes and sessions: daily purge.
 - Consent records: 6 years.
 - Welcome-step counts: 400 days (no personal data).

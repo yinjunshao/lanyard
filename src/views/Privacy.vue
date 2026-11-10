@@ -30,6 +30,7 @@ const UPDATED = "6 November 2026";
         <tr><td>Users</td><td>Name, whether you are a student or working, company, role, university, course, year, headline, about text, tags, links, profile photo, and whether you show your age band</td><td>To make your card and profile and show them as you choose</td></tr>
         <tr><td>Users</td><td>Connections you make, which card was scanned, how you met (QR code, typed code or link) and when, optional note, private notes, messages, and shared selfies</td><td>To keep your connections and let both people see them</td></tr>
         <tr><td>Users</td><td>Event check-ins, answers to optional questions, and your optional directory and sponsor choices</td><td>To join events and respect your choices</td></tr>
+        <tr><td>Users</td><td>If you choose "Be easy to find" at an event: a photo of your face, a short line about you, and what kind of person you would like to meet</td><td>To let other people at that event who chose the same spot you in the room. Optional and off unless you turn it on</td></tr>
         <tr><td>Users</td><td>Your private follow-up reminders and the tags you put on your connections</td><td>So you can remember who to follow up with; only you see them</td></tr>
         <tr><td>Users</td><td>Promo codes you redeem, when, and your place in the queue for that code</td><td>To give out limited offers fairly, one per person (this is why redeeming needs a confirmed email)</td></tr>
         <tr><td>Users</td><td>Event feedback answers (ratings, choices and optional written answers), stored without your name or account, plus a separate record that you have answered</td><td>To give organisers anonymous feedback, and to ask you only once</td></tr>
@@ -48,7 +49,7 @@ const UPDATED = "6 November 2026";
     <h2>3. Why we may use it (lawful bases)</h2>
     <ul>
       <li><b>Contract</b>: running your account, card, connections and events, which you asked us to provide.</li>
-      <li><b>Consent</b>: news and offers by email (a separate tick box, off by default), shared selfies, appearing in an event directory, and sharing details with a named sponsor. You can withdraw these at any time and it is as easy to withdraw as to give.</li>
+      <li><b>Consent</b>: news and offers by email (a separate tick box, off by default), shared selfies, appearing in an event directory, being easy to find at an event (your face photo, line and wish), and sharing details with a named sponsor. You can withdraw these at any time and it is as easy to withdraw as to give.</li>
       <li><b>Legitimate interests</b>: keeping the service secure, preventing abuse, and counting usage in aggregate. We weigh this against your rights and you can object.</li>
       <li><b>Legal obligation</b>: keeping financial records, and responding to lawful requests.</li>
     </ul>
@@ -75,6 +76,7 @@ const UPDATED = "6 November 2026";
       <tbody>
         <tr><td>Profile, card, connections, notes</td><td>Until you delete them or your account</td></tr>
         <tr><td>Shared selfies</td><td>7 days if the other person has not accepted it, then deleted. Once accepted, until either person removes it or the connection, and no more than 12 months after it was taken</td></tr>
+        <tr><td>"Be easy to find" photo, line and wish</td><td>Until you turn it off, when they are deleted at once, and no later than 48 hours after the event ends</td></tr>
         <tr><td>Sign-in codes</td><td>5 to 10 minutes, single use</td></tr>
         <tr><td>Your email address</td><td>Until you delete your account. News emails stop as soon as you untick the box or use the unsubscribe link</td></tr>
         <tr><td>Rate-limit counters, expired sessions</td><td>Days; removed automatically</td></tr>
@@ -125,6 +127,16 @@ const UPDATED = "6 November 2026";
       has to accept it in the app before it is kept. Until they do it is only a request to them (they can see it to decide), and
       we delete it after 7 days. Either person can remove it at any time, which deletes it for both, and the connection stays.
       If you appear in a photo you did not agree to, tell us and we will remove it.
+    </p>
+
+    <h2>8b. Be easy to find at an event</h2>
+    <p>
+      At an event that is on, you can choose to show a photo of your face, a short line and your first name and last initial to
+      other people checked in to the same event who have made the same choice, so you can spot each other in the room. It is off
+      until you turn it on, for that event only. They do not see your card, links or contact details, and organisers only see how
+      many people used it. We suggest people to meet from what each of you already shows on your cards. Nobody outside the event, and
+      nobody once the event has ended, can see it. Turning it off deletes your photo and line at once; otherwise they are deleted
+      48 hours after the event ends. You must be 18 or over to use Lanyard, so this is only ever shown between adults.
     </p>
 
     <h2>9. Children</h2>

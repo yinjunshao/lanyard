@@ -548,6 +548,27 @@ console.log("\n# Matching through the endpoint");
   check("when the event is over for the other person (12 hours after their check-in) they are not shown", !names(await seen(L1, open)).includes("Lee E."));
 }
 
+console.log("\n# Hosts see one number, and only from 3 up (D004)");
+{
+  const ev = await mkEvent({ name: "Aggregate night", startsAt: t0 - H, endsAt: t0 + 5 * H, directoryOn: true });
+  const people = [];
+  for (let i = 0; i < 3; i++) { const p = await signup(`Agg Person${i}`, `10.17.6.${i + 1}`); await checkIn(p, ev); people.push(p); }
+  await turnOn(people[0], { intro: "SECRET-INTRO-ZERO", selfieDataUrl: url("webp", webpOf()) }, ev);
+  await turnOn(people[1], { lookingFor: "SECRET-WISH-ONE" }, ev);
+  const live1 = (await host.get(`/api/host/events/${ev.id}/live`)).json;
+  check("with two people the live screen has no number (null), so it cannot point at anyone", live1.presenceUsed === null, live1);
+  await turnOn(people[2], {}, ev);
+  await people[1].c.del(`/api/e/${ev.id}/presence`);
+  const res = [await host.get(`/api/host/events/${ev.id}/live`), await host.get(`/api/host/events/${ev.id}/report`), await host.get(`/api/host/events/${ev.id}/report.csv`), await host.get("/api/host/account/export")];
+  check("with three it is 3, and withdrawing does not lower it (it counts people who used it)", res[0].json.presenceUsed === 3 && res[1].json.totals.presence === 3, [res[0].json.presenceUsed, res[1].json.totals]);
+  check("the CSV has the line", /People who used Be easy to find,3/.test(res[2].text));
+  const all = res.map((r) => r.text).join("");
+  check("no intro, wish, selfie key, user id or name of anyone who used it reaches a host", !/SECRET|presence\/|selfie|looking|Agg Person/.test(all.replace(/"selfies":\d+|Selfies|Shared selfies/g, "")) && !people.some((p) => all.includes(p.id)), all.slice(0, 200));
+  const small = await mkEvent({ name: "Small", startsAt: t0 - H, endsAt: t0 + 5 * H, directoryOn: true });
+  const s1 = await signup("Sml One", "10.17.6.20"); await checkIn(s1, small); await turnOn(s1, {}, small);
+  check("the report hides a count under the small-cohort bucket size", (await host.get(`/api/host/events/${small.id}/report`)).json.totals.presence === null);
+}
+
 console.log("\n# The hub card and list (source guards)");
 {
   const ui = read("src/components/EventPresence.vue"), hub = read("src/views/EventDetail.vue");
@@ -567,7 +588,10 @@ console.log("\n# The hub card and list (source guards)");
 console.log("\n# Hosts and the code (source guards)");
 {
   const hostFiles = ["worker/hosts.js", "worker/events.js", "worker/host-auth.js", "worker/hostorg.js", "worker/admin.js", "worker/feedback.js", "worker/integrations.js", "worker/eventmail.js", "worker/myevents.js"];
-  check("no host-facing file imports the presence modules or reads the presence table", hostFiles.every((f) => !/presence/i.test(read(f).replace(/presence_used/g, ""))), hostFiles.filter((f) => /presence/i.test(read(f).replace(/presence_used/g, ""))));
+  const BAD = /event_presence|presenceApp|presenceMatch|presenceCandidates|from "\.\/presence\.js"|looking_for|selfie_key/;
+  check("no host-facing file imports the presence modules or reads the presence table or its fields", hostFiles.filter((f) => f !== "worker/hosts.js").every((f) => !/presence/i.test(read(f))) && !BAD.test(read("worker/hosts.js").replace(/connections[^\n]*selfie_key[^\n]*/g, "")), hostFiles.filter((f) => BAD.test(read(f))));
+  const hostsLines = read("worker/hosts.js").split("\n").filter((l) => /presence/i.test(l)).join("\n");
+  check("hosts.js mentions presence only for the events.presence_used counter, hidden under 3 (D004)", /presence_used FROM events WHERE id/.test(hostsLines) && !/event_presence|FROM presence/.test(hostsLines) && /t\.presence >= 3/.test(hostsLines), hostsLines);
   check("only index.js and the presence files know the presence modules", ["worker/index.js"].every((f) => /presenceApp/.test(read(f))));
   check("the presence routes all need a signed-in person", (read("worker/presenceApp.js").match(/presenceApp\.(get|put|post|delete)\(/g) || []).length === (read("worker/presenceApp.js").match(/requireUser\(c\)/g) || []).length);
   check("the selfie route is not public: it asks canViewPresenceSelfie and is never cached", /canViewPresenceSelfie/.test(read("worker/index.js")) && /noStore: isPresence/.test(read("worker/index.js")));
