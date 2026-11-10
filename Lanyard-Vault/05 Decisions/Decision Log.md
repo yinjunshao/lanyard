@@ -6,6 +6,7 @@ tags: [decision, moc]
 Newest context first. Each decision has its own note (context, decision, consequences, evidence). Dates for old decisions are the date of the document where they were recorded or the nearest commit; treat as approximate. Add new ones by copying any note.
 
 | ID | Decision | Status |
+| [[D028 AI goes through one Worker-side foundation that fails closed]] | Every AI feature calls one Worker-side client with a kill switch, quotas, budget, per-person cache, fallbacks and injection helpers; off in production until the owner turns it on | Accepted |
 | --- | --- | --- |
 | [[D026 Shared ground is worked out from what each person shows, and never stored]] | Shared ground is built on each request from only what each person shows the other (their mode's fields and the shared card's tags), never stored, never shown to hosts | Accepted |
 | [[D025 Event status is worked out from the clock, never stored]] | Upcoming, ongoing or ended is worked out on each request by one shared helper, never stored; the hub routes are attendee-only | Accepted |

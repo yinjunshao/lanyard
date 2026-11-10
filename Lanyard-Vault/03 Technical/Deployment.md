@@ -27,6 +27,8 @@ The host portal is its own site, so locally it has its own address: **http://hos
 - Over plain http the host cookie is `lanyard_host`; on https it is `__Host-lanyard_host`. Both are kept to the host site by the browser, so being signed in on one site never signs you in on the other.
 
 ## Config files
+
+AI (F21) is **off** in `wrangler.production.toml` (`AI_ENABLED = "0"`). Vars: `AI_ENABLED`, `AI_MODEL`, `AI_GATEWAY_URL`, `AI_DAILY_BUDGET_USD`, `AI_MONTHLY_BUDGET_USD`, `AI_PRICE_INPUT_PER_MTOK_USD`, `AI_PRICE_OUTPUT_PER_MTOK_USD`, `AI_ALERT_EMAIL`, `AI_TIMEOUT_MS`; secret `CLAUDE_API_KEY`. Locally, `wrangler.toml` sets `AI_STUB = "1"` (canned replies, no key, no network); the Worker refuses the stub on any non-local `APP_ORIGIN`. wrangler loads `.dev.vars` next to its config; to try the admin or Settings screens without that file, run wrangler with a config copy in another folder and `--var ADMIN_TOKEN:<throwaway>`. The owner steps are in [[F21 AI foundation]].
 `wrangler.toml` (local, localhost origins) and `wrangler.production.toml` (production origins, same D1/R2/KV, crons). Production also has `HOST_ORIGIN = https://host.lanyd.fyi` and `host.lanyd.fyi` in `APP_ORIGIN`. A production build (`npm run build`) points the app's host portal links at `https://host.lanyd.fyi` (set in `vite.config.js`; `VITE_HOST_ORIGIN` overrides it).
 
 ## Go-live checklist (from `wrangler.toml`)

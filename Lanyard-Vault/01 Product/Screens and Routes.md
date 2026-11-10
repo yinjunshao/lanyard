@@ -29,6 +29,8 @@ From `src/router/index.js`. All views are code-split so public pages stay light 
 
 **Edit profile** (`/app/profile`, now only for editing a card): a Student / Career switch sits under Name. Student shows University, Course, Year; Career shows Company, Role and an optional "Studied at" (F11). The switch is on the profile, not in Settings. University and Studied at are a searchable picker with a "Not listed? Use ..." row and, for a `.ac.uk` email, a "Looks like you're at ... Use it" suggestion (F12).
 
+**AI (F21):** Settings, Privacy and data has the AI search switch; Settings, Plan lists the AI allowances; `/admin` has an AI section (state, spend, kill switch, rollout stage, allow-list, test call).
+
 **Settings** (F09) is a list of categories, each its own page: `/app/settings/account`, `/security` (Sign-in and devices), `/notifications` (Email and notifications), `/privacy` (Privacy and data), `/plan`, `/appearance` (Appearance and app), `/help` (Help and legal). Log out sits under the list. Phones show the list, then one page with a "‹ Settings" back link; from 900 px the list stays on the left. It is one route, `/app/settings/:page?`; `Settings.vue` loads the page. Old `/app/settings#plus`, `#signin` and `#install` links redirect to `/plan`, `/security` and `/appearance`. Emails about sign-in link to `/app/settings/security`.
 
 ## Host portal (its own site, F10)

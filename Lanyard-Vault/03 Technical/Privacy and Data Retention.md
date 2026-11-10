@@ -19,6 +19,7 @@ Not legal advice; a checklist from ICO guidance to be reviewed by a lawyer or UC
 | Event presence: face photo, line and wish (F17) | Consent, separate per event, off by default, withdrawable at once |
 | Details shared with a sponsor | Consent, separate per sponsor, never pre-ticked |
 | Marketing email | Consent, separate unticked box |
+| AI features: what you type and what you can already see about the people involved, sent to the model when you tap (F21) | Contract for your own drafts; legitimate interests for being found by AI search (opt-out in Settings); hosts: legitimate interests |
 | Aggregate stats | No personal data |
 
 ## Profile fields (F11)
@@ -50,6 +51,13 @@ A connection records how the first scan happened (QR code, typed code or shared 
 - **Risks and the DPIA:** see the F17 DPIA in [[UK GDPR Audit 2026-11-01]]. Decision: [[D027 Event presence is opt-in, private and deleted 48 hours after the event]].
 - **Owner decision still open:** a face-photo feature probably warrants a new Terms and Privacy version so everyone re-accepts. It has not been bumped.
 
+## AI features (F21)
+- **What is stored:** `ai_cache` holds the checked reply for 7 days at most (so asking again is free); `ai_usage` and `ai_daily` hold counts, tokens and cost for 13 months with no text. **No prompt is stored** by us. All of it is in the person's data download (`ai`: usage rows, replies still held, the search choice) and in a host's download (their own counts); it goes on account deletion (`eraseAi`), is purged daily (`purgeAi`), and rows for an account that no longer exists are swept up. Hosts see none of it per person.
+- **What goes to the provider:** only what the asker could already see plus what they type, cleaned (no emails, links, control or zero-width characters, no `<data>` look-alikes), with opaque ids. Processors: Anthropic (model) and Cloudflare (AI Gateway). Owner steps: turn off Gateway body logging, accept Anthropic's DPA and confirm no training on API data; the Privacy Policy sentences on both are only true once that is done.
+- **Being found by AI search:** `users.ai_search_ok`, default 1 (owner decision 2026-11-10), switched off in Settings, Privacy and data. Honoured by the foundation, not by each feature. Each change is in `consent_log` (scope `ai_search`). Basis: legitimate interests; assessment below and in [[UK GDPR Audit 2026-11-01]].
+- **Rules:** nothing runs on page load or typing; a person reads every result; nothing is sent for them; no tools, so a prompt injection can at most change a suggestion for the person asking.
+- Privacy Policy: section 8c, rows in the data and retention tables, the provider line in section 4 and the legitimate-interests bullet. **The Terms and Privacy version was not bumped**; owner decision.
+
 ## Events tab and event hub (F15)
 Nothing new is stored. The hub shows a person only their own connections at that event (the same name, subtitle fields, photo, how you met and time they already see on People) and, when the host has the room on, how many other people chose to be in it (a number, never names). It does not show who anyone else connected with, and the data export and account deletion are unchanged because no new row exists. Hosts get no new field: `worker/myevents.js` is attendee-only and `test/provenance.mjs` still treats `worker/events.js` as host-facing code that must never read `via`. When an event has been deleted (the F10 host reset) its connections stay in People without the event name and its hub is a plain 404.
 
@@ -64,6 +72,7 @@ Nothing new is stored. The hub shows a person only their own connections at that
 - Inactive guests: 30 days. Expired codes and sessions: daily purge.
 - Consent records: 6 years.
 - Welcome-step counts: 400 days (no personal data).
+- AI replies (`ai_cache`): 7 days. AI usage counts (`ai_usage`, `ai_daily`): 13 months.
 - Cron: daily 03:17 and hourly :47.
 - User can export and delete their own data; delete removes R2 objects too.
 - Host accounts (F10) are separate: a host can download their host account data on the host portal (`/api/host/account/export`). Expired host sessions, sign-in codes and invites are purged daily. Deleting a host account is by request for now (no self-serve button). Invoice records are kept 6 years even when the organisation is deleted (the organisation's name stays on the row).

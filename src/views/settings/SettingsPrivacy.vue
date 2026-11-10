@@ -1,9 +1,10 @@
 <script setup>
-// Privacy and data. F21 adds the AI search switch here, above the consent history.
+// Privacy and data. F21 added the AI search switch, above the consent history.
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { Api } from "../../lib/api";
 import ConsentHistory from "../../components/ConsentHistory.vue";
+import AiSearchSetting from "./AiSearchSetting.vue";
 import Icon from "../../components/Icon.vue";
 
 const router = useRouter();
@@ -25,6 +26,8 @@ async function erase() {
         <span>Download my data</span><span class="muted" style="display:inline-flex"><Icon name="download" :size="18" /></span>
       </a>
     </div>
+
+    <AiSearchSetting />
 
     <ConsentHistory />
 

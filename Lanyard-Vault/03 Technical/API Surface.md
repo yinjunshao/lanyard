@@ -27,6 +27,11 @@ Grouped from route definitions in `worker/*.js`. All under `/api` unless noted.
 
 **Admin onboarding** (token): `GET /admin/onboarding` (counts per step for the last 30 days: `steps[].step`, `reached`, `completed`; no ids).
 
+**AI (F21, `worker/ai/routes.js`):** `GET /ai/status` (signed in: `{ on, searchOk, allowances: [{ key, label, free, plus }] }`; 401 signed out), `PUT /ai/search` `{ ok: true|false }` (the opt-out; 403 with no card, 400 for a non-boolean, 20 changes an hour). Features add `/api/ai/<feature>` and call `callModel`; none exists yet. The data export has an `ai` section (counts, replies still held, the search choice), and the host export has the host's own counts.
+
+**Admin AI** (token, `worker/ai/admin.js`, registered on `adminApp`): `GET /admin/ai` (state, whether the key and gateway are set (never their values), prices and whether confirmed, spend against both budgets, calls, cache hit rate, fallbacks, per feature, top 10 ids, people at a limit 3 days running), `POST /admin/ai/kill` `{ killed }`, `POST /admin/ai/rollout` `{ mode }`, `PUT /admin/ai/allow` `{ emails }` (up to 50), `POST /admin/ai/test` (one tiny call with no personal data).
+
+
 **Admin hosts** (token): `GET /admin/hosts?q=` (host accounts and organisations with no host), `POST /admin/hosts/:id/status`, `POST /admin/orgs/:id/attach` (by host email)
 
 **Other:** `GET /health`, `GET /media/:key`, `/admin` routes (token), `POST /plan/waitlist`. Not under `/api`: `GET /host` and `/host/*` answer 301 to the same page on the host site (F10)

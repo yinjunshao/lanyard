@@ -36,6 +36,9 @@ tags: [product, features]
 ## Admin
 `/admin` (token-protected): approve societies and institutions, grant credits, see usage, and the welcome-steps funnel (counts per step for 30 days, nothing about who).
 
+## AI foundation (F21, built, off until the owner turns it on)
+No AI feature is visible yet. The shared plumbing is: one Worker-side client, limits per person, a budget, a kill switch and an allow-list on `/admin`, a Settings switch "Let people I've connected with find me using AI search" (on by default) and the Plan page's allowances. See [[F21 AI foundation]] and [[AI Safety and Cost Plan]].
+
 ## Not built yet (as far as the project files show)
 Stripe checkout, sponsor talent search page, Apple/Google Wallet pass, NFC tap, Eventbrite/Luma native integrations (only generic webhook + RSVP count), AI follow-up drafts (an env var `CLAUDE_API_KEY` exists; confirm whether used).
 

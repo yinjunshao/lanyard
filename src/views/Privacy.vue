@@ -31,6 +31,8 @@ const UPDATED = "6 November 2026";
         <tr><td>Users</td><td>Connections you make, which card was scanned, how you met (QR code, typed code or link) and when, optional note, private notes, messages, and shared selfies</td><td>To keep your connections and let both people see them</td></tr>
         <tr><td>Users</td><td>Event check-ins, answers to optional questions, and your optional directory and sponsor choices</td><td>To join events and respect your choices</td></tr>
         <tr><td>Users</td><td>If you choose "Be easy to find" at an event: a photo of your face, a short line about you, and what kind of person you would like to meet</td><td>To let other people at that event who chose the same spot you in the room. Optional and off unless you turn it on</td></tr>
+        <tr><td>Users</td><td>If AI features are on and you tap one: what you type, and details about the people involved that you can already see (never email addresses, links or photos), sent to our AI provider; a count of how often you used it; and the reply, kept for a few days</td><td>To draft messages, find people you already know and suggest people to meet, and to keep the cost and the limits under control. See section 8c</td></tr>
+        <tr><td>Hosts</td><td>If AI features are on: the written answers to your event feedback, without names, sent to our AI provider to write a summary, and a count of how often you used it</td><td>To summarise anonymous feedback for you. See section 8c</td></tr>
         <tr><td>Users</td><td>Your private follow-up reminders and the tags you put on your connections</td><td>So you can remember who to follow up with; only you see them</td></tr>
         <tr><td>Users</td><td>Promo codes you redeem, when, and your place in the queue for that code</td><td>To give out limited offers fairly, one per person (this is why redeeming needs a confirmed email)</td></tr>
         <tr><td>Users</td><td>Event feedback answers (ratings, choices and optional written answers), stored without your name or account, plus a separate record that you have answered</td><td>To give organisers anonymous feedback, and to ask you only once</td></tr>
@@ -50,7 +52,7 @@ const UPDATED = "6 November 2026";
     <ul>
       <li><b>Contract</b>: running your account, card, connections and events, which you asked us to provide.</li>
       <li><b>Consent</b>: news and offers by email (a separate tick box, off by default), shared selfies, appearing in an event directory, being easy to find at an event (your face photo, line and wish), and sharing details with a named sponsor. You can withdraw these at any time and it is as easy to withdraw as to give.</li>
-      <li><b>Legitimate interests</b>: keeping the service secure, preventing abuse, and counting usage in aggregate. We weigh this against your rights and you can object.</li>
+      <li><b>Legitimate interests</b>: keeping the service secure, preventing abuse, counting usage in aggregate, and letting people you have connected with find you using AI search from what you already show them (you can switch this off at any time in Settings). We weigh this against your rights and you can object.</li>
       <li><b>Legal obligation</b>: keeping financial records, and responding to lawful requests.</li>
     </ul>
 
@@ -59,6 +61,7 @@ const UPDATED = "6 November 2026";
       <li><b>Other users</b> see what is on the card you share, and what you choose to show in a connection.</li>
       <li><b>Hosts</b> only receive anonymous, aggregated figures about their events. They are not told who attended by name or who connected with whom. Feedback reaches them only as totals once at least 3 people have answered, and written answers only once at least 5 have, without names. Sponsors only receive details you opted in to share with that named sponsor.</li>
       <li><b>Our service providers</b> process data for us under contract. Today that is Cloudflare, which hosts the app, database and image storage. Resend sends our emails (sign-in codes, account and host application messages, and news if you opt in), so your email address and the message go to them. If we add payments or other providers, we will name them here first.</li>
+      <li><b>AI providers</b>, only when AI features are on: Anthropic provides the AI model and Cloudflare AI Gateway carries the request. See section 8c.</li>
       <li><b>Hosts' own tools</b>: if a host connects a webhook, we send it the same anonymous event totals they see in their report, never personal data.</li>
       <li>We may disclose data where the law requires it, or to protect people from serious harm.</li>
       <li>We never sell your data.</li>
@@ -77,6 +80,8 @@ const UPDATED = "6 November 2026";
         <tr><td>Profile, card, connections, notes</td><td>Until you delete them or your account</td></tr>
         <tr><td>Shared selfies</td><td>7 days if the other person has not accepted it, then deleted. Once accepted, until either person removes it or the connection, and no more than 12 months after it was taken</td></tr>
         <tr><td>"Be easy to find" photo, line and wish</td><td>Until you turn it off, when they are deleted at once, and no later than 48 hours after the event ends</td></tr>
+        <tr><td>An AI reply (a draft, a search result or a summary)</td><td>7 days, so asking again costs nothing, then deleted. We do not keep what was sent to the model</td></tr>
+        <tr><td>Counts of AI use (how many times, tokens and cost; no text)</td><td>13 months, or until you delete your account</td></tr>
         <tr><td>Sign-in codes</td><td>5 to 10 minutes, single use</td></tr>
         <tr><td>Your email address</td><td>Until you delete your account. News emails stop as soon as you untick the box or use the unsubscribe link</td></tr>
         <tr><td>Rate-limit counters, expired sessions</td><td>Days; removed automatically</td></tr>
@@ -138,6 +143,20 @@ const UPDATED = "6 November 2026";
       nobody once the event has ended, can see it. Turning it off deletes your photo and line at once; otherwise they are deleted
       48 hours after the event ends. You must be 18 or over to use Lanyard, so this is only ever shown between adults.
     </p>
+
+    <h2>8c. AI features</h2>
+    <p>
+      Some features use an AI model: drafting a follow-up message, finding someone you already know, suggesting people to meet at an
+      event, and summarising anonymous feedback for hosts. Nothing runs unless you tap it, a person reads every result and nothing is
+      sent for you, and each feature has a version without AI. We can switch them all off at any time, and they have daily and monthly limits.
+    </p>
+    <ul>
+      <li><b>What is sent</b>: only what you could already see, plus what you type. Never email addresses, links, photos or other people's private notes. Text written by other people is treated as content to read, never as instructions.</li>
+      <li><b>Being found</b>: people you have connected with can ask an AI feature to find someone they know. Your card can come up using only what you already show them. This is on unless you switch it off in <router-link to="/app/settings/privacy">Settings</router-link>, and it takes effect at once. It rests on legitimate interests; you can object.</li>
+      <li><b>Who processes it</b>: Anthropic (the model) and Cloudflare (AI Gateway). Both may process data outside the UK, under the safeguards in section 5. We use them on terms that do not let them train their models on this data, and we turn off logging of what is sent. We do not keep it ourselves.</li>
+      <li><b>What we keep</b>: the reply for 7 days, and counts of use for 13 months (section 6). Both are in your data download and are deleted with your account.</li>
+      <li><b>Decisions</b>: results are suggestions for a person to read. They have no legal or similar effect.</li>
+    </ul>
 
     <h2>9. Children</h2>
     <p>

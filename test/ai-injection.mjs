@@ -173,7 +173,7 @@ globalThis.fetch = async (url, init = {}) => {
   return new Response(JSON.stringify({ content: [{ type: "text", text }], usage: { input_tokens: 200, output_tokens: 50 }, stop_reason: "end_turn" }), { status: 200 });
 };
 const realNow = Date.now.bind(Date);
-let skew = 0;
+let skew = Date.UTC(2026, 10, 10, 12, 0, 0) - realNow();
 Date.now = () => realNow() + skew;
 const advance = (ms) => { skew += ms; };
 

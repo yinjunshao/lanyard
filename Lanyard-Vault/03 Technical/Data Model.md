@@ -3,10 +3,10 @@ tags: [technical, database]
 ---
 # Data Model
 
-D1 schema from `migrations/0001`-`0022`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
+D1 schema from `migrations/0001`-`0024`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
 
 ## Identity
-- `users` (is_guest, recovery_email, email_domain, verified_student, has_passkey, over_18, plan, plan_until, notify_events)
+- `users` (**ai_search_ok** 1 or 0, default 1: people I've connected with may find me with AI search, F21 migration 0024; is_guest, recovery_email, email_domain, verified_student, has_passkey, over_18, plan, plan_until, notify_events)
 - `sessions` (hashed token, expiry, user agent)
 - `webauthn_credentials`, `webauthn_challenges`
 - `rate_limits` (fixed-window counters)
@@ -37,6 +37,7 @@ D1 schema from `migrations/0001`-`0022`. Conventions: ids are 10-character ungue
 - `credits` (events_granted, events_used, expires_at, reason, granted_by), `promo_redemptions`
 - `billing_requests` (org_id nullable, org_name kept on the row, host_account_id, user_id before F10, sku, quantity, amount_pence, po_number, status open|invoiced|paid|cancelled). Since 0018 deleting an organisation sets org_id to NULL instead of deleting the invoice record
 - `plus_waitlist`
+- **AI foundation (F21, migration 0024).** `ai_usage` (day UTC, actor_kind `user`|`host`|`admin`, actor_id, feature, scope (an event id for per-event limits), calls, input_tokens, output_tokens, cost_micros, cache_hits, fallbacks, limited): counts only, no text, kept 13 months. `ai_cache` (key SHA-256, feature, actor_kind, actor_id, result, created_at, expires_at): the checked reply, 7 days at most, the only generated text stored; never holds a prompt. `ai_daily` (day, cost_micros, calls, cache_hits, fallbacks, alerted): the whole app's spend. `ai_settings` (key, value): `killed`, `rollout` (`allowlist`|`plus`|`everyone`), `allow` (a JSON list of email addresses). `actor_id` has no foreign key (it can be a user or a host account); the purge and erasure remove orphans. See [[D028 AI goes through one Worker-side foundation that fails closed]]
 - `feedback_responses`, `feedback_done`
 - `org_integrations` (webhook url/secret, API key)
 - `broadcasts`, `broadcast_sends`, `event_mail_log`

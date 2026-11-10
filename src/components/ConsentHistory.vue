@@ -9,6 +9,7 @@ const NAMES = {
   selfie: "Taking a shared selfie",
   selfie_accept: "Appearing in someone's shared selfie",
   account: "Your account",
+  ai_search: "Letting people I've connected with find me using AI search",
 };
 function name(scope) {
   if (scope.startsWith("terms:")) return `Terms and Privacy Policy (${scope.slice(6)})`;

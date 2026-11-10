@@ -120,7 +120,7 @@ globalThis.fetch = async (url, init = {}) => {
 
 // A clock the tests can move: the Worker reads Date.now() everywhere.
 const realNow = Date.now.bind(Date);
-let skew = 0;
+let skew = Date.UTC(2026, 10, 10, 12, 0, 0) - realNow(); // start at noon UTC so a run near midnight cannot split a day
 Date.now = () => realNow() + skew;
 const advance = (ms) => { skew += ms; };
 
@@ -692,6 +692,75 @@ console.log("\n# Admin: behind the token, and it never shows the key or any text
   check("in local stub mode the test works with no key and no gateway, and says it was the stub", st.json.ok === true && st.json.stub === true && gateway.calls.length === 0, st.json);
   const src = read("worker/admin.js");
   check("the AI admin routes are registered on adminApp after the token check, and nowhere else", src.indexOf('adminApp.use("/api/admin/*"') < src.indexOf("registerAiAdmin(adminApp)") && !/registerAiAdmin/.test(read("worker/index.js")) && /app\.(get|post|put)\("\/api\/admin\/ai/.test(read("worker/ai/admin.js")));
+}
+
+console.log("\n# Settings: the AI search choice and the allowances");
+{
+  resetGateway();
+  const W = await world();
+  await everyone(W);
+  const anon = W.client({ ip: "10.40.0.1" });
+  check("signed out, the status is refused (401)", (await anon.get("/api/ai/status")).status === 401);
+  const put = (c, body) => c.put("/api/ai/search", body);
+  const before = W.q1("SELECT COUNT(*) n FROM users WHERE ai_search_ok = 0").n;
+  const noCard = await put(W.client({ ip: "10.40.0.2" }), { ok: false });
+  check("signed out, the choice is refused and nothing is saved (a visitor with no session or card gets 403)", noCard.status === 403 && noCard.json.code === "no_card" && W.q1("SELECT COUNT(*) n FROM users WHERE ai_search_ok = 0").n === before, noCard.json);
+
+  const c = W.client({ ip: "10.40.0.3" });
+  await c.post("/api/profile", { name: "Sam Settings", acceptTerms: true, over18: true, course: "Maths", uni: "Test University" });
+  const me = (await c.get("/api/me")).json.user;
+  const st = await c.get("/api/ai/status");
+  check("a signed-in person sees the choice (on by default), whether AI is on, and the allowances for Free and Plus", st.status === 200 && st.json.searchOk === true && st.json.on === true && st.json.allowances.length === 3, st.json);
+  const fol = st.json.allowances.find((a) => a.key === "followup");
+  check("the allowances are the ones in AI_LIMITS, and hosts' are not shown to attendees", fol.free.day === 3 && fol.free.month === 15 && fol.plus.day === 15 && fol.plus.month === 150 && !st.json.allowances.some((a) => /feedback|admin/.test(a.key)));
+  check("the status holds no key, address or other person's data", !st.text.includes(KEY) && !st.text.includes("gateway") && !/@/.test(st.text));
+  check("it says AI is off when the environment switch is off, and when the kill switch is thrown", (await (async () => { const X = await world({ AI_ENABLED: "0" }); const cx = X.client({ ip: "10.40.0.4" }); await cx.post("/api/profile", { name: "Off Person", acceptTerms: true, over18: true, course: "Maths", uni: "Test University" }); return (await cx.get("/api/ai/status")).json.on; })()) === false);
+  await setSetting(W.env.DB, "killed", "1");
+  check("kill switch thrown: status says off", (await c.get("/api/ai/status")).json.on === false);
+  await setSetting(W.env.DB, "killed", "0");
+
+  check("a value that is not true or false is a 400", (await put(c, { ok: "no" })).status === 400 && (await put(c, {})).status === 400 && W.q1("SELECT ai_search_ok a FROM users WHERE id = ?", me.id).a === 1);
+  const off = await put(c, { ok: false });
+  check("turning it off is saved at once and the status shows it", off.status === 200 && off.json.searchOk === false && W.q1("SELECT ai_search_ok a FROM users WHERE id = ?", me.id).a === 0 && (await c.get("/api/ai/status")).json.searchOk === false);
+  const asker = W.user({ plan: "plus" });
+  const search = (subjects) => { advance(6000); return callModel(W.env, { feature: "people_search", actor: asker, promptVersion: "st-1", system: "Find.", data: { s: subjects.length }, schema: SCHEMA, maxTokens: 50, subjects }); };
+  check("the opt-out is honoured by the foundation: a search that includes her is refused, with nothing sent", (await search([me.id])).reason === "opted_out" && !(await searchableIds(W.env.DB, [me.id])).has(me.id));
+  await put(c, { ok: true });
+  check("turning it on again lets her be included at once", (await search([me.id])).fallback === false);
+  check("each change is in her consent history, and it shows in the list the Settings page reads", (await c.get("/api/account/consents")).json.history.filter((h) => h.scope === "ai_search").map((h) => h.action).join() === "granted,withdrawn");
+  check("it is in her data download", (await c.get("/api/account/export")).json.ai.searchByConnections === true);
+  const x = await c.put("/api/ai/search", { ok: false }, { origin: "https://evil.example" });
+  check("a request from another website is refused (same-origin rule)", x.status === 403 && W.q1("SELECT ai_search_ok a FROM users WHERE id = ?", me.id).a === 1, x.json);
+  const hostSite = W.client({ ip: "10.40.0.5", site: "host" });
+  check("the host portal cannot reach it", (await hostSite.get("/api/ai/status")).status === 401 && (await hostSite.put("/api/ai/search", { ok: false })).status === 401);
+  let last;
+  for (let i = 0; i < 22; i++) last = await put(c, { ok: i % 2 === 0 });
+  check("changing it over and over is rate limited", last.status === 429);
+
+  // A guest with a card (not yet saved with an email) may set it for later.
+  const g = W.client({ ip: "10.40.0.6" });
+  await g.post("/api/profile", { name: "Gus Guest", acceptTerms: true, over18: true, course: "Maths", uni: "Test University" });
+  check("someone with a card but no confirmed email may still choose (it applies when they save their card)", (await put(g, { ok: false })).status === 200);
+  check("but cannot use AI: the foundation refuses them", (await ask(W, { kind: "user", id: (await g.get("/api/me")).json.user.id }, { data: { g: 1 } })).reason === "ineligible");
+}
+
+console.log("\n# The Settings pages and the policy (source guards)");
+{
+  const priv = read("src/views/settings/SettingsPrivacy.vue"), plan = read("src/views/settings/SettingsPlan.vue");
+  const sw = read("src/views/settings/AiSearchSetting.vue"), al = read("src/views/settings/AiAllowances.vue");
+  check("Privacy and data has the switch, worded as the plan says, above the consent history", priv.includes("<AiSearchSetting") && priv.indexOf("<AiSearchSetting") < priv.indexOf("<ConsentHistory") && sw.includes("Let people I've connected with find me using AI search"));
+  check("the switch is on unless turned off, saves through PUT /api/ai/search and puts the box back if it fails", /:checked="on"/.test(sw) && /"\/api\/ai\/search", "PUT"/.test(sw) && /ev\.target\.checked = on\.value/.test(sw));
+  check("Plan shows the allowances for Free and Plus from the Worker, with no numbers typed into the page", plan.includes("<AiAllowances") && /Free:/.test(al) && /Plus:/.test(al) && !/\b(15|150|30)\b/.test(al.replace(/<style[\s\S]*$/, "")));
+  const shared = ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/main.js", "src/router/index.js", "src/router/routes.attendee.js", "src/router/routes.host.js"];
+  check("nothing AI was added to shared front-end code (api.js, store.js, profile.js, Icon.vue, the entry or the router)", shared.every((f) => !/\/api\/ai|AiSearch|AiAllowances|AdminAi|ai_search/.test(read(f))), shared.filter((f) => /\/api\/ai|AiSearch|AiAllowances|AdminAi/.test(read(f))));
+  check("the settings router still names no settings page and the two new files are loaded only by the pages that use them", !/Ai(Search|Allow)/.test(read("src/views/Settings.vue")) && !/Ai(Search|Allow)/.test(read("src/router/routes.attendee.js")));
+  const files = ["src/views/settings/AiSearchSetting.vue", "src/views/settings/AiAllowances.vue", "src/components/AdminAi.vue"].map(read).join("\n");
+  check("no emoji, sparkle or 'magic' wording in the new screens (Design System)", !/\p{Extended_Pictographic}/u.test(files) && !/sparkle|magic|supercharg|\bAI-powered\b|\bAI assistant\b/i.test(files));
+  check("no colour is hard-coded in the new screens (tokens only)", !/#[0-9a-f]{3,8}\b/i.test(files.replace(/&#\d+;/g, "")));
+  const pol = read("src/views/Privacy.vue");
+  check("the Privacy Policy has an AI features section, in the data and retention tables, the lawful bases and the provider list", /<h2>8c\. AI features<\/h2>/.test(pol) && /AI providers/.test(pol) && /Anthropic/.test(pol) && /Cloudflare AI Gateway/.test(pol) && /legitimate interests<\/b>[^<]*AI search/i.test(pol) && /An AI reply/.test(pol) && /13 months/.test(pol) && /7 days/.test(pol));
+  check("it says nothing runs unless you tap, that people read before anything is sent, and how to switch being found off", /Nothing runs unless you tap/.test(pol) && /nothing is\s+sent for you/.test(pol) && /app\/settings\/privacy/.test(pol));
+  check("the Terms and Privacy version was not changed by this feature (an owner decision)", /export const TERMS_VERSION = "2026-10-26"/.test(read("worker/legal.js")));
 }
 
 console.log("\n# Retention, the data download and deleting an account");

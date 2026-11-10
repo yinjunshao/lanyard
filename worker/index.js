@@ -36,6 +36,7 @@ import { sharedGround } from "./inCommon.js";
 import { exportPresence, canViewPresenceSelfie } from "./presence.js";
 import { presenceApp } from "./presenceApp.js";
 import { exportAi } from "./ai/data.js";
+import { aiApp } from "./ai/routes.js";
 
 const app = new Hono();
 
@@ -1273,6 +1274,7 @@ app.post("/api/connections/:id/report", async (c) => {
 app.route("/", eventsApp);
 app.route("/", myEventsApp);
 app.route("/", presenceApp);
+app.route("/", aiApp);
 app.route("/", feedbackApp);
 app.route("/", hostApp);
 app.route("/", adminApp);

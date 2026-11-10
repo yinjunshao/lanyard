@@ -3,6 +3,7 @@
 import { ref } from "vue";
 import { me, refreshMe } from "../../lib/store";
 import { Api } from "../../lib/api";
+import AiAllowances from "./AiAllowances.vue";
 
 const error = ref("");
 const gbp = (pence) => `£${(pence / 100).toFixed(pence % 100 ? 2 : 0)}`;
@@ -49,6 +50,7 @@ async function joinWaitlist() {
       </template>
       <p v-else class="small muted">Thanks for backing Lanyard. You have {{ me.plan.cards }} cards, custom colours and your own card codes.</p>
     </section>
+    <AiAllowances />
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
   </div>
 </template>
