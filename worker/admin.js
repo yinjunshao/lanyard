@@ -151,6 +151,70 @@ adminApp.post("/api/admin/tickets/:id/resolve", async (c) => {
   return c.json({ ok: true });
 });
 
+// Host accounts (F10): separate from attendee accounts. List and search them,
+// switch one off (which signs it out everywhere), and give an organisation
+// with no members to a host account by its email.
+adminApp.get("/api/admin/hosts", async (c) => {
+  const q = String(c.req.query("q") || "").trim().toLowerCase().slice(0, 80);
+  const like = `%${q.replace(/[%_]/g, "")}%`;
+  const rows = await all(c.env.DB,
+    `SELECT a.id, a.email, a.full_name, a.status, a.terms_version, a.created_at, a.last_login_at,
+            o.id AS org_id, o.name AS org_name, o.org_type, m.role
+       FROM host_accounts a
+       LEFT JOIN host_org_members m ON m.host_account_id = a.id
+       LEFT JOIN orgs o ON o.id = m.org_id
+      WHERE ? = '' OR a.email LIKE ? OR lower(COALESCE(a.full_name, '')) LIKE ? OR lower(COALESCE(o.name, '')) LIKE ?
+      ORDER BY a.created_at DESC LIMIT 50`, q, like, like, like);
+  const unclaimed = await all(c.env.DB,
+    `SELECT o.id, o.name, o.org_type, o.verification_status, o.created_at FROM orgs o
+      WHERE NOT EXISTS (SELECT 1 FROM host_org_members m WHERE m.org_id = o.id)
+      ORDER BY o.created_at DESC LIMIT 50`);
+  return c.json({
+    hosts: rows.map((r) => ({
+      id: r.id, email: r.email, fullName: r.full_name || null, status: r.status, createdAt: r.created_at,
+      lastLoginAt: r.last_login_at || null, setUp: !!(r.full_name && r.terms_version),
+      org: r.org_id ? { id: r.org_id, name: r.org_name, type: r.org_type, role: r.role } : null,
+    })),
+    unclaimed: unclaimed.map((o) => ({ id: o.id, name: o.name, type: o.org_type, status: o.verification_status, createdAt: o.created_at })),
+  });
+});
+
+adminApp.post("/api/admin/hosts/:id/status", async (c) => {
+  const db = c.env.DB;
+  const b = await c.req.json().catch(() => ({}));
+  if (!["active", "disabled"].includes(b.status)) return c.json({ error: "status must be active or disabled" }, 400);
+  const r = await run(db, "UPDATE host_accounts SET status = ? WHERE id = ?", b.status, c.req.param("id"));
+  if (!r.meta?.changes) return c.json({ error: "No such host account." }, 404);
+  if (b.status === "disabled") await run(db, "DELETE FROM host_sessions WHERE host_account_id = ?", c.req.param("id"));
+  return c.json({ ok: true });
+});
+
+// An organisation with no members gets an owner. The host account must exist
+// (they sign in to the host portal once first) and have no organisation yet.
+adminApp.post("/api/admin/orgs/:id/attach", async (c) => {
+  const db = c.env.DB;
+  const org = await one(db, "SELECT * FROM orgs WHERE id = ?", c.req.param("id"));
+  if (!org) return c.json({ error: "No such organisation." }, 404);
+  if (await one(db, "SELECT 1 AS x FROM host_org_members WHERE org_id = ?", org.id)) {
+    return c.json({ error: "This organisation already has members. Use a transfer instead." }, 409);
+  }
+  const b = await c.req.json().catch(() => ({}));
+  const email = normEmail(b.email);
+  const acct = email ? await one(db, "SELECT * FROM host_accounts WHERE email = ? AND status = 'active'", email) : null;
+  if (!acct) return c.json({ error: "No host account uses that email. Ask them to sign in to the host portal once, then try again." }, 404);
+  if (await one(db, "SELECT 1 AS x FROM host_org_members WHERE host_account_id = ?", acct.id)) {
+    return c.json({ error: "That host account already belongs to an organisation." }, 409);
+  }
+  const bad = emailProblem(org.org_type, acct.email);
+  if (bad) return c.json({ error: bad }, 400);
+  await db.batch([
+    db.prepare("INSERT INTO host_org_members (org_id, host_account_id, role, created_at) VALUES (?, ?, 'owner', ?)").bind(org.id, acct.id, now()),
+    db.prepare("UPDATE orgs SET leader_name = COALESCE(?, leader_name), leader_email = ?, billing_email = ? WHERE id = ?")
+      .bind(acct.full_name, acct.email, acct.email, org.id),
+  ]);
+  return c.json({ ok: true });
+});
+
 // Account recovery for people who signed up with nothing but a cookie. Find them
 // by name / university / card code, check it's really them, then give them a
 // one-time sign-in code (30 minutes) to type on /signin.

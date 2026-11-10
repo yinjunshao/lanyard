@@ -390,6 +390,39 @@ console.log("\n# Host accounts, societies, transfers and tickets");
   check("an invite without an email still works for whoever has the code", open.status === 201 && open.json.email === null && sidJoins.status === 200, [open.json, sidJoins.json]);
   const kick = await heir.del(`/api/host/team/${members.find((m) => m.email === "ivy@acme.example.com").id}`);
   check("the owner can remove a member", kick.status === 200 && (await ivy.get("/api/host/me")).json.org === null);
+
+  // F10.9: admin lists host accounts and gives an organisation with no members to a host email.
+  check("the host list needs the admin token", (await adm.get("/api/admin/hosts")).status === 401);
+  const all = (await adm.get("/api/admin/hosts", ADMIN)).json;
+  const ada = all.hosts.find((h) => h.email === "ben.next@example.ac.uk");
+  check("admin lists host accounts with their organisation", ada && ada.setUp && ada.status === "active" && ada.org?.name === "Example Robotics Society", ada);
+  const acme = (await adm.get("/api/admin/hosts?q=acme", ADMIN)).json.hosts;
+  check("…and finds them by email, name or organisation", acme.length >= 2 && acme.every((h) => /acme/.test(h.email) || /Acme/.test(h.org?.name || "")), acme.map((h) => h.email));
+  const t1 = Date.now();
+  T.env.DB.raw.prepare("INSERT INTO orgs (id, name, plan, org_type, verification_status, created_at) VALUES ('orphan0001', 'Orphan Events Ltd', 'starter', 'company', 'approved', ?)").run(t1);
+  const listed = (await adm.get("/api/admin/hosts", ADMIN)).json.unclaimed;
+  check("an organisation with no members is listed as having no host", listed.some((o) => o.id === "orphan0001"), listed);
+  const unknown = await adm.post("/api/admin/orgs/orphan0001/attach", { email: "nobody@acme.example.com" }, ADMIN);
+  check("attaching needs an existing host account", unknown.status === 404, unknown.json);
+  const busyAcct = await adm.post("/api/admin/orgs/orphan0001/attach", { email: "hana@acme.example.com" }, ADMIN);
+  check("…that has no organisation yet", busyAcct.status === 409, busyAcct.json);
+  const claimer = await signedUp("10.1.0.30", "cal@orphan.example.com", "Cal Claimer");
+  const attached = await adm.post("/api/admin/orgs/orphan0001/attach", { email: "Cal@Orphan.example.com" }, ADMIN);
+  const calMe = (await claimer.get("/api/host/me")).json;
+  check("admin can attach the organisation to that host email, as owner", attached.status === 200 && calMe.org?.name === "Orphan Events Ltd" && calMe.role === "owner" && calMe.org.billingEmail === "cal@orphan.example.com", [attached.json, calMe.org]);
+  check("…after which it has a host and can't be attached again",
+    !(await adm.get("/api/admin/hosts", ADMIN)).json.unclaimed.some((o) => o.id === "orphan0001")
+    && (await adm.post("/api/admin/orgs/orphan0001/attach", { email: "sid@acme.example.com" }, ADMIN)).status === 409);
+  const cal = (await adm.get("/api/admin/hosts?q=cal@orphan", ADMIN)).json.hosts[0];
+  const off = await adm.post(`/api/admin/hosts/${cal.id}/status`, { status: "disabled" }, ADMIN);
+  check("switching a host account off signs it out everywhere", off.status === 200 && (await claimer.get("/api/host/me")).status === 401
+    && q1("SELECT COUNT(*) n FROM host_sessions WHERE host_account_id = ?", cal.id).n === 0);
+  const offIn = await hostSignIn(fresh("10.1.0.31"), "cal@orphan.example.com");
+  check("…and it can't sign in until it's switched back on", offIn.verify.status === 400);
+  await adm.post(`/api/admin/hosts/${cal.id}/status`, { status: "active" }, ADMIN);
+  const backIn = await hostSignIn(fresh("10.1.0.32"), "cal@orphan.example.com");
+  check("switched back on, it signs in again", backIn.verify.status === 200);
+  check("admin host actions are in the audit log", q1("SELECT COUNT(*) n FROM admin_audit WHERE action LIKE 'POST /api/admin/orgs/%/attach' OR action LIKE 'POST /api/admin/hosts/%/status'").n >= 4);
 }
 
 console.log("\n# Anonymous visitors");

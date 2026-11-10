@@ -44,6 +44,26 @@ async function findUsers() {
   try { found.value = (await call(`/api/admin/users?q=${encodeURIComponent(search.value)}`)).users; }
   catch (e) { error.value = e.message; }
 }
+// Host accounts (F10)
+const hostQ = ref("");
+const hosts = ref(null);
+const attachTo = ref({}); // org id -> email
+async function loadHosts() {
+  try { hosts.value = await call(`/api/admin/hosts?q=${encodeURIComponent(hostQ.value.trim())}`); }
+  catch (e) { error.value = e.message; }
+}
+async function setHostStatus(h, status) {
+  error.value = "";
+  if (status === "disabled" && !window.confirm(`Switch off ${h.email}? They are signed out everywhere and can't sign in until it's switched back on.`)) return;
+  try { await call(`/api/admin/hosts/${h.id}/status`, "POST", { status }); await loadHosts(); }
+  catch (e) { error.value = e.message; }
+}
+async function attach(o) {
+  error.value = "";
+  try { await call(`/api/admin/orgs/${o.id}/attach`, "POST", { email: attachTo.value[o.id] || "" }); delete attachTo.value[o.id]; await loadHosts(); }
+  catch (e) { error.value = e.message; }
+}
+
 async function issueCode(id) {
   error.value = "";
   try { issued.value[id] = (await call(`/api/admin/users/${id}/signin-code`, "POST")).code; }
@@ -91,6 +111,7 @@ async function load() {
   error.value = "";
   loadRequests();
   loadPromos();
+  loadHosts();
   try { queue.value = await call("/api/admin/queue"); }
   catch (e) {
     queue.value = null;
@@ -197,6 +218,37 @@ const EMAIL = { education: "university or school address", free: "webmail addres
             <button class="btn btn-danger" :disabled="busy" @click="act(`/api/admin/tickets/${t.id}/resolve`, 'reject', t.id)">Reject</button>
           </div>
         </div>
+      </section>
+
+      <section class="stack-2" aria-labelledby="adm-hosts-h">
+        <span id="adm-hosts-h" class="label">Host accounts ({{ hosts?.hosts.length || 0 }})</span>
+        <p class="small muted">Host accounts are separate from cards and sign in with an email code on the host portal.</p>
+        <form class="btn-row" @submit.prevent="loadHosts">
+          <input v-model="hostQ" type="text" maxlength="80" placeholder="Email, name or organisation" aria-label="Find a host account" />
+          <button class="btn" style="width:auto">Search</button>
+        </form>
+        <p v-if="hosts && !hosts.hosts.length" class="muted">No host accounts.</p>
+        <div v-for="h in hosts?.hosts || []" :key="h.id" class="panel stack">
+          <div class="spread"><strong style="overflow-wrap:anywhere">{{ h.email }}</strong>
+            <span class="small" :class="h.status === 'active' ? '' : 'error-text'">{{ h.status === "active" ? "Active" : "Switched off" }}</span></div>
+          <p class="small muted" style="margin:0">
+            {{ h.fullName || "No name yet" }}{{ h.setUp ? "" : " · setup not finished" }} · joined {{ fmt(h.createdAt) }}
+            <template v-if="h.lastLoginAt"> · last sign-in {{ fmt(h.lastLoginAt) }}</template>
+            <template v-if="h.org"> · {{ h.org.name }} ({{ h.org.role }})</template>
+          </p>
+          <button v-if="h.status === 'active'" class="btn btn-danger" @click="setHostStatus(h, 'disabled')">Switch off</button>
+          <button v-else class="btn" @click="setHostStatus(h, 'active')">Switch back on</button>
+        </div>
+        <template v-if="hosts?.unclaimed.length">
+          <span class="label">Organisations with no host ({{ hosts.unclaimed.length }})</span>
+          <div v-for="o in hosts.unclaimed" :key="o.id" class="panel stack">
+            <div class="spread"><strong>{{ o.name }}</strong><span class="label">{{ TYPE[o.type] }}</span></div>
+            <form class="btn-row" @submit.prevent="attach(o)">
+              <input v-model="attachTo[o.id]" type="email" placeholder="Host account email" :aria-label="`Host account email for ${o.name}`" />
+              <button class="btn" style="width:auto" :disabled="!attachTo[o.id]">Attach</button>
+            </form>
+          </div>
+        </template>
       </section>
 
       <section class="stack-2">
