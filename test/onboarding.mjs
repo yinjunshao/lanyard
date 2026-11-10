@@ -5,6 +5,10 @@
 import { makeEnv, makeDb, readMigration, check, summary } from "./harness.mjs";
 import { eraseUser } from "../worker/purge.js";
 import { readFileSync } from "node:fs";
+import { buildLinks, labelForUrl } from "../src/lib/links.js";
+
+const read = (f) => readFileSync(f, "utf8");
+const has = (text, ...parts) => parts.every((p) => (p instanceof RegExp ? p.test(text) : text.includes(p)));
 
 const T = await makeEnv();
 const { client, q1, q, env } = T;
@@ -131,6 +135,33 @@ console.log("\n# Deleting an account");
   const id = (await me(c)).user.id;
   await eraseUser(env, id);
   check("the profile and its place in onboarding go with the account", !q1("SELECT 1 x FROM profiles WHERE user_id = ?", id));
+}
+
+console.log("\n# Links: the label is filled in from a pasted address");
+{
+  check("LinkedIn and GitHub addresses are named", labelForUrl("https://www.linkedin.com/in/sam") === "LinkedIn" && labelForUrl("github.com/sam") === "GitHub");
+  check("another site gets its own name", labelForUrl("https://sam.example.com/work") === "Example" && labelForUrl("example.co.uk") === "Example");
+  check("a half-typed address, spaces or nothing give no label", labelForUrl("") === "" && labelForUrl("lin") === "" && labelForUrl("not a link") === "" && labelForUrl(null) === "");
+  const links = buildLinks([{ label: "LinkedIn", url: "linkedin.com/in/sam" }, { label: "", url: "x.com/a" }, { label: "Site", url: "" }, { label: "Web", url: "http://a.example" }]);
+  check("rows missing a label or an address are dropped, and https:// is added", JSON.stringify(links) === JSON.stringify({ LinkedIn: "https://linkedin.com/in/sam", Web: "http://a.example" }), links);
+}
+
+console.log("\n# The steps share what Edit profile uses (no second copy)");
+{
+  const edit = read("src/views/EditProfile.vue");
+  const stepMode = read("src/components/welcome/StepMode.vue"), stepFor = read("src/components/welcome/StepFor.vue"), stepLinks = read("src/components/welcome/StepLinks.vue");
+  check("Edit profile and the mode step use the same ModeFields", has(edit, "<ModeFields") && has(stepMode, "<ModeFields", "tiles"));
+  check("Edit profile and the tags step use the same TagFields", has(edit, "<TagFields") && has(stepFor, "<TagFields"));
+  check("both build links with the same buildLinks", has(edit, 'from "../lib/links"', "buildLinks(") && has(stepLinks, 'from "../../lib/links"', "buildLinks("));
+  check("Edit profile keeps no copy of the switch, the suggestions or the institution picker", !/SUGGESTED|MODES|institutionForDomain|<UiCombobox|seg-btn/.test(edit));
+  const fields = read("src/components/ModeFields.vue");
+  check("the switch still says Student and Career, and the tiles Student and Working", has(fields, '"Career"', '"Working"', '"Student"'));
+  check("each step saves to the server as it is answered (no localStorage progress)", ["StepYou", "StepMode", "StepFor", "StepLinks"].every((n) => {
+    const t = read(`src/components/welcome/${n}.vue`);
+    return /Api\.(createProfile|updateProfile)/.test(t) && !/localStorage/.test(t);
+  }) && !/localStorage/.test(read("src/views/Welcome.vue")));
+  check("the welcome page is not an /app page, so no tab bar, banner or Terms pop-up sits over it", has(read("src/router/routes.attendee.js"), /path: "\/app\/welcome", component: \(\) => import\("\.\.\/views\/Welcome\.vue"\) \}/));
+  check("steps 2 to 5 can be skipped, step 1 and 6 cannot", has(read("src/views/Welcome.vue"), "SKIPPABLE = [2, 3, 4, 5]"));
 }
 
 summary();

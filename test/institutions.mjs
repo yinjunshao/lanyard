@@ -135,15 +135,19 @@ console.log("\n# Source guards");
   const src = walk(fileURLToPath(new URL("../src", import.meta.url))).map((f) => f.split(sep).join("/")).filter((f) => /\.(vue|js)$/.test(f));
   const read = (f) => readFileSync(f, "utf8");
   const importers = src.filter((f) => /institutions-[a-z]+\.json/.test(read(f))).map((f) => f.split("/").pop());
-  check("only the profile editor and the host dashboard name the data file", importers.sort().join() === "EditProfile.vue,HostDashboard.vue", importers);
-  check("each fetches it with a plain import(), never a static import or defineAsyncComponent", src.filter((f) => /(EditProfile|HostDashboard)\.vue$/.test(f)).every((f) => {
+  // F14 moved the picker out of EditProfile.vue into the shared ModeFields.vue, which Edit profile and the welcome steps both use.
+  check("only the shared mode fields and the host dashboard name the data file", importers.sort().join() === "HostDashboard.vue,ModeFields.vue", importers);
+  check("each fetches it with a plain import(), never a static import or defineAsyncComponent", src.filter((f) => /(ModeFields|HostDashboard)\.vue$/.test(f)).every((f) => {
     const t = read(f);
     return /import\("\.\.\/data\/institutions-uk\.json"\)/.test(t) && !/^import .*institutions-[a-z]+\.json/m.test(t) && !/defineAsyncComponent/.test(t);
   }));
   const combo = read(src.find((f) => /UiCombobox\.vue$/.test(f)));
   check("the list is fetched when the picker opens (UiCombobox emits open)", /emit\("open"\)/.test(combo));
   const edit = read(src.find((f) => /EditProfile\.vue$/.test(f)));
-  check("the profile editor has no plain text field for the university or studied-at", !/<input[^>]*id="uni"/.test(edit) && (edit.match(/<UiCombobox/g) || []).length === 2);
+  const fields = read(src.find((f) => /ModeFields\.vue$/.test(f)));
+  check("the shared mode fields have no plain text field for the university or studied-at", !/<input[^>]*id="uni"/.test(fields) && (fields.match(/<UiCombobox/g) || []).length === 2);
+  check("Edit profile and the welcome step take them from there and build no picker of their own",
+    /<ModeFields/.test(edit) && /<ModeFields/.test(read(src.find((f) => /StepMode\.vue$/.test(f)))) && !/<UiCombobox|<input[^>]*id="uni"/.test(edit));
   check("and the organisation form sends the id", /institutionId: o\.institutionId/.test(read(src.find((f) => /HostDashboard\.vue$/.test(f)))));
   check("and it sends the id with the text", /institutionId: f\.value\.institutionId/.test(edit));
 }

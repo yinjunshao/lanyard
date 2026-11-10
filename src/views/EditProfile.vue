@@ -5,8 +5,9 @@ import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
 import Avatar from "../components/Avatar.vue";
 import PhotoCropper from "../components/PhotoCropper.vue";
-import { UiCombobox } from "../components/ui/UiSelect.vue";
-import { institutionForDomain } from "../lib/institutions";
+import ModeFields from "../components/ModeFields.vue";
+import TagFields from "../components/TagFields.vue";
+import { buildLinks } from "../lib/links";
 import { afterAccountPath } from "../lib/redeem";
 
 const router = useRouter();
@@ -25,48 +26,7 @@ const agreed = ref(false);
 // behind "Add more" so a new person is done in under a minute.
 const firstRun = computed(() => !me.profile);
 const showMore = ref(false);
-const SUGGESTED_STUDENT = ["CV reviews", "internships", "hackathons", "startups", "coding help", "design", "finding a team", "research"];
-const SUGGESTED_CAREER = ["Hiring", "Referrals", "Industry advice", "Mentoring", "Side projects"];
-const MODES = [["student", "Student"], ["career", "Career"]];
-const career = computed(() => f.value.mode === "career");
-const SUGGESTED = computed(() => (career.value ? SUGGESTED_CAREER : SUGGESTED_STUDENT));
-// Career mode: where you studied is optional and tucked away, unless it is already filled in.
-const showStudied = ref(false);
-
-// The institution list is a separate chunk, fetched with a plain import() the
-// first time the picker opens (D018). Typing your own works without it.
-const institutions = ref([]);
-let institutionsLoading = false;
-function loadInstitutions() {
-  if (institutionsLoading) return;
-  institutionsLoading = true;
-  import("../data/institutions-uk.json")
-    .then((m) => { institutions.value = (m.default || m).institutions; })
-    .catch(() => { institutionsLoading = false; });
-}
-const institutionOptions = computed(() => institutions.value.map((i) => ({ value: i.id, label: i.name, aliases: i.aliases })));
-const customInstitution = (t) => `Not listed? Use ‘${t}’`;
-// "Looks like you're at ..." from the domain of the account's verified email.
-const emailDomain = computed(() => me.user?.emailDomain || "");
-const suggestion = computed(() => {
-  const inst = institutionForDomain(institutions.value, emailDomain.value);
-  return inst && f.value.institutionId !== inst.id ? inst : null;
-});
-function useSuggestion() {
-  const inst = suggestion.value; // read first: setting the id makes the suggestion go away
-  f.value.institutionId = inst.id;
-  f.value.uni = inst.name;
-}
-const tagList = computed(() => f.value.tags.split(",").map((t) => t.trim()).filter(Boolean));
-function toggleTag(t) {
-  const have = tagList.value;
-  const i = have.findIndex((x) => x.toLowerCase() === t.toLowerCase());
-  f.value.tags = (i >= 0 ? have.filter((_, j) => j !== i) : [...have, t]).join(", ");
-}
-const hasTag = (t) => tagList.value.some((x) => x.toLowerCase() === t.toLowerCase());
-
 onMounted(() => {
-  if (/(^|\.)ac\.uk$/i.test(emailDomain.value)) loadInstitutions();
   // Arrived from "Finish your card": put the cursor in the field that's missing.
   if (route.hash) setTimeout(() => {
     const el = document.querySelector(route.hash);
@@ -86,7 +46,6 @@ onMounted(() => {
       showAge: !!p.show_age,
     };
     existingPhoto.value = p.photo || "";
-    showStudied.value = !!p.uni;
   }
 });
 
@@ -128,20 +87,6 @@ function removeLink(i) {
   f.value.links.splice(i, 1);
   if (!f.value.links.length) f.value.links.push({ label: "", url: "" });
 }
-// Rows to the {label: url} object the API stores. A bare "github.com/you"
-// gets https:// put in front of it; rows missing either half are dropped.
-function buildLinks(rows) {
-  const links = {};
-  for (const { label, url } of rows) {
-    const l = label.trim().slice(0, 40);
-    let u = url.trim();
-    if (!l || !u) continue;
-    if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
-    links[l] = u;
-  }
-  return links;
-}
-
 // A friendlier message for the failures someone actually hits here, instead
 // of the raw "Request failed (###)" the generic fetch wrapper throws.
 function saveErrorMessage(e) {
@@ -218,47 +163,7 @@ async function save() {
 
       <div class="field"><label for="name">Name</label>
         <input id="name" v-model="f.name" type="text" autocomplete="name" /></div>
-      <!-- Switching keeps what is typed in the other mode; only the chosen mode shows on the card. -->
-      <div class="field">
-        <span id="mode-label" class="label-top">I am a</span>
-        <div class="seg" role="group" aria-labelledby="mode-label" style="align-self:flex-start">
-          <button v-for="m in MODES" :key="m[0]" type="button" class="seg-btn"
-                  :class="{ on: f.mode === m[0] }" :aria-pressed="f.mode === m[0]"
-                  @click="f.mode = m[0]">{{ m[1] }}</button>
-        </div>
-      </div>
-
-      <template v-if="!career">
-        <div class="field"><label id="uni-l">University</label>
-          <p v-if="suggestion" class="notice small" role="status" style="margin:0 0 8px">
-            Looks like you're at {{ suggestion.name }}.
-            <button type="button" class="link-btn small" @click="useSuggestion">Use it</button></p>
-          <UiCombobox id="uni" v-model="f.institutionId" v-model:text="f.uni" labelledby="uni-l" :options="institutionOptions"
-                      allow-custom clearable placeholder="Search for your university" search-placeholder="Type a name or short name"
-                      :custom-label="customInstitution" @open="loadInstitutions" /></div>
-        <div class="field"><label for="course">Course</label>
-          <input id="course" v-model="f.course" type="text" placeholder="e.g. Computer Science" /></div>
-        <div class="field"><label for="year">Year (optional)</label>
-          <input id="year" v-model="f.year" type="text" /></div>
-      </template>
-      <template v-else>
-        <div class="field"><label for="company">Company</label>
-          <input id="company" v-model="f.company" type="text" maxlength="80" placeholder="Where you work" /></div>
-        <div class="field"><label for="role">Role</label>
-          <input id="role" v-model="f.role" type="text" maxlength="80" placeholder="e.g. Product designer" /></div>
-        <button v-if="!showStudied" type="button" class="link-btn small" style="text-align:left" @click="showStudied = true">
-          Add where you studied (optional)
-        </button>
-        <template v-else>
-          <div class="field"><label id="uni-l">Studied at (optional)</label>
-            <p v-if="suggestion" class="notice small" role="status" style="margin:0 0 8px">
-              Looks like you're at {{ suggestion.name }}.
-              <button type="button" class="link-btn small" @click="useSuggestion">Use it</button></p>
-            <UiCombobox id="uni" v-model="f.institutionId" v-model:text="f.uni" labelledby="uni-l" :options="institutionOptions"
-                        allow-custom clearable placeholder="Search for your university or school" search-placeholder="Type a name or short name"
-                        :custom-label="customInstitution" @open="loadInstitutions" /></div>
-        </template>
-      </template>
+      <ModeFields :form="f" />
     </div>
 
     <div class="form-section">
@@ -274,13 +179,7 @@ async function save() {
     <div class="form-section">
       <span class="form-section-title">Networking</span>
       <p v-if="!firstRun" class="small muted" style="margin:0 0 12px">These are your defaults. Each card can say something different under My cards.</p>
-      <div class="field"><label for="tags">Come to me for — comma separated</label>
-        <input id="tags" v-model="f.tags" type="text" placeholder="hackathons, CV reviews, CAD" />
-        <div class="chip-row" role="group" aria-label="Suggestions" style="margin-top:6px">
-          <button v-for="t in SUGGESTED" :key="t" type="button" class="chip chip-toggle"
-                  :aria-pressed="hasTag(t)" :class="{ on: hasTag(t) }" @click="toggleTag(t)">{{ hasTag(t) ? "✓ " : "+ " }}{{ t }}</button>
-        </div>
-        <span class="small muted">The first 4 show on your badge — keep each one short, e.g. "CV reviews"</span></div>
+      <TagFields :form="f" />
 
       <button v-if="firstRun && !showMore" type="button" class="link-btn small" style="text-align:left" @click="showMore = true">
         Add more: a short bio and links (optional)
