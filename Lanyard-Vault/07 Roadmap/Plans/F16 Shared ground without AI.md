@@ -52,7 +52,8 @@ Connected via QR code at … · Tue 4 Nov, 18:42      ← F13 footer
   - `worker/inCommon.js`: normalisers, `visibleSide` (only what each person shows: their mode's fields and the shared card's tags), `inCommon` (pure) and `sharedGround` (reads the database, nothing stored). `test/inground.mjs` is in `npm test` before the budget check.
 - [x] F16.2 Add `inCommon` to the two endpoints.
   - `GET /api/c/:cardId` (signed-in viewers, not the owner) and `GET /api/connections/:id` return `inCommon: [{ kind, text }]`, at most 3, worked out on the request from the two profiles and the cards each person shared; the people list and hosts get none. No migration, nothing stored.
-- [ ] F16.3 PublicCard layout reorder to the order above, plus the "In common" line.
+- [x] F16.3 PublicCard layout reorder to the order above, plus the "In common" line.
+  - `PublicCard.vue`: one "In common" line under the name and headline (first two facts joined by " · ", the third folds to "+1" under 600 px), then Come to me for, About, Projects, Find online; the shared selfie and its prompts moved from above the tags to after the links. The line is drawn inline, not a lazy chunk: public card +162 B gzip.
 - [ ] F16.4 Screenshots in light and dark at 375 px and 1280 px, added to the Log.
 
 ## Acceptance checks

@@ -240,4 +240,14 @@ console.log("\n# Nothing is stored, hosts see none, it is one module");
   check("there is no table for it", tables.length === 0, tables);
 }
 
+console.log("\n# The card page (source guards)");
+{
+  const v = read("src/views/PublicCard.vue");
+  const at = (s) => v.indexOf(s);
+  check("one 'In common' block, a single line of text, not chips", (v.match(/class="in-common"/g) || []).length === 1 && !/in-common[^]*?class="chip"/.test(v.slice(at('class="in-common"'), at('Come to me for'))));
+  check("order: name, headline, In common, Come to me for, About, Find online, then the selfie", at("profile-headline") < at('class="in-common"') && at('class="in-common"') < at("Come to me for") && at("Come to me for") < at(">About<") && at(">About<") < at("Find {{ first }} online") && at("Find {{ first }} online") < at("The selfie you took together"));
+  check("it folds to the first two facts with +1 on a phone", /common\.slice\(0, 2\)/.test(v) && /ic-more/.test(v) && /max-width: 599px/.test(v));
+  check("the people list rows do not show it", !/inCommon|in-common/.test(read("src/views/People.vue")));
+}
+
 summary();
