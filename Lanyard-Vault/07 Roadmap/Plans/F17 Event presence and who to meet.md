@@ -66,7 +66,8 @@ For a viewer with `looking_for` text, score each other visible person at the sam
 ## Tasks
 - [x] F17.1 Migration, purge job and consent scope, with tests (deleted 48 h after end; deleted on withdraw).
   - `migrations/0023_event_presence.sql`; `worker/presence.js` (`eventEndsAt`, `removePresence`, `purgePresence`, export, erase); the purge, account deletion, data export and `scripts/reset-hosts.mjs` (deletes the selfies from R2 first) are wired in. `test/presence.mjs` is in `npm test` before the budget check.
-- [ ] F17.2 Presence endpoints, with security tests: not checked in → 403; ended event → 403; blocked users excluded both ways; no card or user ids in the response.
+- [x] F17.2 Presence endpoints, with security tests: not checked in → 403; ended event → 403; blocked users excluded both ways; no card or user ids in the response.
+  - `worker/presenceApp.js`: `GET`, `PUT` and `DELETE /api/e/:id/presence`, `GET /api/e/:id/suggestions`, `POST /api/e/:id/presence/:presenceId/report`; selfies are served by `/media/presence/...` only to people allowed to see that person, never cached; `putImage` can strip metadata. 112 checks in `test/presence.mjs`.
 - [ ] F17.3 Matching function, with unit tests and reasons text.
 - [ ] F17.4 Hub UI: presence card, "I want to meet" field, suggestions row and sheet.
 - [ ] F17.5 Policy and DPIA text, host aggregate count.

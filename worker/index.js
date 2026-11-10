@@ -33,7 +33,8 @@ import { readInstitution } from "./institutions.js";
 import { moveTo } from "./onboarding.js";
 import { selfieView } from "./selfie.js";
 import { sharedGround } from "./inCommon.js";
-import { exportPresence } from "./presence.js";
+import { exportPresence, canViewPresenceSelfie } from "./presence.js";
+import { presenceApp } from "./presenceApp.js";
 
 const app = new Hono();
 
@@ -1217,7 +1218,7 @@ app.post("/api/connections/:id/selfie/remove", async (c) => {
 app.get("/media/:key{.+}", async (c) => {
   // Keys are prefix/hex.ext — block traversal.
   const key = c.req.param("key");
-  if (!/^(avatar|selfie|project|event)\/[a-z0-9]+\.(webp|jpg|jpeg|png)$/.test(key)) {
+  if (!/^(avatar|selfie|project|event|presence)\/[a-z0-9]+\.(webp|jpg|jpeg|png)$/.test(key)) {
     return c.json({ error: "bad key" }, 400);
   }
   // A shared selfie is only ever served to the two people in that connection.
@@ -1228,7 +1229,11 @@ app.get("/media/:key{.+}", async (c) => {
       "SELECT 1 AS x FROM connections WHERE selfie_key = ? AND (user_a = ? OR user_b = ?)", key, me.id, me.id));
     if (!ok) return c.json({ error: "not found" }, 404);
   }
-  const res = await getImage(c.env, key, { isPrivate });
+  // An event-presence selfie (F17) is only ever served to someone allowed to see that person in
+  // the list (see canViewPresenceSelfie), and is never cached, so withdrawing it works at once.
+  const isPresence = key.startsWith("presence/");
+  if (isPresence && !(await canViewPresenceSelfie(c.env.DB, c.get("user")?.id, key))) return c.json({ error: "not found" }, 404);
+  const res = await getImage(c.env, key, { isPrivate: isPrivate || isPresence, noStore: isPresence });
   return res || c.json({ error: "not found" }, 404);
 });
 
@@ -1264,6 +1269,7 @@ app.post("/api/connections/:id/report", async (c) => {
 /* ------------------------------- Events ---------------------------------- */
 app.route("/", eventsApp);
 app.route("/", myEventsApp);
+app.route("/", presenceApp);
 app.route("/", feedbackApp);
 app.route("/", hostApp);
 app.route("/", adminApp);

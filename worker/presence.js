@@ -9,9 +9,10 @@
 //   - the daily purge deletes any that are left 48 hours after the event ends (owner decision
 //     2026-11-10), using the same end rule as eventStatus;
 //   - no host-facing file imports this module (D004): hosts see only events.presence_used.
-import { all, newId } from "./db.js";
+import { all, newId, one } from "./db.js";
 import { deleteImage } from "./media.js";
-import { NO_END_GRACE_MS } from "./eventstatus.js";
+import { NO_END_GRACE_MS, eventStatus } from "./eventstatus.js";
+import { blockedSet, isBlocked } from "./blocks.js";
 
 export const PRESENCE_KEEP_MS = 48 * 60 * 60 * 1000;
 export const presenceScope = (eventId) => `event_presence:${eventId}`;
@@ -86,4 +87,92 @@ export async function exportPresence(db, userId) {
 export async function eraseUserPresence(env, userId) {
   const rows = await all(env.DB, "SELECT selfie_key FROM event_presence WHERE user_id = ? AND selfie_key IS NOT NULL", userId);
   for (const r of rows) await deleteImage(env, r.selfie_key).catch(() => {});
+}
+
+/* -------------------------------- who can see -------------------------------- */
+
+export const INTRO_MAX = 80;
+export const LOOKING_MAX = 120;
+
+const eventTimes = (e) => ({ startsAt: e.starts_at || null, endsAt: e.ends_at || null, endedAt: e.ended_at || null });
+
+/** Whether the event is on for this person (the shared status rule). */
+export const ongoingFor = (e, checkedInAt, clock = Date.now()) => eventStatus(eventTimes(e), checkedInAt, clock) === "ongoing";
+
+/**
+ * Where someone stands for presence at an event: the event, their check-in and their own row.
+ * `why` is null when they may use it, otherwise why not (a code the app can word).
+ */
+export async function presenceStanding(db, eventId, userId, clock = Date.now()) {
+  const ev = await one(db, "SELECT * FROM events WHERE id = ?", eventId);
+  if (!ev) return { ev: null, why: "no_event" };
+  const ch = await one(db, "SELECT created_at FROM checkins WHERE event_id = ? AND user_id = ?", ev.id, userId);
+  const mine = await one(db, "SELECT * FROM event_presence WHERE event_id = ? AND user_id = ?", ev.id, userId);
+  let why = null;
+  if (!ch) why = "not_checked_in";
+  else if (!ev.directory_on) why = "directory_off";
+  else if (!ongoingFor(ev, ch.created_at, clock)) why = "not_ongoing";
+  return { ev, checkedInAt: ch?.created_at || null, mine, why };
+}
+
+/**
+ * The name others see: first name and last initial ("Alice Hub" -> "Alice H."). Nothing else
+ * from the profile goes into an entry.
+ */
+export function displayName(name) {
+  const words = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "Someone";
+  const first = words[0].slice(0, 30);
+  return words.length > 1 ? `${first} ${[...words[words.length - 1]][0].toUpperCase()}.` : first;
+}
+
+/** One line of text from a person: control characters and runs of spaces become one space. Null if too long. */
+export function cleanLine(value, max) {
+  if (typeof value !== "string") return null;
+  const t = value.replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, " ").replace(/\s+/g, " ").trim();
+  return [...t].length > max ? null : t;
+}
+
+/**
+ * Whether `viewerId` may be served the selfie with this key. The owner may, while the row exists.
+ * Anyone else must be checked in to the same event, with presence on themselves, while it is
+ * on, with the directory on, and not blocked either way. A key with no row is nobody's.
+ */
+export async function canViewPresenceSelfie(db, viewerId, key, clock = Date.now()) {
+  if (!viewerId) return false;
+  const row = await one(db, "SELECT event_id, user_id FROM event_presence WHERE selfie_key = ?", key);
+  if (!row) return false;
+  if (row.user_id === viewerId) return true;
+  const [mine, theirs] = await Promise.all([
+    presenceStanding(db, row.event_id, viewerId, clock),
+    one(db, "SELECT created_at FROM checkins WHERE event_id = ? AND user_id = ?", row.event_id, row.user_id),
+  ]);
+  if (mine.why || !mine.mine || !theirs || !ongoingFor(mine.ev, theirs.created_at, clock)) return false;
+  return !(await isBlocked(db, viewerId, row.user_id));
+}
+
+/**
+ * The other people at this event who have presence on and whom `viewerId` may see: checked in,
+ * the event on for them too, not blocked either way. Rows carry what matching reads; the Worker
+ * turns them into entries (name, selfie, intro, reason) and drops the rest.
+ */
+export async function presenceCandidates(db, eventId, viewerId, clock = Date.now()) {
+  const [rows, blocked, ev] = await Promise.all([
+    all(
+      db,
+      `SELECT p.id, p.user_id, p.selfie_key, p.intro, p.looking_for, ch.created_at AS checked_in_at,
+              pr.name, pr.mode, pr.uni, pr.institution_id, pr.course, pr.company, pr.role, pr.headline, pr.tags,
+              c.headline AS card_headline, c.tags AS card_tags
+       FROM event_presence p
+       JOIN checkins ch ON ch.event_id = p.event_id AND ch.user_id = p.user_id
+       JOIN profiles pr ON pr.user_id = p.user_id
+       LEFT JOIN cards c ON c.user_id = p.user_id AND c.is_default = 1
+       WHERE p.event_id = ?1 AND p.user_id != ?2
+       ORDER BY ch.created_at DESC`,
+      eventId, viewerId
+    ),
+    blockedSet(db, viewerId), // both directions
+    one(db, "SELECT * FROM events WHERE id = ?", eventId),
+  ]);
+  return rows.filter((r) => !blocked.has(r.user_id) && ongoingFor(ev, r.checked_in_at, clock));
 }
