@@ -55,7 +55,7 @@ New tables, in a new migration (next free number; 0017 is the latest today):
 ### Reset of existing host accounts
 > [!warning] Irreversible on production. Needs the owner's answer to the decision below, and the owner runs it. Agents only write and test the migration locally on a copy.
 
-**Owner decision (pick one, record it here):**
+**Owner decision (pick one, record it here):** the owner chose **B, full wipe** on 2026-11-10. Agents write the script and dry-run it locally only; the owner runs it on production after taking a D1 export.
 - **A. Reset accounts, keep events (recommended).** Delete all host profiles, memberships, transfers, invites, tickets and host sessions. Keep `orgs`, `events`, `checkins` and `credits`, but with no members ("unclaimed"). Admin can attach an org to a new host account by email. Attendees keep their event history and "met at" labels.
 - **B. Full wipe.** Also delete `orgs`, `events`, `sponsors`, `credits`, `feedback_*` and event mail logs. Attendees lose their event history (connections stay, but lose the event label: `connections.event_id` has no foreign key, so set it to NULL first).
 - In both: **keep `billing_requests`** (the business must keep billing records for 6 years; see `0006_keep_billing_records.sql`) and write a `consent_log` / admin log entry for the reset. Before running, export a D1 backup (`wrangler d1 export`); the owner keeps it offline.
@@ -64,7 +64,7 @@ New tables, in a new migration (next free number; 0017 is the latest today):
 `worker/admin.js` and `Admin.vue` list and search hosts by `host_accounts`, and gain an "Attach org to host email" action (needed for option A).
 
 ## Tasks
-- [ ] F10.1 Owner decision A or B recorded above.
+- [x] F10.1 Owner decision A or B recorded above.
 - [ ] F10.2 Migration: new host tables and repointed org tables. Test on a fixture DB in `test/hosts-accounts.mjs`.
 - [ ] F10.3 Host session middleware and cookie isolation, with security tests: an attendee cookie gets 401 on `/api/host/me`, a host cookie gets 401 on `/api/me`, and main-origin calls to the host API are refused.
 - [ ] F10.4 Email-code sign-in and sign-up endpoints, with rate limits and generic errors (tests).

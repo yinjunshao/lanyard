@@ -11,6 +11,8 @@ needs: [F15, F11, F16]
 
 **Priority:** P2 · **Phase:** 2 Events · **Size:** L · **Needs:** [[F15 Events tab and event hub]], [[F11 Student and Career mode]], [[F16 Shared ground without AI]] (matching reasons) · **Unlocks:** [[F25 AI who-to-meet ranking]] · back to [[00 Master To-Do]]
 
+> [!note] Owner decision 2026-11-10: presence rows and selfies are deleted **48 hours after the event ends**, as planned.
+
 ## What the owner asked for
 After checking in, people can optionally:
 - take a **selfie** and add **short info** about themselves, so others can find them in the room

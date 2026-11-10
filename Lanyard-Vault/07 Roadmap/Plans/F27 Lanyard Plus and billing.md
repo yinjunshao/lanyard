@@ -11,6 +11,8 @@ needs: [F09, F21]
 
 **Priority:** P2 (blocked by legal identity items; see below) · **Phase:** 5 Revenue and mail · **Size:** XL · **Needs:** [[F09 Settings in category pages]], [[F21 AI foundation]] (the AI allowance is part of Plus) · back to [[00 Master To-Do]]
 
+> [!note] Owner decision 2026-11-10: the price is **£1.49 a month / £11.99 a year** (what the code says). [[Pricing]] needs correcting. What Plus includes, and the legal identity, are still open.
+
 ## What the owner asked for
 Plan and build Lanyard Plus, with billing support, compliant with UK law.
 

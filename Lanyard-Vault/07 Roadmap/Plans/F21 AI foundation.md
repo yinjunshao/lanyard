@@ -13,6 +13,8 @@ needs: [F09]
 
 The shared plumbing that makes every AI feature safe and cheap. The design and reasons are in [[AI Safety and Cost Plan]]. Read it first; this note is the build list.
 
+> [!note] Owner decision 2026-11-10: AI people search is **on by default with an opt-out** in Settings (`users.ai_search_ok` default 1).
+
 ## Build
 ### Module `worker/ai/`
 - `client.js`: `callModel({ feature, actor, system, data, schema, maxTokens })`

@@ -42,12 +42,12 @@ The build list for the next round of Lanyard work. Each line links to a plan not
 
 ## Owner decisions needed
 These block the items in brackets. Tick each one and write the answer in the linked note.
-- [ ] Host reset: option **A** (reset accounts, keep events) or **B** (full wipe) ([[F10 Separate host accounts on host subdomain]])
-- [ ] Lanyard Plus price: the code says £1.49 / £11.99, [[Pricing]] says £2.99 / £24. Also confirm what Plus includes ([[F27 Lanyard Plus and billing]])
+- [x] Host reset: option **A** (reset accounts, keep events) or **B** (full wipe) ([[F10 Separate host accounts on host subdomain]]): **B, full wipe** (answered 2026-11-10)
+- [ ] Lanyard Plus price: the code says £1.49 / £11.99, [[Pricing]] says £2.99 / £24. Also confirm what Plus includes ([[F27 Lanyard Plus and billing]]): price answered 2026-11-10, **£1.49 a month / £11.99 a year**; what Plus includes is still open
 - [ ] Legal entity, full postal address and ICO registration ([[F26 Mailing list from news address]] footer; [[F27 Lanyard Plus and billing]] before any charge; [[UK GDPR Audit 2026-11-01]] High 3)
 - [x] Which of `demo-v1/`, `brag-output/`, `logo-concepts/` stay in git ([[F01 Repo housekeeping]]): only `logo-concepts/` (answered 2026-11-10)
-- [ ] AI people search on by default with an opt-out, and the policy wording ([[F21 AI foundation]], [[F24 Do I know someone who]])
-- [ ] Event presence selfies deleted 48 hours after the event ends: OK? ([[F17 Event presence and who to meet]])
+- [x] AI people search on by default with an opt-out, and the policy wording ([[F21 AI foundation]], [[F24 Do I know someone who]]): **on by default, opt-out in Settings**, wording as in [[AI Safety and Cost Plan]] (answered 2026-11-10)
+- [x] Event presence selfies deleted 48 hours after the event ends: OK? ([[F17 Event presence and who to meet]]): **yes, 48 hours** (answered 2026-11-10)
 
 ## Build order
 Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a week or more. Priorities: **P0** now · **P1** next · **P2** after · **P3** only if needed.
