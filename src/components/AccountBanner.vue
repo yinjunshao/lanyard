@@ -5,16 +5,20 @@
 //  2. no verified email: add one, right here (we're moving to email being
 //     required, so "Later" only snoozes it for a few days);
 //  3. no passkey: it's the fastest way to sign in next time.
-import { computed, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import EmailSetup from "./EmailSetup.vue";
+import { computed, ref, shallowRef } from "vue";
+import { useRoute } from "vue-router";
 import { me } from "../lib/store";
 import { Api } from "../lib/api";
-import { registerPasskey, passkeysSupported } from "../lib/passkeys";
+
+// The email form and the passkey code are only needed when someone taps the
+// button, so they load then, with a plain import() (D018: not defineAsyncComponent).
+// This file is in the entry that every page loads; the two together were most of
+// its weight, and F14 needed that room for the welcome route.
+const EmailSetup = shallowRef(null);
+const passkeysSupported = () => typeof window !== "undefined" && typeof window.PublicKeyCredential === "function";
 
 const NEW_ORIGIN = import.meta.env.VITE_NEW_ORIGIN || "https://lanyd.fyi";
 const KEY = "lanyard_banner_dismissed";
-const router = useRouter();
 const route = useRoute();
 const EMAIL_SNOOZE_MS = 3 * 24 * 60 * 60 * 1000;
 const emailOpen = ref(false);
@@ -48,9 +52,13 @@ async function move() {
     location.href = `${NEW_ORIGIN}/signin?code=${encodeURIComponent(code)}`;
   } catch (e) { error.value = e.message; busy.value = false; }
 }
+async function openEmail() {
+  if (!EmailSetup.value) EmailSetup.value = (await import("./EmailSetup.vue")).default;
+  emailOpen.value = true;
+}
 async function addPasskey() {
   error.value = ""; busy.value = true;
-  try { await registerPasskey(); dismiss("passkey"); location.reload(); }
+  try { await (await import("../lib/passkeys")).registerPasskey(); dismiss("passkey"); location.reload(); }
   catch (e) { error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled." : e?.message || "Passkey setup failed."; }
   finally { busy.value = false; }
 }
@@ -67,9 +75,9 @@ async function addPasskey() {
       <strong>Add your email to keep your card</strong>
       <p v-if="!me.user?.claimed" class="small muted" style="margin:0">Your card only lives in this browser until you do. Lose the phone or clear the browser and it's gone. Your email gets you back in, and we never show it on your card.</p>
       <p v-else class="small muted" style="margin:0">Sign in from any device with a code we email you, even if you lose your passkey. We never show your email on your card.</p>
-      <EmailSetup v-if="emailOpen" />
+      <component :is="EmailSetup" v-if="emailOpen && EmailSetup" />
       <div v-else class="btn-row">
-        <button class="btn btn-primary" @click="emailOpen = true">Add email</button>
+        <button class="btn btn-primary" @click="openEmail">Add email</button>
         <button class="btn" @click="dismiss('email')">Later</button>
       </div>
     </template>
