@@ -19,6 +19,8 @@ Grouped from route definitions in `worker/*.js`. All under `/api` unless noted.
 
 **Integrations:** `POST /integrations/rsvp` (API key sets an event's RSVP count)
 
+**Promo codes:** `GET /redeem/:code` (look up; 30 per 10 minutes per IP and per person, wrong codes 30 an hour per IP), `POST /redeem/:code` (claim; 20 an hour per person). See `worker/promo.js`.
+
 **Other:** `GET /health`, `GET /media/:key`, `/admin` routes (token), `POST /plan/waitlist`
 
 Related: [[Screens and Routes]], [[Integrations and Email]], [[Security]]

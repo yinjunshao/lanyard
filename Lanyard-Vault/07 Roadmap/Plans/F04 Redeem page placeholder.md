@@ -4,7 +4,7 @@ id: F04
 priority: P0
 phase: 0
 size: S
-status: In progress
+status: Done
 needs: []
 ---
 # F04 Redeem page placeholder
@@ -36,6 +36,12 @@ On `/redeem`, the example text in the code box is the real code: `src/views/Rede
 - [x] The 31st lookup in 10 minutes from one IP gets a 429 with a friendly message. (`test/promo.mjs`, offline Worker; not tried against production.)
 
 ## Log
--
+- 2026-11-10 (Claude subagent): the `/redeem` code box now shows `e.g. ABCD1234` and the Admin new-code box the same; no page names the poster code, and `test/promo.mjs` fails if one does. Code lookups (`GET /api/redeem/:code`) are limited to 30 per 10 minutes per IP and per signed-in person, with a 429 and a plain message; tests prove the 31st is blocked.
+- **Production `promo_codes` was not checked** (no production access). `ABCD1234` is not seeded by any local migration, but the owner should confirm no live code has that name. Checked in a local browser that the placeholder shows and the page has no `FIRST50`. Not checked: the deployed site.
+- Open question left in F04.2: whether 30 per 10 minutes per shared IP (campus wifi) is too tight. Nothing else left over.
+
+### Owner steps
+- Review the F04 commits, `git push`, then `npm run deploy`. No migrations.
+- Confirm in production that no active promo code is named `ABCD1234`.
 
 Related: [[F20 Host promo codes for event credits]] · back to [[00 Master To-Do]]
