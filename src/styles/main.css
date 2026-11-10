@@ -522,7 +522,7 @@ button.list-row { font: inherit; }
   max-width: var(--app-w);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 }
 .tab {
   position: relative;
@@ -540,7 +540,12 @@ button.list-row { font: inherit; }
 }
 .tab.on { color: var(--ink); }
 .tab.on::before { width: 40px; }
-.tab-glyph { display: flex; }
+.tab-glyph { display: flex; position: relative; }
+.tab-dot {
+  position: absolute; top: -1px; right: -4px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--strap); border: 2px solid var(--paper); box-sizing: content-box;
+}
 
 /* ---------- Landing ---------- */
 .landing { min-height: 100vh; display: flex; flex-direction: column; }
