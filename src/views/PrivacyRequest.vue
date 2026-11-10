@@ -5,6 +5,7 @@ import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { homePath, me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
+import UiSelect from "../components/ui/UiSelect.vue";
 
 const route = useRoute();
 const KINDS = [
@@ -52,10 +53,8 @@ async function submit() {
         You can ask for a copy of your data, ask us to delete it, or complain about how we handled it. You can also do most of this yourself in
         <router-link to="/app/settings">Settings</router-link>.
       </p>
-      <label class="label-top" for="kind">What is this about?</label>
-      <select id="kind" v-model="kind">
-        <option v-for="k in KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
-      </select>
+      <label class="label-top" id="kind-l">What is this about?</label>
+      <UiSelect id="kind" v-model="kind" labelledby="kind-l" :options="KINDS" />
       <label class="label-top" for="email">Your email (so we can reply)</label>
       <input id="email" v-model="email" type="email" autocomplete="email" maxlength="254" />
       <label class="label-top" for="msg">Tell us what you need</label>

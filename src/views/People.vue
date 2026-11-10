@@ -4,6 +4,7 @@ import { Api } from "../lib/api";
 import { buildIndex, search, suggest, terms } from "../lib/search";
 import Icon from "../components/Icon.vue";
 import Avatar from "../components/Avatar.vue";
+import UiSelect from "../components/ui/UiSelect.vue";
 import { relativeDay as relDay } from "../lib/time";
 
 const rows = ref([]);
@@ -35,6 +36,7 @@ const events = computed(() => {
   for (const r of rows.value) if (r.eventId && r.eventName && !seen.has(r.eventId)) seen.set(r.eventId, r.eventName);
   return [...seen].map(([id, name]) => ({ id, name }));
 });
+const eventOptions = computed(() => [{ value: "", label: "Any event" }, ...events.value.map((e) => ({ value: "event:" + e.id, label: e.name }))]);
 const followCount = computed(() => rows.value.filter(needsFollowUp).length);
 const filteredRows = computed(() => {
   const f = filter.value;
@@ -80,13 +82,8 @@ const fmt = (t) =>
               :aria-pressed="filter === 'followup'" @click="filter = 'followup'">To follow up · {{ followCount }}</button>
       <button v-for="t in myTags" :key="t" type="button" class="chip chip-toggle" :class="{ on: filter === 'tag:' + t }"
               :aria-pressed="filter === 'tag:' + t" @click="filter = 'tag:' + t">{{ t }}</button>
-      <div v-if="events.length" class="select-wrap" style="min-width:160px">
-        <select :value="filter.startsWith('event:') ? filter : ''" aria-label="Filter by event"
-                @change="filter = $event.target.value || 'all'">
-          <option value="">Any event</option>
-          <option v-for="e in events" :key="e.id" :value="'event:' + e.id">{{ e.name }}</option>
-        </select>
-      </div>
+      <UiSelect v-if="events.length" style="min-width:160px" label="Filter by event" :model-value="filter.startsWith('event:') ? filter : ''"
+                :options="eventOptions" @update:model-value="filter = $event || 'all'" />
     </div>
 
     <p v-if="correction" class="small search-fix" role="status">

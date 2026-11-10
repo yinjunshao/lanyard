@@ -4,7 +4,7 @@ import { homePath } from "../lib/store";
 // Shows only what this card permits (its chosen links and tags), the shared
 // selfie if the viewer has already connected, and a note the owner left for
 // this specific person (?n=…). Arriving here pops the connect sheet.
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import Avatar from "../components/Avatar.vue";
@@ -105,7 +105,16 @@ function addTag() {
   if (t && !myTags.value.includes(t)) saveMeta({ tags: [...myTags.value, t] });
 }
 const removeTag = (t) => saveMeta({ tags: myTags.value.filter((x) => x !== t) });
-const today = new Date().toISOString().slice(0, 10);
+// The calendar is only fetched when someone taps "Pick a date" (public-page JS budget).
+// A plain dynamic import: defineAsyncComponent would add its code to the Vue chunk every
+// public page loads.
+const DatePicker = shallowRef(null);
+const pickingDate = ref(false);
+const dateBtn = ref(null);
+async function pickDate() {
+  pickingDate.value = true;
+  if (!DatePicker.value) DatePicker.value = (await import("../components/ui/UiDatePicker.vue")).default;
+}
 function remindOn(v) { if (v) saveMeta({ remindAt: new Date(`${v}T09:00`).getTime() }); }
 
 function vcard() {
@@ -318,7 +327,10 @@ async function sendReport() {
               <button type="button" class="chip chip-toggle" @click="saveMeta({ remindAt: morningIn(1) })">Tomorrow</button>
               <button type="button" class="chip chip-toggle" @click="saveMeta({ remindAt: morningIn(3) })">In 3 days</button>
               <button type="button" class="chip chip-toggle" @click="saveMeta({ remindAt: morningIn(7) })">Next week</button>
-              <input type="date" class="chip" :min="today" aria-label="Remind me on a date" @change="remindOn($event.target.value)" />
+              <button ref="dateBtn" type="button" class="chip chip-toggle" aria-haspopup="dialog" :aria-expanded="pickingDate ? 'true' : 'false'"
+                      @click="pickDate">Pick a date</button>
+              <component :is="DatePicker" v-if="pickingDate && DatePicker" bare v-model:open="pickingDate" min-today label="Remind me on" model-value=""
+                            :anchor="dateBtn" @update:model-value="remindOn" />
             </div>
             <button type="button" class="btn" @click="saveMeta({ followedUp: true })">Mark as followed up</button>
           </template>

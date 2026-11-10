@@ -4,8 +4,9 @@
 // as picking: "18:30", "1830", "6.30pm", "6pm". The text box is a WAI-ARIA combobox
 // (list autocomplete off) whose list is the steps; Up and Down move through them,
 // Enter takes what is in the box, Esc closes.
-import { computed, nextTick, ref, useId } from "vue";
+import { computed, nextTick, ref } from "vue";
 import UiSheet from "./UiSheet.vue";
+import { nextUid } from "./uid.js";
 import { parseHm, parseTime, timeSteps } from "../../lib/dates.js";
 
 const props = defineProps({
@@ -20,7 +21,7 @@ const props = defineProps({
 });
 const emit = defineEmits(["update:modelValue", "change"]);
 
-const uid = useId();
+const uid = nextUid();
 const listId = `${uid}-list`;
 const steps = computed(() => timeSteps(props.step));
 const open = ref(false);

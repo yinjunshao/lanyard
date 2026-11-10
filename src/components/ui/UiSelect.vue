@@ -6,9 +6,10 @@
 //
 // v-model is the option's value (string, number, boolean or null). Options are
 // [{ value, label, disabled? }] or plain strings.
-import { computed, nextTick, ref, useId, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import Icon from "../Icon.vue";
 import UiSheet from "./UiSheet.vue";
+import { nextUid } from "./uid.js";
 
 const props = defineProps({
   modelValue: { default: "" },
@@ -21,7 +22,7 @@ const props = defineProps({
 });
 const emit = defineEmits(["update:modelValue", "change"]);
 
-const uid = useId();
+const uid = nextUid();
 const listId = `${uid}-list`;
 const items = computed(() => props.options.map((o) => (typeof o === "object" && o !== null ? o : { value: o, label: String(o) })));
 const selectedIndex = computed(() => items.value.findIndex((o) => o.value === props.modelValue));

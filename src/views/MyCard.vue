@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 import Badge from "../components/Badge.vue";
+import UiSelect from "../components/ui/UiSelect.vue";
 import Avatar from "../components/Avatar.vue";
 import RatingInput from "../components/RatingInput.vue";
 import { downloadBadge } from "../lib/qr";
@@ -62,6 +63,7 @@ async function doneFollowup(f) {
 }
 
 const selectedId = ref(me.cards[0]?.cardId || null);
+const cardOptions = computed(() => me.cards.map((c) => ({ value: c.cardId, label: `${c.name} · ${c.code}` })));
 const card = computed(() =>
   me.cards.find((c) => c.cardId === selectedId.value) || me.cards[0]
 );
@@ -348,13 +350,7 @@ async function share() {
       <button class="btn" @click="savePng">Download PNG</button>
     </div>
 
-    <div class="select-wrap">
-      <select v-model="selectedId" aria-label="Switch card" class="small">
-        <option v-for="c in me.cards" :key="c.cardId" :value="c.cardId">
-          {{ c.name }} · {{ c.code }}
-        </option>
-      </select>
-    </div>
+    <UiSelect v-model="selectedId" label="Switch card" :options="cardOptions" />
   </div>
 </template>
 

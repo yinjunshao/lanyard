@@ -2,6 +2,7 @@
 // The host's own feedback questions (up to 5), added after the three standard
 // ones every event gets. Locked once answers come in.
 import { computed, ref } from "vue";
+import UiSelect from "./ui/UiSelect.vue";
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -56,6 +57,7 @@ function setOption(i, k, v) { const o = [...(qs.value[i].options || [])]; o[k] =
 function addOption(i) { const o = [...(qs.value[i].options || [])]; if (o.length < 6) set(i, { options: [...o, ""] }); }
 function removeOption(i, k) { set(i, { options: qs.value[i].options.filter((_, j) => j !== k) }); }
 const template = ref("");
+const TEMPLATE_OPTIONS = [{ value: "", label: "Start from a template…" }, ...Object.keys(TEMPLATES)];
 function useTemplate() {
   const t = TEMPLATES[template.value];
   if (t) update(t.slice(0, props.max).map((q) => ({ ...q, options: q.options ? [...q.options] : undefined })));
@@ -80,12 +82,7 @@ const warn = (q) => SENSITIVE.test([q.label, ...(q.options || [])].join(" "));
     <template v-else>
       <div class="spread" style="align-items:flex-end">
         <span class="label">Your questions ({{ qs.length }}/{{ max }})</span>
-        <div class="select-wrap" style="max-width:220px">
-          <select v-model="template" aria-label="Start from a template" @change="useTemplate">
-            <option value="">Start from a template…</option>
-            <option v-for="(_, name) in TEMPLATES" :key="name" :value="name">{{ name }}</option>
-          </select>
-        </div>
+        <UiSelect v-model="template" style="max-width:220px" label="Start from a template" :options="TEMPLATE_OPTIONS" @change="useTemplate" />
       </div>
     </template>
 
@@ -99,11 +96,7 @@ const warn = (q) => SENSITIVE.test([q.label, ...(q.options || [])].join(" "));
         <input :id="`fq-label-${i}`" :value="q.label" type="text" maxlength="120" :disabled="locked"
                placeholder="What would you like to know?" @input="set(i, { label: $event.target.value })" />
       </div>
-      <div class="select-wrap">
-        <select :value="q.type" :disabled="locked" :aria-label="`Question ${i + 1} answer type`" @change="setType(i, $event.target.value)">
-          <option v-for="t in TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
-        </select>
-      </div>
+      <UiSelect :model-value="q.type" :disabled="locked" :label="`Question ${i + 1} answer type`" :options="TYPES" @update:model-value="setType(i, $event)" />
       <div v-if="q.type === 'single' || q.type === 'multi'" class="stack">
         <div v-for="(o, k) in q.options || []" :key="k" class="row">
           <label :for="`fq-${i}-opt-${k}`" class="visually-hidden">Option {{ k + 1 }}</label>

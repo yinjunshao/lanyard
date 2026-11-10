@@ -1,7 +1,7 @@
 <script setup>
 // Development-only page for checking the custom pickers by eye. The route exists
 // only in `vite dev` (see router/index.js); a production build does not contain it.
-import { ref } from "vue";
+import { ref, shallowRef } from "vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import UiCombobox from "../components/ui/UiCombobox.vue";
 import UiDatePicker from "../components/ui/UiDatePicker.vue";
@@ -37,6 +37,15 @@ const limited = ref("2026-11-10");
 const time = ref("");
 const start = ref(null);
 const end = ref(null);
+// The same lazy "bare" use as PublicCard's reminder
+const DatePicker = shallowRef(null);
+const picking = ref(false);
+const chip = ref(null);
+const reminder = ref("");
+async function pick() {
+  picking.value = true;
+  if (!DatePicker.value) DatePicker.value = (await import("../components/ui/UiDatePicker.vue")).default;
+}
 </script>
 
 <template>
@@ -71,6 +80,13 @@ const end = ref(null);
       <label for="t-plain">A button after it, to check focus returns here</label>
       <button id="t-plain" class="btn-quiet" type="button">Next control</button>
     </div>
+
+    <h2>Bare date picker (as on a public card)</h2>
+    <div class="chip-row">
+      <button ref="chip" type="button" class="chip chip-toggle" aria-haspopup="dialog" :aria-expanded="picking ? 'true' : 'false'" @click="pick">Pick a date</button>
+      <component :is="DatePicker" v-if="picking && DatePicker" bare v-model:open="picking" min-today label="Remind me on" model-value="" :anchor="chip" @update:model-value="reminder = $event" />
+    </div>
+    <p class="small muted">Chosen: {{ reminder || "(none)" }}</p>
 
     <h2>UiCombobox</h2>
     <div class="field">

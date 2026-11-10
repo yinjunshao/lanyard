@@ -4,6 +4,7 @@
 // falls back to the profile's.
 import { computed } from "vue";
 import { me } from "../lib/store";
+import UiSelect from "./ui/UiSelect.vue";
 
 const f = defineModel({ type: Object, required: true });
 defineProps({ showStrap: { type: Boolean, default: false } });
@@ -29,11 +30,7 @@ function toggle(label) {
     <div class="field"><label>Card name</label>
       <input v-model="f.name" type="text" maxlength="24" placeholder="Careers fair" /></div>
     <div class="field"><label>Theme</label>
-      <div class="select-wrap">
-        <select v-model="f.theme" aria-label="Theme">
-          <option v-for="t in THEMES" :key="t.value" :value="t.value">{{ t.label }}</option>
-        </select>
-      </div>
+      <UiSelect v-model="f.theme" label="Theme" :options="THEMES" />
     </div>
 
     <div class="form-section">

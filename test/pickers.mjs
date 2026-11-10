@@ -1,5 +1,8 @@
-// F08: the search matching behind UiCombobox (src/lib/match.js) and a source guard
-// that no native date or select control is left where the plan says it should be gone.
+// F08: the search matching behind UiCombobox (src/lib/match.js), and source guards
+// for the custom pickers: no native select or date input left in src/, the public
+// card loads its calendar lazily, and the /ui-test page is development-only.
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { check, summary } from "./harness.mjs";
 import { fold, highlight, matchOption, rankOptions } from "../src/lib/match.js";
 
@@ -31,5 +34,20 @@ check("the matched part is split out", hl.map((p) => (p.hit ? "[" + p.text + "]"
 const hl2 = highlight("Zürich Example Institute", rankOptions(opts, "zurich")[0].ranges);
 check("highlighting an accented word uses the original letters", hl2[0].hit && hl2[0].text === "Zürich");
 check("two words highlight two places", highlight("Old Example College", matchOption(opts[4], "old coll").ranges).filter((p) => p.hit).length === 2);
+
+console.log("\n# No native select or date controls (source guards)");
+const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
+const vueFiles = (d) => readdirSync(new URL("../" + d, import.meta.url), { withFileTypes: true })
+  .flatMap((e) => (e.isDirectory() ? vueFiles(join(d, e.name)) : e.name.endsWith(".vue") ? [join(d, e.name)] : []));
+const native = /<select[\s>]|type="(?:date|datetime-local|time|month|week)"/;
+const left = vueFiles("src").filter((f) => !f.endsWith("Admin.vue") && native.test(read(f))); // Admin is F08.6
+check("no <select>, type=date or type=datetime-local is left in src/", left.length === 0, left);
+const pub = read("src/views/PublicCard.vue");
+check("PublicCard does not import the date picker statically", !/^import .*ui\/Ui/m.test(pub) && /import\("\.\.\/components\/ui\/UiDatePicker\.vue"\)/.test(pub));
+check("PublicCard uses the bare date picker", /<component :is="DatePicker"[^>]*bare/.test(pub));
+const router = read("src/router/index.js");
+check("the /ui-test route exists only in development", /import\.meta\.env\.DEV \? \[\{ path: "\/ui-test"/.test(router));
+const sheetCode = read("src/components/ui/UiSheet.vue").replace(/\/\/.*|<!--[\s\S]*?-->/g, "");
+check("UiSheet uses no Teleport, useId or <slot> (keeps the shared Vue chunk small)", !/Teleport|useId|<slot/.test(sheetCode));
 
 summary();

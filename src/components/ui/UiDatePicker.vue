@@ -1,12 +1,13 @@
 <script setup>
-// A calendar for one day. v-model is "YYYY-MM-DD" (what <input type="date"> used),
+// A calendar for one day. v-model is "YYYY-MM-DD" (the value the old date input used),
 // or "" for no date. min and max are "YYYY-MM-DD" too. Weeks start on Monday.
 // Follows the WAI-ARIA date picker dialog: a button opens a dialog with a month
 // grid; arrow keys move by day and week, Home/End by week, Page Up/Down by month
 // (with Shift, by year), Enter or Space chooses, Esc closes, Today jumps to today.
-import { computed, nextTick, ref, useId, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import Icon from "../Icon.vue";
 import UiSheet from "./UiSheet.vue";
+import { nextUid } from "./uid.js";
 import {
   addDays, addMonths, clampDay, cmpDay, formatDay, formatDayLong, formatMonth, isoOf, monthGrid, parseIso, sameDay, todayLocal, weekday, weekdayNames,
 } from "../../lib/dates.js";
@@ -22,17 +23,25 @@ const props = defineProps({
   placeholder: { type: String, default: "Choose a date" },
   clearable: Boolean,
   disabled: Boolean,
+  minToday: Boolean,                           // earliest day is today, in the viewer's zone
+  // "Bare" mode has no button of its own: the parent shows a control, passes it as
+  // `anchor`, and drives `open` with v-model:open. PublicCard uses this so the
+  // calendar code is only fetched once someone asks to pick a date.
+  bare: Boolean,
+  open: Boolean,
+  anchor: { type: Object, default: null },
 });
-const emit = defineEmits(["update:modelValue", "change"]);
+const emit = defineEmits(["update:modelValue", "change", "update:open"]);
 
-const uid = useId();
+const uid = nextUid();
 const titleId = `${uid}-title`;
-const open = ref(false);
+const openLocal = ref(false);
+const isOpen = computed(() => (props.bare ? props.open : openLocal.value));
 const trigger = ref(null);
 const cal = ref(null);
 
 const value = computed(() => parseIso(props.modelValue));
-const minDay = computed(() => parseIso(props.min));
+const minDay = computed(() => (props.minToday ? todayLocal() : parseIso(props.min)));
 const maxDay = computed(() => parseIso(props.max));
 const names = weekdayNames();
 const longNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -47,12 +56,17 @@ const outOfRange = (d) => (minDay.value && cmpDay(d, minDay.value) < 0) || (maxD
 const prevOff = computed(() => !!minDay.value && cmpDay(addDays({ y: view.value.y, m: view.value.m, d: 1 }, -1), minDay.value) < 0);
 const nextOff = computed(() => !!maxDay.value && cmpDay(addMonths({ y: view.value.y, m: view.value.m, d: 1 }, 1), maxDay.value) > 0);
 
+function start() {
+  cursor.value = clampDay(value.value || parseIso(props.openAt) || todayLocal(), minDay.value, maxDay.value);
+}
 function show() {
   if (props.disabled) return;
-  cursor.value = clampDay(value.value || parseIso(props.openAt) || todayLocal(), minDay.value, maxDay.value);
-  open.value = true;
+  start();
+  openLocal.value = true;
 }
-function hide() { open.value = false; }
+function hide() { openLocal.value = false; emit("update:open", false); }
+onMounted(() => { if (props.bare && props.open) start(); });
+watch(() => props.open, (v) => { if (v && props.bare) start(); });
 
 function pick(day) {
   if (outOfRange(day)) return;
@@ -94,21 +108,21 @@ function goToday() {
 }
 
 const shown = computed(() => (value.value ? formatDay(value.value) : ""));
-watch(() => props.modelValue, () => { if (open.value && value.value) cursor.value = value.value; });
+watch(() => props.modelValue, () => { if (isOpen.value && value.value) cursor.value = value.value; });
 </script>
 
 <template>
   <div class="ui-field">
-    <button ref="trigger" type="button" class="ui-trigger ui-date" :id="id" :disabled="disabled"
-            aria-haspopup="dialog" :aria-expanded="open ? 'true' : 'false'"
+    <button v-if="!bare" ref="trigger" type="button" class="ui-trigger ui-date" :id="id" :disabled="disabled"
+            aria-haspopup="dialog" :aria-expanded="isOpen ? 'true' : 'false'"
             :aria-label="labelledby ? undefined : label || undefined"
             :aria-labelledby="labelledby ? `${labelledby} ${id || ''}`.trim() : undefined"
-            @click="open ? hide() : show()">
+            @click="isOpen ? hide() : show()">
       <span class="ui-value" :class="{ 'ui-placeholder': !shown }">{{ shown || placeholder }}</span>
       <span class="ui-chevron" aria-hidden="true"></span>
     </button>
 
-    <UiSheet :open="open" :anchor="trigger" :label="label || 'Choose a date'" focus='.ui-day[tabindex="0"]' @close="hide">
+    <UiSheet :open="isOpen" :anchor="bare ? anchor : trigger" :label="label || 'Choose a date'" focus='.ui-day[tabindex="0"]' @close="hide">
       <div class="ui-cal" ref="cal">
         <div class="ui-cal-head">
           <button type="button" class="icon-btn ui-cal-nav" aria-label="Previous month" :disabled="prevOff" @click="month(-1)">

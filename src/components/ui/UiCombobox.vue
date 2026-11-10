@@ -11,9 +11,10 @@
 //   allow-custom  adds a last option that keeps what was typed
 //   custom-label  (text) => the words for that option (default: Use "text")
 // Matching ignores case and accents, looks at aliases, and highlights the match.
-import { computed, nextTick, ref, useId, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import Icon from "../Icon.vue";
 import UiSheet from "./UiSheet.vue";
+import { nextUid } from "./uid.js";
 import { fold, highlight, rankOptions } from "../../lib/match.js";
 
 const props = defineProps({
@@ -33,7 +34,7 @@ const props = defineProps({
 });
 const emit = defineEmits(["update:modelValue", "update:text", "select"]);
 
-const uid = useId();
+const uid = nextUid();
 const listId = `${uid}-list`;
 const open = ref(false);
 const trigger = ref(null);

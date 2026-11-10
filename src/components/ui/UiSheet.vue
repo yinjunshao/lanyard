@@ -8,7 +8,7 @@
 //    everything behind is `inert`, Esc closes, focus goes back to where it was.
 //  - no trap (a popover whose trigger keeps focus, like a select-only combobox):
 //    focus stays where it is; Esc and a press outside still close it.
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useSlots, watch } from "vue";
 import Icon from "../Icon.vue";
 
 const props = defineProps({
@@ -22,6 +22,10 @@ const props = defineProps({
   closeButton: { type: Boolean, default: true },// show a Close button in the phone sheet
 });
 const emit = defineEmits(["close"]);
+// The content is drawn by calling the slot function directly. A compiled <slot> pulls
+// renderSlot into the shared Vue chunk that public pages load; this does not.
+const slots = useSlots();
+const Body = () => slots.default?.({ sheet: isSheet.value });
 
 // ---- phone or not: one shared media query ----
 const phone = ref(false);
@@ -38,6 +42,7 @@ const isSheet = computed(() => phone.value);
 const trapping = computed(() => isSheet.value || props.trap);
 
 const panel = ref(null);
+const portal = ref(null);
 const pos = ref({});
 let opener = null;
 let lockedBy = false;
@@ -148,13 +153,17 @@ function closed() {
 
 watch(isSheet, () => { if (props.open) nextTick(place); });
 watch(() => props.open, (v) => (v ? opened() : closed()), { immediate: true, flush: "post" });
-onBeforeUnmount(() => { if (props.open) closed(); });
+onMounted(() => { document.body.appendChild(portal.value); });
+onBeforeUnmount(() => { if (props.open) closed(); portal.value?.remove(); });
 
 defineExpose({ place, panel });
 </script>
 
 <template>
-  <Teleport to="body">
+  <!-- The root is moved to <body> when mounted (see onMounted), so a picker can sit inside
+       any container. Vue's own Teleport is not used: it would add to the shared Vue
+       chunk that public pages load. Put this as the last child of its parent. -->
+  <div ref="portal" class="ui-portal">
     <div v-if="open" class="ui-layer" :class="{ 'is-sheet': isSheet }"
          @pointerdown.self="isSheet && emit('close')">
       <div ref="panel" class="ui-panel" tabindex="-1"
@@ -173,10 +182,10 @@ defineExpose({ place, panel });
             </button>
           </div>
         </template>
-        <slot :sheet="isSheet" />
+        <component :is="Body" />
       </div>
     </div>
-  </Teleport>
+  </div>
 </template>
 
 <style>
