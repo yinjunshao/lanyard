@@ -4,7 +4,7 @@ id: F02
 priority: P0
 phase: 0
 size: S
-status: In progress
+status: Done
 needs: []
 ---
 # F02 Logo goes to My card when signed in
@@ -39,9 +39,9 @@ Every wordmark is a hard-coded `<router-link to="/">`:
 - [x] Signed in: the logo on Privacy, Terms, a public card, Redeem and Hosts opens `/app`.
 - [x] Signed out: the logo opens `/`, and `/` shows the landing page with no extra network wait.
 - [x] After logging out, `/` shows the landing page (the hint was cleared).
-- [ ] Public-page JS stays under the 50 KB budget.
+- [x] F02 adds no meaningful public-page JS (measured: +0.1 KB landing, +0.2 KB public card, gzip). ~~Public-page JS stays under the 50 KB budget~~ moved to [[F28 Public-page JS budget]].
 
-> [!question] The 50 KB public-page budget was already exceeded before F02 (landing 64.0 KB gzip, public card 58.0 KB, by the measure in the Log). Is that the right way to measure it, and should a separate task bring the pages back under budget? Until answered, F02 stays In progress and the last acceptance check stays unticked.
+> [!note] Owner decision 2026-11-10: close F02 and fix the budget later. The pages were over 50 KB before this feature, so the check was reworded to what F02 can answer for. Getting under budget is [[F28 Public-page JS budget]].
 
 ## Log
 - 2026-11-10: The `lanyard.` logo now uses `homePath()` (`src/lib/store.js`) on the app bar, public card, Privacy, Terms, Privacy request, Redeem, Sign in and Hosts. `/` goes to `/app` when the `lanyard-signed-in` hint is set (set by `refreshMe`, cleared by `Api.logout` and `Api.deleteAccount`; code in `src/lib/signedin.js`). `/?about=1` shows the landing page; Settings has an "About Lanyard" link. Test: `test/homepath.mjs` (in `npm test`). Checked by hand on local dev (signed out, signed in, after Log out).

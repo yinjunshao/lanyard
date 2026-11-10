@@ -54,7 +54,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 
 ### Phase 0: quick fixes (any order, all P0)
 - [x] **F01** [[F01 Repo housekeeping]] · S · Needs: none (done 2026-11-10, last commit a6384e6)
-- [ ] **F02** [[F02 Logo goes to My card when signed in]] · S · Needs: none (in progress: Claude subagent, 2026-11-10)
+- [ ] **F02** [[F02 Logo goes to My card when signed in]] · S · Needs: none (done 2026-11-10, last commit d56a7de)
 - [x] **F03** [[F03 Neutral copy with no named university]] · S · Needs: none (done 2026-11-10, last commit 95e0b70)
 - [x] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up) (done 2026-11-10, last commit fbb24bd)
 - [x] **F05** [[F05 QR icon for My card tab]] · S · Needs: none (done 2026-11-10, last commit 714d8f1)
@@ -69,6 +69,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F12** [[F12 Institution picker]] · P1 · M · Needs: F08, F11
 - [ ] **F13** [[F13 Connection provenance]] · P1 · M · Needs: none
 - [ ] **F14** [[F14 Onboarding revamp]] · P1 · L · Needs: F06, F11, F12
+- [ ] **F28** [[F28 Public-page JS budget]] · P1 · S · Needs: none (added 2026-11-10 from F02; the owner said to fix it later, so it sits at the end of Phase 1)
 
 ### Phase 2: events
 - [ ] **F15** [[F15 Events tab and event hub]] · P1 · L · Needs: F05, F13
@@ -139,6 +140,7 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
+- 2026-11-10 · F02 · d56a7de · Logo goes to My card when signed in; `/` redirects to `/app`; budget check moved to F28
 - 2026-11-10 · F01 · a6384e6 · New ignore rules; generated files and brag-output untracked; vault and app baseline committed
 - 2026-11-10 · F07 · b7ed96c · Sign out and Back on every host setup step, /host/signout route, logout always clears the offline copy
 - 2026-11-10 · F04 · fbb24bd · Redeem placeholder no longer the real code; code lookups limited to 30 per 10 minutes per IP and per person
