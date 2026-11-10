@@ -51,7 +51,9 @@ export const Api = {
   sessions: () => api("/api/auth/sessions"),
   signOutOthers: () => api("/api/auth/signout-others", "POST"),
   setEventEmails: (on) => api("/api/account/event-emails", "POST", { on }),
-  logout: async () => { const r = await api("/api/logout", "POST"); await clearOfflineData(); return r; },
+  // The offline copy of /api/me is cleared even if the request fails (for example
+  // no signal), so a signed-out device never draws the old badge from cache.
+  logout: async () => { try { return await api("/api/logout", "POST"); } finally { await clearOfflineData(); } },
   exportUrl: "/api/account/export",
   deleteAccount: async () => { const r = await api("/api/account", "DELETE"); await clearOfflineData(); return r; },
 
