@@ -3,7 +3,7 @@
 // form and results, and the post-event report (with CSV download).
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { Api } from "../lib/api";
+import { HostApi } from "../lib/hostapi";
 import { drawQR } from "../lib/qr";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import FeedbackResults from "../components/FeedbackResults.vue";
@@ -26,7 +26,7 @@ const feedbackUrl = () => (live.value ? `${location.origin}/e/${live.value.event
 
 onMounted(async () => {
   try {
-    live.value = await Api.hostLive(id.value);
+    live.value = await HostApi.hostLive(id.value);
     fillDetails();
     await renderQr();
     timer = setInterval(refresh, 5000);
@@ -38,7 +38,7 @@ onBeforeUnmount(() => clearInterval(timer));
 
 async function refresh() {
   if (document.hidden || tab.value !== "live") return; // don't poll a hidden tab
-  try { live.value = await Api.hostLive(id.value); } catch {}
+  try { live.value = await HostApi.hostLive(id.value); } catch {}
 }
 async function renderQr() {
   if (qrCanvas.value) await drawQR(qrCanvas.value, joinUrl(), 320);
@@ -51,7 +51,7 @@ async function show(t) {
 }
 async function loadReport() {
   reportLoading.value = true;
-  try { report.value = await Api.hostReport(id.value); }
+  try { report.value = await HostApi.hostReport(id.value); }
   catch (e) { error.value = e.message; }
   finally { reportLoading.value = false; }
 }
@@ -68,8 +68,8 @@ async function rotateCode() {
   }
   rotating.value = true;
   try {
-    await Api.hostRotateEventCode(id.value);
-    live.value = await Api.hostLive(id.value);
+    await HostApi.hostRotateEventCode(id.value);
+    live.value = await HostApi.hostLive(id.value);
     await renderQr();
   } catch (e) {
     error.value = e.message;
@@ -88,8 +88,8 @@ async function endEvent() {
   }
   ending.value = true;
   try {
-    await Api.hostEndEvent(id.value);
-    live.value = await Api.hostLive(id.value);
+    await HostApi.hostEndEvent(id.value);
+    live.value = await HostApi.hostLive(id.value);
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -114,13 +114,13 @@ function fillDetails() {
 async function saveDetails() {
   detailsMsg.value = ""; detailsErr.value = "";
   try {
-    await Api.hostUpdateEvent(id.value, {
+    await HostApi.hostUpdateEvent(id.value, {
       name: d.value.name, venue: d.value.venue,
       startsAt: d.value.startsAt, endsAt: d.value.endsAt,
       rsvpCount: d.value.rsvpCount === "" ? null : Number(d.value.rsvpCount),
       info: { access: d.value.access, dress: d.value.dress, food: d.value.food, other: d.value.other },
     });
-    live.value = await Api.hostLive(id.value);
+    live.value = await HostApi.hostLive(id.value);
     detailsMsg.value = "Saved.";
   } catch (e) {
     detailsErr.value = e.message;
@@ -132,8 +132,8 @@ async function duplicate() {
   detailsErr.value = "";
   dupBusy.value = true;
   try {
-    const r = await Api.hostDuplicateEvent(id.value, { name: dupName.value.trim() || undefined });
-    location.assign(`/host/events/${r.id}`); // a fresh page for the new event
+    const r = await HostApi.hostDuplicateEvent(id.value, { name: dupName.value.trim() || undefined });
+    location.assign(`/events/${r.id}`); // a fresh page for the new event
   } catch (e) {
     detailsErr.value = e.code === "no_credits" ? "You're out of event credits. Buy more from Billing." : e.message;
   } finally {
@@ -149,7 +149,7 @@ const fbErr = ref("");
 const copied = ref(false);
 async function loadFeedback() {
   try {
-    fb.value = await Api.hostFeedback(id.value);
+    fb.value = await HostApi.hostFeedback(id.value);
     fbQuestions.value = fb.value.questions.map((q) => ({ ...q, options: q.options ? [...q.options] : undefined }));
   } catch (e) {
     fbErr.value = e.message;
@@ -158,7 +158,7 @@ async function loadFeedback() {
 async function saveFeedback() {
   fbMsg.value = ""; fbErr.value = "";
   try {
-    await Api.hostSaveFeedback(id.value, { questions: fbQuestions.value });
+    await HostApi.hostSaveFeedback(id.value, { questions: fbQuestions.value });
     await loadFeedback();
     fbMsg.value = "Saved.";
   } catch (e) {
@@ -167,7 +167,7 @@ async function saveFeedback() {
 }
 async function setFeedbackOn(on) {
   fbErr.value = "";
-  try { await Api.hostSaveFeedback(id.value, { on }); await loadFeedback(); }
+  try { await HostApi.hostSaveFeedback(id.value, { on }); await loadFeedback(); }
   catch (e) { fbErr.value = e.message; }
 }
 async function copyFeedbackLink() {
@@ -177,7 +177,7 @@ async function copyFeedbackLink() {
 
 <template>
   <div class="wide-col stack-3" style="max-width:860px">
-    <router-link to="/host" class="small muted back">‹ Dashboard</router-link>
+    <router-link to="/" class="small muted back">‹ Dashboard</router-link>
 
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     <template v-if="live">
@@ -315,7 +315,7 @@ async function copyFeedbackLink() {
             <span class="small muted">{{ new Date(report.generatedAt).toLocaleString() }}</span>
           </div>
           <div class="btn-row no-print">
-            <a class="btn" :href="Api.hostReportCsvUrl(id)" download>Download CSV</a>
+            <a class="btn" :href="HostApi.hostReportCsvUrl(id)" download>Download CSV</a>
             <button class="btn" @click="printPage">Print or save as PDF</button>
           </div>
           <div class="report-stats">

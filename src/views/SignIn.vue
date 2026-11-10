@@ -12,7 +12,6 @@ import { afterAccountPath } from "../lib/redeem";
 
 const route = useRoute();
 const router = useRouter();
-const onHost = route.path.startsWith("/host");
 const canPasskey = passkeysSupported();
 const q = (k) => (typeof route.query[k] === "string" ? route.query[k] : "");
 
@@ -28,7 +27,7 @@ const showMore = ref(!!q("code"));
 
 async function done() {
   await refreshMe();
-  router.replace(onHost ? "/host" : me.profile ? afterAccountPath("/app") : "/app/profile");
+  router.replace(me.profile ? afterAccountPath("/app") : "/app/profile");
 }
 
 async function withPasskey() {
@@ -85,10 +84,9 @@ onMounted(async () => {
 
 <template>
   <main class="app-col stack-2">
-    <router-link v-if="onHost" to="/host" class="wordmark wordmark-host"><img src="/host-icon.svg" alt="" />lanyard<b>.</b><small>host</small></router-link>
-    <router-link v-else :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
+    <router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
     <div>
-      <h1>{{ onHost ? "Host sign in" : "Sign in" }}</h1>
+      <h1>Sign in</h1>
       <p class="muted">Pick whichever is easiest. They all open the same account.</p>
     </div>
 
@@ -165,7 +163,7 @@ onMounted(async () => {
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
     <p class="small muted"><router-link to="/terms">Terms</router-link> · <router-link to="/privacy">Privacy</router-link></p>
-    <p v-if="!onHost" class="small muted">
+    <p class="small muted">
       New here? <router-link to="/app/profile">Make your card</router-link> and save it to this device later.
     </p>
   </main>

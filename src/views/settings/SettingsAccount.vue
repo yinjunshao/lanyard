@@ -2,6 +2,7 @@
 // Account: who you are to Lanyard. Later features add their rows here (F11 mode).
 import { computed } from "vue";
 import { me } from "../../lib/store";
+import { HOST_ORIGIN } from "../../lib/site";
 import Icon from "../../components/Icon.vue";
 import EmailSetup from "../../components/EmailSetup.vue";
 
@@ -23,10 +24,11 @@ const signIn = computed(() => (me.user?.hasPasskey ? "Passkey saved" : me.user?.
       <router-link to="/app/profile" class="list-row spread">
         <span>Edit profile</span><span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
       </router-link>
-      <router-link to="/host" class="list-row spread">
+      <!-- The host portal is its own site with its own account (F10). -->
+      <a :href="`${HOST_ORIGIN}/`" class="list-row spread">
         <span>Run events? Open the host portal</span>
         <span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
-      </router-link>
+      </a>
     </div>
   </div>
 </template>

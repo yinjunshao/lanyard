@@ -63,8 +63,8 @@ const dash = readFileSync(new URL("../src/views/HostDashboard.vue", import.meta.
 const head = dash.slice(dash.indexOf('<div class="page-head">'), dash.indexOf('<p v-if="state ==='));
 check("the dashboard header has a Sign out button that is not tied to any one step",
   head.includes('@click="signOut"') && !head.slice(0, head.indexOf('@click="signOut"')).includes("state ==="), head.slice(0, 300));
-const router = readFileSync(new URL("../src/router/index.js", import.meta.url), "utf8");
-check("/host/signout is a route", router.includes('path: "/host/signout"'));
+const hostRoutes = readFileSync(new URL("../src/router/routes.host.js", import.meta.url), "utf8");
+check("/signout is a host page (old /host/signout addresses redirect to it)", hostRoutes.includes('path: "/signout"') && hostRoutes.includes('path: "/host/:rest(.*)*", redirect:'));
 const api = readFileSync(new URL("../src/lib/api.js", import.meta.url), "utf8");
 check("logout clears the offline copy even if the request fails", api.includes("finally { setSignedInHint(false); await clearOfflineData(); }"));
 

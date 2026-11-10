@@ -17,7 +17,8 @@ check("a trailing slash still redirects", settingsRedirect(to("/app/settings/", 
 check("the query string is kept", JSON.stringify(settingsRedirect(to("/app/settings", "#plus", { a: "1" }))?.query) === '{"a":"1"}');
 check("no hash, an unknown hash or another path is left alone",
   settingsRedirect(to("/app/settings")) === null && settingsRedirect(to("/app/settings", "#nope")) === null && settingsRedirect(to("/app/settings/plan", "#plus")) === null);
-const router = read("src/router/index.js");
+// The router (index.js and the main site's route table, F10) is loaded by every public page.
+const router = read("src/router/index.js") + read("src/router/routes.attendee.js");
 const layout0 = read("src/views/Settings.vue");
 check("the Settings layout applies the redirect, and the router (loaded by every public page) does not import it or the pages",
   /settingsRedirect\(route\)/.test(layout0) && !/settingsRedirect|views\/settings\//.test(router));
@@ -34,7 +35,7 @@ check("no link in src/ or worker/ still uses a /app/settings#section anchor", st
 check("emails point at the Sign-in and devices page", read("worker/alerts.js").includes("/app/settings/security") && read("worker/mail.js").includes("/app/settings/security"));
 
 console.log("\n# The pages");
-check("Settings is one route, /app/settings/:page?, so the pages add nothing to the router", /path: "\/app\/settings\/:page\?", component: Settings,/.test(router) && !/Settings(Account|Security|Notifications|Privacy|Plan|Appearance|Help)/.test(router));
+check("Settings is one route, /app/settings/:page?, so the pages add nothing to the router", /path: "\/app\/settings\/:page\?", component: \(\) => import\("\.\.\/views\/Settings\.vue"\)/.test(router) && !/Settings(Account|Security|Notifications|Privacy|Plan|Appearance|Help)/.test(router));
 for (const r of routes) check(`/app/settings/${r} is a page with a title and a file`, new RegExp(`${r}: [{] title: "[^"]+", load: [(][)] => import[(]"[.]/settings/Settings[A-Za-z]+[.]vue"[)] [}]`).test(layout0));
 const layout = layout0;
 check("every category is a row in the list", routes.every((r) => layout.includes(`to: "/app/settings/${r}"`)));
@@ -45,7 +46,7 @@ check("the layout has no <slot>, Teleport or useId (the shared Vue chunk stays s
 // What the old long page did, and where each thing now lives.
 const page = (n) => read(`src/views/settings/Settings${n}.vue`);
 const where = {
-  Account: ["<EmailSetup", 'to="/app/profile"', 'to="/host"'],
+  Account: ["<EmailSetup", 'to="/app/profile"', ':href="`${HOST_ORIGIN}/`"'], // the host portal is its own site (F10)
   Security: ["<AuthenticatorSetup", "<DevicesSheet", "<SignInOnAnotherDevice", "registerPasskey", 'to="/claim"', "Save my card"],
   Notifications: ["<EmailPreferences"],
   Privacy: ["Api.exportUrl", "<ConsentHistory", "Api.deleteAccount", "Delete account"],

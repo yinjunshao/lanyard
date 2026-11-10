@@ -2,7 +2,7 @@
 import { homePath } from "../lib/store";
 // Host pitch page: what hosts get, early pricing, and the way into the portal.
 import { HOST_ORIGIN } from "../lib/site";
-const portal = `${HOST_ORIGIN}/host`;
+const portal = `${HOST_ORIGIN}/`;
 </script>
 
 <template>

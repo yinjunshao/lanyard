@@ -43,9 +43,9 @@ export function isSignedIn() {
 }
 
 // Where the lanyard. logo goes: My card for signed-in people, otherwise the
-// front page (the host home on the host site).
+// front page (the host home, "/", on the host site).
 export function homePath() {
-  if (ON_HOST_SITE) return "/host";
+  if (ON_HOST_SITE) return "/";
   return isSignedIn() ? "/app" : "/";
 }
 

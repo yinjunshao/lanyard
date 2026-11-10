@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { newId, now, one, all, run, uniqueCode } from "./db.js";
 import { sessionMiddleware, ensureSession, endSession, requireUser, HttpError } from "./session.js";
 import { securityHeaders, sameOriginWrites } from "./security.js";
-import { isHostSite } from "./host-auth.js";
+import { isHostSite, hostOrigin } from "./host-auth.js";
 import { isBlocked } from "./blocks.js";
 import { bump, HOUR, DAY } from "./ratelimit.js";
 import { feedbackApp, pendingFeedback } from "./feedback.js";
@@ -1209,6 +1209,18 @@ app.route("/", promoApp);
 app.route("/", unsubApp);
 app.route("/", privacyApp);
 app.route("/", integrationsApp);
+
+/* ------------------- old host portal addresses (F10) -------------------- */
+// The portal moved to its own site with its pages at the root:
+// lanyd.fyi/host/events/abc -> host.lanyd.fyi/events/abc (and /host -> /).
+// The host site answers the same for its own /host/... addresses from before F10.
+// /hosts (the pitch page) is a different path and stays on the main site.
+const toHostSite = (c) => {
+  const u = new URL(c.req.url);
+  return c.redirect(hostOrigin(c.env, c) + (u.pathname.replace(/^\/host/, "") || "/") + u.search, 301);
+};
+app.get("/host", toHostSite);
+app.get("/host/*", toHostSite);
 
 /* ------------------------------- SPA fallback ----------------------------- */
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));

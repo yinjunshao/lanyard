@@ -1,17 +1,14 @@
 <script setup>
-// /host/signout: a page a stuck host can type into the address bar. Ends the
-// session here, clears the offline copy of who you are, and starts again at the
-// host home.
+// /signout on the host site: a page a stuck host can type into the address
+// bar. Ends the host session and starts again at the host home.
 import { onMounted, ref } from "vue";
-import { signOutAndReload } from "../lib/store";
-import { ON_HOST_SITE } from "../lib/site";
+import { hostSignOutAndReload } from "../lib/hostapi";
 
 const error = ref("");
-const home = ON_HOST_SITE ? "/host" : "/hosts";
 
 async function run() {
   error.value = "";
-  try { await signOutAndReload(home); }
+  try { await hostSignOutAndReload("/"); }
   catch (e) { error.value = e?.message || "Couldn't sign out. Check your connection and try again."; }
 }
 onMounted(run);

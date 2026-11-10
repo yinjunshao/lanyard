@@ -25,8 +25,8 @@ check("logout clears the hint", /logout:[^\n]*finally \{ setSignedInHint\(false\
 check("account deletion clears the hint", /deleteAccount:[^\n]*setSignedInHint\(false\)/.test(api));
 const st = read("src/lib/store.js");
 check("signed in means a card or a saved account", /me\.profile \|\| me\.user\?\.claimed/.test(st));
-check("homePath is /app when signed in, / otherwise, /host on the host site",
-  /function homePath\(\)[\s\S]*ON_HOST_SITE[\s\S]*"\/host"[\s\S]*"\/app" : "\/"/.test(st));
+check("homePath is /app when signed in, / otherwise, and the host home / on the host site (F10)",
+  /function homePath\(\)\s*\{\s*if \(ON_HOST_SITE\) return "\/";[\s\S]*"\/app" : "\/"/.test(st));
 check("refreshMe keeps the hint in step with /api/me", /me\.loaded = true;\s*setSignedInHint\(isSignedIn\(\)\)/.test(st));
 const router = read("src/router/index.js");
 check("'/' goes to /app when the hint is set, unless ?about=1",

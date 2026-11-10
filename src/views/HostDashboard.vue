@@ -3,6 +3,7 @@
 // or events under your own name -> events.
 import { computed, onMounted, ref } from "vue";
 import { Api } from "../lib/api";
+import { HostApi } from "../lib/hostapi";
 import { me, refreshMe, signOutAndReload } from "../lib/store";
 import { registerPasskey, loginPasskey } from "../lib/passkeys";
 import { ON_HOST_SITE, MAIN_ORIGIN } from "../lib/site";
@@ -31,7 +32,7 @@ const signOutError = ref("");
 const signingOut = ref(false);
 async function signOut() {
   signOutError.value = ""; signingOut.value = true;
-  try { await signOutAndReload(ON_HOST_SITE ? "/host" : "/hosts"); }
+  try { await signOutAndReload("/"); }
   catch (e) { signOutError.value = e?.message || "Couldn't sign out. Check your connection and try again."; signingOut.value = false; }
 }
 
@@ -45,7 +46,7 @@ const f = ref(blankForm());
 onMounted(load);
 async function load() {
   try {
-    const d = await Api.hostMe();
+    const d = await HostApi.hostMe();
     org.value = d.org;
     account.value = d.account;
     pendingTransfers.value = d.pendingTransfers || [];
@@ -85,14 +86,14 @@ function detailsProblem() {
 }
 function saveDetails() {
   const d = det.value;
-  return Api.hostSignup({
+  return HostApi.hostSignup({
     fullName: d.fullName.trim(), email: d.email.trim(),
     survey: { useCase: d.useCase, frequency: d.frequency, size: d.size, referral: d.referral },
   });
 }
 async function acceptHostTerms() {
   accountError.value = ""; busy.value = true;
-  try { await Api.hostAcceptTerms(); await load(); }
+  try { await HostApi.hostAcceptTerms(); await load(); }
   catch (e) { accountError.value = e.message; }
   finally { busy.value = false; }
 }
@@ -104,7 +105,7 @@ async function createAccount() {
   busy.value = true;
   try {
     await registerPasskey();
-    await Api.hostAcceptTerms();
+    await HostApi.hostAcceptTerms();
     await saveDetails();
     await refreshMe();
     await load();
@@ -123,7 +124,7 @@ async function createWithKey() {
   busy.value = true;
   try {
     recoveryKey.value = (await Api.recoveryCreate()).key;
-    await Api.hostAcceptTerms();
+    await HostApi.hostAcceptTerms();
     await saveDetails();
   } catch (e) {
     accountError.value = e?.message || "Couldn't create the key.";
@@ -178,7 +179,7 @@ async function createOrg() {
   busy.value = true;
   try {
     const o = orgForm.value;
-    await Api.hostCreateOrg({
+    await HostApi.hostCreateOrg({
       kind: o.kind, name: o.name, leaderName: o.leaderName || account.value?.fullName,
       orgLink: o.orgLink, university: o.university,
     });
@@ -191,12 +192,12 @@ async function createOrg() {
 }
 async function acceptTransfer(t) {
   error.value = "";
-  try { await Api.hostAcceptTransfer(t.id); await load(); }
+  try { await HostApi.hostAcceptTransfer(t.id); await load(); }
   catch (e) { error.value = e.message; }
 }
 async function declineTransfer(t) {
   error.value = "";
-  try { await Api.hostDeclineTransfer(t.id); await load(); }
+  try { await HostApi.hostDeclineTransfer(t.id); await load(); }
   catch (e) { error.value = e.message; }
 }
 
@@ -210,13 +211,13 @@ async function create() {
     let res;
     if (f.value.from) {
       // Start from a past event: the server copies its details, questions, form and sponsors.
-      res = await Api.hostDuplicateEvent(f.value.from, {
+      res = await HostApi.hostDuplicateEvent(f.value.from, {
         name: f.value.name.trim() || undefined,
         startsAt: f.value.startsAt, endsAt: f.value.endsAt,
       });
     } else {
       if (!f.value.name.trim()) { error.value = "Event name is required."; return; }
-      res = await Api.hostCreateEvent({
+      res = await HostApi.hostCreateEvent({
         name: f.value.name,
         venue: f.value.venue,
         startsAt: f.value.startsAt,
@@ -261,7 +262,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       <h1 style="margin-top:8px"><img src="/host-icon.svg" alt="" style="width:32px;height:32px;vertical-align:-6px;margin-right:8px" />Host portal</h1>
       <p v-if="org && state === 'ready'" class="sub">{{ org.name }}</p>
       <p v-if="state === 'ready' || state === 'welcome'" class="small" style="margin-top:6px">
-        <router-link to="/host/account">Account and team</router-link>
+        <router-link to="/account">Account and team</router-link>
       </p>
     </div>
 
@@ -305,7 +306,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       <button class="btn btn-primary" :disabled="busy" @click="createAccount">
         {{ busy ? "Waiting for passkey…" : "Create account with a passkey" }}
       </button>
-      <router-link to="/host/signin" class="btn">I already have a host account</router-link>
+      <router-link to="/signin" class="btn">I already have a host account</router-link>
       <button v-if="!recoveryKey" class="btn" :disabled="busy" @click="createWithKey">
         No passkey on this device? Use a recovery key instead
       </button>
@@ -407,7 +408,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       <div v-else-if="org && org.status === 'rejected'" class="notice stack">
         <strong>Your application wasn't approved.</strong>
         <span v-if="org.reviewNote" class="small">{{ org.reviewNote }}</span>
-        <router-link to="/host/account" class="small" style="text-decoration:underline">Open a ticket if you think that's a mistake</router-link>
+        <router-link to="/account" class="small" style="text-decoration:underline">Open a ticket if you think that's a mistake</router-link>
       </div>
 
       <div class="panel spread">
@@ -421,7 +422,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
           <div class="tnum" style="font-size:28px;font-weight:700">{{ credits.remaining }}</div>
           <span v-if="credits.nextExpiry" class="small muted">next expire {{ fmtDate(credits.nextExpiry) }}</span>
         </div>
-        <router-link to="/host/billing" class="btn" style="width:auto">Billing</router-link>
+        <router-link to="/billing" class="btn" style="width:auto">Billing</router-link>
       </div>
 
       <div class="spread">
@@ -473,7 +474,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         </template>
         <p v-if="error" class="error-text">
           {{ error }}
-          <router-link v-if="credits.remaining <= 0" to="/host/billing" style="text-decoration:underline">Buy credits</router-link>
+          <router-link v-if="credits.remaining <= 0" to="/billing" style="text-decoration:underline">Buy credits</router-link>
         </p>
         <button class="btn btn-primary" :disabled="busy" @click="create">
           {{ busy ? "Creating…" : (f.from ? "Create the copy" : "Create event") + (freeNow ? " (free this week)" : " (uses 1 credit)") }}
@@ -494,7 +495,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         <router-link
           v-for="e in events"
           :key="e.id"
-          :to="`/host/events/${e.id}`"
+          :to="`/events/${e.id}`"
           class="list-row spread"
         >
           <span>

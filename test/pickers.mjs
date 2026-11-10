@@ -45,7 +45,7 @@ check("no <select>, type=date or type=datetime-local is left in src/", left.leng
 const pub = read("src/views/PublicCard.vue");
 check("PublicCard does not import the date picker statically", !/^import .*ui\/Ui/m.test(pub) && /import\("\.\.\/components\/ui\/UiDatePicker\.vue"\)/.test(pub));
 check("PublicCard uses the bare date picker", /<component :is="DatePicker"[^>]*bare/.test(pub));
-const router = read("src/router/index.js");
+const router = read("src/router/index.js") + read("src/router/routes.attendee.js"); // the main site's route table moved out of index.js in F10
 check("the /ui-test route exists only in development", /import\.meta\.env\.DEV \? \[\{ path: "\/ui-test"/.test(router));
 const sheetCode = read("src/components/ui/UiSheet.vue").replace(/\/\/.*|<!--[\s\S]*?-->/g, "");
 check("UiSheet uses no Teleport, useId or <slot> (keeps the shared Vue chunk small)", !/Teleport|useId|<slot/.test(sheetCode));

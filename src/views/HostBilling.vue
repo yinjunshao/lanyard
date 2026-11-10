@@ -3,7 +3,7 @@
 // Card checkout comes later; until then a request creates an invoice (societies
 // usually pay through union finance with a PO number).
 import { onMounted, ref } from "vue";
-import { Api } from "../lib/api";
+import { HostApi } from "../lib/hostapi";
 
 const data = ref(null);
 const state = ref("loading");
@@ -16,7 +16,7 @@ const sent = ref(null);
 onMounted(load);
 async function load() {
   try {
-    data.value = await Api.hostBilling();
+    data.value = await HostApi.hostBilling();
     form.value.email = data.value.org.billingEmail || "";
     state.value = "ready";
   } catch (e) {
@@ -38,7 +38,7 @@ async function submit() {
   error.value = "";
   busy.value = true;
   try {
-    const res = await Api.hostBillingRequest({
+    const res = await HostApi.hostBillingRequest({
       sku: picked.value.id,
       quantity: picked.value.quote ? 1 : form.value.quantity,
       email: form.value.email,
@@ -60,14 +60,14 @@ async function submit() {
 <template>
   <div class="wide-col stack-3" style="max-width:760px">
     <div class="page-head">
-      <router-link to="/host" class="small muted">‹ Host portal</router-link>
+      <router-link to="/" class="small muted">‹ Host portal</router-link>
       <h1 style="margin-top:8px">Billing</h1>
       <p v-if="data" class="sub">{{ data.org.name }}</p>
     </div>
 
     <p v-if="state === 'loading'" class="muted">Loading…</p>
     <div v-else-if="state === 'account'" class="notice">
-      Finish setting up in the host portal first. <router-link to="/host" style="text-decoration:underline">Go to the host portal</router-link>
+      Finish setting up in the host portal first. <router-link to="/" style="text-decoration:underline">Go to the host portal</router-link>
     </div>
     <p v-else-if="state === 'error'" class="error-text">{{ error }}</p>
 

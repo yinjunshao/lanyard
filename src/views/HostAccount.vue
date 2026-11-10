@@ -3,6 +3,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { Api } from "../lib/api";
+import { HostApi } from "../lib/hostapi";
 import { signOutAndReload } from "../lib/store";
 import { registerPasskey, passkeysSupported } from "../lib/passkeys";
 import UiSelect from "../components/ui/UiSelect.vue";
@@ -24,10 +25,10 @@ const host = location.host;
 
 async function load() {
   try {
-    me.value = await Api.hostMe();
+    me.value = await HostApi.hostMe();
     if (me.value.org) {
-      team.value = await Api.hostTeam();
-      if (team.value.role === "owner") tix.value = await Api.hostTickets();
+      team.value = await HostApi.hostTeam();
+      if (team.value.role === "owner") tix.value = await HostApi.hostTickets();
       loadInteg();
     }
   } catch (e) {
@@ -79,23 +80,23 @@ const mmss = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 const invite = ref(null);
 async function newInvite() {
   error.value = "";
-  try { invite.value = await Api.hostInvite(); team.value = await Api.hostTeam(); }
+  try { invite.value = await HostApi.hostInvite(); team.value = await HostApi.hostTeam(); }
   catch (e) { error.value = e.message; }
 }
 async function revoke(code) {
-  await Api.hostRevokeInvite(code);
-  team.value = await Api.hostTeam();
+  await HostApi.hostRevokeInvite(code);
+  team.value = await HostApi.hostTeam();
   invite.value = null;
 }
 async function remove(m) {
   if (!confirm(`Remove ${m.label} from the organisation?`)) return;
-  try { await Api.hostRemoveMember(m.userId); team.value = await Api.hostTeam(); }
+  try { await HostApi.hostRemoveMember(m.userId); team.value = await HostApi.hostTeam(); }
   catch (e) { error.value = e.message; }
 }
 const joinCode = ref("");
 async function join() {
   error.value = "";
-  try { await Api.hostJoin(joinCode.value); router.push("/host"); }
+  try { await HostApi.hostJoin(joinCode.value); router.push("/"); }
   catch (e) { error.value = e.message; }
 }
 
@@ -112,24 +113,24 @@ const TICKET_KINDS = [
 async function handOver() {
   error.value = ""; msg.value = "";
   try {
-    await Api.hostTransfer(handoverEmail.value);
+    await HostApi.hostTransfer(handoverEmail.value);
     handoverEmail.value = "";
     msg.value = "Sent. Nothing changes until they accept it in their host portal.";
-    tix.value = await Api.hostTickets();
+    tix.value = await HostApi.hostTickets();
   } catch (e) { error.value = e.message; }
 }
 async function cancelHandover(t) {
-  await Api.hostCancelTransfer(t.id);
-  tix.value = await Api.hostTickets();
+  await HostApi.hostCancelTransfer(t.id);
+  tix.value = await HostApi.hostTickets();
 }
 async function sendTicket() {
   error.value = ""; msg.value = ""; sentTicket.value = false;
   try {
     const t = ticketForm.value;
-    await Api.hostCreateTicket({ kind: t.kind, newEmail: t.kind === "other" ? undefined : t.newEmail, message: t.message });
+    await HostApi.hostCreateTicket({ kind: t.kind, newEmail: t.kind === "other" ? undefined : t.newEmail, message: t.message });
     ticketForm.value = { kind: t.kind, newEmail: "", message: "" };
     sentTicket.value = true;
-    tix.value = await Api.hostTickets();
+    tix.value = await HostApi.hostTickets();
   } catch (e) { error.value = e.message; }
 }
 const TICKET_LABEL = { leader_change: "Change of leader", email_change: "Change of email", other: "Request" };
@@ -142,37 +143,37 @@ const apiKey = ref("");
 const integMsg = ref("");
 async function loadInteg() {
   if (team.value?.role !== "owner") return;
-  try { integ.value = await Api.hostIntegrations(); hookUrl.value = integ.value.webhookUrl || ""; } catch { /* not owner */ }
+  try { integ.value = await HostApi.hostIntegrations(); hookUrl.value = integ.value.webhookUrl || ""; } catch { /* not owner */ }
 }
 async function saveHook() {
   error.value = ""; integMsg.value = ""; hookSecret.value = "";
-  try { hookSecret.value = (await Api.hostSetWebhook(hookUrl.value)).secret; await loadInteg(); }
+  try { hookSecret.value = (await HostApi.hostSetWebhook(hookUrl.value)).secret; await loadInteg(); }
   catch (e) { error.value = e.message; }
 }
 async function removeHook() {
-  await Api.hostRemoveWebhook(); hookSecret.value = ""; hookUrl.value = ""; await loadInteg();
+  await HostApi.hostRemoveWebhook(); hookSecret.value = ""; hookUrl.value = ""; await loadInteg();
 }
 async function testHook() {
   error.value = ""; integMsg.value = "";
   try {
-    const r = await Api.hostTestWebhook();
+    const r = await HostApi.hostTestWebhook();
     integMsg.value = r.ok ? `Test sent. Your endpoint replied ${r.status}.` : `Your endpoint didn't accept it${r.status ? ` (HTTP ${r.status})` : ""}.`;
   } catch (e) { error.value = e.message; }
 }
 async function newKey() {
   error.value = "";
   if (integ.value?.hasApiKey && !confirm("Make a new key? The old one stops working straight away.")) return;
-  try { apiKey.value = (await Api.hostNewApiKey()).key; await loadInteg(); }
+  try { apiKey.value = (await HostApi.hostNewApiKey()).key; await loadInteg(); }
   catch (e) { error.value = e.message; }
 }
 async function removeKey() {
-  await Api.hostRemoveApiKey(); apiKey.value = ""; await loadInteg();
+  await HostApi.hostRemoveApiKey(); apiKey.value = ""; await loadInteg();
 }
 const curlExample = () =>
   `curl -X POST ${integ.value?.rsvpEndpoint} \\\n  -H "Authorization: Bearer ${apiKey.value || "lyk_…"}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"eventCode":"ABC12","count":120}'`;
 
 async function signOut() {
-  try { await signOutAndReload(ON_HOST_SITE ? "/host" : "/hosts"); }
+  try { await signOutAndReload("/"); }
   catch (e) { error.value = e.message; }
 }
 const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
@@ -181,7 +182,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
 <template>
   <div class="wide-col stack-3" style="max-width:760px">
     <div class="page-head">
-      <router-link to="/host" class="small muted">‹ Host portal</router-link>
+      <router-link to="/" class="small muted">‹ Host portal</router-link>
       <h1 style="margin-top:8px">Account and team</h1>
       <p v-if="me?.org" class="sub">{{ me.org.name }}</p>
     </div>
@@ -191,8 +192,8 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
     <section v-else-if="needsAccount" class="panel stack-2">
       <h2>Finish your host account first</h2>
       <p class="muted">You need a host account to manage security and your team.</p>
-      <router-link to="/host" class="btn btn-primary">Go to the host portal</router-link>
-      <router-link to="/host/signin" class="btn">I already have one</router-link>
+      <router-link to="/" class="btn btn-primary">Go to the host portal</router-link>
+      <router-link to="/signin" class="btn">I already have one</router-link>
     </section>
 
     <template v-else-if="me">
