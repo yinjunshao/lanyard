@@ -11,6 +11,8 @@ import StepYou from "../components/welcome/StepYou.vue";
 import StepMode from "../components/welcome/StepMode.vue";
 import StepFor from "../components/welcome/StepFor.vue";
 import StepLinks from "../components/welcome/StepLinks.vue";
+import StepSave from "../components/welcome/StepSave.vue";
+import StepDone from "../components/welcome/StepDone.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -21,10 +23,11 @@ const STEPS = [
   { id: 2, title: "Student or working", comp: StepMode },
   { id: 3, title: "What you can help with", comp: StepFor },
   { id: 4, title: "Your links", comp: StepLinks },
-  { id: 5, title: "Save your card", comp: null },
-  { id: 6, title: "Done", comp: null },
+  { id: 5, title: "Save your card", comp: StepSave },
+  { id: 6, title: "Your card is ready", comp: StepDone },
 ];
-// Steps 2 to 5 can be skipped. Step 1 needs a name, and step 6 is the end.
+// Steps 2 to 5 can be skipped. Step 1 needs a name, and step 6 is the end. (Step 5 cannot be
+// skipped while a promo code is waiting: the email is what lets them claim it.)
 const SKIPPABLE = [2, 3, 4, 5];
 
 const ready = ref(false);
@@ -78,6 +81,14 @@ watch(stepNo, async () => {
 // are in the steps; the server ignores everyone else and the funnel is not counted twice.
 function remember(to) {
   if (!inProgress.value) return;
+  // The done screen is the end: finish it on the server as soon as it shows, so a closed tab
+  // there does not bring the steps back.
+  if (to === LAST) {
+    me.profile.onboarding_step = null;
+    me.profile.onboarding_max = LAST + 1;
+    api("/api/onboarding", "PUT", { done: true }).catch(() => { /* My card would ask once more */ });
+    return;
+  }
   if (me.profile.onboarding_step === to && (me.profile.onboarding_max || 0) >= to) return; // the server has it
   me.profile.onboarding_step = to;
   me.profile.onboarding_max = Math.max(me.profile.onboarding_max || 0, to);
@@ -120,7 +131,7 @@ async function next() {
       <header class="welcome-top">
         <button type="button" class="link-btn welcome-nav" @click="back">‹ {{ stepNo === 1 ? "Leave" : "Back" }}</button>
         <span class="label tnum" aria-live="polite">Step {{ stepNo }} of {{ LAST }}</span>
-        <button v-if="SKIPPABLE.includes(stepNo)" type="button" class="link-btn welcome-nav" @click="skip">Skip</button>
+        <button v-if="SKIPPABLE.includes(stepNo) && !stepEl?.noSkip" type="button" class="link-btn welcome-nav" @click="skip">Skip</button>
         <span v-else class="welcome-nav" aria-hidden="true"></span>
       </header>
       <div class="welcome-bar" role="progressbar" aria-label="Your progress" :aria-valuenow="stepNo" aria-valuemin="1" :aria-valuemax="LAST"
@@ -136,7 +147,7 @@ async function next() {
         <p v-if="error" class="error-text" role="alert">{{ error }}</p>
       </section>
 
-      <div v-if="stepNo < LAST" class="thumb-bar">
+      <div v-if="stepNo < LAST && !stepEl?.hideContinue" class="thumb-bar">
         <div class="inner">
           <button type="button" class="btn btn-primary" :disabled="busy || stepEl?.ready === false" @click="next">{{ busy ? "Saving…" : "Continue" }}</button>
         </div>

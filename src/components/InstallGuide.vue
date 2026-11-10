@@ -1,3 +1,16 @@
+<script>
+// Should the "add to home screen" panel show? On a phone only, and only once: never again after
+// "Not now" or "I've added it", once this account has opened Lanyard from a home-screen icon, or
+// when Android reports it's installed. (On a computer it's just in Settings.) Shared by My card and
+// the welcome steps; this file already loads wherever the panel shows, so it adds no chunk.
+import { platform, installDismissed, installedHere, relatedAppInstalled, isStandalone } from "../lib/install";
+
+export async function offerInstall(user) {
+  if (isStandalone() || platform() === "desktop" || installDismissed() || installedHere() || user?.appInstalled) return false;
+  return !(await relatedAppInstalled());
+}
+</script>
+
 <script setup>
 // How to put Lanyard on your home screen, for the phone you're holding.
 import { computed } from "vue";

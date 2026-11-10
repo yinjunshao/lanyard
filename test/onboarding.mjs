@@ -164,4 +164,18 @@ console.log("\n# The steps share what Edit profile uses (no second copy)");
   check("steps 2 to 5 can be skipped, step 1 and 6 cannot", has(read("src/views/Welcome.vue"), "SKIPPABLE = [2, 3, 4, 5]"));
 }
 
+console.log("\n# Steps 5 and 6: save the card, and done");
+{
+  const save = read("src/components/welcome/StepSave.vue"), done = read("src/components/welcome/StepDone.vue"), shell = read("src/views/Welcome.vue");
+  check("step 5 uses the same EmailSetup as Settings and the redeem page, and offers a passkey after the email", has(save, "<EmailSetup", "registerPasskey", "one-tap sign-in", "back in on a new phone") && save.indexOf("<EmailSetup") < save.indexOf("Add a passkey"));
+  check("the passkey is only offered once the email is saved, and only where the browser supports it", has(save, "verified && canPasskey && !me.user?.hasPasskey"));
+  check("a waiting promo code means step 5 cannot be skipped, since the email is what claims it", has(save, "pendingCode()", "noSkip") && has(shell, "!stepEl?.noSkip"));
+  check("the recovery-key way of saving is still one link away (the claim page is unchanged)", has(save, 'to="/claim"') && has(read("src/views/Claim.vue"), "Get a recovery key", "recoveryCreate"));
+  check("the done screen shows the same Badge as My card, with the same ?s=q address", has(done, "<Badge", "withSource(", '"q"', "defaultCard()"));
+  check("it offers the install prompt by the one shared rule, and Claim your code when one is waiting", has(done, "offerInstall", "<InstallGuide", "pendingCode()", "Claim your code", "/redeem/"));
+  check("My card uses that same install rule", has(read("src/views/MyCard.vue"), "offerInstall(me.user)"));
+  check("reaching step 6 finishes onboarding on the server", has(shell, "if (to === LAST)", "{ done: true }"));
+  check("the progress bar is a labelled progressbar and a step change moves focus to its heading", has(shell, 'role="progressbar"', "aria-valuetext", "h.focus("));
+}
+
 summary();

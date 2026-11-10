@@ -10,8 +10,8 @@ import RatingInput from "../components/RatingInput.vue";
 import { downloadBadge } from "../lib/qr";
 import { relativeDay } from "../lib/time";
 import { subtitleParts, withSource } from "../lib/profile";
-import InstallGuide from "../components/InstallGuide.vue";
-import { isStandalone, platform, installDismissed, dismissInstall, installedHere, relatedAppInstalled } from "../lib/install";
+import InstallGuide, { offerInstall } from "../components/InstallGuide.vue";
+import { dismissInstall } from "../lib/install";
 
 const router = useRouter();
 const route = useRoute();
@@ -22,13 +22,9 @@ function closeWelcome() {
   welcome.value = false;
   router.replace({ query: {} });
 }
-// On a phone only, and only once: never again after "Not now" or "I've added
-// it", once this account has opened Lanyard from a home-screen icon, or when
-// Android reports it's installed. (On a computer it's just in Settings.)
+// On a phone only, and only once (the rules are in offerInstall).
 const showInstall = ref(false);
-if (!isStandalone() && platform() !== "desktop" && !installDismissed() && !installedHere() && !me.user?.appInstalled) {
-  relatedAppInstalled().then((yes) => { showInstall.value = !yes; });
-}
+offerInstall(me.user).then((yes) => { showInstall.value = yes; });
 function hideInstall() { dismissInstall(); showInstall.value = false; }
 
 // "Finish your card": what's missing from the profile, each a tap away from
