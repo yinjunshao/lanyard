@@ -359,6 +359,7 @@ app.get("/api/account/consents", async (c) => {
 });
 app.get("/api/auth/sessions", (c) => Alerts.listSessions(c, c.env.DB));
 app.post("/api/auth/signout-others", (c) => Alerts.signOutOthers(c, c.env.DB));
+app.delete("/api/auth/sessions/:id", (c) => Alerts.signOutDevice(c, c.env.DB, c.req.param("id")));
 app.post("/api/account/event-emails", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   return Alerts.setEventEmails(c, c.env.DB, body.on === true);

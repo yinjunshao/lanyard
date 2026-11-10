@@ -51,6 +51,7 @@ export const Api = {
   privacyRequest: (body) => api("/api/privacy-request", "POST", body),
   sessions: () => api("/api/auth/sessions"),
   signOutOthers: () => api("/api/auth/signout-others", "POST"),
+  signOutDevice: (id) => api(`/api/auth/sessions/${encodeURIComponent(id)}`, "DELETE"),
   setEventEmails: (on) => api("/api/account/event-emails", "POST", { on }),
   // The offline copy of /api/me is cleared even if the request fails (for example
   // no signal), so a signed-out device never draws the old badge from cache.

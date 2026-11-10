@@ -68,7 +68,8 @@ Written before the split. Each line gets ticked, with its new place, once it wor
   - The shell is in `Settings.vue` itself (back link and title, from each route's `meta.title`), not a separate component: a component with a `<slot>` would grow the Vue runtime chunk every public page loads (D018). The old page is kept for now as `settings/SettingsAll.vue` at `/app/settings/all` so nothing is unreachable between commits; F09.2 removes it.
 - [x] F09.2 Move each section into its page without changing behaviour (one commit per page is fine).
   - One commit for all seven pages. Pages are in `src/views/settings/`. `EmailSetup` was split: the add-and-confirm form stays (Account), the two switches moved to the new `EmailPreferences` (Email and notifications). "Sign in on another device" became `SignInOnAnotherDevice`. The signed-in devices list is still `DevicesList` until F09.3. `test/homepath.mjs` now reads `SettingsHelp.vue` for the About link.
-- [ ] F09.3 Devices sheet, plus `DELETE /api/auth/sessions/:id` with a security test (you can't delete another user's session).
+- [x] F09.3 Devices sheet, plus `DELETE /api/auth/sessions/:id` with a security test (you can't delete another user's session).
+  - `GET /api/auth/sessions` now returns an opaque `id` (first 16 hex characters of a SHA-256 of the stored session id with a fixed prefix; it cannot be turned back into the cookie or the stored id) and `until`. `DELETE /api/auth/sessions/:id` finds the handle among the caller's own sessions only; someone else's, a made-up one and a malformed one all give 404, and the caller's own current session gives 400 (use Log out). 9 checks under "Signed-in devices" in `test/security.mjs`. The host account page still uses the old `DevicesList`.
 - [ ] F09.4 Anchor redirects and link updates.
 - [ ] F09.5 Two-column layout on wide screens.
 

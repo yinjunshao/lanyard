@@ -4,7 +4,7 @@
 // has the inbox already received the code there.
 import { one, run, all } from "./db.js";
 import { bump, HOUR } from "./ratelimit.js";
-import { requireUser } from "./session.js";
+import { HttpError, requireUser, sha256Hex } from "./session.js";
 import { sendMail } from "./mail.js";
 import { signInAlertEmail } from "./mail-templates.js";
 import { emailLink } from "./unsub.js";
@@ -38,13 +38,38 @@ export async function notifySignIn(c, db, userId, how) {
   } catch (e) { console.error(e); }
 }
 
+// An opaque, short handle for one session row, so the page can name a device
+// without ever seeing the stored session id (which is itself a hash of the cookie,
+// or on a very old row the cookie itself). It cannot be turned back into either.
+const handleOf = async (sessionId) => (await sha256Hex(`session-handle:${sessionId}`)).slice(0, 16);
+
 // Signed-in devices, newest first.
 export async function listSessions(c, db) {
   const user = requireUser(c);
-  const rows = await all(db, "SELECT id, created_at, user_agent FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 20", user.id, Date.now());
+  const rows = await all(db, "SELECT id, created_at, expires_at, user_agent FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 20", user.id, Date.now());
   return c.json({
-    sessions: rows.map((r) => ({ current: r.id === c.get("sessionId"), device: describeDevice(r.user_agent || ""), at: r.created_at })),
+    sessions: await Promise.all(rows.map(async (r) => ({
+      id: await handleOf(r.id),
+      current: r.id === c.get("sessionId"),
+      device: describeDevice(r.user_agent || ""),
+      at: r.created_at,
+      until: r.expires_at,
+    }))),
   });
+}
+
+// Ends one of the caller's own other sessions. A handle that is not theirs looks
+// the same as one that does not exist.
+export async function signOutDevice(c, db, handle) {
+  const user = requireUser(c);
+  if (!/^[0-9a-f]{16}$/.test(handle || "")) throw new HttpError(404, "That device is not signed in any more.", "not_found");
+  const rows = await all(db, "SELECT id FROM sessions WHERE user_id = ? AND expires_at > ? LIMIT 50", user.id, Date.now());
+  let target = null;
+  for (const r of rows) if ((await handleOf(r.id)) === handle) { target = r.id; break; }
+  if (!target) throw new HttpError(404, "That device is not signed in any more.", "not_found");
+  if (target === c.get("sessionId")) throw new HttpError(400, "That is this device. Use Log out instead.", "this_device");
+  await run(db, "DELETE FROM sessions WHERE id = ? AND user_id = ?", target, user.id);
+  return c.json({ ok: true });
 }
 
 export async function signOutOthers(c, db) {

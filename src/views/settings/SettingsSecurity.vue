@@ -1,11 +1,10 @@
 <script setup>
-// Sign-in and devices: every way back into the account. The Devices button gets its
-// sheet in F09.3. Later features add their rows below.
+// Sign-in and devices: every way back into the account. Later features add their rows below.
 import { ref } from "vue";
 import { me, refreshMe } from "../../lib/store";
 import { registerPasskey, passkeysSupported } from "../../lib/passkeys";
 import AuthenticatorSetup from "../../components/AuthenticatorSetup.vue";
-import DevicesList from "../../components/DevicesList.vue";
+import DevicesSheet from "../../components/DevicesSheet.vue";
 import SignInOnAnotherDevice from "../../components/SignInOnAnotherDevice.vue";
 
 const error = ref("");
@@ -40,7 +39,7 @@ async function addPasskey() {
 
     <section class="panel stack"><AuthenticatorSetup /></section>
 
-    <section class="panel stack"><DevicesList /></section>
+    <section class="panel stack"><DevicesSheet /></section>
 
     <section class="panel stack"><SignInOnAnotherDevice /></section>
 

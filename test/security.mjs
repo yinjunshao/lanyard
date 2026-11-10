@@ -45,6 +45,39 @@ console.log("\n# Sessions and bots");
   check("new guest accounts are rate-limited per IP", blocked > 0, { blocked });
 }
 
+console.log("\n# Signed-in devices");
+{
+  const a = await signup("DevA", { ip: "10.9.0.1" });
+  const b = await signup("DevB", { ip: "10.9.0.2" });
+  // Give A a second device and B a second device.
+  const second = async (owner, ip) => {
+    const d = client({ ip });
+    const r = await d.post("/api/auth/redeem", { code: (await owner.c.post("/api/auth/link")).json.code });
+    if (r.status !== 200) throw new Error("second device failed " + r.status + " " + r.text);
+    return d;
+  };
+  const a2 = await second(a, "10.9.0.3");
+  const b2 = await second(b, "10.9.0.4");
+  const list = (await a.c.get("/api/auth/sessions")).json.sessions;
+  const stored = q("SELECT id FROM sessions WHERE user_id = ?", a.id).map((r) => r.id);
+  check("the device list gives each device a short handle", list.length === 2 && list.every((s) => /^[0-9a-f]{16}$/.test(s.id)), list);
+  check("a handle is not the stored session id or any part of it", list.every((s) => !stored.some((id) => id.includes(s.id) || s.id.includes(id.slice(0, 8)))));
+  const cur = list.find((s) => s.current), other = list.find((s) => !s.current);
+  check("exactly one device is marked as this one", !!cur && !!other);
+
+  const bList = (await b.c.get("/api/auth/sessions")).json.sessions;
+  const bOther = bList.find((s) => !s.current);
+  const cross = await a.c.del("/api/auth/sessions/" + bOther.id);
+  check("you cannot sign out someone else's device", cross.status === 404 && (await b2.get("/api/me")).json.user?.id === b.id, cross.status);
+  check("a made-up or malformed handle signs nothing out", (await a.c.del("/api/auth/sessions/0000000000000000")).status === 404 && (await a.c.del("/api/auth/sessions/x%27%20OR%201=1")).status === 404 && (await a2.get("/api/me")).json.user?.id === a.id);
+  check("the device you are using cannot be removed this way", (await a.c.del("/api/auth/sessions/" + cur.id)).status === 400 && (await a.c.get("/api/me")).json.user?.id === a.id);
+  const anonDel = await client({ ip: "10.9.0.5" }).del("/api/auth/sessions/" + other.id);
+  check("a visitor with no account cannot sign a device out", [401, 403, 404].includes(anonDel.status) && (await a2.get("/api/me")).json.user?.id === a.id, anonDel.status);
+  const gone = await a.c.del("/api/auth/sessions/" + other.id);
+  check("signing out one device ends that session only", gone.status === 200 && (await a2.get("/api/me")).json.user === null && (await a.c.get("/api/me")).json.user?.id === a.id && (await b.c.get("/api/me")).json.user?.id === b.id && (await b2.get("/api/me")).json.user?.id === b.id, gone.json);
+  check("the device list no longer shows it", (await a.c.get("/api/auth/sessions")).json.sessions.length === 1);
+}
+
 console.log("\n# Headers and CSRF");
 {
   const anon = client();
