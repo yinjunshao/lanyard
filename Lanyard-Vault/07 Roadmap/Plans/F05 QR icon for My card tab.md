@@ -28,7 +28,7 @@ Use `qr` for the My card tab. Keep `card` for other places that use it.
 
 ## Tasks
 - [x] F05.1 Add the icon and switch the tab.
-- [ ] F05.2 Check it at 24 px and 20 px, in light and dark, next to Scan and People. The stroke weight must match, and it must not look filled or heavier.
+- [x] F05.2 Check it at 24 px and 20 px, in light and dark, next to Scan and People. The stroke weight must match, and it must not look filled or heavier.
 
 ## Acceptance checks
 - [ ] Tab bar shows a QR glyph for My card. The active and inactive colours behave like the other tabs.
