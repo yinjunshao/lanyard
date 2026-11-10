@@ -72,7 +72,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F28** [[F28 Public-page JS budget]] · P1 · S · Needs: none (added 2026-11-10 from F02; the owner said to fix it later, so it sits at the end of Phase 1) (done 2026-11-10, last commit 0da6975)
 
 ### Phase 2: events
-- [ ] **F15** [[F15 Events tab and event hub]] · P1 · L · Needs: F05, F13 (in progress: Claude subagent, 2026-11-10)
+- [x] **F15** [[F15 Events tab and event hub]] · P1 · L · Needs: F05, F13 (done 2026-11-10, last commit e230686)
 - [ ] **F16** [[F16 Shared ground without AI]] · P1 · M · Needs: F11, F12
 - [ ] **F17** [[F17 Event presence and who to meet]] · P2 · L · Needs: F15, F11, F16 + owner decision (selfie retention)
 
@@ -140,6 +140,7 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
+- 2026-11-10 · F15 · e230686 · Events tab and event hub: a fourth tab lists what is on now and past events with the date attended; check-in lands on a hub with a back arrow, your figures and the people you met there; one shared status rule, no migration, nothing new stored; landing +76 B and public card +72 B gzip
 - 2026-11-10 · F28 · 0da6975 · Public-page JS budget: every public page under 50 KB gzip on first load (landing 60,677 to 44,595 B, public card 55,704 to 49,617 B); /app frame, QR library and a card's connection panel load only where used; test/budget.mjs now ends npm test
 - 2026-11-10 · F14 · 2a335b9 · Onboarding revamp: new cards made one question a screen at /app/welcome, saved as answered and resumable on any device; Terms and 18+ kept on step 1; guest-after-connect and promo-code hand-offs; migration 0022; counts-only funnel on the admin page; landing -4.5 KB and public card -4.4 KB gzip
 - 2026-11-10 · F13 · 2ad7dfa · Connection provenance: each connection records QR code, code or link (migration 0021, old ones stay unknown); People line and person-page footer with date and time; export and deletion tested, hosts never see it; landing page unchanged, public card +549 B gzip

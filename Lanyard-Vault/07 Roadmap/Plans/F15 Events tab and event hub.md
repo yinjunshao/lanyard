@@ -4,7 +4,7 @@ id: F15
 priority: P1
 phase: 2
 size: L
-status: In progress
+status: Done
 needs: [F05, F13]
 ---
 # F15 Events tab and event hub
