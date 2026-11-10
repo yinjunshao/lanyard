@@ -4,7 +4,7 @@ id: F12
 priority: P1
 phase: 1
 size: M
-status: In progress
+status: Done
 needs: [F08, F11]
 ---
 # F12 Institution picker
@@ -56,14 +56,26 @@ A script (`scripts/backfill-institutions.mjs`) matches existing `uni` text again
     orgs.university: 1 with text and no id; 1 matched (1 will have their text replaced by the official name, for example an alias); 0 unmatched
     
     Dry run: nothing changed. Add --apply to update.
-- [ ] F12.5 Allow-list the data file in the copy check from [[F03 Neutral copy with no named university]].
+- [x] F12.5 Allow-list the data file in the copy check from [[F03 Neutral copy with no named university]].
+  - `test/copycheck.mjs` already allow-lists exactly `src/data/institutions-uk.json` (the pattern `src/data/institutions-*.json`, "the institution list (F12) has to name them"). Nothing was widened. With the real list in place `node test/copycheck.mjs` passes, so every other file in `src/`, `worker/` and `public/` is still checked; the picker, the Worker helper, the backfill script and the tests name no institution, and tests use `Example University` and ids read from the list.
 
 ## Acceptance checks
-- [ ] Typing a common acronym finds the full official name.
-- [ ] A custom institution saves and shows on the card exactly as typed.
-- [ ] The profile editor chunk grows by no more than about 20 KB gzipped. Public pages are unchanged.
+- [x] Typing a common acronym finds the full official name. (In a local browser, `ucl` listed University College London first with `UCL` shown beneath it, Enter chose it with focus back on the button, and Save stored the id and the official name. `test/institutions.mjs` checks `ucl`, `lse` and `qmul` against the real list.)
+- [x] A custom institution saves and shows on the card exactly as typed. (Browser: typed a made-up name, chose the "Not listed? Use ..." row, saved; `/api/me` and the public card both returned it as typed with `institution_id` null. `test/institutions.mjs` checks it through the API, and that text over 120 characters is cut.)
+- [x] The profile editor chunk grows by no more than about 20 KB gzipped. Public pages are unchanged. (Gzip from `dist/`: Edit profile chunk 5,927 to 6,510 B; the picker code that moved into the in-app `UiSelect` chunk +2,052 B (2,058 to 4,110); the data chunk 3,725 B, fetched only when a picker opens (checked in the browser: not requested on load). Public first-load JS below.)
 
 ## Log
--
+- 2026-11-10 (Claude subagent): University, Studied at and a society's university are now a searchable picker over a UK institution list, with a "Not listed? Use ..." row, a one-tap suggestion from a `.ac.uk` email, and the id stored beside the display text (migration 0020, additive). A backfill script (dry run by default, no remote option) gives existing profiles an id. Onboarding (F14) is not built yet and should reuse the picker in `EditProfile.vue`.
+- **How the list was made:** an AI agent wrote `src/data/institutions-uk.json` from its own knowledge, with no download and no check against an official list (the plan asked for an official source; none could be fetched reliably). 137 entries (England, Scotland, Wales, Northern Ireland), 3.7 KB gzip. Names, aliases and email domains it was not sure of were left out. **The owner should review it or replace it with the Office for Students Register and the lists for the other nations**, keeping the ids of any institution already saved. See [[D021 Institution list from knowledge, loaded when the picker opens]]. No web pages were used.
+- First-load JS, gzip of entry + static imports + page chunk, from `dist/`, before F12 (commit 885d760) and after: Landing 65,172 to 65,167 B; public card 59,568 to 59,564 B. No growth (the small drop is hash noise). An earlier version with a separate picker component, then with a separate combobox chunk, grew both by about 40 B because the router's preload list in the entry gained the new file names; `UiCombobox` is now exported from `UiSelect.vue` so it shares the chunk already listed. Both pages are still over 50 KB and stay with F28. Data chunk 3,725 B gzip.
+- Found in the browser and fixed: "Use it" set the id, which removed the suggestion before the name was read, so the name was not filled. Fixed and rechecked.
+- Checked in a local browser (Chrome engine) with a local test account: 1280 px light and 375 px dark, pointer, and keyboard (focus the field, type to open, Enter to choose, Escape to close, focus returns to the button). Not checked: a screen reader, the host dashboard society form in a browser (covered by API tests only), and a real `.ac.uk` verified email (I set `email_domain` in the local database to see the suggestion).
+- Left over: `orgs.institution_id` is stored and exported but the admin screen still shows the university text only. [[F16 Shared ground without AI]] should compare `institution_id` (returned on `/api/me`; add it to the card and room payloads when needed). Event reports still count `uni` text, not ids.
+
+### Owner steps
+- Review the F12 commits, `git push`, `npm run db:remote` (applies `0020_institution_id.sql`, two nullable columns, safe before the new code; 0018 and 0019 are also still to be applied), then `npm run deploy`.
+- Review `src/data/institutions-uk.json` or replace it with an official list.
+- Optional: export D1, run `node scripts/backfill-institutions.mjs --sqlite <copy>`, read the unmatched values, and ask for a remote option if you want it run on production.
+- Try the picker with VoiceOver or NVDA.
 
 Related: [[Data Model]] · back to [[00 Master To-Do]]

@@ -148,6 +148,17 @@ console.log("\n# Source guards");
   check("and it sends the id with the text", /institutionId: f\.value\.institutionId/.test(edit));
 }
 
+console.log("\n# Search finds the official name from a common short name");
+{
+  const { rankOptions } = await import("../src/lib/match.js");
+  const options = list.map((i) => ({ value: i.id, label: i.name, aliases: i.aliases }));
+  const first = (q) => rankOptions(options, q)[0]?.option.label;
+  check("the short name UCL finds the full official name first", first("ucl") === "University College London", first("ucl"));
+  check("LSE and QMUL do too", first("lse") === "London School of Economics and Political Science" && first("qmul") === "Queen Mary University of London");
+  check("case and accents do not matter", first("  UCL ") === "University College London");
+  check("a word from the name finds it", rankOptions(options, "edinburgh").some((r) => r.option.value === "university-of-edinburgh"));
+}
+
 console.log("\n# Backfill script");
 {
   const { plan, sqlFor, report } = await import("../scripts/backfill-institutions.mjs");

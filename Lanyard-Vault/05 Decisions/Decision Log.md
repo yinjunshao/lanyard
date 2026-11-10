@@ -7,6 +7,7 @@ Newest context first. Each decision has its own note (context, decision, consequ
 
 | ID | Decision | Status |
 | --- | --- | --- |
+| [[D021 Institution list from knowledge, loaded when the picker opens]] | The UK institution list is agent-written and needs owner review; it loads only when a picker opens; typing your own always works | Accepted |
 | [[D020 Host accounts separate from attendee accounts]] | Host accounts have their own email-code sign-in, sessions and cookie on host.lanyd.fyi; existing host accounts reset | Accepted |
 | [[D019 Settings pages load from the layout, not the router]] | One `/app/settings/:page?` route; `Settings.vue` loads each page, so public pages load no extra route code | Accepted |
 | [[D018 Hand-built pickers outside the shared Vue chunk]] | Custom pickers by hand; no Teleport, `useId`, `<slot>` or `defineAsyncComponent` where public pages would pay | Accepted |
