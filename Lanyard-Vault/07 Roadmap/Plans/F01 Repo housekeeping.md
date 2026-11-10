@@ -27,7 +27,8 @@ The `.gitignore` in the project folder is still the old one. An earlier session 
   - OS: `Thumbs.db`, `desktop.ini`
 - [x] F01.2 Run `git ls-files -ci --exclude-standard`. For each file listed, run `git rm --cached <file>` (removes it from git, keeps it on disk). List what was untracked in the commit body.
 - [x] F01.3 Confirm `.dev.vars` and `.migrations/` have never been committed: `git log --all --oneline -- .dev.vars .migrations`. If they have, stop and tell the owner (secrets in history need rotating, and history rewriting is the owner's call).
-- [ ] F01.4 Ask the owner (do not decide alone) whether `demo-v1/`, `brag-output/`, `logo-concepts/` should stay in git. Record the answer here.
+- [x] F01.4 Ask the owner (do not decide alone) whether `demo-v1/`, `brag-output/`, `logo-concepts/` should stay in git. Record the answer here.
+  - **Owner answer (2026-11-10):** keep `logo-concepts/` in git only. `brag-output/` and `demo-v1/` stay local: both are now ignored and `brag-output/` was untracked with `git rm --cached` (files kept on disk). The owner also asked for the whole vault to be committed.
 
 ## Acceptance checks
 - [ ] `git status` shows no untracked junk after a build and a test run.

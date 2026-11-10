@@ -65,3 +65,8 @@ Lanyard-Vault/.obsidian/cache
 # OS
 Thumbs.db
 desktop.ini
+
+# Kept local by owner decision (F01.4, 2026-11-10): demo video sources and
+# renders, and the locked-down v1 demo. logo-concepts/ stays in git.
+brag-output/
+demo-v1/

@@ -45,7 +45,7 @@ These block the items in brackets. Tick each one and write the answer in the lin
 - [ ] Host reset: option **A** (reset accounts, keep events) or **B** (full wipe) ([[F10 Separate host accounts on host subdomain]])
 - [ ] Lanyard Plus price: the code says £1.49 / £11.99, [[Pricing]] says £2.99 / £24. Also confirm what Plus includes ([[F27 Lanyard Plus and billing]])
 - [ ] Legal entity, full postal address and ICO registration ([[F26 Mailing list from news address]] footer; [[F27 Lanyard Plus and billing]] before any charge; [[UK GDPR Audit 2026-11-01]] High 3)
-- [ ] Which of `demo-v1/`, `brag-output/`, `logo-concepts/` stay in git ([[F01 Repo housekeeping]])
+- [x] Which of `demo-v1/`, `brag-output/`, `logo-concepts/` stay in git ([[F01 Repo housekeeping]]): only `logo-concepts/` (answered 2026-11-10)
 - [ ] AI people search on by default with an opt-out, and the policy wording ([[F21 AI foundation]], [[F24 Do I know someone who]])
 - [ ] Event presence selfies deleted 48 hours after the event ends: OK? ([[F17 Event presence and who to meet]])
 
