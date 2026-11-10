@@ -50,7 +50,8 @@ Plain, warm, short. No named universities ([[F03 Neutral copy with no named univ
 - [x] F14.3 Step 5 email and optional passkey. Step 6 done screen.
   - `StepSave.vue` is the same `EmailSetup` as Settings and the redeem page (code by email; the optional news tick is still unticked and still only offered after the code), then, once the email is saved and the browser supports it, "Also add a passkey for one-tap sign-in" with the one line "So you can get back in on a new phone". Continue only appears once the email is saved; Skip is there, except while a promo code is waiting (the email is what lets them claim it). A link to `/claim` keeps the recovery-key way of saving. `StepDone.vue` shows the same `Badge` as My card (QR with `?s=q`), "Show this at your next event", the install prompt by one shared rule (`offerInstall`, now also used by My card), and "Claim your code" as the one primary action when `pendingCode()` has one (otherwise "Open my card"). Reaching step 6 finishes onboarding on the server, so a closed tab there does not bring the steps back.
   - Decision: step 5 can be skipped. The owner said email is "becoming compulsory", but it is not today (D003: guest first), and the account banner still asks, so a hard stop would be a product change. See the Log.
-- [ ] F14.4 The guest-after-connect path and the redeem-code hand-off.
+- [x] F14.4 The guest-after-connect path and the redeem-code hand-off.
+  - Every way into a first card now opens `/app/welcome` (Landing "Make your card", Sign in, the redeem page, My card with no card); `/app/profile` with no card redirects there. A guest who connected first has a stub profile that starts at step 1 (F14.1): People asks them "Finish your card so Sam can find you again." with one button, My card carries them on in the steps (unless they chose Leave in this session), and step 1 repeats the line with the name of the latest person they met and no Terms tick (they gave it in the connect sheet). The connect sheet and the public card are unchanged: a new person from a scanned badge still connects with a name and one tick, and `?s=` is still read once, removed from the address and sent as `via` (guarded in `test/onboarding.mjs`). The redeem hand-off: the poster code is held in `lanyard-redeem` through the steps, step 5 cannot be skipped while one is waiting, and the done screen's one primary action is "Claim your code" (`/redeem/CODE`), which claims it because there is now a card and a confirmed email.
 - [ ] F14.5 Banner and panel suppression. Prune the MyCard checklist.
 - [ ] F14.6 Funnel counters and the admin table.
 - [ ] F14.7 Walk through on a 375 px phone in light and dark. Every step fits without scrolling (except Links).
@@ -59,6 +60,19 @@ Plain, warm, short. No named universities ([[F03 Neutral copy with no named univ
 - [ ] A new person goes from QR scan of the poster → `/redeem` → account → onboarding → code claimed, without hitting a dead end.
 - [ ] Closing the tab at step 3 and reopening resumes at step 3.
 - [ ] The funnel table shows step counts after a test run.
+
+## Consent and legal steps: old and new
+Every consent or legal step the old first run had, and where it is now. Each is checked by `test/onboarding.mjs`.
+| # | Old | Now |
+| --- | --- | --- |
+| 1 | One tick on "Make your card": 18+ and the Terms of Service and Privacy Policy (links open in a new tab), unticked, the card is not made without it | Step 1, the same words, links and tick, unticked. Continue stays off until it is ticked; the server still refuses with `terms_required` |
+| 2 | The same tick in the connect sheet for a guest, and the server refuses without it | Unchanged (`ConnectSheet.vue`, `POST /api/connect`). A new person from a scanned badge goes no further than this |
+| 3 | The Terms pop-up on every /app page for anyone with a card who has not accepted the current version | Unchanged on /app. The welcome page is not an /app page, so it does not sit over the question: step 1 asks for the tick again for such a person and sends it through the same `POST /api/terms/accept` |
+| 4 | Consent recorded in `consents` and appended to `consent_log` under the Terms version, 18+ recorded with its time | Unchanged: step 1 calls the same `POST /api/profile`. The Terms version string (`2026-10-26`) is unchanged |
+| 5 | News and offers tick in the email form, unticked, never required | Unchanged: step 5 is the same `EmailSetup` |
+| 6 | Shared selfie consent in the connect sheet | Unchanged |
+| 7 | A promo code needs a card and a confirmed email | Unchanged on the redeem page; step 5 cannot be skipped while a code is waiting |
+| 8 | Guest-first with passkeys (D003), the claim page with the recovery key, the signed-in hint | Unchanged: step 5 links to `/claim`, the passkey is an extra after the email, and nothing here touches `src/lib/signedin.js` |
 
 ## Log
 -

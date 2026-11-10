@@ -178,4 +178,58 @@ console.log("\n# Steps 5 and 6: save the card, and done");
   check("the progress bar is a labelled progressbar and a step change moves focus to its heading", has(shell, 'role="progressbar"', "aria-valuetext", "h.focus("));
 }
 
+console.log("\n# Every consent and legal step the old onboarding had is still there");
+{
+  // The old first run (Edit profile "Make your card"), the connect sheet, the terms pop-up and the email form:
+  //  1. one tick for 18+ and the Terms and Privacy Policy, with links, unticked, before a card is made
+  //  2. the same tick in the connect sheet for a guest, and the server refuses without it
+  //  3. the Terms pop-up for anyone with a card who has not accepted the current version
+  //  4. consent recorded in consents and consent_log under the Terms version; 18+ recorded with its time
+  //  5. the news and offers tick in the email form, unticked, and never required
+  //  6. the shared selfie consent in the connect sheet
+  //  7. a promo code needs a verified email
+  const you = read("src/components/welcome/StepYou.vue");
+  check("1. step 1 has the tick: 18+, Terms and Privacy Policy, both links, not pre-ticked, new tab",
+    has(you, "I'm 18 or over, and I agree to the", 'to="/terms" target="_blank"', 'to="/privacy" target="_blank"', "const agreed = ref(false)", 'type="checkbox"'));
+  check("1. step 1 cannot continue without it, and sends both flags to the server",
+    has(you, "needsTerms.value && !agreed.value", "over18: true, acceptTerms: true"));
+  check("1. step 1 asks again only for someone who has not accepted (a guest who connected has)", has(you, "!me.user?.termsAccepted"));
+  check("3. someone with a card but without the current terms accepts them on step 1 through the same call as the pop-up", has(you, "Api.acceptTerms()") && has(read("src/components/TermsGate.vue"), "Api.acceptTerms()"));
+  check("3. the Terms pop-up is still on every /app page", has(read("src/App.vue"), '<TermsGate v-if="r.meta.app" />'));
+  const sheet = read("src/components/ConnectSheet.vue");
+  check("2. the connect sheet still has its tick, sends both flags, and is not sent through the welcome steps",
+    has(sheet, "I'm 18 or over and I agree to the", "acceptTerms: needsAgree.value ? agreed.value : undefined", "over18: needsAgree.value ? agreed.value : undefined") && !/welcome/.test(sheet));
+  check("6. the shared selfie consent is unchanged", has(sheet, "Everyone in the shared selfie agrees to it", "consent: consent.value"));
+  check("5. the news tick in the email form is still unticked and optional", has(read("src/components/EmailSetup.vue"), "const marketing = ref(false)", "(optional)"));
+  check("7. a code still needs a card and a confirmed email", has(read("src/views/Redeem.vue"), "if (!me.user?.emailVerified) return \"email\""));
+  const legal = read("worker/legal.js");
+  check("the Terms version string is unchanged", has(legal, 'TERMS_VERSION = "2026-10-26"'));
+  check("4. the server still records consent in consents and consent_log on profile creation", /await recordConsent\(db, u\.id, termsScope\(\)\);\s*\n\s*\n?\s*const fields = profilePayload/.test(read("worker/index.js")));
+  const T2 = client({ ip: "10.14.9.1" });
+  await T2.post("/api/profile", { name: "Late", acceptTerms: true, over18: true });
+  q("UPDATE users SET age_confirmed_at = NULL, over_18 = 0 WHERE id = (SELECT user_id FROM profiles WHERE name = 'Late')");
+  q("DELETE FROM consents WHERE user_id = (SELECT user_id FROM profiles WHERE name = 'Late')");
+  const m = await me(T2);
+  check("an account with a card and no accepted terms is flagged, as before", m.user.needsTerms === true && m.user.termsAccepted === false);
+  const refused = await T2.post("/api/terms/accept", { accept: true });
+  check("the terms call still needs the 18+ flag as well", refused.status === 400 && refused.json.code === "terms_required");
+  const okay = await T2.post("/api/terms/accept", { accept: true, over18: true });
+  check("and with both it records the consent again", okay.status === 200 && (await me(T2)).user.needsTerms === false);
+}
+
+console.log("\n# Connecting from a scanned card: no extra steps, and how it was made survives");
+{
+  const card = read("src/views/PublicCard.vue"), sheet = read("src/components/ConnectSheet.vue"), landing = read("src/views/Landing.vue");
+  check("the public card and connect sheet never send a visitor into the welcome steps", !/welcome/.test(card) && !/welcome/.test(sheet));
+  check("?s= is still read once, taken out of the address, and sent as via", has(card, "viaOfS(route.query.s)", "router.replace(", ':via="via"') && has(sheet, "via: props.via || undefined"));
+  check("a guest still connects with a name and one tick (the connect sheet asks for nothing more)", has(sheet, 'id="sheet-name"') && [...sheet.matchAll(/id="(sheet-[a-z]+)"/g)].map((m) => m[1]).join() === "sheet-name,sheet-selfie,sheet-message,sheet-private");
+  check("the landing page sends a new person to the welcome steps", has(landing, 'to="/app/welcome"'));
+  check("every way into a first card now goes to the welcome steps", ["src/views/SignIn.vue", "src/views/Redeem.vue", "src/views/MyCard.vue"].every((f) => /['"]\/app\/welcome['"]/.test(read(f))));
+  check("Edit profile sends someone with no card to the welcome steps, and no old link to it is left for a new person", has(read("src/views/EditProfile.vue"), 'router.replace("/app/welcome")')
+    && !/to="\/app\/profile"[^>]*>(Make your card|Set up your card)/.test(read("src/views/Landing.vue") + read("src/views/SignIn.vue") + read("src/views/MyCard.vue")));
+  check("My card carries on in the steps for someone still in them, unless they left", has(read("src/views/MyCard.vue"), "onboarding_step != null && !left", "lanyard-onboarding-left"));
+  check("People asks a guest who connected first to finish their card, by name", has(read("src/views/People.vue"), "Finish your card so {{ finishFor }} can find you again."));
+  check("step 1 says who, for that guest", has(read("src/views/Welcome.vue"), 'api("/api/connections")') && has(read("src/components/welcome/StepYou.vue"), "Finish your card so {{ from }} can find you again."));
+}
+
 summary();

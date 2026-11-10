@@ -63,7 +63,7 @@ onMounted(() => { url.value = `${location.origin}/`; });
         </ol>
 
         <div class="btn-row">
-          <router-link v-if="!me.profile" to="/app/profile" class="btn btn-primary">Make your card</router-link>
+          <router-link v-if="!me.profile" to="/app/welcome" class="btn btn-primary">Make your card</router-link>
           <router-link v-else to="/app" class="btn btn-primary">Open my card</router-link>
           <router-link to="/hosts" class="btn">I'm hosting an event</router-link>
         </div>

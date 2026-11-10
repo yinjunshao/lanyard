@@ -27,7 +27,7 @@ const showMore = ref(!!q("code"));
 
 async function done() {
   await refreshMe();
-  router.replace(me.profile ? afterAccountPath("/app") : "/app/profile");
+  router.replace(me.profile ? afterAccountPath("/app") : "/app/welcome");
 }
 
 async function withPasskey() {
@@ -164,7 +164,7 @@ onMounted(async () => {
 
     <p class="small muted"><router-link to="/terms">Terms</router-link> · <router-link to="/privacy">Privacy</router-link></p>
     <p class="small muted">
-      New here? <router-link to="/app/profile">Make your card</router-link> and save it to this device later.
+      New here? <router-link to="/app/welcome">Make your card</router-link> and save it to this device later.
     </p>
   </main>
 </template>

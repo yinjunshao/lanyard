@@ -16,6 +16,13 @@ import { dismissInstall } from "../lib/install";
 const router = useRouter();
 const route = useRoute();
 
+// Still in the welcome steps (a new card, or a guest who connected first)? Carry on there, unless
+// they chose Leave in this session. The page draws nothing meanwhile.
+let left = false;
+try { left = sessionStorage.getItem("lanyard-onboarding-left") === "1"; } catch { /* not remembered */ }
+const redirecting = !!me.profile && me.profile.onboarding_step != null && !left;
+if (redirecting) router.replace("/app/welcome");
+
 // Just made your card: a short "how it works" the first time.
 const welcome = ref(route.query.welcome === "1");
 function closeWelcome() {
@@ -182,13 +189,14 @@ async function share() {
 </script>
 
 <template>
-  <div v-if="!card" class="stack-3">
+  <div v-if="redirecting" aria-busy="true"></div>
+  <div v-else-if="!card" class="stack-3">
     <div class="page-head">
       <span class="label">My card</span>
       <h1>Make your badge</h1>
       <p class="sub">Fill in your details once, then show your card at every event.</p>
     </div>
-    <router-link to="/app/profile" class="btn btn-primary">Set up your card</router-link>
+    <router-link to="/app/welcome" class="btn btn-primary">Set up your card</router-link>
   </div>
 
   <div v-else class="stack-3">

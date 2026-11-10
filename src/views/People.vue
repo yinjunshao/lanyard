@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { Api } from "../lib/api";
+import { me } from "../lib/store";
 import { buildIndex, search, suggest, terms } from "../lib/search";
 import Icon from "../components/Icon.vue";
 import Avatar from "../components/Avatar.vue";
@@ -68,6 +69,14 @@ function searchInstead() { exact.value = true; }
 // and a follow-up is due as well, those two stay and how you met is left out (F13).
 const howWeMet = (r) => (r.selfieStatus === "request" && needsFollowUp(r) ? "" : connectedShort(r));
 
+// A guest who connected before making a card is still in the welcome steps: ask them to finish it,
+// by name, so the person they just met can find them again (F14).
+const finishFor = computed(() => {
+  if (me.profile?.onboarding_step == null || !rows.value.length) return "";
+  const latest = [...rows.value].sort((a, b) => b.metAt - a.metAt)[0];
+  return (latest.peer.name || "").split(/\s+/)[0] || "them";
+});
+
 const fmt = (t) =>
   new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 </script>
@@ -75,6 +84,11 @@ const fmt = (t) =>
 <template>
   <div class="stack-2">
     <h1>People</h1>
+    <section v-if="finishFor" class="notice stack" aria-label="Finish your card">
+      <strong>Finish your card so {{ finishFor }} can find you again.</strong>
+      <p class="small muted" style="margin:0">It takes about a minute, and you can skip any step.</p>
+      <router-link to="/app/welcome" class="btn">Finish your card</router-link>
+    </section>
     <div class="search-field">
       <Icon name="search" :size="17" />
       <input v-model="query" type="search" placeholder="Search names, skills, courses, notes…"

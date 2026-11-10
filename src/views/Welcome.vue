@@ -35,6 +35,7 @@ const busy = ref(false);
 const error = ref("");
 const stepEl = ref(null);
 const stepBox = ref(null);
+const from = ref(""); // a guest who connected first: who they met, for step 1
 
 const profile = computed(() => me.profile);
 // In the steps when the server says so (a new card, or a guest who connected first).
@@ -67,6 +68,12 @@ onMounted(async () => {
   if (!route.query.step) router.replace({ query: { ...route.query, step: String(startStep()) } });
   ready.value = true;
   remember(stepNo.value); // a guest who connected first is now at step 1: count it
+  if (inProgress.value && stepNo.value === 1) {
+    api("/api/connections").then((r) => {
+      const latest = [...(r.connections || [])].sort((a, b) => b.metAt - a.metAt)[0];
+      from.value = (latest?.peer?.name || "").split(/\s+/)[0] || "";
+    }).catch(() => { /* the line is only a nicety */ });
+  }
 });
 
 // Moving to a new step puts the reader at its heading (for a screen reader and the keyboard).
@@ -141,7 +148,7 @@ async function next() {
 
       <section class="welcome-step stack-2" :aria-label="step.title">
         <div ref="stepBox">
-          <component :is="step.comp" v-if="step.comp" :key="stepNo" ref="stepEl" />
+          <component :is="step.comp" v-if="step.comp" :key="stepNo" ref="stepEl" v-bind="stepNo === 1 ? { from } : {}" />
           <p v-else class="muted">{{ step.title }}</p>
         </div>
         <p v-if="error" class="error-text" role="alert">{{ error }}</p>

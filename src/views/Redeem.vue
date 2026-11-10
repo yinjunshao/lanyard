@@ -154,7 +154,7 @@ function submitTyped() {
           <li><strong>Confirm your email.</strong> One code per person, so we check it's you.</li>
         </ol>
         <p class="small muted" style="margin:0">We'll bring you back here and claim it for you.</p>
-        <button class="btn btn-primary" @click="go('/app/profile')">Make my card</button>
+        <button class="btn btn-primary" @click="go('/app/welcome')">Make my card</button>
         <button class="btn" @click="go('/signin')">I already have a card</button>
       </section>
 

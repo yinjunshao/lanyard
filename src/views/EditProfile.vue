@@ -27,6 +27,8 @@ const agreed = ref(false);
 const firstRun = computed(() => !me.profile);
 const showMore = ref(false);
 onMounted(() => {
+  // No card yet: the welcome steps are where a card is made (F14); this page is for editing one.
+  if (!me.profile) { router.replace("/app/welcome"); return; }
   // Arrived from "Finish your card": put the cursor in the field that's missing.
   if (route.hash) setTimeout(() => {
     const el = document.querySelector(route.hash);
