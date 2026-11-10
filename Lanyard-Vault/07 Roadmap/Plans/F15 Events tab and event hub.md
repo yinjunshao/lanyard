@@ -4,7 +4,7 @@ id: F15
 priority: P1
 phase: 2
 size: L
-status: Not started
+status: In progress
 needs: [F05, F13]
 ---
 # F15 Events tab and event hub
@@ -55,7 +55,8 @@ Order, top to bottom. Keep it calm, with no wall of panels:
 6. `EventChoices` (directory and sponsor choices) as a "Your choices at this event" row that opens a sheet, not a full panel.
 
 ## Tasks
-- [ ] F15.1 Shared status helper (`worker/eventstatus.js`, mirrored in `src/lib/eventstatus.js`), with unit tests including clock edges.
+- [x] F15.1 Shared status helper (`worker/eventstatus.js`, mirrored in `src/lib/eventstatus.js`), with unit tests including clock edges.
+  - `eventStatus(ev, checkedInAt, t)` returns `upcoming`, `ongoing` or `ended`; the two files are byte-identical and `test/events-hub.mjs` (new, in `npm test` before the budget check) fails if they differ. Edges: ended at exactly `ends_at`; with no end time, "more than 12 hours" means strictly more, counted from the later of the start and your check-in; started means `starts_at <= now`; a host-ended event is ended even before it started.
 - [ ] F15.2 Extend `/api/my/events`. Add `/api/my/events/:id`, with tests (404 when not checked in).
 - [ ] F15.3 Events tab, icon and the ongoing dot.
 - [ ] F15.4 Events page with grouping, labels and attended dates.
