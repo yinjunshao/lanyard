@@ -20,7 +20,7 @@ Cloudflare Worker (Hono) ---- ASSETS (dist/)  SPA fallback
 ## Notes
 - `run_worker_first = true`, `not_found_handling = single-page-application`, so deep links work.
 - Host portal can be served from `host.<domain>` (same Worker, two custom domains). See [[D014 Separate host subdomain]].
-- Public pages are code-split to stay near the 50 KB JS budget; QR, passkey and scanner chunks load only where used.
+- Public pages are code-split to stay under the 50 KB JS budget (checked by `test/budget.mjs`, part of `npm test`); the /app frame, QR, passkey, scanner and a card's connection panel load only where used ([[D024 Signed-in frame and heavy pieces load only where used]]).
 - v1 used KV only; v2 moved to D1 + R2. See [[D002 Move from KV to D1 and R2]].
 
 Related: [[Tech Stack]], [[Data Model]], [[Deployment]], [[Codebase Map]]

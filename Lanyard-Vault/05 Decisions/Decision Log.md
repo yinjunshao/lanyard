@@ -7,6 +7,7 @@ Newest context first. Each decision has its own note (context, decision, consequ
 
 | ID | Decision | Status |
 | --- | --- | --- |
+| [[D024 Signed-in frame and heavy pieces load only where used]] | The /app frame, the QR library and the card's connection panel load only where used; Options API off; the 50 KB budget is checked by `npm test` | Accepted |
 | [[D023 Welcome steps keep their place on the server and count only]] | The place in the welcome steps is kept on the server; the funnel is daily counts with nothing about who; the route is paid for by loading the email and passkey code only when tapped | Accepted |
 | [[D022 Record how a connection was made, once and without guessing]] | How two people met is stored once per connection, never guessed for old ones, and never shown to hosts | Accepted |
 | [[D021 Institution list from knowledge, loaded when the picker opens]] | The UK institution list is agent-written and needs owner review; it loads only when a picker opens; typing your own always works | Accepted |
