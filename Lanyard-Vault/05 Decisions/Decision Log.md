@@ -7,6 +7,7 @@ Newest context first. Each decision has its own note (context, decision, consequ
 
 | ID | Decision | Status |
 | --- | --- | --- |
+| [[D022 Record how a connection was made, once and without guessing]] | How two people met is stored once per connection, never guessed for old ones, and never shown to hosts | Accepted |
 | [[D021 Institution list from knowledge, loaded when the picker opens]] | The UK institution list is agent-written and needs owner review; it loads only when a picker opens; typing your own always works | Accepted |
 | [[D020 Host accounts separate from attendee accounts]] | Host accounts have their own email-code sign-in, sessions and cookie on host.lanyd.fyi; existing host accounts reset | Accepted |
 | [[D019 Settings pages load from the layout, not the router]] | One `/app/settings/:page?` route; `Settings.vue` loads each page, so public pages load no extra route code | Accepted |

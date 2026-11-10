@@ -402,6 +402,7 @@ async function sendReport() {
 
 <style scoped>
 .connected-foot { margin: 16px 0 0; text-align: center; }
+.connected-foot time { white-space: nowrap; }
 .tag-x { background: none; border: none; padding: 0 0 0 6px; margin: 0; cursor: pointer; font-weight: 800; color: inherit; min-width: 24px; min-height: 24px; }
 .tag-x:focus-visible { outline: 2px solid var(--strap); }
 </style>

@@ -23,6 +23,7 @@ Offline tests run the real Worker against in-memory SQLite (Node 22+, `node:sqli
 | `node test/hostsetup.mjs` | F07 and F10: every host setup step can be signed out of and resumes from the server; source guards for Back, Sign out and no passkey copy |
 | `node test/mode.mjs` | F11: migration 0019 on an old profile, `mode` / `company` / `role` validation on create and edit, what card, people list, one person and event room return, export and deletion, `subtitleOf()`, search by company and role, and source guards (no hand-built course line; Privacy Policy lists the fields) |
 | `node test/institutions.mjs` | F12: the institution list (unique ids, id = slug of name, pinned ids, domains), migration 0020 on an old profile, institution id validation and clearing on profile and society organisation, export and deletion, the backfill script, source guards (list loaded only by a plain `import()` in the profile editor and host dashboard) |
+| `node test/provenance.mjs` | F13: migration 0021 on an old connection (NULL, not a guess), the `via` whitelist and first-write-only rule, what the people list, one person, the card page and the export return, a connection whose event has gone, deletion, that no host code or host response carries it, the wording (`connectedVia`, `connectedShort`, `metStamp`) and source guards for `?s=` on the QR, copy link, scanner and typed code, and for the card page removing it |
 | `node test/perf.mjs` | DB queries per request on hot paths |
 | `npm test` | Runs every offline test above except perf |
 

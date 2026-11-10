@@ -9,6 +9,7 @@ tags: [product, features]
 - **Cards:** one profile, many cards ("Careers fair", "Hackathon", "Weekend"). Each card has its own note, visible links, tags, theme, QR and code. Free plan: 3 cards; Plus: 12. See [[D015 Profile split from cards]].
 - **Rotating codes:** 4-character card code rotates every 3 days (6h grace). See [[D016 Rotating card codes]].
 - **Connect with shared selfie:** consent from both people, deletable by either. See [[D005 Shared selfie needs both consents]].
+- **How you met** (F13): each connection says how it was made (QR code, code or link), at which event if you were both checked in, and when. Shown to the two people only; old connections just say Connected.
 - **Private notes** per connection; optional "personal note" on a card.
 - **People:** grouped by event and date, keyword search (name, tags), filter.
 - **Messages/threads** on a connection (table `messages`).

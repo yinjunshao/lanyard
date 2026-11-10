@@ -3,7 +3,7 @@ tags: [technical, database]
 ---
 # Data Model
 
-D1 schema from `migrations/0001`-`0020`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
+D1 schema from `migrations/0001`-`0021`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
 
 ## Identity
 - `users` (is_guest, recovery_email, email_domain, verified_student, has_passkey, over_18, plan, plan_until, notify_events)
@@ -17,7 +17,7 @@ D1 schema from `migrations/0001`-`0020`. Conventions: ids are 10-character ungue
 - `card_codes` (current and grace codes with valid_until)
 
 ## Connections
-- `connections` (user_a, user_b, event_id, selfie_key, consent_a, consent_b; unique per pair)
+- `connections` (user_a, user_b, event_id, selfie_key, consent_a, consent_b, **via**; unique per pair). `via` (F13, migration 0021) is how the first scan happened: `qr`, `code` or `link`. Rows made before 0021 are NULL, which means unknown and is shown as just "Connected"; nothing is guessed for them. It is written once, when the connection is made, and a later scan by either person never changes it. It is one value for the pair, so both people see the same wording. `event_id` has no foreign key: when an event is deleted or the host reset sets it to NULL, `via` stays and the event simply drops out of the wording
 - `notes` (private per user), `messages` (thread), `blocks`, `reports`
 - `consents` (record of who agreed to what, kept 6 years)
 

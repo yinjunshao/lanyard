@@ -219,6 +219,7 @@ console.log("\n# Wording: the sentence, the short line and the time");
   check("the person page ends with the sentence and the time", card.includes("connectedVia({ via: connection.via, eventName: connection.event?.name })") && card.includes("metStamp(connection.metAt)")
     && card.indexOf("connected-foot") < card.indexOf('class="thumb-bar"'));
   check("the old Met line is gone (one sentence, not two)", !/Met \{\{ metOn \}\}/.test(card));
+  check("the Privacy Policy data table says how you met is kept", /<td>Users<\/td><td>[^<]*how you met/.test(src("src/views/Privacy.vue")));
   const people = src("src/views/People.vue");
   check("the people list shows the short line, and drops it when a selfie request and a follow-up are both showing",
     people.includes("connectedShort(r)") && /r\.selfieStatus === "request" && needsFollowUp\(r\) \? "" : connectedShort\(r\)/.test(people));

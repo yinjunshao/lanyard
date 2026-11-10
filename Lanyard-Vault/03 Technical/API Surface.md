@@ -11,7 +11,7 @@ Grouped from route definitions in `worker/*.js`. All under `/api` unless noted.
 
 **Profile and cards:** `GET/POST/PUT /profile` (`mode` must be `student` or `career`, otherwise 400; `company` and `role` are trimmed to 80 characters; `institutionId` (or `institution_id`) must be an id from the institution list or null, otherwise 400, and a listed id sets `uni` to the official name; typed `uni` text is capped at 120 characters and, when it changes without an id, clears `institution_id`. `GET /me` also returns `user.emailDomain` for the institution suggestion. `GET /c/:cardId`, `GET /connections`, `GET /connections/:id` and `GET /e/:id/room` return `mode`, `company` and `role` alongside `uni`, `course` and `year`), `POST /cards`, `PUT/DELETE /cards/:id`, `POST /cards/:id/rotate-code`, personal-note routes, `GET /c/:cardId`, `GET /code/:code`
 
-**Connections:** `POST /connect`, `GET /connections`, `GET /connections/:id`, `PUT /connections/:id/note`, `/meta`, `POST /connections/:id/report`, `DELETE /connections/:id`
+**Connections:** `POST /connect` (takes `via`: `qr`, `code` or `link`; anything else or nothing is stored as `link`; set only when the connection is first made), `GET /connections` (each has `via`, `eventName`, `metAt`), `GET /connections/:id` (same, and `eventName`), `GET /c/:cardId` (`viewer.connection` has `via`, `event`, `metAt`; `via` is `null` for connections made before F13) and the data export (`connections[].via`), `PUT /connections/:id/note`, `/meta`, `POST /connections/:id/report`, `DELETE /connections/:id`
 
 **Events (attendee):** `GET /e/:code`, `POST /e/:code/checkin`, `GET /e/:id/room`, `/album`, `/feedback`, `POST /e/:id/feedback`, `GET /my/events`, `GET /home`
 

@@ -25,6 +25,15 @@ Mode (student or career), company and role are part of the profile, like univers
 
 Institution (F12): a profile and a society's organisation record may hold an institution id from the public list, beside the university text. It is in the data download (the profile row, and the host export's organisations) and goes with the profile row on account deletion. The list itself holds no personal data.
 
+## How you met (F13)
+A connection records how the first scan happened (QR code, typed code or shared link) in `connections.via`, beside the time it was made and the event if both people checked in. It is personal data about two people, so:
+- it is shown only to those two people (the people list, the connection page), never to a host: event reports, the live view, the CSV, the webhook, event email and the admin pages do not read it ([[D004 Aggregate-only host analytics]]; `test/provenance.mjs` checks the code and the host responses);
+- it is in each person's data download (`connections[].via`, with `metAt` and the event id);
+- it lives on the connection row, so it goes when either person removes the connection or when either account is deleted. Selfie expiry does not touch it, and the 6 year consent-record rule does not apply to it;
+- it has no retention of its own: it is kept as long as the connection is;
+- connections made before F13 have none and show only "Connected"; a connection whose event has been deleted or reset keeps its method and loses the event name;
+- the card address carries `?s=q`, `?s=c` or `?s=l` only to say how it was opened. The page reads it once and removes it from the address bar, and the server stores only the three allowed values. The Privacy Policy data table lists it.
+
 ## Retention (implemented in `worker/purge.js`)
 - Selfies: 12 months. Feedback text: 12 months.
 - Inactive guests: 30 days. Expired codes and sessions: daily purge.
