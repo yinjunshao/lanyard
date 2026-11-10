@@ -45,7 +45,17 @@ A script (`scripts/backfill-institutions.mjs`) matches existing `uni` text again
   - `EditProfile.vue`: University (Student) and Studied at (Career) are now `UiCombobox` pickers with "Not listed? Use '<typed>'" as the last row, clearable, sending `institutionId` with `uni`. The host dashboard's society "University" field uses the same picker and sends `institutionId`. `UiCombobox` gained an `@open` event; the page fetches the list with a plain `import()` the first time the picker opens (or at once when the account's verified email is a `.ac.uk` address, for the suggestion). "Looks like you're at <name>. Use it?" shows above the field when `/api/me` `user.emailDomain` matches an entry's domains; one tap fills both id and name. Not done: onboarding (F14 has not landed; it should reuse this picker and the `suggestion` code in `EditProfile.vue`).
   - Chunking: a separate picker component or a separate combobox chunk added its file names to the router's preload list in the entry every public page loads (+40 B gzip on Landing). To avoid that, `UiSelect.vue` re-exports `UiCombobox` so both live in the one chunk the app already listed, and the views import it from there (comment in the file).
   - Found and fixed in the browser: "Use it" set the id and then threw before setting the name (the suggestion went away when the id was set). Fixed by reading the suggestion first.
-- [ ] F12.4 Backfill script and dry-run output pasted here.
+- [x] F12.4 Backfill script and dry-run output pasted here.
+  - `scripts/backfill-institutions.mjs`: dry run by default; `--sqlite <file>` (a D1 export or copy) or `--local` (local D1), `--apply` to update. It looks only at rows with text and no id, and matches exactly (ignoring case and spaces) on the official name or an alias that belongs to one institution. A match sets `institution_id` and replaces the text with the official name (a listed institution always shows its official name). Partial matches and ambiguous aliases are left alone. It has no `--remote`; production runs only with the owner's go-ahead (export D1, run it on the copy, read the output, then ask for a remote option). Tests in `test/institutions.mjs`.
+  - Dry run on the **local** D1 (a handful of test profiles, three of them with a short name or different case; nothing production), `node scripts/backfill-institutions.mjs --local`:
+    profiles.uni: 8 with text and no id; 4 matched (3 will have their text replaced by the official name, for example an alias); 4 unmatched
+      unmatched values, most common first (left as they are):
+        2 x "Some Place Else"
+        1 x "Test University"
+        1 x "University of Example"
+    orgs.university: 1 with text and no id; 1 matched (1 will have their text replaced by the official name, for example an alias); 0 unmatched
+    
+    Dry run: nothing changed. Add --apply to update.
 - [ ] F12.5 Allow-list the data file in the copy check from [[F03 Neutral copy with no named university]].
 
 ## Acceptance checks

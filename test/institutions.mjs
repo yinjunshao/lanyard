@@ -148,4 +148,35 @@ console.log("\n# Source guards");
   check("and it sends the id with the text", /institutionId: f\.value\.institutionId/.test(edit));
 }
 
+console.log("\n# Backfill script");
+{
+  const { plan, sqlFor, report } = await import("../scripts/backfill-institutions.mjs");
+  const demo = [
+    { id: "example-university", name: "Example University", aliases: ["EU"], domains: [] },
+    { id: "other-college", name: "Other College", aliases: ["Example University"], domains: [] },
+    { id: "third-place", name: "Third Place", aliases: ["TP"], domains: [] },
+  ];
+  const r = plan({
+    profiles: [{ k: "p1", text: "Third Place" }, { k: "p2", text: " tp " }, { k: "p3", text: "Third" }, { k: "p4", text: "example university" }, { k: "p5", text: "Mine" }, { k: "p6", text: "Mine" }],
+    orgs: [{ k: "o1", text: "third place" }],
+  }, demo);
+  const ups = Object.fromEntries(r.profiles.updates.map((u) => [u.k, u]));
+  check("an exact name matches", ups.p1?.id === "third-place" && ups.p1.renamed === false);
+  check("an alias matches, ignoring case and spaces, and the text becomes the official name", ups.p2?.id === "third-place" && ups.p2.renamed === true);
+  check("a partial name is not guessed", !ups.p3 && r.profiles.unmatched.some(([t]) => t === "Third"));
+  check("text that is one institution's name and another's alias is left alone", !ups.p4);
+  check("unmatched values are counted", r.profiles.unmatched.find(([t]) => t === "Mine")?.[1] === 2);
+  check("organisations are matched too", r.orgs.updates[0]?.id === "third-place");
+  check("the report lists the unmatched values", /2 x "Mine"/.test(report(r)));
+  const db = makeDb();
+  db.exec("INSERT INTO users (id, created_at) VALUES ('b1', 1), ('b2', 1)");
+  db.exec("INSERT INTO profiles (user_id, name, uni, updated_at) VALUES ('b1', 'A', 'x', 1), ('b2', 'B', 'x', 1)");
+  const p = plan({ profiles: [{ k: "b1", text: "TP" }], orgs: [] }, demo);
+  db.exec(sqlFor(p).replace(/\n/g, " "));
+  const a = await db.prepare("SELECT uni, institution_id FROM profiles WHERE user_id = 'b1'").first();
+  const b = await db.prepare("SELECT uni, institution_id FROM profiles WHERE user_id = 'b2'").first();
+  check("the generated SQL updates only the matched row", a.institution_id === "third-place" && a.uni === "Third Place" && b.institution_id === null && b.uni === "x", [a, b]);
+  check("a quote in a value cannot break the SQL", sqlFor({ profiles: { updates: [{ k: "a'b", id: "i", name: "O'Name" }] }, orgs: { updates: [] } }).includes("'O''Name'"));
+}
+
 summary();
