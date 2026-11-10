@@ -40,7 +40,7 @@ Confirmed cause: the missing exit, as the note guessed. The server side behaves 
 Parts of "Likely cause" that were **not** right:
 - The service worker is not part of the trap. `public/sw.js` only caches `GET /api/me`. Every other `/api/` path, including `/api/host/me` which drives the setup step, goes straight to the network. So there is nothing at `/api/host/me` to clear. The `/api/me` copy is already cleared by `Api.logout()` (`clearOfflineData()`). F07.3 therefore only needs to make sure the attendee logout and the new host sign-out both clear it and that it still runs if the page is reloaded straight after.
 - A recovery key does not need to be made "before the profile is saved" to get stuck: any account with a sign-in method and no profile (for example one made before profiles were asked for) is in the same state.
-- [ ] F07.2 Add Back and Sign out to every setup state, plus the `/host/signout` route.
+- [x] F07.2 Add Back and Sign out to every setup state, plus the `/host/signout` route.
 - [ ] F07.3 Clear service-worker cache entries on logout (attendee logout too, in `Settings.vue`).
 - [ ] F07.4 Test the repro steps now end with a clean signed-out host home.
 

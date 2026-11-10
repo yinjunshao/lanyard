@@ -3,7 +3,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { Api } from "../lib/api";
-import { refreshMe } from "../lib/store";
+import { signOutAndReload } from "../lib/store";
 import { registerPasskey, passkeysSupported } from "../lib/passkeys";
 import DevicesList from "../components/DevicesList.vue";
 import EmailSetup from "../components/EmailSetup.vue";
@@ -171,9 +171,8 @@ const curlExample = () =>
   `curl -X POST ${integ.value?.rsvpEndpoint} \\\n  -H "Authorization: Bearer ${apiKey.value || "lyk_…"}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"eventCode":"ABC12","count":120}'`;
 
 async function signOut() {
-  await Api.logout();
-  try { await refreshMe(); } catch { /* guest */ }
-  router.push(ON_HOST_SITE ? "/host" : "/hosts");
+  try { await signOutAndReload(ON_HOST_SITE ? "/host" : "/hosts"); }
+  catch (e) { error.value = e.message; }
 }
 const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 </script>

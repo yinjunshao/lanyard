@@ -3,7 +3,7 @@
 // or events under your own name -> events.
 import { computed, onMounted, ref } from "vue";
 import { Api } from "../lib/api";
-import { me, refreshMe } from "../lib/store";
+import { me, refreshMe, signOutAndReload } from "../lib/store";
 import { registerPasskey, loginPasskey } from "../lib/passkeys";
 import { ON_HOST_SITE, MAIN_ORIGIN } from "../lib/site";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
@@ -22,6 +22,16 @@ const busy = ref(false);
 const createdCode = ref(null);
 
 const accountError = ref("");
+
+// Every step has a way out: a half-finished setup is remembered by the session
+// cookie, so leaving the page is not enough. Sign out clears it.
+const signOutError = ref("");
+const signingOut = ref(false);
+async function signOut() {
+  signOutError.value = ""; signingOut.value = true;
+  try { await signOutAndReload(ON_HOST_SITE ? "/host" : "/hosts"); }
+  catch (e) { signOutError.value = e?.message || "Couldn't sign out. Check your connection and try again."; signingOut.value = false; }
+}
 
 const blankForm = () => ({
   from: "", name: "", venue: "", startsAt: "", endsAt: "", theme: "default",
@@ -233,8 +243,12 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
 <template>
   <div class="wide-col stack-3" style="max-width:760px">
     <div class="page-head">
-      <a v-if="ON_HOST_SITE" :href="MAIN_ORIGIN" class="small muted">‹ lanyard</a>
-      <router-link v-else to="/hosts" class="small muted">‹ For hosts</router-link>
+      <div class="host-head-row">
+        <a v-if="ON_HOST_SITE" :href="MAIN_ORIGIN" class="small muted">‹ Back to Lanyard</a>
+        <router-link v-else to="/hosts" class="small muted">‹ For hosts</router-link>
+        <button type="button" class="link-btn small" :disabled="signingOut" @click="signOut">{{ signingOut ? "Signing out…" : "Sign out" }}</button>
+      </div>
+      <p v-if="signOutError" class="error-text small" role="alert">{{ signOutError }}</p>
       <h1 style="margin-top:8px"><img src="/host-icon.svg" alt="" style="width:32px;height:32px;vertical-align:-6px;margin-right:8px" />Host portal</h1>
       <p v-if="org && state === 'ready'" class="sub">{{ org.name }}</p>
       <p v-if="state === 'ready' || state === 'welcome'" class="small" style="margin-top:6px">

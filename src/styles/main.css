@@ -730,6 +730,8 @@ button.list-row { font: inherit; }
   background: transparent; border: var(--border); border-radius: var(--radius);
   color: var(--graphite); cursor: pointer;
 }
+.host-head-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space); }
+.host-head-row > a, .host-head-row > .link-btn { display: inline-flex; align-items: center; min-height: 44px; }
 .link-btn {
   background: none; border: none; padding: 6px 0;
   color: var(--graphite); font-weight: 700; font-size: 14px;

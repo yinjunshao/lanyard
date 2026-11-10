@@ -22,6 +22,7 @@ const Hosts = () => import("../views/Hosts.vue");
 const HostDashboard = () => import("../views/HostDashboard.vue");
 const HostLive = () => import("../views/HostLive.vue");
 const HostAccount = () => import("../views/HostAccount.vue");
+const HostSignOut = () => import("../views/HostSignOut.vue");
 const HostBilling = () => import("../views/HostBilling.vue");
 const Admin = () => import("../views/Admin.vue");
 const Terms = () => import("../views/Terms.vue");
@@ -57,6 +58,7 @@ const routes = [
   { path: "/redeem/:code", component: Redeem },
   { path: "/signin", component: SignIn },
   { path: "/host/signin", component: SignIn },
+  { path: "/host/signout", component: HostSignOut },
   { path: "/hosts", component: Hosts },
   { path: "/host", component: HostDashboard },
   { path: "/host/events/:id", component: HostLive },

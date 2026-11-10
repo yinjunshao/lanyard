@@ -36,3 +36,10 @@ export function defaultCard() {
 export function hasProfile() {
   return !!me.profile;
 }
+
+// Ends the session on this site (and the offline copy of /api/me), then does a
+// full page load so no half-finished screen or stale state survives in memory.
+export async function signOutAndReload(to) {
+  await Api.logout();
+  window.location.replace(to);
+}
