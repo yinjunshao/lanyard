@@ -12,7 +12,7 @@ import { openPhoto } from "../lib/lightbox";
 import ConnectSheet from "../components/ConnectSheet.vue";
 import Icon from "../components/Icon.vue";
 import { morningIn, fmtDay, relativeDay } from "../lib/time";
-import { subtitleOf, viaOfS } from "../lib/profile";
+import { connectedVia, metStamp, subtitleOf, viaOfS } from "../lib/profile";
 
 const route = useRoute();
 const router = useRouter();
@@ -303,9 +303,6 @@ async function sendReport() {
       <section v-if="connection" class="panel stack-2" aria-label="Your connection">
         <div>
           <span class="label">Your connection</span>
-          <p class="small muted" style="margin-top:4px">
-            Met {{ metOn }}<template v-if="connection.event"> at {{ connection.event.name }}</template>
-          </p>
         </div>
 
         <div v-if="connection.messages?.length" class="thread">
@@ -378,6 +375,10 @@ async function sendReport() {
         <p v-if="reportMsg" class="small" role="status">{{ reportMsg }}</p>
       </section>
 
+      <p v-if="connection" class="small muted connected-foot">
+        {{ connectedVia({ via: connection.via, eventName: connection.event?.name }) }} · <time :datetime="new Date(connection.metAt).toISOString()">{{ metStamp(connection.metAt) }}</time>
+      </p>
+
       <div v-if="!view.viewer.isOwner && (!connection || view.incomingNote)" class="thumb-bar">
         <div class="inner">
           <button class="btn btn-primary" @click="sheetOpen = true">
@@ -400,6 +401,7 @@ async function sendReport() {
 </template>
 
 <style scoped>
+.connected-foot { margin: 16px 0 0; text-align: center; }
 .tag-x { background: none; border: none; padding: 0 0 0 6px; margin: 0; cursor: pointer; font-weight: 800; color: inherit; min-width: 24px; min-height: 24px; }
 .tag-x:focus-visible { outline: 2px solid var(--strap); }
 </style>

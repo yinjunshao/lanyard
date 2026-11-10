@@ -6,7 +6,7 @@
 import { makeEnv, makeDb, readMigration, check, summary, becomeHost } from "./harness.mjs";
 import { eraseUser } from "../worker/purge.js";
 import { readFileSync } from "node:fs";
-import { withSource, viaOfS } from "../src/lib/profile.js";
+import { withSource, viaOfS, connectedVia, connectedShort, metStamp } from "../src/lib/profile.js";
 
 const T = await makeEnv();
 const { client, q1, q, env } = T;
@@ -186,6 +186,42 @@ console.log("\n# Addresses: ?s= on the QR, the typed code and the link");
     has(card, "viaOfS(route.query.s)", "const { s, ...rest } = route.query;", "router.replace({ path: route.path, query: rest", ':via="via"'));
   const sheet = src("src/components/ConnectSheet.vue");
   check("the connect sheet sends it to /api/connect", has(sheet, "via: props.via || undefined"));
+}
+
+console.log("\n# Wording: the sentence, the short line and the time");
+{
+  const E = "Spring networking night";
+  const said = (via, eventName) => connectedVia({ via, eventName });
+  check("QR code with and without an event", said("qr", E) === "Connected via QR code at " + E && said("qr") === "Connected via QR code");
+  check("typed code with and without an event", said("code", E) === "Connected via code at " + E && said("code", "") === "Connected via code");
+  check("link with and without an event", said("link", E) === "Connected via link at " + E && said("link", null) === "Connected via link");
+  check("an old connection (via null) reads Connected, with the event if it is known", said(null, E) === "Connected at " + E && said(null) === "Connected" && said(undefined, "") === "Connected");
+  check("an unknown value or nothing at all never reads undefined, null or a made-up method", [said("x", E), said("__proto__"), said("constructor", E), connectedVia(), connectedVia(null)].every((t) => !/undefined|null|\[object|function/.test(t))
+    && said("x") === "Connected" && connectedVia() === "Connected");
+  check("the short form for a row", connectedShort({ via: "qr", eventName: E }) === "QR code · " + E && connectedShort({ via: "code" }) === "Code" && connectedShort({ via: "link", eventName: "" }) === "Link"
+    && connectedShort({ via: null, eventName: E }) === E && connectedShort({ via: null }) === "" && connectedShort() === "" && connectedShort({ via: "x" }) === "");
+  const ts = Date.UTC(2026, 10, 4, 18, 42);
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, "0"), mm = String(d.getMinutes()).padStart(2, "0");
+  check("the date and time are en-GB in the viewer's own time zone", metStamp(ts) === `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).replace(",", "")}, ${hh}:${mm}`
+    && /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} 2026, \d\d:\d\d$/.test(metStamp(ts)), metStamp(ts));
+  const midnight = new Date(2026, 0, 5, 0, 7);
+  check("midnight reads 00:07, not 24:07", /, 00:07$/.test(metStamp(midnight.getTime())), metStamp(midnight.getTime()));
+  // The time on the person page comes from created_at, untouched.
+  const B = await signup("Gus", "10.13.8.1");
+  const r = await B.c.post("/api/connect", { cardId: A.card, via: "qr" });
+  const created = q1("SELECT created_at FROM connections WHERE id = ?", r.json.connectionId).created_at;
+  const seen = (await B.c.get(`/api/c/${A.card}`)).json.viewer.connection;
+  check("the page is given exactly created_at, so its time is the time you connected", seen.metAt === created && metStamp(seen.metAt) === metStamp(created));
+
+  const src = (f) => readFileSync(f, "utf8");
+  const card = src("src/views/PublicCard.vue");
+  check("the person page ends with the sentence and the time", card.includes("connectedVia({ via: connection.via, eventName: connection.event?.name })") && card.includes("metStamp(connection.metAt)")
+    && card.indexOf("connected-foot") < card.indexOf('class="thumb-bar"'));
+  check("the old Met line is gone (one sentence, not two)", !/Met \{\{ metOn \}\}/.test(card));
+  const people = src("src/views/People.vue");
+  check("the people list shows the short line, and drops it when a selfie request and a follow-up are both showing",
+    people.includes("connectedShort(r)") && /r\.selfieStatus === "request" && needsFollowUp\(r\) \? "" : connectedShort\(r\)/.test(people));
 }
 
 summary();

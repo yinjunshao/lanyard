@@ -6,7 +6,7 @@ import Icon from "../components/Icon.vue";
 import Avatar from "../components/Avatar.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import { relativeDay as relDay } from "../lib/time";
-import { subtitleOf } from "../lib/profile";
+import { connectedShort, subtitleOf } from "../lib/profile";
 
 const rows = ref([]);
 const query = ref("");
@@ -63,6 +63,10 @@ const correction = computed(() => {
 const results = computed(() => correction.value?.results || typedResults.value);
 
 function searchInstead() { exact.value = true; }
+
+// Under the name: how you met, then at most one more status line. If a selfie is waiting
+// and a follow-up is due as well, those two stay and how you met is left out (F13).
+const howWeMet = (r) => (r.selfieStatus === "request" && needsFollowUp(r) ? "" : connectedShort(r));
 
 const fmt = (t) =>
   new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -125,6 +129,7 @@ const fmt = (t) =>
           <span class="small muted" style="display:block">
             {{ subtitleOf(r.peer) || r.peer.headline }}
           </span>
+          <span v-if="howWeMet(r)" class="small muted" style="display:block">{{ howWeMet(r) }}</span>
           <span v-if="r.selfieStatus === 'request'" class="small" style="display:block;color:var(--strap-deep);font-weight:700">Selfie waiting for you</span>
           <span v-if="needsFollowUp(r)" class="small" style="display:block;color:var(--strap-deep);font-weight:700">Follow up {{ relDay(r.remindAt) }}</span>
           <span v-if="hint" class="small search-hint">

@@ -35,19 +35,30 @@ export function withSource(address, s) {
 }
 
 const HOW = { qr: "QR code", code: "code", link: "link" };
+const howOf = (via) => (typeof via === "string" && Object.hasOwn(HOW, via) ? HOW[via] : "");
 
 // The full sentence, for a person's page: "Connected via QR code at Spring night".
 // via is null for connections made before this was recorded; that reads as
 // "Connected" and never guesses a method.
-export function connectedVia({ via, eventName } = {}) {
-  const how = HOW[via];
+export function connectedVia(c) {
+  const { via, eventName } = c || {};
+  const how = howOf(via);
   const at = eventName ? ` at ${eventName}` : "";
   return `Connected${how ? ` via ${how}` : ""}${at}`;
 }
 
 // The short form for a row in the people list: "QR code · Spring night". It is
 // empty when nothing is known, so the row shows no line at all.
-export function connectedShort({ via, eventName } = {}) {
-  const how = HOW[via] ? HOW[via][0].toUpperCase() + HOW[via].slice(1) : "";
-  return [how, eventName].filter(Boolean).join(" · ");
+export function connectedShort(c) {
+  const { via, eventName } = c || {};
+  const how = howOf(via);
+  const label = how && how[0].toUpperCase() + how.slice(1);
+  return [label, eventName].filter(Boolean).join(" · ");
+}
+
+// When you connected, in the viewer's own time zone: "Tue 4 Nov 2026, 18:42".
+export function metStamp(t) {
+  const d = new Date(t);
+  const day = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).replace(",", "");
+  return `${day}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}`;
 }
