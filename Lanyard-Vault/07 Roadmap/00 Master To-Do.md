@@ -58,7 +58,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F03** [[F03 Neutral copy with no named university]] · S · Needs: none (done 2026-11-10, last commit 95e0b70)
 - [x] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up) (done 2026-11-10, last commit fbb24bd)
 - [x] **F05** [[F05 QR icon for My card tab]] · S · Needs: none (done 2026-11-10, last commit 714d8f1)
-- [ ] **F06** [[F06 Edit profile and Cards buttons]] · S · Needs: none
+- [ ] **F06** [[F06 Edit profile and Cards buttons]] · S · Needs: none (in progress: Claude subagent, 2026-11-10)
 - [x] **F07** [[F07 Host setup sign-out fix]] · S · Needs: none (urgent: the owner is stuck) (done 2026-11-10, last commit b7ed96c)
 
 ### Phase 1: foundations

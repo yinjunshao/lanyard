@@ -171,6 +171,25 @@ p { margin: 0; }
 .btn-row .btn { flex: 1; }
 .btn-danger { color: var(--strap-deep); }
 
+/* Quiet button: secondary actions such as Edit profile and Cards. No fill, no
+   shadow, no hover; only the border darkens while pressed. The box is 36 px
+   tall and the ::before widens the tap area to 44 px. Tokens only, so dark mode follows. */
+.btn-quiet {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn-quiet::before { content: ""; position: absolute; inset: -4px 0; }
+.btn-quiet:active { border-color: var(--ink); }
+
 .thumb-bar {
   position: fixed;
   left: 0; right: 0; bottom: 0;

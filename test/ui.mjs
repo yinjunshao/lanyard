@@ -12,4 +12,11 @@ const app = read("src/App.vue");
 check("the My card tab uses the qr icon", /key: "card", icon: "qr"/.test(app));
 check("the tab bar draws t.icon, falling back to t.key", app.includes('<Icon :name="t.icon || t.key" />'));
 
+console.log("\n# F06 Edit profile and Cards buttons");
+const css = read("src/styles/main.css");
+const quiet = /\.btn-quiet \{([^}]*)\}/.exec(css);
+check(".btn-quiet is defined in main.css", !!quiet);
+check(".btn-quiet uses tokens only (no hard-coded colours)", !!quiet && !/#[0-9a-f]{3,8}\b|rgba?\(/i.test(quiet[1]) && /var\(--rule\)|var\(--border\)/.test(quiet[1]) && /var\(--ink\)/.test(quiet[1]));
+check(".btn-quiet has no shadow or hover", !!quiet && !/box-shadow/.test(quiet[1]) && !/\.btn-quiet:hover/.test(css));
+
 summary();

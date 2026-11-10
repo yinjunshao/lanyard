@@ -4,7 +4,7 @@ id: F06
 priority: P0
 phase: 0
 size: S
-status: Not started
+status: In progress
 needs: []
 ---
 # F06 Edit profile and Cards buttons
@@ -23,7 +23,7 @@ On `/app`, rename "Edit" to "Edit profile" and make it a distinct button instead
 - Layout: a row of two equal-width buttons directly under the heading, above the badge. On wide screens (≥ 600 px), keep them right-aligned beside the heading instead. Never stack them vertically.
 
 ## Tasks
-- [ ] F06.1 Add `.btn-quiet` (light and dark tokens).
+- [x] F06.1 Add `.btn-quiet` (light and dark tokens).
 - [ ] F06.2 Replace the two links in `MyCard.vue`.
 - [ ] F06.3 Check at 375 px and 1280 px, in light and dark. The badge stays the clear focus.
 
