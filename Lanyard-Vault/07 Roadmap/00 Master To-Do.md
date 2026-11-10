@@ -69,7 +69,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F12** [[F12 Institution picker]] · P1 · M · Needs: F08, F11 (done 2026-11-10, last commit 08e9869)
 - [x] **F13** [[F13 Connection provenance]] · P1 · M · Needs: none (done 2026-11-10, last commit 2ad7dfa)
 - [x] **F14** [[F14 Onboarding revamp]] · P1 · L · Needs: F06, F11, F12 (done 2026-11-10, last commit 2a335b9)
-- [ ] **F28** [[F28 Public-page JS budget]] · P1 · S · Needs: none (added 2026-11-10 from F02; the owner said to fix it later, so it sits at the end of Phase 1)
+- [ ] **F28** [[F28 Public-page JS budget]] · P1 · S · Needs: none (added 2026-11-10 from F02; the owner said to fix it later, so it sits at the end of Phase 1) (in progress: Claude subagent, 2026-11-10)
 
 ### Phase 2: events
 - [ ] **F15** [[F15 Events tab and event hub]] · P1 · L · Needs: F05, F13
