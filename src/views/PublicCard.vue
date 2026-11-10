@@ -12,7 +12,7 @@ import { openPhoto } from "../lib/lightbox";
 import ConnectSheet from "../components/ConnectSheet.vue";
 import Icon from "../components/Icon.vue";
 import { morningIn, fmtDay, relativeDay } from "../lib/time";
-import { subtitleOf } from "../lib/profile";
+import { subtitleOf, viaOfS } from "../lib/profile";
 
 const route = useRoute();
 const router = useRouter();
@@ -26,6 +26,14 @@ const eventId = computed(() => {
   const e = route.query.event;
   return typeof e === "string" && /^[0-9a-f]{10}$/.test(e) ? e : null;
 });
+
+// How this card was opened (F13): ?s=q QR code, c typed code, l shared link. Read
+// once, then taken out of the address bar so it isn't copied on to someone else.
+const via = viaOfS(route.query.s);
+if ("s" in route.query) {
+  const { s, ...rest } = route.query;
+  router.replace({ path: route.path, query: rest, hash: route.hash });
+}
 
 async function load() {
   view.value = await Api.getCard(route.params.cardId, noteToken.value);
@@ -384,6 +392,7 @@ async function sendReport() {
       :view="view"
       :note-token="noteToken"
       :event-id="eventId"
+      :via="via"
       @close="sheetOpen = false"
       @connected="onConnected"
     />

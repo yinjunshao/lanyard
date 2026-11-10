@@ -9,7 +9,7 @@ import Avatar from "../components/Avatar.vue";
 import RatingInput from "../components/RatingInput.vue";
 import { downloadBadge } from "../lib/qr";
 import { relativeDay } from "../lib/time";
-import { subtitleParts } from "../lib/profile";
+import { subtitleParts, withSource } from "../lib/profile";
 import InstallGuide from "../components/InstallGuide.vue";
 import { isStandalone, platform, installDismissed, dismissInstall, installedHere, relatedAppInstalled } from "../lib/install";
 
@@ -85,6 +85,10 @@ const url = computed(() => {
   const base = `${location.origin}/c/${card.value.cardId}`;
   return personal.value.active ? `${base}?n=${personal.value.active.token}` : base;
 });
+// The QR carries ?s=q and a copied or shared link ?s=l, so the person who opens it
+// can see how you met (F13). The address bar drops it again after it is read.
+const qrUrl = computed(() => (url.value ? withSource(url.value, "q") : ""));
+const linkUrl = computed(() => (url.value ? withSource(url.value, "l") : ""));
 
 let timer = null;
 async function loadPersonal() {
@@ -165,16 +169,16 @@ async function saveCustom() {
 }
 
 async function copyLink() {
-  await navigator.clipboard.writeText(url.value);
+  await navigator.clipboard.writeText(linkUrl.value);
   copied.value = true;
   setTimeout(() => (copied.value = false), 1600);
 }
 function savePng() {
-  if (card.value) return downloadBadge({ ...card.value, subtitle: subtitle.value }, url.value);
+  if (card.value) return downloadBadge({ ...card.value, subtitle: subtitle.value }, qrUrl.value);
 }
 async function share() {
   if (navigator.share) {
-    try { await navigator.share({ title: "My Lanyard card", url: url.value }); } catch {}
+    try { await navigator.share({ title: "My Lanyard card", url: linkUrl.value }); } catch {}
   } else {
     copyLink();
   }
@@ -253,7 +257,7 @@ async function share() {
       @pointerleave="bright = false"
       @pointercancel="bright = false"
     >
-      <Badge :view="card" :url="url" :subtitle="subtitle" />
+      <Badge :view="card" :url="qrUrl":subtitle="subtitle" />
     </div>
 
     <p class="small muted" style="text-align:center;margin-top:40px">

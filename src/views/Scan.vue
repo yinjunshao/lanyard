@@ -5,6 +5,7 @@
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { startScanner, resolveScanned } from "../lib/scanner";
+import { withSource } from "../lib/profile";
 
 const router = useRouter();
 const video = ref(null);
@@ -23,10 +24,11 @@ function flashHint(text) {
   hintTimer = setTimeout(() => (hint.value = ""), 2600);
 }
 
-function go(res) {
+// s says how the card was found: q for the camera, c for a typed code (F13).
+function go(res, s) {
   if (res.kind === "card") {
     handled = true;
-    router.push(`/c/${res.cardId}${res.search || ""}`);
+    router.push(`/c/${res.cardId}${withSource(res.search, s)}`);
     return true;
   }
   if (res.kind === "event") {
@@ -53,7 +55,7 @@ async function handle(raw) {
   busy.value = true;
   try {
     const res = await resolveScanned(raw, { camera: true });
-    if (!go(res)) flashHint("That QR isn't a Lanyard badge or event.");
+    if (!go(res, "q")) flashHint("That QR isn't a Lanyard badge or event.");
   } catch {
     flashHint("Couldn't read that one. Try again.");
   } finally {
@@ -68,7 +70,7 @@ async function submitManual() {
   looking.value = true;
   try {
     const res = await resolveScanned(text);
-    if (!go(res)) error.value = "Enter the 4-character code on their badge, or the 5-character event code.";
+    if (!go(res, "c")) error.value = "Enter the 4-character code on their badge, or the 5-character event code.";
   } catch (e) {
     error.value = e.message || "Code not found.";
   } finally {

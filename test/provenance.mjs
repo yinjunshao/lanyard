@@ -6,6 +6,7 @@
 import { makeEnv, makeDb, readMigration, check, summary, becomeHost } from "./harness.mjs";
 import { eraseUser } from "../worker/purge.js";
 import { readFileSync } from "node:fs";
+import { withSource, viaOfS } from "../src/lib/profile.js";
 
 const T = await makeEnv();
 const { client, q1, q, env } = T;
@@ -163,6 +164,28 @@ console.log("\n# Hosts never see it (D004)");
   check("those four host responses all answered (so the check below is not empty)", res.every((r) => r.status === 200), res.map((r) => r.status));
   const seen = JSON.stringify(res.map((r) => r.json ?? r.text));
   check("the host's report, CSV, live view and export carry no per-person provenance", !/"via"|qr code|\bvia\b/i.test(seen), seen.slice(0, 200));
+}
+
+console.log("\n# Addresses: ?s= on the QR, the typed code and the link");
+{
+  const src = (f) => readFileSync(f, "utf8");
+  check("withSource adds s to a plain address", withSource("https://x.test/c/abc", "q") === "https://x.test/c/abc?s=q");
+  check("withSource keeps the note token and event, and replaces an old s", withSource("https://x.test/c/abc?n=tok&s=l&event=e1", "q") === "https://x.test/c/abc?n=tok&s=q&event=e1");
+  check("withSource works on a bare query from the scanner, and on nothing", withSource("?n=tok", "c") === "?n=tok&s=c" && withSource("", "q") === "?s=q" && withSource(undefined, "c") === "?s=c");
+  check("s reads back as qr, code or link, and anything else as nothing", viaOfS("q") === "qr" && viaOfS("c") === "code" && viaOfS("l") === "link"
+    && viaOfS("x") === null && viaOfS(undefined) === null && viaOfS(["q"]) === null && viaOfS("constructor") === null && viaOfS("__proto__") === null);
+  const has = (text, ...bits) => bits.every((b) => text.includes(b));
+  const scan = src("src/views/Scan.vue");
+  check("the in-app scanner sends q and a typed code sends c", has(scan, 'go(res, "q")', 'go(res, "c")', "withSource(res.search, s)"));
+  const mine = src("src/views/MyCard.vue");
+  check("the QR and the saved badge image carry s=q, copy and share carry s=l", has(mine, ':url="qrUrl"', "subtitle: subtitle.value }, qrUrl.value)",
+    "writeText(linkUrl.value)", "url: linkUrl.value }", 'withSource(url.value, "q")', 'withSource(url.value, "l")'));
+  check("MyCard never hands the bare address to a QR, a copy or a share", !has(mine, ":url=\"url\"", "writeText(url.value)", "}, url.value)", "url: url.value }"));
+  const card = src("src/views/PublicCard.vue");
+  check("the card page reads s once, removes it from the address bar and passes it to the connect sheet",
+    has(card, "viaOfS(route.query.s)", "const { s, ...rest } = route.query;", "router.replace({ path: route.path, query: rest", ':via="via"'));
+  const sheet = src("src/components/ConnectSheet.vue");
+  check("the connect sheet sends it to /api/connect", has(sheet, "via: props.via || undefined"));
 }
 
 summary();

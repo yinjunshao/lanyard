@@ -14,6 +14,7 @@ const props = defineProps({
   view: { type: Object, required: true },
   noteToken: { type: String, default: null },
   eventId: { type: String, default: null },
+  via: { type: String, default: null }, // qr | code | link: how the card was opened (F13)
 });
 const emit = defineEmits(["close", "connected"]);
 const router = useRouter();
@@ -70,6 +71,7 @@ async function submit() {
       acceptTerms: needsAgree.value ? agreed.value : undefined,
       over18: needsAgree.value ? agreed.value : undefined,
       eventId: props.eventId,
+      via: props.via || undefined,
     });
     await refreshMe();
     result.value = res;
