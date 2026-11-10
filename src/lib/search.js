@@ -22,16 +22,20 @@ function hostOf(url) {
 // Ordered by how useful each is as a "matched in…" hint.
 function fieldsOf(r) {
   const p = r.peer || {};
+  // Only what the person's chosen mode shows (F11): their other mode's fields are kept, not searched.
+  const career = p.mode === "career";
   return [
     ["Name", p.name],
-    ["Course", p.course],
-    ["University", p.uni],
+    ["Company", career ? p.company : ""],
+    ["Role", career ? p.role : ""],
+    ["Course", career ? "" : p.course],
+    [career ? "Studied at" : "University", p.uni],
     ["Come to me for", (p.tags || []).join(" · ")],
     ["What I do", p.headline],
     ["About", p.about],
     ["Projects", (p.projects || []).map((x) => [x.title, x.line].filter(Boolean).join(" — ")).join(" · ")],
     ["Links", Object.entries(p.links || {}).map(([label, url]) => `${label} (${hostOf(url)})`).join(" · ")],
-    ["Year", p.year],
+    ["Year", career ? "" : p.year],
     ["Card", [p.cardName, p.cardNote].filter(Boolean).join(" — ")],
     ["Met at", r.eventName],
     ["Your note", r.note],
@@ -65,7 +69,7 @@ export function search(index, ts) {
 }
 
 // Fields already visible in the list row don't need a hint.
-const SHOWN = new Set(["Name", "Course", "University"]);
+const SHOWN = new Set(["Name", "Company", "Role", "Course", "University", "Studied at"]);
 function hintFor(e, ts) {
   const f = e.fields.find((x) => !SHOWN.has(x.label) && ts.some((t) => hits(x.toks, t)));
   if (!f) return null;

@@ -58,7 +58,7 @@ onMounted(() => {
       showAge: !!p.show_age,
     };
     existingPhoto.value = p.photo || "";
-    showStudied.value = !!(p.uni || p.course || p.year);
+    showStudied.value = !!p.uni;
   }
 });
 
@@ -219,10 +219,6 @@ async function save() {
         <template v-else>
           <div class="field"><label for="uni">Studied at (optional)</label>
             <input id="uni" v-model="f.uni" type="text" placeholder="Your university or school" /></div>
-          <div class="field"><label for="course">Course (optional)</label>
-            <input id="course" v-model="f.course" type="text" placeholder="e.g. Computer Science" /></div>
-          <div class="field"><label for="year">Year (optional)</label>
-            <input id="year" v-model="f.year" type="text" /></div>
         </template>
       </template>
     </div>

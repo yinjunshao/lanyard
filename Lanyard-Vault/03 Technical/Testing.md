@@ -21,6 +21,7 @@ Offline tests run the real Worker against in-memory SQLite (Node 22+, `node:sqli
 | `node test/hostsecurity.mjs` | F10: host and attendee cookies kept apart on every host route, the host API refused on the main site and from other origins, email-code limits and generic replies, no host route reading attendee identity, aggregates only |
 | `node test/hostsite.mjs` | F10: `/host...` 301s to the host site, the two route tables, host code out of `api.js`, config |
 | `node test/hostsetup.mjs` | F07 and F10: every host setup step can be signed out of and resumes from the server; source guards for Back, Sign out and no passkey copy |
+| `node test/mode.mjs` | F11: migration 0019 on an old profile, `mode` / `company` / `role` validation on create and edit, what card, people list, one person and event room return, export and deletion, `subtitleOf()`, search by company and role, and source guards (no hand-built course line; Privacy Policy lists the fields) |
 | `node test/perf.mjs` | DB queries per request on hot paths |
 | `npm test` | Runs every offline test above except perf |
 

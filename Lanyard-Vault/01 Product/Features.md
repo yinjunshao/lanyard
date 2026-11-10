@@ -4,6 +4,7 @@ tags: [product, features]
 # Features
 
 ## Attendee side
+- **Student and Career mode:** a profile is either a student (course and university) or working (company and role, with where they studied optional). Switching keeps everything typed; the card, people list and search show only the chosen mode (F11).
 - **Cards:** one profile, many cards ("Careers fair", "Hackathon", "Weekend"). Each card has its own note, visible links, tags, theme, QR and code. Free plan: 3 cards; Plus: 12. See [[D015 Profile split from cards]].
 - **Rotating codes:** 4-character card code rotates every 3 days (6h grace). See [[D016 Rotating card codes]].
 - **Connect with shared selfie:** consent from both people, deletable by either. See [[D005 Shared selfie needs both consents]].

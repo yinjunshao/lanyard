@@ -3,7 +3,7 @@ tags: [technical, database]
 ---
 # Data Model
 
-D1 schema from `migrations/0001`-`0018`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
+D1 schema from `migrations/0001`-`0019`. Conventions: ids are 10-character unguessable hex; timestamps are unix milliseconds.
 
 ## Identity
 - `users` (is_guest, recovery_email, email_domain, verified_student, has_passkey, over_18, plan, plan_until, notify_events)
@@ -12,7 +12,7 @@ D1 schema from `migrations/0001`-`0018`. Conventions: ids are 10-character ungue
 - `rate_limits` (fixed-window counters)
 
 ## Profile and cards
-- `profiles` (name, photo_key, uni, course, year, headline, about, links JSON, tags JSON, projects JSON up to 3, is_public, show_age)
+- `profiles` (name, photo_key, **mode** `student`|`career` default `student`, **company** and **role** up to 80 characters each, uni, course, year, headline, about, links JSON, tags JSON, projects JSON up to 3, is_public, show_age). Mode, company and role are F11, migration 0019. `uni`, `course` and `year` are kept in both modes; in Career mode `uni` reads "Studied at". Switching mode deletes nothing; only the chosen mode's fields are shown or searched
 - `cards` (code, name, note, visible_links, tags, theme default|formal|night|host, strap_color, event_id, code_rotates_at)
 - `card_codes` (current and grace codes with valid_until)
 

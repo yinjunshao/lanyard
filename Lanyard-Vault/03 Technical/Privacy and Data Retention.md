@@ -20,6 +20,9 @@ Not legal advice; a checklist from ICO guidance to be reviewed by a lawyer or UC
 | Marketing email | Consent, separate unticked box |
 | Aggregate stats | No personal data |
 
+## Profile fields (F11)
+Mode (student or career), company and role are part of the profile, like university and course. They are shown on a card, in the people list and in an event room only as the person's chosen mode shows them, they are in the data download (`/api/account/export` returns the whole profile row), and deleting the account deletes the profile row and so these fields. The Privacy Policy data table lists them. Hosts do not see them: event reports still count only courses and tags in aggregate.
+
 ## Retention (implemented in `worker/purge.js`)
 - Selfies: 12 months. Feedback text: 12 months.
 - Inactive guests: 30 days. Expired codes and sessions: daily purge.

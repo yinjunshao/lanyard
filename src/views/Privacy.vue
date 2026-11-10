@@ -27,7 +27,7 @@ const UPDATED = "6 November 2026";
     <table>
       <thead><tr><th>Who</th><th>Data</th><th>Why</th></tr></thead>
       <tbody>
-        <tr><td>Users</td><td>Name, university, course, year, headline, about text, tags, links, profile photo, and whether you show your age band</td><td>To make your card and profile and show them as you choose</td></tr>
+        <tr><td>Users</td><td>Name, whether you are a student or working, company, role, university, course, year, headline, about text, tags, links, profile photo, and whether you show your age band</td><td>To make your card and profile and show them as you choose</td></tr>
         <tr><td>Users</td><td>Connections you make, which card was scanned, optional note, private notes, messages, and shared selfies</td><td>To keep your connections and let both people see them</td></tr>
         <tr><td>Users</td><td>Event check-ins, answers to optional questions, and your optional directory and sponsor choices</td><td>To join events and respect your choices</td></tr>
         <tr><td>Users</td><td>Your private follow-up reminders and the tags you put on your connections</td><td>So you can remember who to follow up with; only you see them</td></tr>

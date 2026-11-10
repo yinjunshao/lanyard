@@ -9,7 +9,7 @@ Grouped from route definitions in `worker/*.js`. All under `/api` unless noted.
 
 **Sign-in:** passkey register/login (`/passkey/...`), email (`/auth/email/start`, `/verify`), TOTP (`/auth/totp/setup`, `/confirm`, `/redeem`, `DELETE`), recovery (`/auth/recovery`, `/recovery/redeem`), `POST /auth/redeem`, `/auth/link`
 
-**Profile and cards:** `GET/POST/PUT /profile`, `POST /cards`, `PUT/DELETE /cards/:id`, `POST /cards/:id/rotate-code`, personal-note routes, `GET /c/:cardId`, `GET /code/:code`
+**Profile and cards:** `GET/POST/PUT /profile` (`mode` must be `student` or `career`, otherwise 400; `company` and `role` are trimmed to 80 characters. `GET /c/:cardId`, `GET /connections`, `GET /connections/:id` and `GET /e/:id/room` return `mode`, `company` and `role` alongside `uni`, `course` and `year`), `POST /cards`, `PUT/DELETE /cards/:id`, `POST /cards/:id/rotate-code`, personal-note routes, `GET /c/:cardId`, `GET /code/:code`
 
 **Connections:** `POST /connect`, `GET /connections`, `GET /connections/:id`, `PUT /connections/:id/note`, `/meta`, `POST /connections/:id/report`, `DELETE /connections/:id`
 

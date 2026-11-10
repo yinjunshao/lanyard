@@ -5,6 +5,7 @@
 import { makeEnv, makeDb, readMigration, check, summary, becomeHost } from "./harness.mjs";
 import { eraseUser } from "../worker/purge.js";
 import { subtitleOf, subtitleParts } from "../src/lib/profile.js";
+import { buildIndex, search, terms } from "../src/lib/search.js";
 import { readFileSync, readdirSync } from "node:fs";
 
 const T = await makeEnv();
@@ -111,6 +112,22 @@ console.log("\n# One subtitle formatter (src/lib/profile.js)");
   const users = ["views/MyCard.vue", "views/PublicCard.vue", "views/People.vue", "views/EventDetail.vue", "views/Connect.vue"]
     .filter((f) => !/from "\.\.?\/(lib\/)?profile"/.test(readFileSync(`src/${f}`, "utf8")));
   check("My card, public card, people list, event room, and connect page use it", users.length === 0, users);
+}
+
+console.log("\n# Search and policy text");
+{
+  const rows = [
+    { peer: { name: "Ada", mode: "career", company: "Acme", role: "Product designer", uni: "Some Uni", course: "Maths", year: "3", tags: [] } },
+    { peer: { name: "Sam", mode: "student", company: "Initech", role: "Intern", uni: "Other Uni", course: "Physics", year: "2", tags: [] } },
+  ];
+  const idx = buildIndex(rows);
+  const find = (w) => search(idx, terms(w)).map((x) => x.row.peer.name);
+  check("search finds a career profile by company and by role", find("acme").join() === "Ada" && find("designer").join() === "Ada");
+  check("search finds a student by course as before", find("physics").join() === "Sam");
+  check("a career profile's hidden student fields are not searched, nor a student's company", find("maths").length === 0 && find("initech").length === 0);
+  check("a career profile's studied-at is searched", find("some").join() === "Ada");
+  const policy = readFileSync("src/views/Privacy.vue", "utf8");
+  check("the Privacy Policy data table lists company and role", /<td>Users<\/td><td>[^<]*company, role/.test(policy));
 }
 
 summary();
