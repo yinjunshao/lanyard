@@ -9,6 +9,7 @@ import Avatar from "../components/Avatar.vue";
 import RatingInput from "../components/RatingInput.vue";
 import { downloadBadge } from "../lib/qr";
 import { relativeDay } from "../lib/time";
+import { subtitleParts } from "../lib/profile";
 import InstallGuide from "../components/InstallGuide.vue";
 import { isStandalone, platform, installDismissed, dismissInstall, installedHere, relatedAppInstalled } from "../lib/install";
 
@@ -78,6 +79,7 @@ const noteBusy = ref(false);
 const noteError = ref("");
 const NOTE_MAX = 200;
 
+const subtitle = computed(() => subtitleParts(card.value?.profile, { year: true }).join("  ·  "));
 const url = computed(() => {
   if (!card.value) return "";
   const base = `${location.origin}/c/${card.value.cardId}`;
@@ -168,7 +170,7 @@ async function copyLink() {
   setTimeout(() => (copied.value = false), 1600);
 }
 function savePng() {
-  if (card.value) return downloadBadge(card.value, url.value);
+  if (card.value) return downloadBadge({ ...card.value, subtitle: subtitle.value }, url.value);
 }
 async function share() {
   if (navigator.share) {
@@ -251,7 +253,7 @@ async function share() {
       @pointerleave="bright = false"
       @pointercancel="bright = false"
     >
-      <Badge :view="card" :url="url" />
+      <Badge :view="card" :url="url" :subtitle="subtitle" />
     </div>
 
     <p class="small muted" style="text-align:center;margin-top:40px">

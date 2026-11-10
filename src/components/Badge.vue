@@ -2,15 +2,17 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { drawQR } from "../lib/qr";
 import Avatar from "./Avatar.vue";
-import { subtitleParts } from "../lib/profile";
 
 const props = defineProps({
   view: { type: Object, required: true },
   url: { type: String, required: true },
+  // The line under the name, already formatted by the caller (lib/profile.js).
+  // The Landing page's fixed demo passes a literal, so it loads no formatter.
+  subtitle: { type: String, default: "" },
 });
 
 const qrCanvas = ref(null);
-const meta = computed(() => subtitleParts(props.view?.profile, { year: true }).join("  ·  "));
+const meta = computed(() => props.subtitle);
 // Capped so the badge never grows with the data — a long tag list or
 // headline is cut (with CSS ellipsis / line-clamp), never pushed past the
 // card's edge or stretched into a wall of chips.

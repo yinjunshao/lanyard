@@ -1,5 +1,4 @@
 import QRCode from "qrcode";
-import { subtitleOf } from "./profile";
 
 // Badge colours. These mirror the CSS custom properties on `.badge` in
 // main.css, because the PNG export is a scaled-up replica of the on-screen
@@ -113,7 +112,7 @@ export async function drawBadge(canvas, view, url) {
   const headline = (p.headline || "").slice(0, 80);
   const tags = (p.tags || []).slice(0, 4);
   const note = (view?.note || "").slice(0, 160);
-  const meta = subtitleOf(p, { year: true });
+  const meta = view?.subtitle || ""; // formatted by the caller (lib/profile.js), so this chunk stays free of it
   const caption = ""; // codes are permanent now, so nothing to warn about under the card
 
   const mctx = document.createElement("canvas").getContext("2d");

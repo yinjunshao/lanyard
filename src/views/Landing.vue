@@ -72,7 +72,7 @@ onMounted(() => { url.value = `${location.origin}/`; });
       </div>
 
       <div class="badge-stage">
-        <Badge :view="demo" :url="url" />
+        <Badge :view="demo" :url="url" subtitle="Mechanical Engineering  ·  Year 2" />
       </div>
     </div>
   </div>

@@ -108,9 +108,9 @@ console.log("\n# One subtitle formatter (src/lib/profile.js)");
   const files = walk("src").filter((f) => /\.(vue|js)$/.test(f));
   const hand = files.filter((f) => /\[\s*[\w.?]+\.course\s*,\s*[\w.?]+\.uni/.test(readFileSync(f, "utf8")));
   check("no screen builds the course and university line by hand", hand.length === 0, hand);
-  const users = ["components/Badge.vue", "views/PublicCard.vue", "views/People.vue", "views/EventDetail.vue", "views/Connect.vue", "lib/qr.js"]
+  const users = ["views/MyCard.vue", "views/PublicCard.vue", "views/People.vue", "views/EventDetail.vue", "views/Connect.vue"]
     .filter((f) => !/from "\.\.?\/(lib\/)?profile"/.test(readFileSync(`src/${f}`, "utf8")));
-  check("the badge, public card, people list, event room, connect page and card image use it", users.length === 0, users);
+  check("My card, public card, people list, event room, and connect page use it", users.length === 0, users);
 }
 
 summary();
