@@ -54,7 +54,7 @@ Parts of "Likely cause" that were **not** right:
 - 2026-11-10 (Claude subagent): the cause was the missing exit, not the server or the service worker. Every host setup step now has "Sign out" (and "Back to Lanyard" on the host site) in the header, `/host/signout` does the same, and `Api.logout()` clears the offline `/api/me` copy even if the request fails. Shared helper: `signOutAndReload()` in `src/lib/store.js`. New test: `test/hostsetup.mjs` (in `npm test`).
 - Checked in a local browser (Vite + local Worker, recovery-key path, `host.localhost:5173`). Not checked: the production service worker, which only registers in a production build on https, so the "stale `/api/me` after sign-out" point was reasoned from `sw.js`, not observed. Passkey setup also not run (needs a real authenticator).
 - Left alone on purpose: device preferences in localStorage (theme, banner dismissals, install prompt, a pending promo code) are not session state, so sign-out does not clear them.
-- The owner's real stuck account: open `https://host.lanyd.fyi/host/signout` (or the host site's `/host/signout`) after the deploy. Until then there is no in-app way out.
+- The owner's real stuck account: open `/host/signout` on the site they were stuck on (the host subdomain is not live until [[F10 Separate host accounts on host subdomain]], so today that is lanyd.fyi/host/signout) after the deploy. Until then there is no in-app way out.
 
 ### Owner steps
 - Review the F07 commits, `git push`, then `npm run deploy`. No migrations.
