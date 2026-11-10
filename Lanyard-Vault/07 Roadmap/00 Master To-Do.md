@@ -53,7 +53,7 @@ These block the items in brackets. Tick each one and write the answer in the lin
 Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a week or more. Priorities: **P0** now · **P1** next · **P2** after · **P3** only if needed.
 
 ### Phase 0: quick fixes (any order, all P0)
-- [ ] **F01** [[F01 Repo housekeeping]] · S · Needs: none (in progress: Claude, 2026-11-10)
+- [x] **F01** [[F01 Repo housekeeping]] · S · Needs: none (done 2026-11-10, last commit a6384e6)
 - [ ] **F02** [[F02 Logo goes to My card when signed in]] · S · Needs: none
 - [ ] **F03** [[F03 Neutral copy with no named university]] · S · Needs: none
 - [ ] **F04** [[F04 Redeem page placeholder]] · S · Needs: none (urgent while the poster is up)
@@ -139,6 +139,6 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
--
+- 2026-11-10 · F01 · a6384e6 · New ignore rules; generated files and brag-output untracked; vault and app baseline committed
 
 Related: [[Decision Log]], [[Open Questions]], [[Timeline]] · back to [[00 Home]]

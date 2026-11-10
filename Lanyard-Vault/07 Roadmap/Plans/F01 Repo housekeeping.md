@@ -4,7 +4,7 @@ id: F01
 priority: P0
 phase: 0
 size: S
-status: In progress
+status: Done
 needs: []
 ---
 # F01 Repo housekeeping
@@ -31,11 +31,15 @@ The `.gitignore` in the project folder is still the old one. An earlier session 
   - **Owner answer (2026-11-10):** keep `logo-concepts/` in git only. `brag-output/` and `demo-v1/` stay local: both are now ignored and `brag-output/` was untracked with `git rm --cached` (files kept on disk). The owner also asked for the whole vault to be committed.
 
 ## Acceptance checks
-- [ ] `git status` shows no untracked junk after a build and a test run.
-- [ ] `git check-ignore -v .dev.vars .wrangler/x .env.local cloudflared.exe` prints a rule for each.
-- [ ] The vault notes are still tracked (agents commit their ticks), but `workspace.json` is not.
+- [x] `git status` shows no untracked junk after a build and a test run.
+- [x] `git check-ignore -v .dev.vars .wrangler/x .env.local cloudflared.exe` prints a rule for each.
+- [x] The vault notes are still tracked (agents commit their ticks), but `workspace.json` is not.
 
 ## Log
--
+- 2026-11-10 (Claude): added the ignore rules; untracked `Lanyard-pitch.pptx`, `brag-output-2026-10-27-012233/` and, by owner decision, `brag-output/`; `demo-v1/` is ignored. All stay on disk.
+- `.dev.vars` and `.migrations/` have never been committed, so nothing needs rotating.
+- The owner also had the whole vault and the uncommitted app work (migrations 0008-0017 and the code that goes with them) committed, then deployed with `deploy.bat`. Production already had all 17 migrations.
+- Left over: about 580 MB of `brag-output*` is still in git history. Removing it means rewriting history, which is the owner's call.
+- Owner steps: review and `git push`.
 
 Related: [[Codebase Map]], [[Deployment]] · back to [[00 Master To-Do]]
