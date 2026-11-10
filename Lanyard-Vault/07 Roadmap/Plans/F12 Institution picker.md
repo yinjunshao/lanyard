@@ -4,7 +4,7 @@ id: F12
 priority: P1
 phase: 1
 size: M
-status: Not started
+status: In progress
 needs: [F08, F11]
 ---
 # F12 Institution picker
@@ -36,7 +36,9 @@ Migration on `profiles` and `orgs`:
 A script (`scripts/backfill-institutions.mjs`) matches existing `uni` text against names and aliases (exact, case-insensitive) and sets `institution_id`. It prints unmatched values for review. Run it locally on an export. Production runs only with the owner's go-ahead.
 
 ## Tasks
-- [ ] F12.1 Build the data file from an official source (cite it), and add a test that ids are unique and slugs stable.
+- [x] F12.1 Build the data file from an official source (cite it), and add a test that ids are unique and slugs stable.
+  - `src/data/institutions-uk.json`: 137 UK higher-education institutions (England, Scotland, Wales, Northern Ireland) with `id`, `name`, `aliases`, `domains`, `nation`. **It is not from an official list.** I had no reliable way to download one, so it was written from knowledge, and the `_source` field says so. Names, aliases and domains that I was not sure of were left out. The owner should review it or replace it with the Office for Students Register and the other nations' lists. Ids are the slug of the name and must never change once saved on a profile. 3.7 KB gzip.
+  - `src/lib/institutions.js` has `slugify`, `institutionOptions`, `institutionForDomain` and `institutionForText` (no data import, so the data loads only when the picker opens). `test/institutions.mjs` (in `npm test`) checks unique ids, id = slug of name, nations, domain shape and uniqueness, aliases, pinned ids, and the helpers.
 - [ ] F12.2 Migration, API validation (`institution_id` must exist in the list; custom text is capped at 120 chars), export.
 - [ ] F12.3 Picker in `EditProfile.vue` (and in onboarding when F14 lands), with the email-domain suggestion.
 - [ ] F12.4 Backfill script and dry-run output pasted here.
