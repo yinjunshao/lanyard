@@ -43,11 +43,12 @@ Parts of "Likely cause" that were **not** right:
 - [x] F07.2 Add Back and Sign out to every setup state, plus the `/host/signout` route.
 - [x] F07.3 Clear service-worker cache entries on logout (attendee logout too, in `Settings.vue`).
   - Both the attendee logout (`Settings.vue`) and the host sign-out go through `Api.logout()`, which already deleted the `lanyard-data-*` caches. The gap was that it only did so when the logout request succeeded. It now clears them in a `finally`, so a failed request (no signal) can't leave the old `/api/me` badge cached. `/api/host/me` is never cached by `sw.js`, so there is nothing to delete for it.
-- [ ] F07.4 Test the repro steps now end with a clean signed-out host home.
+- [x] F07.4 Test the repro steps now end with a clean signed-out host home.
+  - `test/hostsetup.mjs` covers the server side and guards the header, route and logout code. Browser run: see Log.
 
 ## Acceptance checks
-- [ ] From any host setup step, the owner can sign out in one tap and lands signed out.
-- [ ] After sign out, reloading never shows the old setup step.
+- [x] From any host setup step, the owner can sign out in one tap and lands signed out. (Local browser: the `profile` and `account` steps, desktop and 375 px, light and dark. The header sits outside every step, so `terms` and `welcome` show the same button; a test guards that.)
+- [x] After sign out, reloading never shows the old setup step. (Local browser on `host.localhost`: stuck `profile` step, Sign out, then `/host/signout` and a reload both gave 'Create your host account'.)
 
 ## Log
 -

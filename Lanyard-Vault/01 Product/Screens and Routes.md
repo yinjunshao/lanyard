@@ -20,7 +20,7 @@ From `src/router/index.js`. All views are code-split so public pages stay light 
 `/app`, `/app/cards`, `/app/profile`, `/app/scan`, `/app/people`, `/app/people/:id`, `/app/events`, `/app/events/:id`, `/app/settings`, `/app/feedback/:eventId`
 
 ## Host portal
-`/host` (dashboard), `/host/events/:id` (live), `/host/billing`, `/host/account`, `/admin`
+`/host` (dashboard), `/host/events/:id` (live), `/host/billing`, `/host/account`, `/host/signout` (signs out and reloads to the host home), `/admin`
 
 ## Host subdomain
 On the `host.*` site only `/host/*` is served; everything else redirects to the main site. See [[D014 Separate host subdomain]].

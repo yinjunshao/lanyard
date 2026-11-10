@@ -1,5 +1,6 @@
 // F07: a half-finished host account setup must never trap someone.
 // Reproduces the steps the browser takes in src/views/HostDashboard.vue.
+import { readFileSync } from "node:fs";
 import { makeEnv, check, summary } from "./harness.mjs";
 
 const T = await makeEnv();
@@ -41,5 +42,15 @@ check("…and returns to the profile step", r.json?.code === "profile_required",
 await c.post("/api/logout");
 r = await c.get("/api/host/me");
 check("a second sign-out is clean too", r.json?.code === "account_required", r.json);
+
+console.log("\n# The screens keep their way out (source guards; the browser steps are in the F07 plan note)");
+const dash = readFileSync(new URL("../src/views/HostDashboard.vue", import.meta.url), "utf8");
+const head = dash.slice(dash.indexOf('<div class="page-head">'), dash.indexOf('<p v-if="state ==='));
+check("the dashboard header has a Sign out button that is not tied to any one step",
+  head.includes('@click="signOut"') && !head.slice(0, head.indexOf('@click="signOut"')).includes("state ==="), head.slice(0, 300));
+const router = readFileSync(new URL("../src/router/index.js", import.meta.url), "utf8");
+check("/host/signout is a route", router.includes('path: "/host/signout"'));
+const api = readFileSync(new URL("../src/lib/api.js", import.meta.url), "utf8");
+check("logout clears the offline copy even if the request fails", api.includes("finally { await clearOfflineData(); }"));
 
 summary();
