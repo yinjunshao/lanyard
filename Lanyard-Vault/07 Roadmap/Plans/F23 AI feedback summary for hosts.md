@@ -4,7 +4,7 @@ id: F23
 priority: P2
 phase: 4
 size: M
-status: Not started
+status: In progress
 needs: [F21, F10]
 ---
 # F23 AI feedback summary for hosts
@@ -37,7 +37,7 @@ At the top of the feedback tab and in the report:
 Included for every host (it costs under a tenth of a penny per event). It's a good reason to choose Lanyard over a Google Form.
 
 ## Tasks
-- [ ] F23.1 Prompt and redaction, plus the quote substring check, with unit tests.
+- [x] F23.1 Prompt and redaction, plus the quote substring check, with unit tests.
 - [ ] F23.2 `POST /api/host/events/:id/feedback/summary` (host must own the event) and auto-generation at window close (cron path).
 - [ ] F23.3 UI card in the feedback tab and report, Copy and Regenerate.
 - [ ] F23.4 Recap email includes the paragraph, with "Written by AI" stated.
@@ -49,6 +49,7 @@ Included for every host (it costs under a tenth of a penny per event). It's a go
 - [ ] Fewer than 5 text answers → no summary, with the copy "Summary appears after 5 written answers".
 
 ## Log
--
+- 2026-11-11 (owner decision, recorded by Claude subagent): F23 lists "Needs: F21, F10". Both are built and committed and not ticked: F10's last checks need the production subdomain, and F21's last check needs a real model call with the owner's key. The owner said on 2026-11-11 to build the items behind them now, on their code as it stands. **If the production rollout of F10 or F21 changes anything (the host site address, host sign-in or cookies, the request shape, the reply handling, prices, the gateway address, a message), this feature may need rework.** Everything here is tested with the stubbed gateway only; no real model call was made and `.dev.vars` was not opened.
+- F23.1: `worker/ai/redact.js` (contact details, listed names, titles, "thanks to" and name-shaped pairs become markers; a matcher for the model's own words), `worker/ai/prompts/feedbackSummary.js` (task text, schema, the checks on a reply: no digits or count words, no single person, no name, counts of different people worked out from the ids the model cites, quotes exact and long enough). `test/feedback-summary.mjs` is in `npm test` before the budget check.
 
 Related: [[AI Safety and Cost Plan]], [[D004 Aggregate-only host analytics]] · back to [[00 Master To-Do]]
