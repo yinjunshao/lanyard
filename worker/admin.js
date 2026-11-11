@@ -12,7 +12,7 @@ import { peek, bump, HOUR } from "./ratelimit.js";
 import { emailProblem, emailKind, openTransfer, normEmail } from "./hostorg.js";
 import { funnel } from "./onboarding.js";
 import { ORG_KINDS } from "./plans.js";
-import { releaseHeldClaims } from "./host-promo.js";
+import { settleStatements } from "./host-promo.js";
 import { registerAiAdmin } from "./ai/admin.js";
 
 export const adminApp = new Hono();
@@ -84,9 +84,16 @@ adminApp.post("/api/admin/orgs/:id/review", async (c) => {
   if (!decision) return c.json({ error: "decision must be approve or reject" }, 400);
   const note = String(b.note || "").trim().slice(0, 300);
   if (decision === "rejected" && !note) return c.json({ error: "Give a short reason so the applicant knows why." }, 400);
-  const r = await run(db, "UPDATE orgs SET verification_status = ?, reviewed_at = ?, review_note = ? WHERE id = ? AND verification_status = 'pending'",
-    decision, now(), note || null, c.req.param("id"));
-  if (!r.meta?.changes) return c.json({ error: "That application isn't waiting for review." }, 404);
+  // Approving also issues any promo-code credits held for this organisation (F20), in the same
+  // transaction: an approved organisation never has a claim left waiting, and a failed step undoes both.
+  const ts = now();
+  const out = await db.batch([
+    db.prepare("UPDATE orgs SET verification_status = ?, reviewed_at = ?, review_note = ? WHERE id = ? AND verification_status = 'pending'")
+      .bind(decision, ts, note || null, c.req.param("id")),
+    ...(decision === "approved" ? settleStatements(db, c.req.param("id"), ts) : []),
+  ]);
+  if (!out[0].meta?.changes) return c.json({ error: "That application isn't waiting for review." }, 404);
+  const released = Number(out[2]?.meta?.changes || 0);
   // Tell the applicant. A mail failure must not undo the decision.
   const org = await one(db, "SELECT name, leader_email FROM orgs WHERE id = ?", c.req.param("id"));
   let emailed = false;
@@ -96,7 +103,7 @@ adminApp.post("/api/admin/orgs/:id/review", async (c) => {
       ...decisionEmail({ orgName: org.name, approved: decision === "approved", note, origin: hostOrigin(c.env, c) }),
     }).then(() => true, (e) => { console.error(e); return false; });
   }
-  return c.json({ ok: true, emailed });
+  return c.json({ ok: true, emailed, released });
 });
 
 adminApp.post("/api/admin/tickets/:id/resolve", async (c) => {

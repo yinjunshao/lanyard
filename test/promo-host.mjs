@@ -483,4 +483,82 @@ console.log("\n# The pages (source guards, F20.3)");
   check("the admin page shows no organisation or host account for a code (totals only)", !/host_account|org_id|\.email/.test(admin.slice(admin.indexOf("<span class=\"label\">Promo codes"), admin.indexOf("Welcome steps, last"))));
 }
 
+
+console.log("\n# Held claims are issued when an admin approves the organisation (F20.4)");
+{
+  const { releaseHeldClaims } = await import("../worker/host-promo.js");
+  const society = (n) => newHost({ email: `lead${n}@campus.ac.uk`, kind: "society", name: `Example Soc ${n}`, extra: { leaderName: "Lead Person", orgLink: `https://example.org/s${n}`, university: "Example Campus" }, keepStarter: true });
+  const review = (orgId, body, headers = A) => admin.post(`/api/admin/orgs/${orgId}/review`, body, headers);
+
+  const codeA = await newCode("HELDCODE1", { credits: 3, creditDays: 120, maxUses: 10 });
+  const codeB = await newCode("HELDCODE2", { credits: 2, maxUses: 10 });
+  const s1 = await society(11);
+  const other = await society(12);
+  await s1.c.post("/api/host/redeem/HELDCODE1");
+  await s1.c.post("/api/host/redeem/HELDCODE2");
+  await other.c.post("/api/host/redeem/HELDCODE1");
+  check("two claims by one pending society, and one by another, are all held", claims(codeA).every((x) => x.credit_id === null) && claims(codeB).length === 1 && creditRows(s1.orgId).length === 0 && creditRows(other.orgId).length === 0);
+  check("a host cannot approve (the admin route needs the admin token, not a host sign-in)", (await s1.c.post(`/api/admin/orgs/${s1.orgId}/review`, { decision: "approve" })).status === 401
+    && (await review(s1.orgId, { decision: "approve" }, {})).status === 401);
+  const t0 = Date.now();
+  const ok = await review(s1.orgId, { decision: "approve" });
+  check("approving the society says how many held claims it issued", ok.status === 200 && ok.json.released === 2, ok.json);
+  const cr = creditRows(s1.orgId);
+  const byReason = Object.fromEntries(cr.map((x) => [x.reason, x]));
+  check("it now has the credits: 3 for 120 days from the approval, and 2 for 365 days, granted by promo",
+    cr.length === 2 && byReason["promo:HELDCODE1"].events_granted === 3 && Math.abs(byReason["promo:HELDCODE1"].expires_at - (t0 + 120 * DAY)) < 60e3
+    && byReason["promo:HELDCODE2"].events_granted === 2 && cr.every((x) => x.granted_by === "promo" && x.events_used === 0), cr);
+  check("the claims are marked with their credits rows and the time", claims(codeA).filter((x) => x.org_id === s1.orgId).every((x) => x.credit_id === byReason["promo:HELDCODE1"].id && x.granted_at >= t0));
+  check("the host sees 5 credits and no longer a held claim", (await left(s1)) === 5 && (await s1.c.get("/api/host/billing")).json.heldPromos.length === 0);
+  check("another society's held claim is untouched by this approval", creditRows(other.orgId).length === 0 && claims(codeA).find((x) => x.org_id === other.orgId).credit_id === null);
+  check("they can use the credits to create events beyond the weekly free one", (await s1.c.post("/api/host/events", { name: "First" })).status === 201 && (await s1.c.post("/api/host/events", { name: "Second" })).status === 201 && (await s1.c.post("/api/host/events", { name: "Third" })).status === 201);
+  const again = await review(s1.orgId, { decision: "approve" });
+  check("approving again is refused (it is no longer waiting) and issues nothing more", again.status === 404 && creditRows(s1.orgId).length === 2);
+  check("running the release again, by hand, changes nothing (it can only ever issue a claim once)", (await releaseHeldClaims(env.DB, s1.orgId)) === 0 && creditRows(s1.orgId).length === 2 && uses(codeA) === 2);
+  check("the audit totals: the code shows 2 claimed, 1 held, 3 credits issued", (() => { const p = q("SELECT (SELECT COUNT(*) FROM host_promo_claims h WHERE h.code = 'HELDCODE1' AND h.credit_id IS NULL) AS held, (SELECT COALESCE(SUM(credits),0) FROM host_promo_claims h WHERE h.code='HELDCODE1' AND h.credit_id IS NOT NULL) AS issued")[0]; return p.held === 1 && p.issued === 3; })());
+
+  // A rejected organisation never gets them.
+  const rej = await review(other.orgId, { decision: "reject", note: "Not a society" });
+  check("rejecting issues nothing and the claim stays held", rej.status === 200 && rej.json.released === 0 && creditRows(other.orgId).length === 0 && claims(codeA).find((x) => x.org_id === other.orgId).credit_id === null);
+
+  // A code switched off while held is not issued until it is on again.
+  const codeC = await newCode("HELDCODE3", { credits: 4, maxUses: 10 });
+  const s3 = await society(13);
+  await s3.c.post("/api/host/redeem/HELDCODE3");
+  await admin.post("/api/admin/promos/HELDCODE3/active", { active: false }, A);
+  const off = await review(s3.orgId, { decision: "approve" });
+  check("a code that was switched off while the claim was held is not issued on approval", off.status === 200 && off.json.released === 0 && creditRows(s3.orgId).length === 0);
+  await admin.post("/api/admin/promos/HELDCODE3/active", { active: true }, A);
+  const bill = await s3.c.get("/api/host/billing");
+  check("…once it is on again, the next look at Billing issues it, once", bill.json.credits.remaining === 4 && bill.json.heldPromos.length === 0 && creditRows(s3.orgId).length === 1
+    && (await s3.c.get("/api/host/billing")).json.credits.remaining === 4 && creditRows(s3.orgId).length === 1);
+
+  // Safety net: an organisation approved some other way (or an interrupted approval) with a claim waiting.
+  const codeD = await newCode("HELDCODE4", { credits: 2, maxUses: 10 });
+  const s4 = await society(14);
+  await s4.c.post("/api/host/redeem/HELDCODE4");
+  env.DB.raw.prepare("UPDATE orgs SET verification_status = 'approved' WHERE id = ?").run(s4.orgId);
+  check("an approved organisation with a claim still waiting gets it the next time it looks at Billing", (await left(s4)) === 2 && claims(codeD)[0].credit_id !== null);
+  // The same press by an approved organisation whose claim is waiting.
+  const codeE = await newCode("HELDCODE5", { credits: 2, maxUses: 10 });
+  const s5 = await society(15);
+  await s5.c.post("/api/host/redeem/HELDCODE5");
+  env.DB.raw.prepare("UPDATE orgs SET verification_status = 'approved' WHERE id = ?").run(s5.orgId);
+  const press = await s5.c.post("/api/host/redeem/HELDCODE5");
+  check("…or when the host presses the code's button again", press.json.already === true && press.json.mine.held === false && creditRows(s5.orgId).length === 1 && uses(codeE) === 1);
+
+  // Approving races with a press.
+  const codeF = await newCode("HELDCODE6", { credits: 2, maxUses: 10 });
+  const s6 = await society(16);
+  await s6.c.post("/api/host/redeem/HELDCODE6");
+  const [a1, a2] = await Promise.all([review(s6.orgId, { decision: "approve" }), s6.c.get("/api/host/billing")]);
+  await Promise.all([releaseHeldClaims(env.DB, s6.orgId), releaseHeldClaims(env.DB, s6.orgId), s6.c.post("/api/host/redeem/HELDCODE6")]);
+  check("an approval, Billing and two releases at once still issue the credits exactly once", a1.status === 200 && creditRows(s6.orgId).length === 1 && creditRows(s6.orgId)[0].events_granted === 2 && (await left(s6)) === 2 && uses(codeF) === 1);
+  check("credits are issued for an organisation only, never to someone else's (every promo credit row belongs to the claim's own organisation)",
+    q("SELECT COUNT(*) n FROM host_promo_claims c JOIN credits k ON k.id = c.credit_id WHERE k.org_id != c.org_id").every((r) => r.n === 0)
+    && q("SELECT COUNT(*) n FROM credits WHERE reason LIKE 'promo:%' AND id NOT IN (SELECT credit_id FROM host_promo_claims WHERE credit_id IS NOT NULL)").every((r) => r.n === 0));
+  check("across the whole run no code was issued more credits than its limit allows", q("SELECT p.code FROM promo_codes p WHERE p.audience = 'host' AND p.max_uses IS NOT NULL AND (SELECT COUNT(*) FROM host_promo_claims h WHERE h.code = p.code) > p.max_uses").length === 0
+    && q("SELECT p.code FROM promo_codes p WHERE p.audience = 'host' AND p.uses != (SELECT COUNT(*) FROM host_promo_claims h WHERE h.code = p.code)").length === 0);
+}
+
 summary();
