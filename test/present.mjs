@@ -204,4 +204,43 @@ console.log("\n# Controls, fullscreen and keeping the screen awake (F19.3)");
   check("every button is a real button or link with a visible name, at least 44 px tall", /\.present-btn \{[^}]*min-height: 44px/.test(vue) && !/<(div|span)[^>]*@click/.test(vue));
 }
 
+console.log("\n# The poster (F19.4): A4, paper and ink, no counter and no controls");
+{
+  const pr = read("src/views/HostPrint.vue");
+  const css = pr.slice(pr.indexOf("<style scoped>"));
+  check("@page is A4 with 12 mm margins", /@page \{ size: A4; margin: 12mm; \}/.test(pr));
+  check("the sheet is the printable area, 186 x 272 mm (one page, with a hair to spare), and the controls are not printed", /\.poster-sheet \{ width: 186mm !important; height: 272mm;/.test(pr) && /\.no-print \{ display: none !important; \}/.test(pr) && /class="poster-bar no-print"/.test(pr));
+  const qrCqw = +/\.poster-qr \{ width: (\d+)cqw/.exec(pr)[1];
+  const qrMm = qrCqw * 186 / 100;
+  const { size, modules } = qrPath("https://lanyd.fyi/e/ABCDE"); // the smallest code an address here can make
+  const dark = qrMm * modules / size;
+  check(`the QR is ${qrMm.toFixed(0)} mm wide with its quiet zone; the dark part of the smallest code is ${dark.toFixed(0)} mm, over the 70 mm asked for`, dark >= 70 && modules === 25, [qrMm, dark, modules]);
+  check("the poster has the event name, date, venue, QR, code, the address as typed, three steps and the wordmark",
+    ["ev.name", "when", "ev.venue", "qrPath(joinUrl(ev.value.code))", "{{ ev.code }}", "joinText(ev.code)", "Scan", "Check in", "Meet people", 'class="poster-brand">lanyard<'].every((x) => pr.includes(x)));
+  check("it takes the check-in address from the same helper as the live tab and the Present page", /import \{[^}]*joinUrl[^}]*\} from "\.\.\/lib\/checkinlink"/.test(pr) && !/MAIN_ORIGIN|location\./.test(pr));
+  check("no live counter, no polling, no timers", !/startPolling|setInterval|setTimeout|checkins|connections|selfies|presenceUsed/.test(pr.replace(/\/\/.*$/gm, "")));
+  check("it calls only the host-only /live route", (pr.match(/HostApi\.\w+/g) || []).join() === "HostApi.hostLive");
+  check("the print dialog opens once the page is ready (not with ?auto=0), and the Print button opens it again", /route\.query\.auto === "0"/.test(pr) && /await document\.fonts\?\.ready;[\s\S]*printIt\(\);/.test(pr) && /@click="printIt"/.test(pr));
+  check("it renders no HTML from data", !/v-html|innerHTML/.test(pr));
+  const poster = css.slice(css.indexOf(".poster-sheet {"), css.indexOf("</style>"));
+  const colours = new Set((poster.match(/#[0-9a-fA-F]{3,6}\b/g) || []).map((c) => c.toLowerCase()));
+  check("the only colours on the paper are black, white and the event's strap (a rule 1.6 cqw thick)", [...colours].every((c) => ["#fff", "#000"].includes(c)) && /border-top: 1\.6cqw solid var\(--event-strap\)/.test(poster), [...colours]);
+  check("no filled area: the one background on the sheet is white, nothing else is filled", (poster.match(/background[a-z-]*:/g) || []).length === 1 && /background: #fff/.test(poster), poster.match(/background[a-z-]*:[^;]*/g));
+  check("the paper is white and black whatever the theme (no theme variable sets its colours)", /\.poster-sheet \{[^}]*background: #fff; color: #000/.test(poster) && !/var\(--(ink|paper|graphite)/.test(poster));
+  check("the strap is the host's colour, else Formal's, else the Lanyard strap", pr.includes('ev.value?.strapColor || (ev.value?.theme === "formal" ? "#2b3138" : "#d9502b")'));
+  // The poster QR is the same path the screen draws, so it reads back the same address (decoded above); here with the poster's own black on white.
+  check("the poster's QR reads back as the check-in address", decode(joinUrl("ABCDE"), 8) === joinUrl("ABCDE"));
+  check("event codes only change when the host asks (no schedule), so a poster stays valid until New check-in code",
+    !/rotates_at|setInterval|cron/i.test(read("worker/hosts.js").slice(read("worker/hosts.js").indexOf("rotate-code"), read("worker/hosts.js").indexOf("rotate-code") + 900)));
+}
+
+console.log("\n# Where the code lives (the public-page budget, D024)");
+{
+  const hr = read("src/router/routes.host.js"), he = read("src/views/HostEvent.vue");
+  check("one route carries the live page, Present and the poster, to one small file", (hr.match(/path: "\/events\/:id/g) || []).length === 1 && hr.includes("HostEvent.vue") && !/HostPresent|HostPrint/.test(hr));
+  check("HostEvent loads each screen with a plain import() and not defineAsyncComponent (which would pull Vue code into the entry)", ["HostPresent", "HostPrint", "HostLive"].every((v) => he.includes(`import("./${v}.vue")`)) && !/^[^/\n]*defineAsyncComponent/m.test(he.replace(/\/\/.*$/gm, "")));
+  const stray = ["src/router/routes.attendee.js", "src/router/index.js", "src/main.js", "src/App.vue", "src/lib/api.js", "src/lib/store.js"].filter((f) => /HostPresent|HostPrint|HostEvent|presentui|presentpoll|qrpath|checkinlink/.test(read(f)));
+  check("no entry, public or attendee file names the present, poster or QR-path code", stray.length === 0, stray);
+}
+
 summary();
