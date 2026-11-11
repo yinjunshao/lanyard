@@ -635,7 +635,7 @@ console.log("\n# F23.3 The screen (source guards; the layout was checked in a br
   const pol = read("src/views/Privacy.vue");
   check("the Privacy Policy says written answers may be summarised by AI with names taken out, names the one automatic exception, and gives the retention", /written answers[^.]*may be sent to our AI provider to write a short summary/.test(pol) && /Names, email addresses, links and phone numbers are taken out first/.test(pol) && /the one exception is a host's feedback summary/.test(pol) && /An AI summary of an event's written feedback/.test(pol));
   check("the attendee feedback form tells people before they write", /Written answers may be summarised by AI for the organiser, with names and contact details taken out/.test(read("src/views/Feedback.vue")));
-  check("the Terms and Privacy version was not bumped by this feature", /TERMS_VERSION = "2026-11-10"/.test(read("worker/legal.js")));
+  check("the Terms and Privacy version is the one the owner approved after this feature (2026-11-11)", /TERMS_VERSION = "2026-11-11"/.test(read("worker/legal.js")));
   check("no public or shared front-end file mentions the summary", ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/router/routes.attendee.js", "src/router/routes.host.js"].every((f) => { try { return !/feedbackSummary|FeedbackSummary|feedback\/summary/.test(read(f)); } catch { return true; } }));
 }
 
