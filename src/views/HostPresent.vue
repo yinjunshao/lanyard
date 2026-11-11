@@ -7,6 +7,8 @@
 // signed-in host of the event's organisation.
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
+import { applyTheme } from "../lib/theme";
+import { idleHider, keepAwake } from "../lib/presentui";
 import { HostApi } from "../lib/hostapi";
 import { joinText, joinUrl } from "../lib/checkinlink";
 import { qrPath } from "../lib/qrpath";
@@ -27,17 +29,57 @@ async function refresh() {
   try { live.value = await HostApi.hostLive(id.value); stale.value = false; }
   catch (e) { stale.value = true; throw e; }
 }
-let stop = null;
+// ---- Controls: Fullscreen, Theme, Exit. Shown on movement, hidden after 3 s with the cursor. ----
+const controls = ref(true);
+const bar = ref(null);
+const fullscreen = ref(false);
+const canFullscreen = typeof document !== "undefined" && !!document.fullscreenEnabled;
+const dark = ref(false);
+const hider = idleHider({
+  show: () => { controls.value = true; },
+  hide: () => { controls.value = false; },
+  busy: () => !!bar.value?.contains(document.activeElement),
+});
+const poke = () => hider.poke();
+const onFullscreen = () => { fullscreen.value = !!document.fullscreenElement; };
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch { /* the browser said no: stay as we are */ }
+}
+// Light or dark for this page only (a bright room or a dim one). The portal's own choice comes back on leaving.
+function setDark(on) {
+  dark.value = on;
+  document.documentElement.dataset.theme = on ? "night" : "light";
+}
+
+let stop = null, release = null;
 onMounted(async () => {
+  window.addEventListener("pointermove", poke);
+  window.addEventListener("pointerdown", poke);
+  window.addEventListener("keydown", poke);
+  document.addEventListener("fullscreenchange", onFullscreen);
+  poke();
   try { live.value = await HostApi.hostLive(id.value); }
   catch (e) {
     problem.value = ["signed_out", "details_required", "terms_required"].includes(e.code) || e.status === 401
       ? "signin" : e.status === 404 ? "missing" : "error";
     return;
   }
+  setDark(live.value.event.theme === "night"); // a Night event is dark to begin with; the button changes it
   stop = startPolling(refresh);
+  release = keepAwake();
 });
-onBeforeUnmount(() => stop?.());
+onBeforeUnmount(() => {
+  stop?.(); release?.(); hider.stop();
+  window.removeEventListener("pointermove", poke);
+  window.removeEventListener("pointerdown", poke);
+  window.removeEventListener("keydown", poke);
+  document.removeEventListener("fullscreenchange", onFullscreen);
+  if (document.fullscreenElement) document.exitFullscreen?.().catch?.(() => {});
+  applyTheme();
+});
 
 const ev = computed(() => live.value?.event || null);
 const qr = computed(() => (ev.value ? qrPath(joinUrl(ev.value.code)) : null));
@@ -47,12 +89,17 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
 </script>
 
 <template>
-  <main class="present" :style="strap ? { '--event-strap': strap } : null">
+  <main class="present" :class="{ idle: !controls }" :style="strap ? { '--event-strap': strap } : null">
     <div class="present-strap" aria-hidden="true"></div>
     <p v-if="problem === 'signin'" class="present-note">Sign in to the host portal to present this event. <router-link to="/">Go to the host portal</router-link></p>
     <p v-else-if="problem === 'missing'" class="present-note">This event was not found. <router-link to="/">Go to the host portal</router-link></p>
     <p v-else-if="problem" class="present-note" role="alert">Could not load this event. <router-link to="/">Go to the host portal</router-link></p>
-    <div v-else-if="ev" class="present-body">
+    <div v-if="ev" ref="bar" class="present-controls" :class="{ shown: controls }" role="toolbar" aria-label="Present controls">
+      <button v-if="canFullscreen" type="button" class="present-btn" @click="toggleFullscreen">{{ fullscreen ? "Exit fullscreen" : "Fullscreen" }}</button>
+      <button type="button" class="present-btn" :aria-pressed="dark" @click="setDark(!dark)">{{ dark ? "Light" : "Dark" }}</button>
+      <router-link :to="`/events/${id}`" class="present-btn">Exit</router-link>
+    </div>
+    <div v-if="ev" class="present-body">
       <section class="present-info">
         <p class="present-brand">lanyard<b>.</b></p>
         <h1 class="present-name">{{ ev.name }}</h1>
@@ -107,6 +154,20 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
 .present-n { font-size: 7vh; font-weight: 700; line-height: 1; }
 .present-n-label { font-size: 3vh; color: var(--graphite); }
 .present-stale { font-size: 2.4vh; color: var(--strap-deep); }
+/* Controls: the host's, not the room's, so they stay ordinary size and only show on movement. */
+.present-controls {
+  position: absolute; top: calc(2vh + 12px); right: 16px; z-index: 2;
+  display: flex; gap: 8px; opacity: 0; visibility: hidden; transition: opacity 0.12s;
+}
+.present-controls.shown { opacity: 1; visibility: visible; }
+.present-btn {
+  min-height: 44px; padding: 0 18px; display: inline-flex; align-items: center;
+  border: var(--border-ink); border-radius: var(--radius); background: var(--paper-raised); color: var(--ink);
+  font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.present-btn:active { background: var(--paper); }
+.present.idle { cursor: none; }
+@media (prefers-reduced-motion: reduce) { .present-controls { transition: none; } }
 .present-qr { display: flex; align-items: center; justify-content: center; }
 /* At least 40% of the screen's height; as large as the width allows beside the text. */
 .present-qr-svg { width: min(72vh, 44vw); height: min(72vh, 44vw); display: block; border-radius: 0.8vh; }

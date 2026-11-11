@@ -129,7 +129,7 @@ console.log("\n# Refreshing every 15 s, not while hidden (F19.2)");
   check("a failed refresh does not stop the next one", n === 3, n);
 }
 const ps = read("src/views/HostPresent.vue");
-check("the page polls through that helper and stops it on leaving", ps.includes("startPolling(refresh)") && ps.includes("onBeforeUnmount(() => stop?.())"));
+check("the page polls through that helper and stops it on leaving", ps.includes("startPolling(refresh)") && /onBeforeUnmount\(\(\) => \{\s*stop\?\.\(\);/.test(ps));
 check("the QR, the code and the spoken address are all worked out from the polled data, so a new code needs no reload",
   ps.includes("qrPath(joinUrl(ev.value.code))") && ps.includes("const ev = computed(() => live.value?.event") && ps.includes("{{ ev.code }}") && ps.includes("joinText(ev.code)"));
 
@@ -148,6 +148,60 @@ console.log("\n# The count rises, and a new code reaches the page (F19.2)");
   check("…and the QR and address the page draws are different, and read back as the new address", qrPath(joinUrl(next.event.code)).d !== oldQr && decode(joinUrl(next.event.code), 6) === joinUrl(next.event.code));
   check("the old address stops resolving (so a stale poster stops working, as the live tab warns)", (await client({ ip: "10.90.1.2" }).get(`/api/e/${before.event.code}`)).status === 404);
   check("the count is still the same event's", next.checkins === up.checkins);
+}
+
+console.log("\n# Controls, fullscreen and keeping the screen awake (F19.3)");
+{
+  const { idleHider, keepAwake, IDLE_MS } = await import("../src/lib/presentui.js");
+  let now = 0, timers = [];
+  const setT = (f, ms) => { const t = { f, at: now + ms }; timers.push(t); return t; };
+  const clearT = (t) => { timers = timers.filter((x) => x !== t); };
+  const advance = (ms) => { const end = now + ms; for (;;) { const n = timers.filter((t) => t.at <= end).sort((a, b) => a.at - b.at)[0]; if (!n) break; now = n.at; timers = timers.filter((t) => t !== n); n.f(); } now = end; };
+  let shown = false, held = false;
+  const h = idleHider({ show: () => { shown = true; }, hide: () => { shown = false; }, busy: () => held, setT, clearT });
+  check("the controls hide after 3 seconds", IDLE_MS === 3000);
+  h.poke(); check("movement shows them", shown);
+  advance(2999); check("still there at 2.999 s", shown);
+  advance(1); check("gone at 3 s", !shown);
+  h.poke(); advance(2000); h.poke(); advance(2999);
+  check("more movement starts the 3 seconds again", shown);
+  advance(1); check("and they go 3 s after the last movement", !shown);
+  h.poke(); held = true; advance(10000);
+  check("a control with keyboard focus keeps them up", shown);
+  held = false; advance(3000); check("…until focus leaves", !shown);
+  h.poke(); h.stop(); advance(10000); check("stopped, nothing is left running", timers.length === 0 && shown);
+
+  // Wake lock: asked for, asked again when the tab is shown, released on leaving, never throws.
+  const mk = () => {
+    const log = { requests: 0, releases: 0, listeners: [] };
+    const nav = { wakeLock: { request: async () => { log.requests++; return { release: async () => { log.releases++; }, addEventListener() {} }; } } };
+    const doc = { hidden: false, addEventListener: (t, f) => log.listeners.push(f), removeEventListener: (t, f) => { log.listeners = log.listeners.filter((x) => x !== f); } };
+    return { log, nav, doc };
+  };
+  const a = mk(); const stopA = keepAwake(a);
+  await Promise.resolve(); await Promise.resolve();
+  check("it asks for the screen lock once when opened", a.log.requests === 1, a.log.requests);
+  stopA(); await Promise.resolve();
+  check("it lets go on leaving and drops its listener", a.log.releases === 1 && a.log.listeners.length === 0);
+  const b = mk(); b.nav.wakeLock.request = async () => { b.log.requests++; throw new Error("NotAllowedError"); };
+  let threw = false; try { const stopB = keepAwake(b); await Promise.resolve(); await Promise.resolve(); stopB(); } catch { threw = true; }
+  check("a refusal is silent", !threw && b.log.requests === 1);
+  let threw2 = false; try { keepAwake({ nav: {}, doc: { hidden: false, addEventListener() {}, removeEventListener() {} } })(); keepAwake({ nav: null, doc: null })(); } catch { threw2 = true; }
+  check("a browser with no wake lock is silent", !threw2);
+  const c = mk(); c.nav.wakeLock.request = async () => { c.log.requests++; return { release: async () => {}, addEventListener(t, f) { c.log.onRelease = f; } }; };
+  keepAwake(c); await Promise.resolve(); await Promise.resolve();
+  c.log.onRelease(); c.log.listeners.forEach((f) => f()); await Promise.resolve();
+  check("after the browser drops the lock (tab hidden then shown) it asks again", c.log.requests === 2, c.log.requests);
+
+  const vue = read("src/views/HostPresent.vue");
+  check("the three controls are Fullscreen, a Light/Dark theme button and Exit (back to the live page)",
+    vue.includes("toggleFullscreen") && /setDark\(!dark\)/.test(vue) && vue.includes("`/events/${id}`") && vue.includes(">Exit<"));
+  check("the cursor is hidden with the controls", /\.present\.idle \{ cursor: none; \}/.test(vue) && vue.includes("idle: !controls"));
+  check("the controls show on movement, touch and keys", ["pointermove", "pointerdown", "keydown"].every((e) => vue.includes(`addEventListener("${e}", poke)`)));
+  check("the theme change is for this page only: the portal's own choice is put back on leaving, and nothing is saved", vue.includes("applyTheme();") && !/setThemePref|localStorage/.test(vue));
+  check("a Night event starts dark", vue.includes('setDark(live.value.event.theme === "night")'));
+  check("fullscreen is left on exit and the page holds the screen awake", vue.includes("document.exitFullscreen") && vue.includes("keepAwake()") && vue.includes("release?.()"));
+  check("every button is a real button or link with a visible name, at least 44 px tall", /\.present-btn \{[^}]*min-height: 44px/.test(vue) && !/<(div|span)[^>]*@click/.test(vue));
 }
 
 summary();
