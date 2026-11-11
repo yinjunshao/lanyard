@@ -8,6 +8,7 @@ import { makeEnv, check, summary, becomeHost } from "./harness.mjs";
 import { setSetting } from "../worker/ai/store.js";
 import { fitWords, followupSystem, refineFollowup, WORD_LIMIT, PROMPT_VERSION } from "../worker/ai/prompts/followup.js";
 import { URL_RE, EMAIL_RE } from "../worker/ai/sanitize.js";
+import { templateDraft, CHANNELS, TONES, GOALS } from "../src/lib/followupTemplates.js";
 
 const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
 const realFetch = globalThis.fetch;
@@ -279,6 +280,35 @@ console.log("\n# Blocking, and the AI search opt-out");
   const b = await draft(A, cnX);
   check("a blocked pair: 404, nothing is sent", b.status === 404 && model.calls.length === 0, b.status);
   check("and the options are a 404 too", (await options(A, cnX)).status === 404);
+}
+
+console.log("\n# The template draft (no AI)");
+{
+  const base = { themFirst: "Bea", meFirst: "Alice", eventName: "Spring networking night", topic: "battery recycling", offer: "robotics" };
+  const all = [];
+  for (const ch of CHANNELS) for (const tn of TONES) for (const g of GOALS) all.push({ ch: ch.id, tn: tn.id, g: g.id, d: templateDraft({ ...base, channel: ch.id, tone: tn.id, goal: g.id }) });
+  check("every channel, tone and goal gives a draft", all.length === 3 * 4 * 5 && all.every((x) => typeof x.d.body === "string" && x.d.body.length > 20), all.length);
+  const words = (t) => t.trim().split(/\s+/).length;
+  check("within the same word limits as the AI draft (80, 80 and 120; subject 8)", all.every((x) => words(x.d.body) <= WORD_LIMIT[x.ch] && (x.ch !== "email" || (x.d.subject && words(x.d.subject) <= 8))), all.filter((x) => words(x.d.body) > WORD_LIMIT[x.ch]).map((x) => x.d.body));
+  check("only email has a subject", all.every((x) => (x.ch === "email") === ("subject" in x.d)));
+  check("each one names the person, the event and (when the goal uses it) the topic", all.every((x) => /Bea/.test(x.d.body) && /Spring networking night/.test(x.d.body)) && all.filter((x) => x.tn !== "short" || x.g === "advice").every((x) => /battery recycling/.test(x.d.body)));
+  check("no placeholder, link, email address, phone number, markup or emoji in any of them", all.every((x) => !/[\[\]{}<>]|https?:|www\.|@|\d{5}|\p{Extended_Pictographic}/u.test(x.d.body + (x.d.subject || ""))));
+  check("none uses the filler the AI version is told to avoid", all.every((x) => !/hope this finds you well|circle back|touch base/i.test(x.d.body)));
+  const sameTone = (g, ch) => new Set(TONES.map((tn) => templateDraft({ ...base, channel: ch, tone: tn.id, goal: g }).body)).size;
+  check("changing the tone changes the draft (four tones, four texts) for every goal", GOALS.every((g) => sameTone(g.id, "linkedin") === 4));
+  check("changing the goal changes the draft (five goals, five texts) for every tone", TONES.every((tn) => new Set(GOALS.map((g) => templateDraft({ ...base, tone: tn.id, goal: g.id }).body)).size === 5));
+  check("each goal reads as that goal", /keep in touch|stay in touch/i.test(templateDraft({ ...base, goal: "stay_in_touch" }).body) && /advice/.test(templateDraft({ ...base, goal: "advice" }).body) && /coffee/.test(templateDraft({ ...base, goal: "coffee" }).body) && /together/.test(templateDraft({ ...base, goal: "work_together" }).body) && /Thank/.test(templateDraft({ ...base, goal: "thanks" }).body));
+  const ap = templateDraft({ ...base, channel: "email", tone: "professional" });
+  check("email signs off with your first name; professional says Kind regards", /Kind regards,\nAlice$/.test(ap.body) && /Best,\nAlice$/.test(templateDraft({ ...base, channel: "email" }).body));
+  check("a chosen offer is mentioned as something you can help with, and not otherwise", /happy to help with robotics/.test(templateDraft(base).body) && !/happy to help/.test(templateDraft({ ...base, offer: "" }).body));
+  const bare = templateDraft({ channel: "email", tone: "friendly", goal: "coffee" });
+  check("with no name, event, topic or offer it still reads cleanly (no 'undefined', no gaps, no sign-off name)", !/undefined|null|\s{3}| ,|,,/.test(bare.body + bare.subject) && /^Hi there,/.test(bare.body) && !/Best,\n$/.test(bare.body) && bare.subject === "Coffee some time?", bare);
+  check("with only an event it names it, with only a topic it uses it", /Spring night/.test(templateDraft({ eventName: "Spring night" }).body) && /robotics/.test(templateDraft({ topic: "robotics", goal: "advice" }).body));
+  check("an unknown tone, goal or channel still gives a draft (the friendly, stay-in-touch LinkedIn one)", templateDraft({ tone: "x", goal: "y", channel: "z", themFirst: "Bea" }).body.startsWith("Hi Bea,"));
+  const sneaky = templateDraft({ ...base, themFirst: "  Bea  ", eventName: "  Spring night " });
+  check("spaces around names are trimmed", /^Hi Bea,/.test(sneaky.body) && /Spring night\./.test(sneaky.body));
+  check("the AI checks accept every template for its channel (the two versions follow one set of rules)", all.every((x) => refineFollowup({ channel: x.ch, tone: x.tn })(x.d) !== null), all.filter((x) => refineFollowup({ channel: x.ch, tone: x.tn })(x.d) === null).map((x) => x.d));
+  check("the module has no imports (so it stays small and loads anywhere)", !/^import /m.test(read("src/lib/followupTemplates.js")));
 }
 
 console.log("\n# Source guards");
