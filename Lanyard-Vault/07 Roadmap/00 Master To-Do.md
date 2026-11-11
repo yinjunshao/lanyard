@@ -83,7 +83,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 
 ### Phase 4: AI (all through [[AI Safety and Cost Plan]])
 - [ ] **F21** [[F21 AI foundation]] · P1 · L · Needs: F09 + owner decision (AI search default) (in progress: Claude subagent, 2026-11-10; all tasks built and tested with a stub, waiting on the owner steps and one check that needs a real key)
-- [ ] **F22** [[F22 AI follow-up drafts]] · P1 · M · Needs: F21, F13, F16
+- [ ] **F22** [[F22 AI follow-up drafts]] · P1 · M · Needs: F21, F13, F16 (in progress: Claude subagent, 2026-11-11; built on F21 as it stands, with the owner's say-so, before F21's real-key check)
 - [ ] **F23** [[F23 AI feedback summary for hosts]] · P2 · M · Needs: F21, F10
 - [ ] **F24** [[F24 Do I know someone who]] · P2 · L · Needs: F21, F11, F12, F13
 - [ ] **F25** [[F25 AI who-to-meet ranking]] · P3 · S · Needs: F17, F24

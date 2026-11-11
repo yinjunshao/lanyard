@@ -38,6 +38,7 @@ import { exportPresence, canViewPresenceSelfie } from "./presence.js";
 import { presenceApp } from "./presenceApp.js";
 import { exportAi } from "./ai/data.js";
 import { aiApp } from "./ai/routes.js";
+import { followupApp } from "./ai/followup.js";
 
 const app = new Hono();
 
@@ -1274,6 +1275,7 @@ app.route("/", eventsApp);
 app.route("/", myEventsApp);
 app.route("/", presenceApp);
 app.route("/", aiApp);
+app.route("/", followupApp);
 app.route("/", feedbackApp);
 app.route("/", hostApp);
 app.route("/", adminApp);

@@ -4,7 +4,7 @@ id: F22
 priority: P1
 phase: 4
 size: M
-status: Not started
+status: In progress
 needs: [F21, F13, F16]
 ---
 # F22 AI follow-up drafts
@@ -46,7 +46,7 @@ Templates per goal × tone in `src/lib/followupTemplates.js` (filled with name, 
 Quotas are in [[AI Safety and Cost Plan]]: Free 3 a day and 15 a month, Plus 15 a day and 150 a month. Guests can't use it ("Save your card to use drafts").
 
 ## Tasks
-- [ ] F22.1 `POST /api/ai/followup/:connectionId`: builds the minimal input from DB rows (not from client-sent profile text), calls `callModel`, validates the output (strips links/emails not in the input, enforces length). Tests use the stub.
+- [x] F22.1 `POST /api/ai/followup/:connectionId`: builds the minimal input from DB rows (not from client-sent profile text), calls `callModel`, validates the output (strips links/emails not in the input, enforces length). Tests use the stub.
 - [ ] F22.2 Templates fallback, with tests.
 - [ ] F22.3 Composer sheet UI with presets, chips, extra info, result editor and the action buttons.
 - [ ] F22.4 Aggregate counters (draft generated, copied, opened in app, marked as followed up) for the admin panel, to judge whether it helps.
@@ -59,6 +59,7 @@ Quotas are in [[AI Safety and Cost Plan]]: Free 3 a day and 15 a month, Plus 15 
 - [ ] The request body sent to the gateway contains no URL, email or hidden card field (checked in the test).
 
 ## Log
--
+- 2026-11-11 (owner decision, recorded by Claude subagent): F22 lists "Needs: F21", but F21 is built and committed and not ticked, because its last acceptance check needs a real model call with the owner's key. The owner said on 2026-11-11 to build the items behind F21 now, on F21's code as it stands. **If the real-key rollout of F21 changes anything (the request shape, the reply handling, prices, the gateway address, a message), this feature may need rework.** Everything here was tested with the stubbed gateway only; no real model call was made and `.dev.vars` was not opened.
+- F22.1: `worker/ai/followup.js` (`GET` and `POST /api/ai/followup/:connectionId`), `worker/ai/prompts/followup.js` (task text, fixed tone, goal and channel lists, schema, length and placeholder checks), `sharedCard` exported from `worker/inCommon.js` (read only, otherwise unchanged), mounted in `worker/index.js`. `test/followup.mjs` is in `npm test` before the budget check. The data reaching the model is listed at the top of `followup.js` and inspected request by request in the test.
 
 Related: [[AI Safety and Cost Plan]] · back to [[00 Master To-Do]]

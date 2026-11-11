@@ -125,7 +125,7 @@ export function inCommon(me, peer, events = []) {
 
 // The card this person shared with the other: the card the connection was made through if it is
 // theirs, otherwise their default card. Read only (the Worker's own helper may create one).
-async function sharedCard(db, userId, cn) {
+export async function sharedCard(db, userId, cn) {
   if (cn?.card_id) {
     const own = await one(db, "SELECT * FROM cards WHERE id = ? AND user_id = ?", cn.card_id, userId);
     if (own) return own;
