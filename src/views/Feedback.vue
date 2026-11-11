@@ -115,6 +115,7 @@ async function submit() {
 
         <p v-if="error" class="error-text" role="alert">{{ error }}</p>
         <button class="btn btn-primary" type="submit" :disabled="busy">{{ busy ? "Sending…" : "Send feedback" }}</button>
+        <p class="small muted" style="text-align:center;margin:0">Written answers may be summarised by AI for the organiser, with names and contact details taken out.</p>
         <p class="small muted" style="text-align:center;margin:0" v-if="form.closesAt">Open until {{ fmtDateTime(form.closesAt) }}</p>
       </form>
     </template>

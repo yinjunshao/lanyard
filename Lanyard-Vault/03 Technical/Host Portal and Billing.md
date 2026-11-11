@@ -3,6 +3,8 @@ tags: [technical, host, billing]
 ---
 # Host Portal and Billing
 
+**AI feedback summary (F23).** At the top of an event's Feedback tab and in its Report, a short summary of the written answers: the figures (average, share who would come again, written by the page from the Worker's numbers), a paragraph, what worked and what to change with "about N people", and word-for-word quotes, with Regenerate (3 a day) and Copy. Below 5 written answers to one question it says "Summary appears after 5 written answers". It is written automatically once when the feedback window closes, and the owner is emailed the paragraph, labelled as written by AI. Included for every host. See [[D033 Feedback summaries count in code, quote exactly and never name anyone]].
+
 ## Host accounts and organisations
 - The portal is its own site, `host.lanyd.fyi`, with its own account: an email that receives a sign-in code ([[Auth and Sessions]], [[D020 Host accounts separate from attendee accounts]]). It has nothing to do with a person's Lanyard card.
 - Setup, each step saved on the server: email code, then details (full name, use case, frequency, size, referral), then the Host Terms, then "under my own name" or an organisation of type society, institution or company. Every step has Back and Sign out.

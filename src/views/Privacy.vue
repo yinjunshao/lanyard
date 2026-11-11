@@ -80,7 +80,8 @@ const UPDATED = "10 November 2026";
         <tr><td>Profile, card, connections, notes</td><td>Until you delete them or your account</td></tr>
         <tr><td>Shared selfies</td><td>7 days if the other person has not accepted it, then deleted. Once accepted, until either person removes it or the connection, and no more than 12 months after it was taken</td></tr>
         <tr><td>"Be easy to find" photo, line and wish</td><td>Until you turn it off, when they are deleted at once, and no later than 48 hours after the event ends</td></tr>
-        <tr><td>An AI reply (a draft, a search result or a summary)</td><td>7 days, so asking again costs nothing, then deleted. We do not keep what was sent to the model</td></tr>
+        <tr><td>An AI reply (a draft or a search result)</td><td>7 days, so asking again costs nothing, then deleted. We do not keep what was sent to the model</td></tr>
+        <tr><td>An AI summary of an event's written feedback</td><td>With that feedback: deleted when the event is deleted or its written answers are removed after 12 months. It holds no names and no account</td></tr>
         <tr><td>Counts of AI use (how many times, tokens and cost; no text)</td><td>13 months, or until you delete your account</td></tr>
         <tr><td>Sign-in codes</td><td>5 to 10 minutes, single use</td></tr>
         <tr><td>Your email address</td><td>Until you delete your account. News emails stop as soon as you untick the box or use the unsubscribe link</td></tr>
@@ -122,7 +123,7 @@ const UPDATED = "10 November 2026";
     <p>
       After an event you checked in to, you may be asked for optional feedback. Your answers are stored without your
       name or account, so the organiser can't tell who wrote what and we can't link them back to you. Because of that we
-      can't show you or delete an individual answer later. Please don't put personal details in written answers.
+      can't show you or delete an individual answer later. Please don't put personal details in written answers. If AI features are on, the written answers (not the ratings or choices) may be sent to our AI provider to write a short summary for the organiser, either once feedback has closed or when they ask. Names, email addresses, links and phone numbers are taken out first, and the organiser is told it was written by AI. See section 8c.
       Organisers must not ask about health, religion, ethnicity, sexuality or politics.
     </p>
 
@@ -147,7 +148,7 @@ const UPDATED = "10 November 2026";
     <h2>8c. AI features</h2>
     <p>
       Some features use an AI model: drafting a follow-up message, finding someone you already know, suggesting people to meet at an
-      event, and summarising anonymous feedback for hosts. Nothing runs unless you tap it, a person reads every result and nothing is
+      event, and summarising anonymous feedback for hosts. Nothing runs unless you tap it (the one exception is a host's feedback summary, which is written once automatically after an event's feedback closes), a person reads every result and nothing is
       sent for you, and each feature has a version without AI. We can switch them all off at any time, and they have daily and monthly limits.
     </p>
     <ul>

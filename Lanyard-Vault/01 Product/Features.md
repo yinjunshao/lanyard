@@ -44,6 +44,9 @@ No AI feature is visible yet. The shared plumbing is: one Worker-side client, li
 ## Follow-up drafts (F22, built on the AI foundation, in progress)
 On a connection's page, under Follow up: "Draft a follow-up" opens a sheet. Pick where it will go (LinkedIn or WhatsApp only if their card shows that link; Email always), a tone, a goal, up to 3 things to talk about (from their side, the top one chosen for you) and up to 2 you can offer, whether to use your private note, and a line of your own (300 characters). The draft is plain text in a box you can edit, with Copy, Open in LinkedIn, Mail or WhatsApp, Try again (uses an allowance) and Mark as followed up. It says it is a draft to check before you send it; Lanyard never sends it. When AI is off, a limit is reached, you are not let in yet or the reply fails its checks, you get a template ("Here's a starting point") with the reason, never an error. Free: 3 a day, 15 a month; Plus: 15 a day, 150 a month. Counts of drafts shown, copied, opened and marked are on `/admin`. See [[F22 AI follow-up drafts]] and [[D032 Follow-up drafts are built from database rows and checked on the way out]].
 
+## Feedback summary for hosts (F23, built on the AI foundation, in progress)
+At the top of an event's Feedback tab and in the Report: a short AI summary of the written answers, with the figures worked out by Lanyard, what worked, what to change (each with "about N people") and a few word-for-word quotes. Never names anyone, and nothing at all below 5 written answers to one question. Written once automatically when feedback closes (the owner gets the paragraph by email) and again on request, 3 a day. Included for every host.
+
 ## Not built yet (as far as the project files show)
 Stripe checkout, sponsor talent search page, Apple/Google Wallet pass, NFC tap, Eventbrite/Luma native integrations (only generic webhook + RSVP count), a draft menu on the People rows (the draft lives on the person's page).
 
