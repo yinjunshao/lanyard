@@ -1,7 +1,7 @@
 // F23: AI feedback summary for hosts. The real Worker against a stubbed gateway: no network, no key from disk.
 // Sections are added task by task (F23.1 redaction and checks, F23.2 route and cron, F23.3 the screen, F23.4 email).
 // The attack strings are also in test/ai-injection.mjs. Run: node test/feedback-summary.mjs
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { check, summary } from "./harness.mjs";
 import { redactAnswer, nameMatcher, nameWords, NAME_TOKEN, CONTACT_TOKEN, hasToken } from "../worker/ai/redact.js";
 import { cleanText, CAPS } from "../worker/ai/sanitize.js";
@@ -590,6 +590,27 @@ console.log("\n# F23.2 Migration 0027 and the host reset");
 }
 
 Date.now = realNow;
+
+console.log("\n# F23.3 The screen (source guards; the layout was checked in a browser, see the plan note)");
+{
+  const vue = read("src/components/FeedbackSummary.vue");
+  const live = read("src/views/HostLive.vue");
+  const api = read("src/lib/hostapi.js");
+  const walk = (d) => readdirSync(new URL("../" + d, import.meta.url), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + "/" + e.name) : /\.(vue|js)$/.test(e.name) ? [d + "/" + e.name] : []));
+  const users = walk("src").filter((f) => /import FeedbackSummary/.test(read(f)));
+  check("only the host event page imports the summary component (the Feedback tab and the report share it)", users.join() === "src/views/HostLive.vue" && (live.match(/<FeedbackSummary /g) || []).length === 2, users);
+  check("the API calls are in the host-only api file, not the shared one", /feedbackSummary: \(id\)/.test(api) && /makeFeedbackSummary/.test(api) && !/feedback\/summary/.test(read("src/lib/api.js")));
+  check("the model's words are drawn as text: no v-html, no innerHTML", !/v-html|innerHTML|insertAdjacentHTML/.test(vue));
+  check("below five written answers the copy is the plan's: 'Summary appears after 5 written answers'", /Summary appears after \{\{ d\.needed \}\} written answers/.test(vue));
+  check("it says plainly who wrote it, that the figures are Lanyard's and the quotes are word for word, and links to all the answers", /Written by AI from/.test(vue) && /worked out by Lanyard, not by the AI/.test(vue) && /word for word/.test(vue) && /href="#fs-answers"/.test(vue) && /id="fs-answers"/.test(live));
+  check("Regenerate, Write a summary and Copy are there, hidden when printing, and the allowance is shown", /Regenerate/.test(vue) && /Write a summary/.test(vue) && />\{\{ copied \? "Copied" : "Copy" \}\}</.test(vue) && /no-print/.test(vue) && /left today/.test(vue));
+  check("the figures sentence is built on the page from the Worker's numbers", /out of 5 on average/.test(vue) && /would come to another one/.test(vue) && /f\.value\.again\.percent/.test(vue));
+  check("each point says 'about N people' (the count is the Worker's)", /about \$\{n\}/.test(vue));
+  check("no emoji, sparkle or 'AI magic' wording or styling", !/\p{Extended_Pictographic}|sparkle|magic|✨|gradient|shadow/iu.test(vue) && !/<Icon|<svg/.test(vue));
+  check("it uses the colour tokens only (dark mode follows), no fixed colours", !/#[0-9a-f]{3,6}\b|rgb\(|hsl\(/i.test(vue.slice(vue.indexOf("<style"))));
+  check("the page shows a message when AI is not available and keeps the figures and answers", /The figures and answers below are not affected/.test(vue) && /d\.value\.fallback/.test(vue));
+  check("no public or shared front-end file mentions the summary", ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/router/routes.attendee.js", "src/router/routes.host.js"].every((f) => { try { return !/feedbackSummary|FeedbackSummary|feedback\/summary/.test(read(f)); } catch { return true; } }));
+}
 
 globalThis.fetch = realFetch;
 summary();

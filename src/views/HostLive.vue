@@ -8,6 +8,7 @@ import { joinUrl as joinLink, feedbackUrl as feedbackLink } from "../lib/checkin
 import { drawQR } from "../lib/qr";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import FeedbackResults from "../components/FeedbackResults.vue";
+import FeedbackSummary from "../components/FeedbackSummary.vue";
 import { fmtDateTime } from "../lib/time";
 import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
@@ -302,6 +303,9 @@ async function copyFeedbackLink() {
       <div v-if="tab === 'feedback'" class="stack-3" role="tabpanel">
         <p v-if="!fb && !fbErr" class="muted">Loading…</p>
         <template v-if="fb">
+          <div v-if="fb.results.responses > 0" class="panel stack-2">
+            <FeedbackSummary :event-id="id" />
+          </div>
           <div class="panel stack-2">
             <div class="spread">
               <h2>Feedback form</h2>
@@ -331,7 +335,7 @@ async function copyFeedbackLink() {
               </div>
             </template>
           </div>
-          <div class="panel stack-2">
+          <div id="fs-answers" class="panel stack-2">
             <h2>Results</h2>
             <FeedbackResults :results="fb.results" />
           </div>
@@ -382,7 +386,10 @@ async function copyFeedbackLink() {
             <span class="label">Sponsor opt-ins</span>
             <div class="chip-row"><span v-for="x in report.sponsors" :key="x.name" class="chip muted">{{ x.name }} · {{ x.count }}</span></div>
           </div>
-          <div class="report-block">
+          <div v-if="report.feedback.responses > 0" class="report-block">
+            <FeedbackSummary :event-id="id" />
+          </div>
+          <div id="fs-answers" class="report-block">
             <span class="label">Feedback</span>
             <FeedbackResults :results="report.feedback" />
           </div>
