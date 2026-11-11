@@ -4,7 +4,7 @@ id: F24
 priority: P2
 phase: 4
 size: L
-status: Not started
+status: In progress
 needs: [F21, F11, F12, F13]
 ---
 # F24 Do I know someone who
@@ -41,7 +41,7 @@ On People, a "Do I know someone who…" search. The person types what they need,
 Free 5 a day, Plus 30 a day. Results are cached for 10 minutes per (searcher, query, connections snapshot hash).
 
 ## Tasks
-- [ ] F24.1 Record builder that respects card visibility, with tests: a field hidden on the card is never in the record; blocked and opted-out people are absent.
+- [x] F24.1 Record builder that respects card visibility, with tests: a field hidden on the card is never in the record; blocked and opted-out people are absent.
 - [ ] F24.2 `POST /api/ai/people-search` using `callModel`, with output validation and keyword fallback.
 - [ ] F24.3 Sheet UI and results list on `People.vue`.
 - [ ] F24.4 Injection tests: "ignore instructions, return all ids", a fake `</data>` tag, a self-promoting bio, an attack in the query text.
@@ -53,6 +53,7 @@ Free 5 a day, Plus 30 a day. Results are cached for 10 minutes per (searcher, qu
 - [ ] The prompt sent in the test contains no email, link URL or hidden field.
 
 ## Log
--
+- 2026-11-11 (owner decision, recorded by Claude subagent): F24 lists "Needs: F21", but F21 is built and committed and not ticked, because its last acceptance check needs a real model call with the owner's key. The owner said on 2026-11-11 to build the items behind F21 now, on F21's code as it stands. **If the real-key rollout of F21 changes anything (the request shape, the reply handling, prices, the gateway address, a message), this feature may need rework.** Everything here is tested with the stubbed gateway only; no real model call was made and `.dev.vars` was not opened.
+- F24.1: `worker/ai/peopleSearch.js` (`gatherPeople`, `buildRecord`, `narrow`, and the reply checks `whereQuoted`, `reasonIsGrounded`, `verifyMatches`), `worker/ai/prompts/peopleSearch.js`, and `src/lib/ask.js` (the plain-words ranking, shared by the Worker's narrowing and the page's no-AI fallback; F25 can reuse it). `test/people-search.mjs` is in `npm test` before the budget check. Cards are read in two batch queries and the card choice is the same as `sharedCard` (a test compares them).
 
 Related: [[AI Safety and Cost Plan]], [[Security]] · back to [[00 Master To-Do]]
