@@ -10,6 +10,8 @@ import { MAIN_ORIGIN } from "../lib/site";
 import HostSetup from "../components/HostSetup.vue";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
+import EventPreview from "../components/EventPreview.vue";
+import { THEME_OPTIONS, createBody, eventFromBody } from "../lib/eventform";
 import { UiCombobox } from "../components/ui/UiSelect.vue";
 import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
 import { defaultEnd } from "../lib/dates";
@@ -41,11 +43,17 @@ async function signOut() {
 }
 
 const blankForm = () => ({
-  from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default",
+  from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "",
   perksText: "", directoryOn: true, q1: "", q2: "",
   rsvpCount: "", access: "", food: "", feedbackOn: true, feedbackQuestions: [],
 });
 const f = ref(blankForm());
+const FROM_OPTIONS = computed(() => [{ value: "", label: "A blank event" }, ...events.value.map((e) => ({ value: e.id, label: `A copy of ${e.name}` }))]);
+// What attendees will see, from the form (F18). An empty name shows a stand-in so the preview is not blank.
+const previewEvent = computed(() => {
+  const e = eventFromBody(createBody(f.value));
+  return e.name ? e : { ...e, name: "Your event name" };
+});
 
 onMounted(load);
 async function load() {
@@ -143,23 +151,7 @@ async function create() {
       });
     } else {
       if (!f.value.name.trim()) { error.value = "Event name is required."; return; }
-      res = await HostApi.hostCreateEvent({
-        name: f.value.name,
-        venue: f.value.venue,
-        startsAt: f.value.startsAt,
-        endsAt: f.value.endsAt,
-        theme: f.value.theme,
-        directoryOn: f.value.directoryOn,
-        perks: f.value.perksText.split("\n").map((s) => s.trim()).filter(Boolean),
-        questions: [
-          { key: "extra1", label: f.value.q1 },
-          { key: "extra2", label: f.value.q2 },
-        ].filter((q) => q.label.trim()),
-        rsvpCount: f.value.rsvpCount === "" ? null : Number(f.value.rsvpCount),
-        info: { access: f.value.access, food: f.value.food },
-        feedbackOn: f.value.feedbackOn,
-        feedbackQuestions: f.value.feedbackQuestions,
-      });
+      res = await HostApi.hostCreateEvent(createBody(f.value));
     }
     createdCode.value = res.code;
     creating.value = false;
@@ -281,7 +273,8 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         <button class="btn" style="width:auto" :disabled="!canCreate" @click="creating = !creating">New event</button>
       </div>
 
-      <div v-if="creating" class="panel stack-2">
+      <EventPreview v-if="creating" v-model:theme="f.theme" v-model:strap-color="f.strapColor" :event="previewEvent" :off="!!f.from">
+      <div class="panel stack-2">
         <h2>Create event</h2>
         <div v-if="events.length" class="field"><label id="ev-from-l">Start from</label>
           <UiSelect id="ev-from" v-model="f.from" labelledby="ev-from-l" :options="FROM_OPTIONS" />
@@ -300,6 +293,13 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         <div class="field"><label id="ev-theme-l">Theme</label>
           <UiSelect id="ev-theme" v-model="f.theme" labelledby="ev-theme-l" :options="THEME_OPTIONS" />
         </div>
+        <div class="field"><label for="ev-strap">Brand colour (optional)</label>
+          <div class="row">
+            <input id="ev-strap" type="color" :value="f.strapColor || '#d9502b'" style="width:56px;height:44px;padding:2px;flex:none" @input="f.strapColor = $event.target.value" />
+            <span class="small muted" style="flex:1">{{ f.strapColor || "Using the theme colour" }}</span>
+            <button v-if="f.strapColor" class="btn" style="width:auto;flex:none" type="button" @click="f.strapColor = ''">Reset</button>
+          </div>
+          <span class="small muted">Colours the strap at the top of the check-in page.</span></div>
         <div class="field"><label for="ev-perks">Perks — one per line</label>
           <textarea id="ev-perks" v-model="f.perksText" placeholder="Free coffee&#10;Raffle entry"></textarea></div>
         <div class="field"><label for="ev-access">Access info for attendees (optional)</label>
@@ -331,6 +331,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
           {{ busy ? "Creating…" : (f.from ? "Create the copy" : "Create event") + (freeNow ? " (free this week)" : " (uses 1 credit)") }}
         </button>
       </div>
+      </EventPreview>
 
       <div v-if="createdCode" class="notice success-text">
         Event created — join code <strong class="tnum">{{ createdCode }}</strong>.

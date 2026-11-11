@@ -10,6 +10,9 @@ import FeedbackEditor from "../components/FeedbackEditor.vue";
 import FeedbackResults from "../components/FeedbackResults.vue";
 import { fmtDateTime } from "../lib/time";
 import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
+import UiSelect from "../components/ui/UiSelect.vue";
+import EventPreview from "../components/EventPreview.vue";
+import { THEME_OPTIONS, detailsBody, eventFromBody } from "../lib/eventform";
 import { defaultEnd } from "../lib/dates";
 
 const route = useRoute();
@@ -113,17 +116,18 @@ function fillDetails() {
     startsAt: e.startsAt || null, endsAt: e.endsAt || null,
     rsvpCount: e.rsvpCount ?? "",
     access: e.info?.access || "", dress: e.info?.dress || "", food: e.info?.food || "", other: e.info?.other || "",
+    theme: e.theme || "default", strapColor: e.strapColor || "", perksText: (e.perks || []).join("\n"), directoryOn: e.directoryOn !== false,
   };
 }
+// What attendees will see on the check-in page, from the form as it stands (F18).
+const previewEvent = computed(() => {
+  const e = eventFromBody(detailsBody(d.value), live.value?.event?.questions || []);
+  return { ...e, name: e.name || "Your event name" };
+});
 async function saveDetails() {
   detailsMsg.value = ""; detailsErr.value = "";
   try {
-    await HostApi.hostUpdateEvent(id.value, {
-      name: d.value.name, venue: d.value.venue,
-      startsAt: d.value.startsAt, endsAt: d.value.endsAt,
-      rsvpCount: d.value.rsvpCount === "" ? null : Number(d.value.rsvpCount),
-      info: { access: d.value.access, dress: d.value.dress, food: d.value.food, other: d.value.other },
-    });
+    await HostApi.hostUpdateEvent(id.value, detailsBody(d.value));
     live.value = await HostApi.hostLive(id.value);
     detailsMsg.value = "Saved.";
   } catch (e) {
@@ -239,7 +243,8 @@ async function copyFeedbackLink() {
       </div>
 
       <!-- Details -->
-      <form v-if="tab === 'details'" class="panel stack-2" role="tabpanel" @submit.prevent="saveDetails">
+      <EventPreview v-if="tab === 'details'" v-model:theme="d.theme" v-model:strap-color="d.strapColor" :event="previewEvent" :sponsors="live.sponsors || []">
+      <form class="panel stack-2" role="tabpanel" @submit.prevent="saveDetails">
         <div class="field"><label for="d-name">Event name</label><input id="d-name" v-model="d.name" type="text" maxlength="120" /></div>
         <div class="field"><label for="d-venue">Venue</label><input id="d-venue" v-model="d.venue" type="text" maxlength="120" /></div>
         <div class="two-col">
@@ -251,6 +256,21 @@ async function copyFeedbackLink() {
           <input id="d-rsvp" v-model="d.rsvpCount" type="number" min="0" inputmode="numeric" />
           <span class="small muted">A number only. The report compares it with check-ins.</span>
         </div>
+        <div class="field"><label id="d-theme-l">Theme</label>
+          <UiSelect id="d-theme" v-model="d.theme" labelledby="d-theme-l" :options="THEME_OPTIONS" /></div>
+        <div class="field"><label for="d-strap">Brand colour (optional)</label>
+          <div class="row">
+            <input id="d-strap" type="color" :value="d.strapColor || '#d9502b'" style="width:56px;height:44px;padding:2px;flex:none" @input="d.strapColor = $event.target.value" />
+            <span class="small muted" style="flex:1">{{ d.strapColor || "Using the theme colour" }}</span>
+            <button v-if="d.strapColor" class="btn" style="width:auto;flex:none" type="button" @click="d.strapColor = ''">Reset</button>
+          </div>
+        </div>
+        <div class="field"><label for="d-perks">Perks (one per line)</label>
+          <textarea id="d-perks" v-model="d.perksText" placeholder="Free coffee&#10;Raffle entry"></textarea></div>
+        <label class="checkbox-row">
+          <input type="checkbox" v-model="d.directoryOn" />
+          <span class="small">Show the live attendee room to checked-in people</span>
+        </label>
         <span class="label">Shown to attendees</span>
         <div class="field"><label for="d-access">Access</label><input id="d-access" v-model="d.access" type="text" maxlength="200" placeholder="Step-free entrance at the side door" /></div>
         <div class="field"><label for="d-food">Food and drink</label><input id="d-food" v-model="d.food" type="text" maxlength="200" placeholder="Pizza, vegan options, soft drinks" /></div>
@@ -270,6 +290,7 @@ async function copyFeedbackLink() {
           </div>
         </div>
       </form>
+      </EventPreview>
 
       <!-- Feedback -->
       <div v-if="tab === 'feedback'" class="stack-3" role="tabpanel">

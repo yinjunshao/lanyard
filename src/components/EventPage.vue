@@ -4,12 +4,15 @@
 // drift apart. It imports no store and no API: the caller passes in what to show and owns
 // the form state (`form`), the error and the check-in itself.
 //
-//   event    { name, venue, startsAt, info, questions, directoryOn, feedbackOn }
+//   event    { name, venue, startsAt, info, questions, directoryOn, feedbackOn, theme, strapColor }
+//            The theme (formal, night) and the host's strap colour show on the head of the page
+//            like a card's strap. An event with the default theme and no colour looks as it always did.
 //   sponsors [{ id, name, perk }]
 //   form     { name, answers: {key: text}, sponsorConsent: {id: bool}, directoryConsent, agreed }
 //   showName ask for a name (a guest with no card yet)
 //   needsAgree ask for the 18+ and Terms tick (first-timers)
 const INFO_LABELS = { access: "Access", dress: "Dress code", food: "Food and drink", other: "Good to know" };
+const branded = (e) => (e.theme && e.theme !== "default") || !!e.strapColor;
 const fmtDate = (t) =>
   t ? new Date(t).toLocaleString(undefined, {
     weekday: "short", day: "numeric", month: "long", hour: "numeric", minute: "2-digit",
@@ -29,7 +32,21 @@ defineEmits(["checkin"]);
 
 <template>
   <div class="stack-3">
-    <div class="page-head">
+    <div v-if="branded(event)" class="profile event-brand" :class="event.theme">
+      <div class="profile-strap" :style="event.strapColor ? { background: event.strapColor } : null">
+        <span class="profile-strap-word">lanyard</span>
+        <span class="profile-strap-card">Event check-in</span>
+      </div>
+      <div class="profile-body">
+        <div class="page-head">
+          <h1>{{ event.name }}</h1>
+          <p class="sub">
+            <span v-if="event.venue">{{ event.venue }} · </span>{{ fmtDate(event.startsAt) }}
+          </p>
+        </div>
+      </div>
+    </div>
+    <div v-else class="page-head">
       <span class="label">Event check-in</span>
       <h1>{{ event.name }}</h1>
       <p class="sub">
@@ -106,4 +123,6 @@ defineEmits(["checkin"]);
 .event-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
 .event-info dt { padding-top: 2px; }
 .event-info dd { margin: 0; }
+.event-brand .page-head { margin: 0; }
+.event-brand .page-head h1 { margin: 0; overflow-wrap: anywhere; }
 </style>

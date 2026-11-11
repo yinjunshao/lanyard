@@ -501,12 +501,18 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
   const t = await eventTotals(c.env.DB, ev.id);
   const orgRow = await one(c.env.DB, "SELECT org_type FROM orgs WHERE id = ?", ev.org_id);
   const EVENT_CHECKIN_CAP = checkinCapFor(orgRow?.org_type);
+  // F18: what the host set up, so the Details tab can preview the attendee page. All of it is the host's
+  // own entry; sponsors are names and perks they typed, with no attendee in it.
+  const sponsors = await all(c.env.DB, "SELECT id, name, perk FROM sponsors WHERE event_id = ?", ev.id);
   return c.json({
     event: {
       id: ev.id, code: ev.code, name: ev.name, startsAt: ev.starts_at, venue: ev.venue,
       endsAt: ev.ends_at || null, endedAt: ev.ended_at || null, rsvpCount: ev.rsvp_count ?? null,
       info: eventInfo(ev.info), feedbackOn: !!ev.feedback_on,
+      theme: ev.theme, strapColor: ev.strap_color, perks: ev.perks || [], directoryOn: !!ev.directory_on,
+      questions: ev.checkin_questions || [],
     },
+    sponsors: sponsors.map((x) => ({ id: x.id, name: x.name, perk: x.perk })),
     checkins: t.checkins,
     connections: t.connections,
     selfies: t.selfies,

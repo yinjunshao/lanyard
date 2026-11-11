@@ -36,7 +36,8 @@ needs: [F10, F11]
 ## Tasks
 - [x] F18.1 Extract `EventPage.vue`, with no visual change to `EventJoin` (compare screenshots before and after).
   - `src/components/EventPage.vue` draws the check-in page from props and a `form` object; `EventJoin.vue` fetches, holds the form and checks in. Compared in the browser pane against the local Worker: the page's HTML before and after is character for character the same (hash and length), apart from the one wrapper `div.stack-3` that carries the page's spacing.
-- [ ] F18.2 Host preview pane, sheet and theme strip.
+- [x] F18.2 Host preview pane, sheet and theme strip.
+  - `EventPreview.vue` (host pages only) draws the real `EventPage` beside the form from 1000 px (sticky, 375 px wide) and as a full-screen panel behind a Preview button below that; the same panel holds the Default/Formal/Night strip and a brand colour, bound to the form. `src/lib/eventform.js` has `createBody`/`detailsBody` (what the buttons send) and `eventFromBody` (what the page is given); the Create form and the Details tab both use them. The theme and brand colour now show on the check-in page head (default and no colour: unchanged). `/api/host/events/:id/live` also returns the host's own theme, colour, perks, directory setting, check-in questions and sponsors. Restored `THEME_OPTIONS` and `FROM_OPTIONS`, which F10.7 had dropped from `HostDashboard.vue` (the Theme and Start from pickers had no options).
 - [ ] F18.3 `CardView.vue` and the card / profile preview with the Badge/Public toggle.
 - [ ] F18.4 Check at 375 px and 1280 px, light and dark, all four themes.
 
