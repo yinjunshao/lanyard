@@ -123,9 +123,10 @@ export function topicsOf(rows, limit = 6) {
   return [...seen.values()].filter((t) => t.n >= 2).sort((a, b) => b.n - a.n || a.text.localeCompare(b.text)).slice(0, limit).map((t) => t.text);
 }
 
-export async function suggest(db, { eventId, viewerId, mine, clock = Date.now() }) {
+// `rows`: the candidates, when the caller has already gathered them (F25 gathers once and reuses them).
+export async function suggest(db, { eventId, viewerId, mine, clock = Date.now(), rows: given }) {
   const [rows, profile, card] = await Promise.all([
-    presenceCandidates(db, eventId, viewerId, clock),
+    given ?? presenceCandidates(db, eventId, viewerId, clock),
     one(db, "SELECT * FROM profiles WHERE user_id = ?", viewerId),
     one(db, "SELECT * FROM cards WHERE user_id = ? ORDER BY is_default DESC, created_at LIMIT 1", viewerId),
   ]);

@@ -13,6 +13,7 @@ import { all, newId, one } from "./db.js";
 import { deleteImage } from "./media.js";
 import { NO_END_GRACE_MS, eventStatus } from "./eventstatus.js";
 import { blockedSet, isBlocked } from "./blocks.js";
+import { forgetSearchReplies } from "./ai/optout.js";
 
 export const PRESENCE_KEEP_MS = 48 * 60 * 60 * 1000;
 export const presenceScope = (eventId) => `event_presence:${eventId}`;
@@ -45,6 +46,8 @@ export async function removePresence(env, eventId, userId, { why = "withdrawn", 
     db.prepare("INSERT INTO consent_log (id, user_id, scope, action, ref, at) VALUES (?, ?, ?, 'withdrawn', ?, ?)")
       .bind(lowerHex(), userId, presenceScope(eventId), ref || why, ts),
   ]);
+  // F25: a kept who-to-meet reply (10 minutes) could hold words from their line; it goes with them.
+  await forgetSearchReplies(env.DB);
   return true;
 }
 

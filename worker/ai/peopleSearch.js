@@ -59,8 +59,8 @@ const INSTRUCTION = [
   /\bp\d{1,3}\b.{0,25}\b(first|top|best)\b/i,
 ];
 export const looksLikeInstruction = (text) => INSTRUCTION.some((re) => re.test(String(text)));
-const scrub = (v) => { const t = cleanText(v, 2000); return t && !looksLikeInstruction(t) ? t : ""; };
-const scrubList = (list, cap, max) => {
+export const scrub = (v) => { const t = cleanText(v, 2000); return t && !looksLikeInstruction(t) ? t : ""; };
+export const scrubList = (list, cap, max) => {
   const out = [];
   for (const raw of Array.isArray(list) ? list : []) {
     const t = cleanText(scrub(raw), cap);
@@ -141,15 +141,15 @@ export async function gatherPeople(db, askerId) {
   return out;
 }
 
-const textOf = (rec) => FIELDS.flatMap((k) => [].concat(rec[k] || [])).join(" ");
-const tokensOf = (rec) => normalize(textOf(rec)).split(" ").filter(Boolean);
+const textOf = (rec, fields = FIELDS) => fields.flatMap((k) => [].concat(rec[k] || [])).join(" ");
+export const tokensOf = (rec, fields = FIELDS) => normalize(textOf(rec, fields)).split(" ").filter(Boolean);
 
 /** At most MAX_PEOPLE people: the best by how many of the query's words they match, then the most recent. */
-export function narrow(people, query, max = MAX_PEOPLE) {
+export function narrow(people, query, max = MAX_PEOPLE, fields = FIELDS) {
   if (people.length <= max) return people;
   const ts = askTerms(query);
   return people
-    .map((p) => ({ p, n: hitCount(ts, tokensOf(p.record)) }))
+    .map((p) => ({ p, n: hitCount(ts, tokensOf(p.record, fields)) }))
     .sort((a, b) => b.n - a.n || b.p.metAt - a.p.metAt)
     .slice(0, max).map((x) => x.p);
 }
@@ -159,19 +159,19 @@ export function narrow(people, query, max = MAX_PEOPLE) {
 const hasWords = (haystack, needle) => ` ${haystack} `.includes(` ${needle} `);
 
 /** The key of the first field of this record that contains `quote` (compared without case, accents or punctuation), or "". */
-export function whereQuoted(record, quote) {
+export function whereQuoted(record, quote, fields = FIELDS) {
   const q = normalize(quote);
   if (q.length < 4 || !q.split(" ").some((w) => w.length >= 3)) return "";
-  for (const k of FIELDS) {
+  for (const k of fields) {
     for (const v of [].concat(record[k] || [])) if (hasWords(normalize(v), q)) return k;
   }
   return "";
 }
 
 /** A reason may only name what is in the person's record or the question. Numbers, capitalised words after the first and ids are checked. */
-export function reasonIsGrounded(reason, record, query) {
+export function reasonIsGrounded(reason, record, query, fields = FIELDS) {
   if (!reason || /\bp\d+\b/i.test(reason)) return false;
-  const known = ` ${normalize(textOf(record))} ${normalize(query)} `;
+  const known = ` ${normalize(textOf(record, fields))} ${normalize(query)} `;
   let sentenceStart = true;
   for (const raw of reason.split(/\s+/)) {
     const w = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
@@ -189,14 +189,14 @@ export function reasonIsGrounded(reason, record, query) {
  * A match is kept only if its id was offered (once) and its quote is really in that person's record; its reason is
  * kept only if it names nothing that is not in the record, otherwise it is replaced by the quote.
  */
-export function verifyMatches(matches, byId, query) {
+export function verifyMatches(matches, byId, query, fields = FIELDS) {
   const out = [];
   for (const m of filterIds(matches, new Set(byId.keys()), { max: MAX_MATCHES * 2 })) {
     if (typeof m.quote !== "string") continue;
     const record = byId.get(m.id);
-    const field = whereQuoted(record, m.quote);
+    const field = whereQuoted(record, m.quote, fields);
     if (!field) continue;
-    const reason = reasonIsGrounded(m.reason, record, query) ? m.reason : `Matches “${m.quote}”`;
+    const reason = reasonIsGrounded(m.reason, record, query, fields) ? m.reason : `Matches “${m.quote}”`;
     out.push({ id: m.id, quote: m.quote, reason, field });
     if (out.length >= MAX_MATCHES) break;
   }

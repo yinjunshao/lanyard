@@ -41,6 +41,7 @@ import { exportAi } from "./ai/data.js";
 import { aiApp } from "./ai/routes.js";
 import { followupApp } from "./ai/followup.js";
 import { peopleSearchApp } from "./ai/peopleSearch.js";
+import { whoToMeetApp } from "./ai/whoToMeet.js";
 import { forgetSearchReplies } from "./ai/optout.js";
 
 const app = new Hono();
@@ -1281,6 +1282,7 @@ app.route("/", presenceApp);
 app.route("/", aiApp);
 app.route("/", followupApp);
 app.route("/", peopleSearchApp);
+app.route("/", whoToMeetApp);
 app.route("/", feedbackApp);
 app.route("/", hostApp);
 app.route("/", adminApp);

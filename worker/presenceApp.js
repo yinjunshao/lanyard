@@ -14,6 +14,7 @@ import {
   INTRO_MAX, LOOKING_MAX, cleanLine, displayName, presenceCandidates, presenceScope, presenceStanding, removePresence,
 } from "./presence.js";
 import { suggest } from "./presenceMatch.js";
+import { forgetSearchReplies } from "./ai/optout.js";
 
 export const presenceApp = new Hono();
 
@@ -28,7 +29,13 @@ const WHY = {
   directory_off: [403, "The organiser hasn't turned this on for this event.", "directory_off"],
   not_ongoing: [403, "This is only available while the event is on.", "not_ongoing"],
 };
-const refuse = (c, why) => c.json({ error: WHY[why][1], code: WHY[why][2] }, WHY[why][0]);
+export const refuse = (c, why) => c.json({ error: WHY[why][1], code: WHY[why][2] }, WHY[why][0]);
+
+// One person in the list: a photo, a name, their line and a reason, and nothing else. F25 shapes its list the same way.
+export const entryOf = (p) => ({
+  presenceId: p.id, name: displayName(p.name), selfie: p.selfie_key ? `/media/${p.selfie_key}` : null,
+  intro: p.intro, reason: p.reason,
+});
 
 // What you see about your own presence. The same shape from every route that returns it.
 const own = (st) => ({
@@ -144,10 +151,7 @@ presenceApp.get("/api/e/:id/suggestions", async (c) => {
   const { people, mode, topics } = await suggest(db, { eventId: st.ev.id, viewerId: me.id, mine: st.mine });
   return c.json({
     mode, topics,
-    people: people.map((p) => ({
-      presenceId: p.id, name: displayName(p.name), selfie: p.selfie_key ? `/media/${p.selfie_key}` : null,
-      intro: p.intro, reason: p.reason,
-    })),
+    people: people.map(entryOf),
   });
 });
 
@@ -175,6 +179,7 @@ presenceApp.post("/api/e/:id/presence/:presenceId/report", async (c) => {
       if (cn.selfie_key) await deleteImage(c.env, cn.selfie_key).catch(() => {});
       await run(db, "DELETE FROM connections WHERE id = ?", cn.id);
     }
+    await forgetSearchReplies(db); // F25: no kept who-to-meet reply can name them
   }
   return c.json({ ok: true, blocked: !!b.block });
 });

@@ -46,7 +46,9 @@ export async function blockedAmong(db, askerId, userIds) {
  * people (the people are part of its key), but when someone opts out, blocks or leaves, the kept ones are deleted at
  * once as well, so nothing about them lingers even in the asker's own data download.
  */
-export const forgetSearchReplies = (db) => run(db, "DELETE FROM ai_cache WHERE feature = 'people_search'");
+// F25: the who-to-meet replies (also 10 minutes) are kept the same way and go at the same moments, and when someone withdraws
+// their event presence.
+export const forgetSearchReplies = (db) => run(db, "DELETE FROM ai_cache WHERE feature IN ('people_search', 'who_to_meet')");
 
 /**
  * Sets a person's choice and records it in the consent history (what they chose, and when), like the other
