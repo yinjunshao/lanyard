@@ -126,7 +126,7 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
 <style scoped>
 .present {
   --event-strap: var(--strap);
-  position: fixed; inset: 0; z-index: 100; overflow: hidden;
+  position: fixed; inset: 0; z-index: 100; overflow-x: hidden; overflow-y: auto;
   background: var(--paper); color: var(--ink);
   display: flex; flex-direction: column;
 }
@@ -172,7 +172,7 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
 /* At least 40% of the screen's height; as large as the width allows beside the text. */
 .present-qr-svg { width: min(72vh, 44vw); height: min(72vh, 44vw); display: block; border-radius: 0.8vh; }
 @media (max-aspect-ratio: 1/1) {
-  .present-body { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 3vh; }
+  .present-body { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 3vh; flex: none; }
   .present-info { align-items: center; }
   .present-qr-svg { width: min(88vw, 46vh); height: min(88vw, 46vh); }
   .present-name { font-size: 6vh; }

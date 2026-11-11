@@ -1,7 +1,7 @@
 <script setup>
 // One event, four tabs: the live poster and counts, its details, the feedback
 // form and results, and the post-event report (with CSV download).
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
 import { joinUrl as joinLink, feedbackUrl as feedbackLink } from "../lib/checkinlink";
@@ -35,6 +35,7 @@ onMounted(async () => {
   try {
     live.value = await HostApi.hostLive(id.value);
     fillDetails();
+    await nextTick(); // the canvas is drawn into the page once `live` has rendered it
     await renderQr();
     timer = setInterval(refresh, 5000);
   } catch (e) {
@@ -213,7 +214,11 @@ async function copyFeedbackLink() {
           <span class="label">Scan to check in</span>
           <div class="poster-qr"><canvas ref="qrCanvas" role="img" aria-label="Event check-in QR code. Scan it to join this event."></canvas></div>
           <div class="code-glyph tnum" style="font-size:26px;letter-spacing:.3em">{{ live.event.code }}</div>
-          <button class="btn" @click="printPage">Print / full-screen</button>
+          <div class="btn-row present-row">
+            <a class="btn" :href="`/events/${id}/present`" target="_blank" rel="noopener">Present</a>
+            <router-link class="btn" :to="`/events/${id}/print`">Print poster</router-link>
+          </div>
+          <p class="small muted" style="margin:0">Present fills a screen or projector with the QR and the code. Print poster makes one A4 page.</p>
           <button class="btn" :disabled="rotating" @click="rotateCode">
             {{ confirmRotate ? "Tap again: the old poster stops working" : "New check-in code" }}
           </button>

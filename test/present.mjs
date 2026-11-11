@@ -243,4 +243,15 @@ console.log("\n# Where the code lives (the public-page budget, D024)");
   check("no entry, public or attendee file names the present, poster or QR-path code", stray.length === 0, stray);
 }
 
+console.log("\n# The two buttons on the live page (F19.5)");
+{
+  const lv = read("src/views/HostLive.vue");
+  const row = /<div class="btn-row present-row">([\s\S]*?)<\/div>/.exec(lv)?.[1] || "";
+  check("Present and Print poster sit side by side in one button row", /Present<\/a>/.test(row) && /Print poster<\/router-link>/.test(row) && row.indexOf("Present") < row.indexOf("Print poster"));
+  check("Present opens a new tab (without handing it this page)", /href="`\/events\/\$\{id\}\/present`" target="_blank" rel="noopener"/.test(row) || /:href="`\/events\/\$\{id\}\/present`" target="_blank" rel="noopener"/.test(row));
+  check("Print poster goes to the poster page of the same event", /:to="`\/events\/\$\{id\}\/print`"/.test(row));
+  check("both are links the router and the host site's pages already serve (the same route as the live tab)", read("src/router/routes.host.js").includes(":screen(present|print)?"));
+  check("the report tab keeps its own print button", lv.includes("Print or save as PDF"));
+}
+
 summary();
