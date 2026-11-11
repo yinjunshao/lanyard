@@ -6,6 +6,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { makeEnv, check, summary, becomeHost } from "./harness.mjs";
 import { setSetting } from "../worker/ai/store.js";
+import { COUNT_KINDS } from "../worker/ai/followup.js";
 import { fitWords, followupSystem, refineFollowup, WORD_LIMIT, PROMPT_VERSION } from "../worker/ai/prompts/followup.js";
 import { URL_RE, EMAIL_RE } from "../worker/ai/sanitize.js";
 import { templateDraft, CHANNELS, TONES, GOALS } from "../src/lib/followupTemplates.js";
@@ -335,6 +336,79 @@ console.log("\n# The screen (source guards)");
   check("no sparkle, magic or wand wording or icon, and no emoji", !/sparkle|magic|wand|✨|\p{Extended_Pictographic}/iu.test(comp + read("src/lib/followupTemplates.js")));
   check("it handles Escape and keeps focus in the sheet", /e\.key === "Escape"/.test(comp) && /e\.key !== "Tab"/.test(comp) && /aria-modal="true"/.test(comp));
   check("each group of chips is a fieldset with a legend, and chips say whether they are on", (comp.match(/<fieldset/g) || []).length === 5 && (comp.match(/:aria-pressed/g) || []).length >= 5);
+}
+
+console.log("\n# Counters: did drafts help? (migration 0026, counts only)");
+{
+  const { makeDb, readMigration } = await import("./harness.mjs");
+  const db = makeDb({ before: "0026" });
+  db.raw.prepare("INSERT INTO users (id, created_at, is_guest) VALUES ('u-old', 1, 0)").run();
+  db.exec(readMigration("0026_followup_counts.sql"));
+  const tables = db.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'followup_counts'").all();
+  check("migration 0026 adds one table on a database in the old shape and changes nothing else", tables.length === 1 && db.raw.prepare("SELECT COUNT(*) n FROM users").get().n === 1);
+  const mig = readMigration("0026_followup_counts.sql").replace(/--.*$/gm, "");
+  check("it only adds (no DROP, UPDATE, DELETE or ALTER of anything that exists)", !/\b(DROP|UPDATE|DELETE|ALTER|RENAME)\b/i.test(mig));
+  const cols = q("PRAGMA table_info(followup_counts)").map((c) => c.name).join();
+  check("the table holds a day, a kind and a number: no person, connection, event or text", cols === "day,kind,n", cols);
+
+  const total = (k) => q("SELECT COALESCE(SUM(n), 0) n FROM followup_counts WHERE kind = ?", k)[0].n;
+  const day = new Date(Date.now()).toISOString().slice(0, 10);
+  reset();
+  const ai0 = total("drafted_ai"), tpl0 = total("drafted_template");
+  await draft(A, cnAB, { extra: "count one" });
+  check("a model draft is counted as drafted_ai", total("drafted_ai") === ai0 + 1);
+  await setSetting(env.DB, "killed", "1");
+  reset();
+  await draft(A, cnAB, { extra: "count two" });
+  await setSetting(env.DB, "killed", "0");
+  check("a fallback is counted as drafted_template", total("drafted_template") === tpl0 + 1);
+  reset();
+  const noConn = await draft(Z, cnAB);
+  check("a refused request (not your connection, bad choices) is counted as nothing", noConn.status === 404 && total("drafted_ai") === ai0 + 1 && total("drafted_template") === tpl0 + 1);
+
+  const c0 = total("copied"), o0 = total("opened"), m0 = total("marked");
+  for (const kind of ["copied", "opened", "marked"]) {
+    const r = await A.c.post("/api/ai/followup-count", { kind });
+    check(`${kind} is accepted and counted`, r.status === 200 && r.json.ok === true && total(kind) === { copied: c0, opened: o0, marked: m0 }[kind] + 1, r.json);
+  }
+  for (const bad of ["drafted_ai", "drafted_template", "", "x", null, 5, ["copied"], "copied'; DROP TABLE followup_counts; --"]) {
+    const r = await A.c.post("/api/ai/followup-count", { kind: bad });
+    check(`${JSON.stringify(bad)} is a 400 and counts nothing (only the three things a person does are sent by the page)`, r.status === 400, r.status);
+  }
+  check("the table is intact after the injection attempt", q("SELECT COUNT(*) n FROM followup_counts")[0].n > 0);
+  const cBefore = total("copied");
+  const noSession = await client({ ip: "10.22.252.1" }).post("/api/ai/followup-count", { kind: "copied" });
+  check("a request with no session is given a throwaway guest session like every write, and counts one kind and nothing else", noSession.status === 200 && total("copied") === cBefore + 1);
+  let more = 0; const before = total("copied");
+  const L = await signup("Lia Limit");
+  for (let i = 0; i < 130; i++) { const r = await L.c.post("/api/ai/followup-count", { kind: "copied" }); if (r.status === 200) more += 1; }
+  check("one person cannot fill it: after 120 in an hour the answer is the same and nothing more is counted", more === 130 && total("copied") - before === 120, [more, total("copied") - before]);
+
+  const rows = q("SELECT * FROM followup_counts ORDER BY day, kind");
+  check("rows are for a day and a kind only", rows.every((r) => /^\d{4}-\d\d-\d\d$/.test(r.day) && COUNT_KINDS.includes(r.kind) && Number.isInteger(r.n)), rows[0]);
+  check("nothing in it names a person, a connection or a draft", !JSON.stringify(rows).match(new RegExp([A.id, B.id, cnAB, "Bea", "Alice", "robotics"].join("|"), "i")));
+
+  env.ADMIN_TOKEN = "test-admin-token";
+  const admin = await client({ ip: "10.22.253.1" }).get("/api/admin/ai", { authorization: "Bearer test-admin-token" });
+  check("the admin page gets the counts for today and this month, for every kind", admin.status === 200 && COUNT_KINDS.every((k) => Number.isInteger(admin.json.followup?.[k]?.today) && Number.isInteger(admin.json.followup?.[k]?.month)) && admin.json.followup.copied.month >= 120, admin.json.followup);
+  check("the admin response has no person or text from drafts", !/Bea|Alice|pilot plant|robotics/i.test(JSON.stringify(admin.json)));
+  const adminSrc = read("src/components/AdminAi.vue");
+  check("the admin page shows the five counts", /Follow-up drafts: did they help\?/.test(adminSrc) && ["drafted_ai", "drafted_template", "copied", "opened", "marked"].every((k) => adminSrc.includes(`"${k}"`)));
+
+  const { purgeExpired } = await import("../worker/purge.js");
+  q("DELETE FROM followup_counts");
+  env.DB.raw.prepare("INSERT INTO followup_counts (day, kind, n) VALUES ('2025-01-01', 'copied', 5), (?, 'copied', 2)").run(day);
+  const nowTs = Date.parse(day + "T12:00:00Z");
+  await purgeExpired(env, nowTs);
+  const left = q("SELECT day FROM followup_counts").map((r) => r.day);
+  check("the daily purge deletes counts older than 13 months and keeps recent ones", left.length === 1 && left[0] === day, left);
+
+  const exp = await A.c.get("/api/account/export");
+  check("the data download has no row from this table (it holds nothing about a person)", exp.status === 200 && !/followup_counts|drafted_ai/.test(exp.text));
+  const src = read("worker/ai/followup.js");
+  check("the counting function writes only a day, a kind and a number", /INSERT INTO followup_counts \(day, kind, n\) VALUES \(\?, \?, 1\)/.test(src) && !/followup_counts[^"]*(user|actor|connection)/i.test(src));
+  const host = ["worker/hosts.js", "worker/events.js", "worker/host-auth.js", "worker/hostorg.js", "worker/feedback.js"];
+  check("no host-facing file reads it (D004: hosts see aggregates of their own events only)", host.every((f) => !/followup_counts/.test(read(f))));
 }
 
 console.log("\n# Source guards");

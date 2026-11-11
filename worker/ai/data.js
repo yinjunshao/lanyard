@@ -40,6 +40,7 @@ export async function purgeAi(db, ts = Date.now()) {
   const cutoff = d.toISOString().slice(0, 10);
   out.aiUsage = (await run(db, "DELETE FROM ai_usage WHERE day < ?", cutoff)).meta?.changes || 0;
   await run(db, "DELETE FROM ai_daily WHERE day < ?", cutoff);
+  await run(db, "DELETE FROM followup_counts WHERE day < ?", cutoff); // F22: counts of drafts, no person in them
   // Anything left for an account that no longer exists (a host account removed by the reset, say).
   const gone = (t) => `(${t}.actor_kind = 'user' AND ${t}.actor_id NOT IN (SELECT id FROM users)) OR (${t}.actor_kind = 'host' AND ${t}.actor_id NOT IN (SELECT id FROM host_accounts))`;
   await run(db, `DELETE FROM ai_cache WHERE ${gone("ai_cache")}`);

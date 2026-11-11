@@ -17,7 +17,10 @@ const props = defineProps({
   links: { type: Object, default: () => ({}) }, // the links they show you (from the card page)
   first: { type: String, default: "them" },
 });
-const emit = defineEmits(["close", "followed-up", "count"]);
+const emit = defineEmits(["close", "followed-up"]);
+
+// A count and nothing else is kept (what happened to a draft, for the admin page): no text, no person. Never blocks the page.
+const tally = (kind) => { api("/api/ai/followup-count", "POST", { kind }).catch(() => {}); };
 
 const loading = ref(true);
 const loadError = ref("");
@@ -145,11 +148,11 @@ const left = computed(() => {
 const outOfDrafts = computed(() => !!allowance.value && Math.min(allowance.value.day ?? Infinity, allowance.value.month ?? Infinity) <= 0);
 
 const fullText = computed(() => (channel.value === "email" && subject.value ? `${subject.value}\n\n${body.value}` : body.value));
-async function copy(text, what, kind = "copied") {
+async function copy(text, what) {
   try {
     await navigator.clipboard.writeText(text);
     copied.value = what;
-    emit("count", kind);
+    tally("copied");
   } catch {
     copied.value = "";
     error.value = "Couldn't copy. Select the text and copy it yourself.";
@@ -165,9 +168,9 @@ const openLabel = computed(() => (channel.value === "email" ? "Open in Mail" : c
 function opened() {
   // LinkedIn cannot be given text to fill in, so the draft is copied as the page opens.
   if (channel.value === "linkedin") navigator.clipboard?.writeText(body.value).then(() => { copied.value = "Copied, paste it in LinkedIn"; }).catch(() => {});
-  emit("count", "opened");
+  tally("opened");
 }
-function markDone() { marked.value = true; emit("followed-up"); emit("count", "marked"); }
+function markDone() { marked.value = true; emit("followed-up"); tally("marked"); }
 </script>
 
 <template>
@@ -269,7 +272,7 @@ function markDone() { marked.value = true; emit("followed-up"); emit("count", "m
             <textarea id="fu-body" v-model="body" class="fu-body" maxlength="1200" rows="10"></textarea>
           </div>
 
-          <p v-if="copied" class="success-text small" role="status">{{ copied === true ? "Copied" : copied }}</p>
+          <p v-if="copied" class="success-text small" role="status">{{ copied }}</p>
           <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
           <div class="btn-row">

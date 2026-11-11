@@ -9,6 +9,7 @@ import { prices } from "./price.js";
 import { getSettings, setSetting, spent, normEmail, ROLLOUTS, MAX_ALLOW } from "./store.js";
 import { callModel } from "./client.js";
 import { ADMIN_TEST } from "./prompts/adminTest.js";
+import { COUNT_KINDS } from "./followup.js";
 
 const usd = (micros) => Math.round(micros) / 1e6;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -42,7 +43,7 @@ export function registerAiAdmin(app) {
     const ts = Date.now();
     const day = dayOf(ts);
     const monthStart = `${day.slice(0, 7)}-01`;
-    const [spend, daily, byFeature, top, limitedRows] = await Promise.all([
+    const [spend, daily, byFeature, top, limitedRows, followupRows] = await Promise.all([
       spent(db, day, monthStart),
       all(db, "SELECT day, cost_micros, calls, cache_hits, fallbacks FROM ai_daily WHERE day >= ? ORDER BY day", monthStart),
       all(db, `SELECT feature,
@@ -52,6 +53,8 @@ export function registerAiAdmin(app) {
       all(db, `SELECT actor_kind, actor_id, SUM(calls) AS calls, SUM(cost_micros) AS cost, SUM(limited) AS limited
                FROM ai_usage WHERE day >= ? GROUP BY actor_kind, actor_id HAVING SUM(calls) > 0 ORDER BY calls DESC, cost DESC LIMIT 10`, monthStart),
       all(db, "SELECT DISTINCT actor_kind, actor_id, day FROM ai_usage WHERE limited > 0 AND day >= ?", new Date(ts - 14 * 86400e3).toISOString().slice(0, 10)),
+      // F22: did drafts help? Counts only (migration 0026): drafts shown, copied, opened, marked as followed up.
+      all(db, "SELECT kind, SUM(CASE WHEN day = ? THEN n ELSE 0 END) AS today, SUM(n) AS month FROM followup_counts WHERE day >= ? GROUP BY kind", day, monthStart),
     ]);
     const today = daily.find((d) => d.day === day) || { cost_micros: 0, calls: 0, cache_hits: 0, fallbacks: 0 };
     const sum = (k) => daily.reduce((s, d) => s + (d[k] || 0), 0);
@@ -74,6 +77,7 @@ export function registerAiAdmin(app) {
       features: byFeature.map((f) => ({ feature: f.feature, label: AI_LIMITS[f.feature]?.label || f.feature, callsToday: f.calls_today || 0, calls: f.calls || 0, cacheHits: f.cache_hits || 0, fallbacks: f.fallbacks || 0, limited: f.limited || 0, spendUsd: usd(f.cost || 0) })),
       topUsers: top.map((u) => ({ kind: u.actor_kind, id: u.actor_id, calls: u.calls, spendUsd: usd(u.cost || 0), limited: u.limited || 0 })),
       flagged: flaggedFrom(limitedRows),
+      followup: Object.fromEntries(COUNT_KINDS.map((k) => { const r = followupRows.find((x) => x.kind === k); return [k, { today: r?.today || 0, month: r?.month || 0 }]; })),
     });
   });
 

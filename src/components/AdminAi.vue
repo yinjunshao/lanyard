@@ -48,6 +48,7 @@ const ROLLOUT = [
   { mode: "everyone", label: "Everyone with a confirmed email", hint: "Each on their free allowance." },
 ];
 const KIND = { user: "Person", host: "Host", admin: "Admin" };
+const FOLLOWUP_ROWS = [["drafted_ai", "Written by the model"], ["drafted_template", "Template shown instead"], ["copied", "Copied"], ["opened", "Opened in LinkedIn, Mail or WhatsApp"], ["marked", "Marked as followed up"]];
 const stateText = computed(() => STATE[d.value?.state] || "");
 onMounted(load);
 </script>
@@ -124,6 +125,20 @@ onMounted(load);
               <th scope="row">{{ f.feature }}</th>
               <td class="num tnum">{{ f.calls }}</td><td class="num tnum">{{ f.cacheHits }}</td><td class="num tnum">{{ f.fallbacks }}</td>
               <td class="num tnum">{{ f.limited }}</td><td class="num tnum">{{ money(f.spendUsd) }}</td>
+            </tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="stack-2">
+        <span class="label">Follow-up drafts: did they help?</span>
+        <p class="small muted" style="margin:0">Counts only, with no person or text. Shown means a draft appeared (written by the model, or the template when AI was not available).</p>
+        <div style="overflow-x:auto"><table class="funnel small">
+          <thead><tr><th scope="col">What happened</th><th scope="col" class="num">Today</th><th scope="col" class="num">This month</th></tr></thead>
+          <tbody>
+            <tr v-for="row in FOLLOWUP_ROWS" :key="row[0]">
+              <th scope="row">{{ row[1] }}</th>
+              <td class="num tnum">{{ d.followup?.[row[0]]?.today ?? 0 }}</td><td class="num tnum">{{ d.followup?.[row[0]]?.month ?? 0 }}</td>
             </tr>
           </tbody>
         </table></div>

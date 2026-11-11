@@ -21,16 +21,23 @@
 //
 // The draft is plain text for a person to read, edit and send themselves. Lanyard sends nothing.
 import { Hono } from "hono";
-import { one } from "../db.js";
+import { one, run } from "../db.js";
 import { requireUser } from "../session.js";
 import { isBlocked } from "../blocks.js";
+import { bump, HOUR } from "../ratelimit.js";
 import { sharedCard, sharedGround, visibleSide } from "../inCommon.js";
 import { subtitleOf } from "../../src/lib/profile.js";
 import { callModel, allowanceFor } from "./client.js";
 import { cleanText, CAPS } from "./sanitize.js";
+import { dayOf } from "./config.js";
 import { FOLLOWUP_SCHEMA, MAX_TOKENS, PROMPT_VERSION, followupSystem, refineFollowup, isChannel, isGoal, isTone } from "./prompts/followup.js";
 
 export const followupApp = new Hono();
+
+// Counts only (migration 0026): which of these happened today, for the admin page. No person, connection or text.
+export const COUNT_KINDS = ["drafted_ai", "drafted_template", "copied", "opened", "marked"];
+export const countKind = (db, kind, ts = Date.now()) => run(db,
+  "INSERT INTO followup_counts (day, kind, n) VALUES (?, ?, 1) ON CONFLICT(day, kind) DO UPDATE SET n = n + 1", dayOf(ts), kind);
 
 export const MAX_TALK = 3;
 export const MAX_OFFER = 2;
@@ -177,6 +184,7 @@ followupApp.post("/api/ai/followup/:connectionId", async (c) => {
     const a = await allowanceFor(c.env, actor, "followup");
     return a ? { day: a.remaining.day, month: a.remaining.month } : null;
   };
+  await countKind(db, r.fallback ? "drafted_template" : "drafted_ai");
   if (r.fallback) {
     const message = r.reason === "ineligible" ? "Save your card and confirm your email to get AI drafts." : r.message;
     return c.json({ fallback: true, reason: r.reason, message, allowance: await allowance() });
@@ -189,3 +197,15 @@ followupApp.post("/api/ai/followup/:connectionId", async (c) => {
   });
 });
 
+
+// What happened to a draft after it was shown: copied, opened in an app, or marked as followed up. A count and nothing
+// else is kept. 120 an hour per person stops anyone filling the table.
+const AFTER = ["copied", "opened", "marked"];
+followupApp.post("/api/ai/followup-count", async (c) => {
+  const u = requireUser(c);
+  const b = await c.req.json().catch(() => ({}));
+  if (!AFTER.includes(b.kind)) return c.json({ error: "Unknown kind." }, 400);
+  if ((await bump(c.env.DB, `ai:fucount:${u.id}`, HOUR)) > 120) return c.json({ ok: true }); // over the limit: say nothing, count nothing
+  await countKind(c.env.DB, b.kind);
+  return c.json({ ok: true });
+});
