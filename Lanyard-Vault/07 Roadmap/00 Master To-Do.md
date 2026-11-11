@@ -77,7 +77,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F17** [[F17 Event presence and who to meet]] · P2 · L · Needs: F15, F11, F16 + owner decision (selfie retention) (done 2026-11-10, last commit 1e6e5a0)
 
 ### Phase 3: host tools
-- [ ] **F18** [[F18 Live previews for cards and events]] · P2 · M · Needs: F10, F11 (in progress: Claude subagent, 2026-11-11; built on F10 as it stands, with the owner's say-so)
+- [x] **F18** [[F18 Live previews for cards and events]] · P2 · M · Needs: F10, F11 (done 2026-11-11, last commit 494f69d; built on F10 as it stands, with the owner's say-so)
 - [ ] **F19** [[F19 Host present page and print]] · P1 · M · Needs: F10
 - [ ] **F20** [[F20 Host promo codes for event credits]] · P2 · M · Needs: F10, F04
 
@@ -140,6 +140,7 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
+- 2026-11-11 · F18 · 494f69d · Live previews: hosts see the real check-in page beside the Create event form and Details (theme strip, brand colour), people see their badge and card page while editing; same component and data function as the real pages, nothing saved or sent; the theme and brand colour now show on the check-in head; no migration; card page +1.1 KB gzip (49,911 to 50,979 B, about 200 B left)
 - 2026-11-10 · F17 · 1e6e5a0 · Event presence and who to meet: opt-in per event "Be easy to find" (face photo, line, wish) seen only by opted-in people at the same event while it is on; suggestions without AI; photo private and deleted on withdrawal or 48 hours after the event ends; hosts see a count; migration 0023, D027; public card +55 B gzip
 - 2026-11-10 · F16 · af13322 · Shared ground without AI: one In common line on a person's card page, worked out per request from only what each of you shows the other (mode fields, shared card tags, past events you may know of); nothing stored, no migration, hosts get none; public card +162 B gzip
 - 2026-11-10 · F15 · e230686 · Events tab and event hub: a fourth tab lists what is on now and past events with the date attended; check-in lands on a hub with a back arrow, your figures and the people you met there; one shared status rule, no migration, nothing new stored; landing +76 B and public card +72 B gzip
