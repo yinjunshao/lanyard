@@ -8,6 +8,10 @@ import { renderToString } from "vue/server-renderer";
 import { createSSRApp, h } from "vue";
 import { check, summary, makeEnv, becomeHost } from "./harness.mjs";
 import { createBody, detailsBody, eventFromBody } from "../src/lib/eventform.js";
+import { cardFacts } from "../src/lib/cardmerge.js";
+import { cardOf, profileOf, viewOf } from "../src/lib/cardpreview.js";
+import { buildLinks } from "../src/lib/links.js";
+import { subtitleParts } from "../src/lib/profile.js";
 
 const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
 const strip = (s) => s.replace(/<!--[\s\S]*?-->/g, "");
@@ -148,6 +152,132 @@ console.log("\n# The preview is inert, saves nothing and reads nothing (source g
   const n = T.q1("SELECT (SELECT COUNT(*) FROM events) AS e, (SELECT COUNT(*) FROM checkins) AS c, (SELECT COUNT(*) FROM connections) AS n");
   check("(sanity) only the real create route made events here, and nobody was checked in or connected", n.c === 0 && n.n === 0 && n.e === Object.keys(FORMS).length, n);
 }
+
+console.log("\n# F18.3 Which links, tags, headline and about a card shows (one function, used by the Worker and the preview)");
+{
+  const prof = { links: { LinkedIn: "https://l.example/a", GitHub: "https://g.example/a", Site: "https://s.example/a" }, tags: ["robots", "cv"], headline: "Profile line", about: "Profile about" };
+  const f0 = cardFacts({ visible_links: [], tags: [], headline: "", about: "" }, prof);
+  check("a card with nothing of its own shows the profile's links, tags, headline and about", JSON.stringify(f0) === JSON.stringify({ links: prof.links, tags: prof.tags, headline: "Profile line", about: "Profile about" }));
+  const f1 = cardFacts({ visible_links: ["GitHub", "Gone"], tags: ["own"], headline: "Own line", about: "Own about" }, prof);
+  check("its own win; picked links keep only those that exist; a label the profile no longer has is dropped", JSON.stringify(f1) === JSON.stringify({ links: { GitHub: "https://g.example/a" }, tags: ["own"], headline: "Own line", about: "Own about" }));
+  check("a profile with no links, tags or text gives empty things, not undefined", (() => { const f = cardFacts({ visible_links: ["X"], tags: [] }, {}); return Object.keys(f.links).length === 0 && f.tags.length === 0; })());
+  const w = read("worker/index.js");
+  check("the Worker builds every card page with it", /import \{ cardFacts \} from "\.\.\/src\/lib\/cardmerge\.js"/.test(w) && /const facts = cardFacts\(card, p\)/.test(w) && !/Object\.fromEntries\(card\.visible_links/.test(w));
+  check("it has no imports, so the Worker can load it from src/", !/^import /m.test(read("src/lib/cardmerge.js")));
+}
+
+console.log("\n# The card preview and the real card show the same, for the same edits");
+{
+  const CardView = await load("src/components/CardView.vue");
+  const Badge = await load("src/components/Badge.vue");
+  const people = [];
+  const signup = async (ip, base) => {
+    const c = T.client({ ip });
+    const r = await c.post("/api/profile", { name: base.name || "Start", acceptTerms: true, over18: true });
+    if (r.status !== 201) throw new Error(r.text);
+    const me = (await c.get("/api/me")).json;
+    return { c, id: me.user.id, cardId: me.cards[0].cardId, code: me.cards[0].code };
+  };
+  const stranger = T.client({ ip: "10.18.9.9" });
+  const linkRows = (o) => Object.entries(o).map(([label, url]) => ({ label, url }));
+  const CASES = [
+    { label: "a student with every field", edit: { name: "Ada Preview", mode: "student", uni: "Test University", course: "Computer Science", year: "2", company: "Ignored Ltd", role: "Ignored", headline: "Building robots", about: "I like small robots.", tags: "robotics, CV reviews, hackathons", links: linkRows({ LinkedIn: "linkedin.com/in/ada", GitHub: "https://github.com/ada" }) }, card: { name: "General", note: "Say hello", theme: "default" } },
+    { label: "a career profile with a studied-at line", edit: { name: "Grace Hopper", mode: "career", uni: "Test College", course: "Ignored course", company: "Acme", role: "Engineer", headline: "Compilers", about: "", tags: "mentoring", links: linkRows({ Site: "grace.example.com" }) }, card: { name: "Work", note: "", theme: "formal" } },
+    { label: "a career profile with no company or role", edit: { name: "No Job", mode: "career", uni: "", company: "", role: "", headline: "", about: "", tags: "", links: [] }, card: { name: "Bare", note: "", theme: "night" } },
+    { label: "only a name", edit: { name: "Only A Name", mode: "student", headline: "", about: "", tags: "", links: [] }, card: { name: "Card", note: "", theme: "default" } },
+    { label: "a card that overrides the headline, about and tags and picks one link", edit: { name: "Over Ride", mode: "student", uni: "Test University", course: "Maths", headline: "Profile line", about: "Profile about", tags: "a, b, c", links: linkRows({ LinkedIn: "linkedin.com/in/o", GitHub: "github.com/o", Site: "o.example.com" }) }, card: { name: "Careers fair", note: "Find me by the stage", theme: "night", headline: "Card line", about: "Card about", tagsText: "x, y", visibleLinks: ["GitHub"] } },
+    { label: "too long, and links that are not links", edit: { name: "N".repeat(500), mode: "student", uni: "U".repeat(300), course: "C".repeat(500), year: "9".repeat(500), headline: "H".repeat(500), about: "A".repeat(700), tags: Array.from({ length: 40 }, (_, i) => `tag${i}`).join(", "), links: [...linkRows({ ["L".repeat(50)]: "https://long.example" }), { label: "Bad", url: "javascript:alert(1)" }, { label: "Ok", url: "ok.example.com/" + "p".repeat(400) }] }, card: { name: "N".repeat(80), note: "n".repeat(400), theme: "default", headline: "h".repeat(120), about: "a".repeat(700) } },
+    { label: "markup in the words", edit: { name: "<b>Bold</b>", mode: "student", uni: "<i>Uni</i>", course: "\"Quoted\" & co", headline: "<script>x</script>", about: "a < b", tags: "<u>t</u>", links: linkRows({ "<b>L</b>": "https://x.example" }) }, card: { name: "<card>", note: "<n>", theme: "default" } },
+  ];
+  let n = 0;
+  for (const cs of CASES) {
+    n += 1;
+    const who = await signup(`10.18.8.${n}`, { name: "Start" });
+    people.push(who);
+    const payload = {
+      name: cs.edit.name, mode: cs.edit.mode, company: cs.edit.company || "", role: cs.edit.role || "", uni: cs.edit.uni || "", institutionId: null, course: cs.edit.course || "",
+      year: cs.edit.year || "", headline: cs.edit.headline || "", about: cs.edit.about || "",
+      tags: (cs.edit.tags || "").split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean).slice(0, 12), links: buildLinks(cs.edit.links), showAge: false,
+    };
+    const put = await who.c.put("/api/profile", payload);
+    const cardForm = { name: cs.card.name, note: cs.card.note, theme: cs.card.theme, headline: cs.card.headline || "", about: cs.card.about || "", visibleLinks: cs.card.visibleLinks || [], strapColor: "" };
+    const cardTags = (cs.card.tagsText || "").split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean);
+    const cput = await who.c.put(`/api/cards/${who.cardId}`, { name: cardForm.name, note: cardForm.note, theme: cardForm.theme, headline: cardForm.headline, about: cardForm.about, visibleLinks: cardForm.visibleLinks, tags: cardTags });
+    const real = (await stranger.get(`/api/c/${who.cardId}`)).json;
+    const mine = (await who.c.get("/api/me")).json;
+    const prof = profileOf(payload, null, mine.profile.projects);
+    const card = cardOf(cardForm, { tags: cardTags, cardId: who.cardId, code: who.code });
+    const view = viewOf(prof, card);
+    const KEYS = ["name", "uni", "course", "year", "mode", "company", "role", "headline", "about", "links", "tags", "projects"];
+    const sameData = put.status === 200 && cput.status === 200 && real.name === view.name && real.note === view.note && real.theme === view.theme && (real.strapColor ?? null) === (view.strapColor ?? null)
+      && KEYS.every((k) => JSON.stringify(real.profile[k]) === JSON.stringify(view.profile[k]));
+    check(`${cs.label}: the preview's data is what the saved card serves`, sameData, { put: put.status, cput: cput.status, KEYS: KEYS.filter((k) => JSON.stringify(real.profile[k]) !== JSON.stringify(view.profile[k])).map((k) => [k, real.profile[k], view.profile[k]]), top: [real.name, view.name, real.note, view.note, real.theme, view.theme] });
+    const a = strip(await render(CardView, { view: real })), b = strip(await render(CardView, { view }));
+    check(`${cs.label}: What they see is the same HTML as the real card page`, a === b, [a.length, b.length]);
+    const sub = (v) => subtitleParts(v.profile, { year: true }).join("  ·  ");
+    const ownerView = mine.cards[0];
+    const ba = strip(await render(Badge, { view: ownerView, url: "https://lanyard.test/c/x", subtitle: sub(ownerView) }));
+    const bb = strip(await render(Badge, { view, url: "https://lanyard.test/c/x", subtitle: sub(view) }));
+    check(`${cs.label}: the Badge is the same HTML as My card's`, ba === bb, [ba.length, bb.length]);
+  }
+
+  console.log("\n# Hiding a link on a card hides it in What they see");
+  {
+    const who = people[4]; // the card that picks one link
+    const real = (await stranger.get(`/api/c/${who.cardId}`)).json;
+    const html = strip(await render(CardView, { view: real }));
+    check("only the picked link is on the real card, and the card page does not list the others", Object.keys(real.profile.links).join() === "GitHub" && html.includes("GitHub") && !html.includes("LinkedIn") && !html.includes("o.example.com"));
+    const mine = (await who.c.get("/api/me")).json;
+    const prof = profileOf(mine.profile, null, mine.profile.projects);
+    const all = viewOf(prof, cardOf({ name: "x", visibleLinks: [] }, { tags: [] }));
+    const one = viewOf(prof, cardOf({ name: "x", visibleLinks: ["LinkedIn"] }, { tags: [] }));
+    const none = viewOf(prof, cardOf({ name: "x", visibleLinks: ["Gone"] }, { tags: [] }));
+    check("in the preview: none picked shows all three, one picked shows one, a stale label shows none", Object.keys(all.profile.links).length === 3 && Object.keys(one.profile.links).join() === "LinkedIn" && Object.keys(none.profile.links).length === 0);
+    const hi = strip(await render(CardView, { view: one }));
+    check("and the rendered page loses the hidden links", hi.includes("LinkedIn") && !hi.includes("GitHub") && !hi.includes("o.example.com"));
+  }
+
+  console.log("\n# Themes, the strap colour and empty cards");
+  {
+    const base = { name: "Card", note: "", visibleLinks: [], tags: [], headline: "", about: "" };
+    const prof = profileOf({ name: "Sam Smith", mode: "student" }, null, []);
+    const html = async (extra) => strip(await render(CardView, { view: viewOf(prof, cardOf({ ...base, ...extra }, { tags: [] })) }));
+    const d = await html({ theme: "default" }), f = await html({ theme: "formal" }), ni = await html({ theme: "night" });
+    check("each theme is the card's own class, as on the card page", /class="profile default"/.test(d) && /class="profile formal"/.test(f) && /class="profile night"/.test(ni));
+    check("a strap colour colours the strap on the card, and none leaves the theme colour", /class="profile-strap"[^>]*style="background:#2a6f4e;?"/.test(await html({ theme: "default", strapColor: "#2a6f4e" })) && !/background:/.test(d));
+    check("a card with only a name says so, as a stranger sees it", /hasn(&#39;|')t filled in their card yet/.test(d) && !d.includes("Your card only shows"));
+    check("no In common line, selfie or connect button is drawn in a preview", !d.includes("In common") && !d.includes("Selfie") && !d.includes("Connect with"));
+  }
+}
+
+console.log("\n# The card preview is inert, saves nothing and reads nothing");
+{
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (...a) => { calls.push(a[0]); return new Response("{}"); };
+  const Preview = await load("src/components/CardPreview.vue");
+  const prof = profileOf({ name: "Sam Smith", mode: "student", links: { Site: "https://x.example" }, tags: ["a"] }, null, []);
+  const card = cardOf({ name: "Card", theme: "night" }, { tags: [], cardId: "c1", code: "ABC123" });
+  const html = await render(Preview, { profile: prof, card, url: "https://lanyard.test/c/c1" });
+  globalThis.fetch = realFetch;
+  check("drawing the preview makes no request at all", calls.length === 0, calls);
+  check("the page inside is inert and hidden from a screen reader, and the preview says nothing is saved", /class="cp-page"[^>]*\binert\b/.test(html) && /aria-hidden="true"/.test(html) && html.includes("Nothing is saved or sent until you press Save"));
+  check("it opens on the Badge, with What they see one press away", html.includes("badge-stage") && /aria-pressed="true"[^>]*>Badge</.test(html) && html.includes("What they see"));
+  const files = ["src/components/CardPreview.vue", "src/lib/cardpreview.js", "src/lib/cardmerge.js", "src/components/CardView.vue"];
+  const code = files.map((f) => read(f).replace(/<style[\s\S]*$/, "")).join("\n").replace(/\/\/.*$/gm, "");
+  check("none of the preview's files imports a store or an API or calls fetch", !/lib\/(store|api|hostapi)|\bfetch\(|\bApi\./.test(code), files.filter((f) => /lib\/(store|api|hostapi)|fetch\(|\bApi\./.test(read(f))));
+  const cp = read("src/components/CardPreview.vue");
+  check("typing is shown a moment later: one 150 ms timer, cleared on the next change and on leaving", /setTimeout\(\(\) => \{ shown\.value = \{ profile, card \}; \}, 150\)/.test(cp) && /clearTimeout\(timer\)/.test(cp) && /onBeforeUnmount/.test(cp));
+  check("the preview draws the real Badge and the real CardView, and the card page and My card draw the same ones", /import Badge from "\.\/Badge\.vue"/.test(cp) && /import CardView from "\.\/CardView\.vue"/.test(cp) && /<CardView :view="view">/.test(read("src/views/PublicCard.vue")) && /<Badge :view="card"/.test(read("src/views/MyCard.vue")));
+  check("the Badge subtitle is built the way My card builds it", /subtitleParts\(view\.value\.profile, \{ year: true \}\)\.join\("  ·  "\)/.test(cp) && /subtitleParts\(card\.value\?\.profile, \{ year: true \}\)\.join\("  ·  "\)/.test(read("src/views/MyCard.vue")));
+  const ep = read("src/views/EditProfile.vue"), cards = read("src/views/Cards.vue");
+  check("Edit profile saves the same payload the preview reads", /const payload = payloadOf\(\)/.test(ep) && /profileOf\(payloadOf\(\)/.test(ep) && /<CardPreview /.test(ep));
+  check("My cards shows it for a new card and for the card being edited, never both at once", (cards.match(/<CardPreview /g) || []).length === 2 && /creating\.value = false;\s+editingId\.value = card\.cardId/.test(cards.replace(/\r/g, "")) && /if \(creating\.value\) editingId\.value = null/.test(cards));
+  check("a card that is not saved yet gets a QR that opens nothing, and the real server has no such card", /\/c\/preview-only/.test(cards) && (await stranger0().get("/api/c/preview-only")).status === 404);
+  check("only the two card editors import the preview; the card page, the entry and the shared files do not", ["src/main.js", "src/App.vue", "src/router/index.js", "src/router/routes.attendee.js", "src/lib/store.js", "src/lib/api.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/views/PublicCard.vue", "src/views/MyCard.vue", "src/views/Landing.vue"].every((f) => !/CardPreview|cardpreview/.test(read(f))));
+  check("the card page's own parts stay on the card page: the connect sheet and the selfie are not in CardView", !/ConnectSheet|selfie|connectedVia/i.test(read("src/components/CardView.vue").replace(/\/\/.*$/gm, "")));
+}
+function stranger0() { return T.client({ ip: "10.18.9.10" }); }
 
 await vite.close();
 summary();

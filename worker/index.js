@@ -21,6 +21,7 @@ import { hostApp } from "./hosts.js";
 import { adminApp } from "./admin.js";
 import { promoApp } from "./promo.js";
 import { unsubApp } from "./unsub.js";
+import { cardFacts } from "../src/lib/cardmerge.js";
 import { privacyApp } from "./privacy.js";
 import * as Alerts from "./alerts.js";
 import { sendEventEmails } from "./eventmail.js";
@@ -143,10 +144,8 @@ async function loadFullUser(db, userId) {
 async function cardView(db, card, { forOwner = false, limited = false, shared = false, profile } = {}) {
   const p = profile !== undefined ? profile : await one(db, "SELECT * FROM profiles WHERE user_id = ?", card.user_id);
   if (!p) return null;
-  const links = card.visible_links?.length
-    ? Object.fromEntries(card.visible_links.map((k) => [k, p.links?.[k]]).filter(([, v]) => v))
-    : p.links || {};
-  const tags = card.tags?.length ? card.tags : p.tags || [];
+  // Which links, tags, headline and about this card shows: one function, also used by the card preview (F18).
+  const facts = cardFacts(card, p);
   // `limited` = a private profile seen by someone who shares an event
   // directory with its owner: identity and "come to me for" only.
   return {
@@ -175,9 +174,9 @@ async function cardView(db, card, { forOwner = false, limited = false, shared = 
       photo: p.photo_key ? `/media/${p.photo_key}` : null,
       uni: p.uni, course: p.course, year: p.year,
       mode: p.mode || "student", company: p.company || "", role: p.role || "",
-      headline: card.headline || p.headline,
-      about: limited ? "" : (card.about || p.about),
-      links: limited ? {} : links, tags,
+      headline: facts.headline,
+      about: limited ? "" : facts.about,
+      links: limited ? {} : facts.links, tags: facts.tags,
       projects: limited ? [] : (p.projects || []).map((pr) => ({ ...pr, image: pr.image_key ? `/media/${pr.image_key}` : null })),
     },
   };

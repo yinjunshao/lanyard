@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
@@ -8,8 +8,11 @@ import PhotoCropper from "../components/PhotoCropper.vue";
 import ModeFields from "../components/ModeFields.vue";
 import TagFields from "../components/TagFields.vue";
 import { buildLinks } from "../lib/links";
+import CardPreview from "../components/CardPreview.vue";
+import { cardOf, profileOf } from "../lib/cardpreview";
 
 const router = useRouter();
+const origin = location.origin;
 const route = useRoute();
 const f = ref({
   name: "", mode: "student", company: "", role: "", uni: "", institutionId: null, course: "", year: "", headline: "", about: "",
@@ -92,20 +95,31 @@ function saveErrorMessage(e) {
   return e.message;
 }
 
+// What Save sends. The preview reads the same thing, so it shows what will be saved (F18).
+const payloadOf = () => ({
+  name: f.value.name, mode: f.value.mode, company: f.value.company, role: f.value.role,
+  uni: f.value.uni, institutionId: f.value.institutionId, course: f.value.course,
+  year: f.value.year, headline: f.value.headline, about: f.value.about,
+  tags: f.value.tags.split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean).slice(0, 12),
+  links: buildLinks(f.value.links),
+  showAge: f.value.showAge,
+});
+// Your first card (the one My card opens with) as it will look with these edits. A card's own
+// "what you do", tags and links still win over the profile's, as they do for anyone who scans it.
+const previewCard = computed(() => {
+  const c = me.cards[0];
+  return c ? cardOf({ name: c.name, note: c.note, theme: c.theme, strapColor: c.strapColor, visibleLinks: c.visibleLinks, headline: c.headlineOverride, about: c.aboutOverride },
+    { tags: c.tagsOverride, cardId: c.cardId, code: c.code }) : null;
+});
+const previewProfile = computed(() => profileOf(payloadOf(), photo.value || existingPhoto.value || null, me.profile?.projects));
+
 async function save() {
   error.value = "";
   saved.value = false;
   if (!f.value.name.trim()) { error.value = "Name is required."; return; }
   busy.value = true;
   try {
-    const payload = {
-      name: f.value.name, mode: f.value.mode, company: f.value.company, role: f.value.role,
-      uni: f.value.uni, institutionId: f.value.institutionId, course: f.value.course,
-      year: f.value.year, headline: f.value.headline, about: f.value.about,
-      tags: f.value.tags.split(",").map((s) => s.trim().slice(0, 24)).filter(Boolean).slice(0, 12),
-      links: buildLinks(f.value.links),
-      showAge: f.value.showAge,
-    };
+    const payload = payloadOf();
     if (photo.value) payload.photoDataUrl = photo.value;
 
     // This write is what actually persists the edit. Everything after it
@@ -134,6 +148,7 @@ async function save() {
   <div class="stack-2">
     <PhotoCropper v-if="cropFile" :file="cropFile" @done="onCropped" @cancel="cropFile = null" />
     <h1>Edit profile</h1>
+    <CardPreview v-if="previewCard" :profile="previewProfile" :card="previewCard" :url="`${origin}/c/${previewCard.cardId}`" />
 
     <div class="form-section">
       <span class="form-section-title">Basics</span>

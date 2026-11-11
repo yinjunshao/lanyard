@@ -242,7 +242,10 @@ console.log("\n# Nothing is stored, hosts see none, it is one module");
 
 console.log("\n# The card page (source guards)");
 {
-  const v = read("src/views/PublicCard.vue");
+  // F18: the card itself is CardView.vue, drawn by the card page and the live preview; the selfie you took together is
+  // this page's own, handed to CardView as its content, so it comes after everything CardView draws.
+  const v = read("src/components/CardView.vue") + "\n" + read("src/views/PublicCard.vue");
+  check("the card page draws the card through CardView, once", /<CardView :view="view">/.test(read("src/views/PublicCard.vue")) && !/class="in-common"|profile-headline/.test(read("src/views/PublicCard.vue")));
   const at = (s) => v.indexOf(s);
   check("one 'In common' block, a single line of text, not chips", (v.match(/class="in-common"/g) || []).length === 1 && !/in-common[^]*?class="chip"/.test(v.slice(at('class="in-common"'), at('Come to me for'))));
   check("order: name, headline, In common, Come to me for, About, Find online, then the selfie", at("profile-headline") < at('class="in-common"') && at('class="in-common"') < at("Come to me for") && at("Come to me for") < at(">About<") && at(">About<") < at("Find {{ first }} online") && at("Find {{ first }} online") < at("The selfie you took together"));
