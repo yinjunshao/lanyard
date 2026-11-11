@@ -4,6 +4,7 @@
 import { onMounted, ref } from "vue";
 import UiDatePicker from "../components/ui/UiDatePicker.vue";
 import AdminAi from "../components/AdminAi.vue";
+import { HOST_ORIGIN } from "../lib/site";
 
 const TOKEN_KEY = "lanyard_admin_token";
 const token = ref("");
@@ -97,15 +98,31 @@ const pct = (n, of) => (of ? `${Math.round((n / of) * 100)}%` : "–");
 
 // Promo codes (/redeem)
 const promos = ref(null);
-const newPromo = ref({ code: "", days: 365, maxUses: 50, expiresAt: "", note: "" });
+const blankPromo = () => ({ audience: "user", code: "", days: 365, credits: 3, creditDays: 365, orgKinds: [], maxUses: 50, expiresAt: "", note: "" });
+const newPromo = ref(blankPromo());
+const KINDS = [["society", "Societies"], ["institution", "Institutions"], ["company", "Companies"], ["individual", "Individuals"]];
+const toggleKind = (k) => { const l = newPromo.value.orgKinds; newPromo.value.orgKinds = l.includes(k) ? l.filter((x) => x !== k) : [...l, k]; };
+const kindsOf = (p) => { try { return JSON.parse(p.org_kinds || "null") || []; } catch { return []; } };
+const editing = ref(null); // the code whose limit and end date are being changed
+const edit = ref({ maxUses: "", expiresAt: "" });
+function startEdit(p) { editing.value = p.code; edit.value = { maxUses: p.max_uses ?? "", expiresAt: p.expires_at ? new Date(p.expires_at).toISOString().slice(0, 10) : "" }; }
+async function saveEdit(p) {
+  error.value = "";
+  try {
+    await call(`/api/admin/promos/${p.code}/edit`, "POST", { maxUses: edit.value.maxUses, expiresAt: edit.value.expiresAt });
+    editing.value = null; await loadPromos();
+  } catch (e) { error.value = e.message; }
+}
 async function loadPromos() {
   try { promos.value = (await call("/api/admin/promos")).promos; } catch (e) { error.value = e.message; }
 }
 async function createPromo() {
   error.value = "";
   try {
-    await call("/api/admin/promos", "POST", { ...newPromo.value });
-    newPromo.value = { code: "", days: 365, maxUses: 50, expiresAt: "", note: "" };
+    const b = { ...newPromo.value };
+    if (b.audience === "host") b.orgKinds = b.orgKinds.length ? b.orgKinds : null;
+    await call("/api/admin/promos", "POST", b);
+    newPromo.value = blankPromo();
     await loadPromos();
   } catch (e) { error.value = e.message; }
 }
@@ -114,7 +131,8 @@ async function togglePromo(p) {
   try { await call(`/api/admin/promos/${p.code}/active`, "POST", { active: !p.active }); await loadPromos(); }
   catch (e) { error.value = e.message; }
 }
-const redeemLink = (code) => `${location.origin}/redeem/${code}`;
+// A host code is redeemed in the host portal, a person's code on the main site.
+const redeemLink = (p) => `${p.audience === "host" ? HOST_ORIGIN : location.origin}/redeem/${p.code}`;
 
 async function load() {
   error.value = "";
@@ -276,27 +294,58 @@ const EMAIL = { education: "university or school address", free: "webmail addres
 
       <section class="stack-2">
         <span class="label">Promo codes ({{ promos?.length || 0 }})</span>
-        <p class="small muted">Each code gives Lanyard Plus for a number of days to the first people who claim it. Claiming needs a card and a confirmed email. People after the limit are told their place and put on the Plus list.</p>
+        <p class="small muted">A person's code gives Lanyard Plus for a number of days to the first people who claim it (a card and a confirmed email are needed; people after the limit are told their place and put on the Plus list). A host code gives an organisation event credits, is redeemed in the host portal and needs a limit. Anyone who cannot use a host code sees the same message, whatever the reason. The numbers are totals only.</p>
         <div v-for="p in promos || []" :key="p.code" class="panel stack">
           <div class="spread"><strong class="tnum">{{ p.code }}</strong>
-            <span class="small" :class="p.active ? '' : 'muted'">{{ p.active ? "Live" : "Off" }}</span></div>
-          <p class="small muted" style="margin:0">
+            <span class="small" :class="p.active ? '' : 'muted'">{{ p.audience === "host" ? "Host" : "Person" }} · {{ p.active ? "Live" : "Off" }}</span></div>
+          <p v-if="p.audience === 'host'" class="small muted" style="margin:0">
+            {{ p.credits }} event credit{{ p.credits === 1 ? "" : "s" }}, lasting {{ p.credit_days }} days · {{ p.uses }} of {{ p.max_uses }} claimed
+            · {{ p.credits_issued }} credits issued<template v-if="p.held"> · {{ p.held }} held until approval</template>
+            <template v-if="kindsOf(p).length"> · only {{ kindsOf(p).join(", ") }}</template>
+            <template v-if="p.expires_at"> · ends {{ fmt(p.expires_at) }}</template><template v-if="p.note"> · {{ p.note }}</template>
+          </p>
+          <p v-else class="small muted" style="margin:0">
             {{ p.days }} days of Plus · {{ p.uses }}<template v-if="p.max_uses"> of {{ p.max_uses }}</template> claimed · {{ p.attempts }} tried
             <template v-if="p.expires_at"> · ends {{ fmt(p.expires_at) }}</template><template v-if="p.note"> · {{ p.note }}</template>
           </p>
-          <p class="small" style="margin:0;word-break:break-all">{{ redeemLink(p.code) }}</p>
-          <button class="btn" @click="togglePromo(p)">{{ p.active ? "Switch off" : "Switch on" }}</button>
+          <p class="small" style="margin:0;word-break:break-all">{{ redeemLink(p) }}</p>
+          <div v-if="editing === p.code" class="stack">
+            <label class="small">Limit<input v-model="edit.maxUses" type="number" min="1" :placeholder="p.audience === 'host' ? '' : 'blank = none'" /></label>
+            <div class="small"><span :id="`pe-end-${p.code}`">Ends (optional)</span>
+              <UiDatePicker :id="`pe-end-in-${p.code}`" v-model="edit.expiresAt" :labelledby="`pe-end-${p.code}`" min-today clearable /></div>
+            <div class="btn-row"><button class="btn" @click="editing = null">Cancel</button><button class="btn btn-primary" @click="saveEdit(p)">Save</button></div>
+          </div>
+          <div v-else class="btn-row">
+            <button class="btn" @click="togglePromo(p)">{{ p.active ? "Switch off" : "Switch on" }}</button>
+            <button class="btn" @click="startEdit(p)">Change limit or end date</button>
+          </div>
         </div>
         <form class="stack" @submit.prevent="createPromo">
+          <div class="seg" role="group" aria-label="Who is the code for" style="align-self:flex-start">
+            <button type="button" class="seg-btn" :class="{ on: newPromo.audience === 'user' }" :aria-pressed="newPromo.audience === 'user'" @click="newPromo.audience = 'user'">A person (Plus)</button>
+            <button type="button" class="seg-btn" :class="{ on: newPromo.audience === 'host' }" :aria-pressed="newPromo.audience === 'host'" @click="newPromo.audience = 'host'">A host (event credits)</button>
+          </div>
           <input v-model="newPromo.code" type="text" maxlength="24" placeholder="New code, e.g. ABCD1234" aria-label="Code" style="text-transform:uppercase" />
-          <div class="btn-row">
+          <div v-if="newPromo.audience === 'user'" class="btn-row">
             <label class="small" style="flex:1">Days of Plus<input v-model.number="newPromo.days" type="number" min="1" max="3650" /></label>
             <label class="small" style="flex:1">Limit (blank = none)<input v-model="newPromo.maxUses" type="number" min="1" /></label>
           </div>
+          <template v-else>
+            <div class="btn-row">
+              <label class="small" style="flex:1">Event credits<input v-model.number="newPromo.credits" type="number" min="1" max="50" /></label>
+              <label class="small" style="flex:1">Days they last<input v-model.number="newPromo.creditDays" type="number" min="1" max="730" /></label>
+              <label class="small" style="flex:1">Limit (required)<input v-model="newPromo.maxUses" type="number" min="1" max="10000" /></label>
+            </div>
+            <div class="small"><span id="np-kinds-l">Only for (none ticked = any organisation)</span>
+              <div class="chip-row" role="group" aria-labelledby="np-kinds-l" style="margin-top:6px">
+                <button v-for="k in KINDS" :key="k[0]" type="button" class="chip chip-toggle" :class="{ on: newPromo.orgKinds.includes(k[0]) }" :aria-pressed="newPromo.orgKinds.includes(k[0])" @click="toggleKind(k[0])">{{ k[1] }}</button>
+              </div>
+            </div>
+          </template>
           <div class="small"><span id="np-end-l">Ends (optional)</span>
             <UiDatePicker id="np-end" v-model="newPromo.expiresAt" labelledby="np-end-l" min-today clearable /></div>
           <input v-model="newPromo.note" type="text" maxlength="200" placeholder="Where is it printed? (only you see this)" aria-label="Note" />
-          <button class="btn btn-primary" :disabled="newPromo.code.replace(/[^a-z0-9]/gi, '').length < 4">Create code</button>
+          <button class="btn btn-primary" :disabled="newPromo.code.replace(/[^a-z0-9]/gi, '').length < 4 || (newPromo.audience === 'host' && !newPromo.maxUses)">Create code</button>
         </form>
       </section>
 

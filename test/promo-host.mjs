@@ -1,6 +1,6 @@
 // F20: promo codes that give a host's organisation event credits.
 // Offline: the real Worker on in-memory SQLite (test/harness.mjs).
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { makeDb, makeEnv, migrationFiles, readMigration, becomeHost, hostSignIn, check, summary } from "./harness.mjs";
 
 const MIGRATION = migrationFiles().find((f) => f.startsWith("0025_"));
@@ -448,6 +448,39 @@ console.log("\n# The 51st claimant");
   check("…no claim, no credits, no place in a queue, and the code still says 50", creditRows(late.orgId).length === 0 && claims(code).length === 50 && uses(code) === 50);
   const twice = await late.c.post("/api/host/redeem/FIRSTFIFTY");
   check("…pressing again stays refused", twice.status === 404 && claims(code).length === 50);
+}
+
+
+console.log("\n# The pages (source guards, F20.3)");
+{
+  const read = (f) => readFileSync(f, "utf8");
+  const routes = read("src/router/routes.host.js");
+  check("the host routes serve /redeem and /redeem/:code on the host site", routes.includes('path: "/redeem/:code?"'));
+  check("…with the Billing page's own chunk, so the entry's chunk list (which every public page loads) gains no name (D024)",
+    (routes.match(/import\("\.\.\/views\/HostBilling\.vue"\)/g) || []).length === 1
+    && [...routes.matchAll(/import\("\.\.\/views\/(\w+)\.vue"\)/g)].map((m) => m[1]).sort().join() === "HostAccount,HostBilling,HostDashboard,HostEvent,HostSignOut");
+  const redeem = read("src/components/HostRedeem.vue");
+  check("the host page talks to the host API only (hostapi.js), never the attendee Api", /from "\.\.\/lib\/hostapi"/.test(redeem) && !/from "\.\.\/lib\/api"/.test(redeem) && !/Api\.(promo|redeem)\b/.test(redeem));
+  check("its code box shows a format hint, not a real code", redeem.includes('placeholder="e.g. ABCD1234"'));
+  const seeded = /VALUES \('([A-Z0-9]+)'/.exec(read("migrations/0017_promo_codes.sql"))?.[1];
+  const srcFiles = ["src/views", "src/components", "src/lib", "src/router"].flatMap((d) => readdirSync(d).map((f) => d + "/" + f)).concat(["index.html"]);
+  const leaks = srcFiles.filter((f) => { try { return /\.(vue|js|html)$/.test(f) && read(f).toUpperCase().includes(seeded); } catch { return false; } });
+  check("no page, component, lib or route file names the poster code or any code from a migration", leaks.length === 0, leaks);
+  check("no migration seeds a host code (host codes are made by an admin, never shipped)", !/audience.*'host'|INSERT[^;]*promo_codes[^;]*'host'/i.test(migrationFiles().filter((f) => f >= "0025").map(readMigration).join("\n").replace(/--.*$/gm, "")));
+  check("the typed page and the failure page point to the main site for Plus codes, without saying whether any code exists", /redeemed on/.test(redeem) && !/exists/i.test(redeem));
+  const shared = ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/router/routes.attendee.js", "src/lib/redeem.js", "src/views/Redeem.vue"];
+  check("nothing about host codes is in shared or attendee code (api.js, store.js, redeem.js, Redeem.vue, the entry, the attendee routes)",
+    shared.every((f) => !/host\/redeem|hostredeem|HostRedeem/.test(read(f))), shared.filter((f) => /host\/redeem|hostredeem|HostRedeem/.test(read(f))));
+  check("the host page's waiting-code store is its own (a different storage key from the attendee one)", /"lanyard-host-redeem"/.test(read("src/lib/hostredeem.js")) && /"lanyard-redeem"/.test(read("src/lib/redeem.js")));
+  const billing = read("src/views/HostBilling.vue");
+  check("Billing says 'Have a promo code?' and links to /redeem", /Have a promo code\?/.test(billing) && billing.includes('to="/redeem"'));
+  check("Billing shows a claim held for approval, and names a promo credit in the history", /heldPromos/.test(billing) && /Promo code/.test(billing));
+  check("the dashboard takes someone back to the code they came with, once, after setup", /pendingHostCode\(\)/.test(read("src/views/HostDashboard.vue")) && /clearPendingHostCode\(\)/.test(read("src/views/HostDashboard.vue")));
+  const admin = read("src/views/Admin.vue");
+  check("the admin form chooses who a code is for, and host codes have credits, days, a required limit and organisation kinds",
+    /A host \(event credits\)/.test(admin) && /Event credits/.test(admin) && /Days they last/.test(admin) && /Limit \(required\)/.test(admin) && /Societies/.test(admin));
+  check("the admin list gives a host code's totals and links to the host portal", /credits_issued/.test(admin) && /HOST_ORIGIN/.test(admin) && /held until approval/.test(admin));
+  check("the admin page shows no organisation or host account for a code (totals only)", !/host_account|org_id|\.email/.test(admin.slice(admin.indexOf("<span class=\"label\">Promo codes"), admin.indexOf("Welcome steps, last"))));
 }
 
 summary();

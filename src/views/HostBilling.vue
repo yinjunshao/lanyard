@@ -2,8 +2,10 @@
 // Billing for hosts: balance, credit packs, invoice requests, history.
 // Card checkout comes later; until then a request creates an invoice (societies
 // usually pay through union finance with a PO number).
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
+import HostRedeem from "../components/HostRedeem.vue";
 
 const data = ref(null);
 const state = ref("loading");
@@ -13,7 +15,11 @@ const form = ref({ email: "", po: "", note: "", quantity: 1 });
 const busy = ref(false);
 const sent = ref(null);
 
-onMounted(load);
+// The same page serves /redeem (F20): promo codes live in HostRedeem, so no new route file is needed.
+const route = useRoute();
+const redeemMode = computed(() => route.path.startsWith("/redeem"));
+onMounted(() => { if (!redeemMode.value) load(); });
+watch(redeemMode, (on) => { if (!on) load(); });
 async function load() {
   try {
     data.value = await HostApi.hostBilling();
@@ -27,6 +33,7 @@ async function load() {
 
 const gbp = (pence) => `£${(pence / 100).toFixed(pence % 100 ? 2 : 0)}`;
 const fmt = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "No expiry");
+const reasonLabel = (r) => (/^promo:/.test(r || "") ? `Promo code ${r.slice(6)}` : r || "credit");
 const perEvent = (s) => (s.credits > 1 && s.credits < 99 ? `${gbp(Math.round(s.pence / s.credits))} per event` : "");
 
 function pick(s, quote = false) {
@@ -58,7 +65,8 @@ async function submit() {
 </script>
 
 <template>
-  <div class="wide-col stack-3" style="max-width:760px">
+  <HostRedeem v-if="redeemMode" />
+  <div v-else class="wide-col stack-3" style="max-width:760px">
     <div class="page-head">
       <router-link to="/" class="small muted">‹ Host portal</router-link>
       <h1 style="margin-top:8px">Billing</h1>
@@ -93,6 +101,15 @@ async function submit() {
         </div>
         <span class="small muted" style="max-width:240px;text-align:right">
           1 credit = 1 event of up to {{ data.cap }} check-ins{{ data.freeTier ? ' (a hard limit for societies)' : '' }}.
+        </span>
+      </div>
+
+      <p class="small" style="margin:0"><router-link to="/redeem" style="text-decoration:underline">Have a promo code?</router-link></p>
+
+      <div v-if="data.heldPromos && data.heldPromos.length" class="notice" role="status">
+        <strong>Held until your organisation is approved.</strong>
+        <span v-for="h in data.heldPromos" :key="h.code" class="small" style="display:block">
+          {{ h.credits }} free event{{ h.credits === 1 ? "" : "s" }} from a promo code. They are added as soon as you're approved.
         </span>
       </div>
 
@@ -172,7 +189,7 @@ async function submit() {
         <div class="list">
           <div v-for="l in data.ledger" :key="l.id" class="list-row spread">
             <span>
-              <strong>{{ l.reason || 'credit' }}</strong>
+              <strong>{{ reasonLabel(l.reason) }}</strong>
               <span class="small muted" style="display:block">{{ fmt(l.at) }} · expires {{ fmt(l.expiresAt) }}</span>
             </span>
             <span class="tnum">{{ l.used }} / {{ l.granted }} used</span>

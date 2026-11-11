@@ -7,6 +7,8 @@
 import { computed, onMounted, ref } from "vue";
 import { HostApi, hostSignOutAndReload } from "../lib/hostapi";
 import { MAIN_ORIGIN } from "../lib/site";
+import { useRouter } from "vue-router";
+import { pendingHostCode, clearPendingHostCode } from "../lib/hostredeem";
 import HostSetup from "../components/HostSetup.vue";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
@@ -55,6 +57,7 @@ const previewEvent = computed(() => {
   return e.name ? e : { ...e, name: "Your event name" };
 });
 
+const router = useRouter();
 onMounted(load);
 async function load() {
   error.value = "";
@@ -69,6 +72,9 @@ async function load() {
     events.value = d.events || [];
     view.value = d.step;
     if (location.pathname === "/signin") history.replaceState(null, "", "/");
+    // Came here from a promo-code link before signing in (F20): carry on to it once setup is done.
+    const waiting = d.step === "ready" ? pendingHostCode() : null;
+    if (waiting) { clearPendingHostCode(); router.replace(`/redeem/${waiting}`); } // once, so a code that fails cannot trap them
   } catch (e) {
     serverStep.value = null;
     if (e.code === "signed_out") view.value = "email";

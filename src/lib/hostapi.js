@@ -45,6 +45,9 @@ export const HostApi = {
   hostRemoveMember: (id) => api(`/api/host/team/${encodeURIComponent(id)}`, "DELETE"),
   hostBilling: () => api("/api/host/billing"),
   hostBillingRequest: (body) => api("/api/host/billing/request", "POST", body),
+  // F20: promo codes that give event credits.
+  hostPromo: (code) => api(`/api/host/redeem/${encodeURIComponent(code)}`),
+  hostRedeem: (code) => api(`/api/host/redeem/${encodeURIComponent(code)}`, "POST"),
 };
 
 // Ends the host session, then a full page load, so no half-finished screen or
