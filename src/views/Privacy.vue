@@ -140,7 +140,7 @@ const UPDATED = "11 November 2026";
       At an event that is on, you can choose to show a photo of your face, a short line and your first name and last initial to
       other people checked in to the same event who have made the same choice, so you can spot each other in the room. It is off
       until you turn it on, for that event only. They do not see your card, links or contact details, and organisers only see how
-      many people used it. We suggest people to meet from what each of you already shows on your cards. Nobody outside the event, and
+      many people used it. We suggest people to meet from what each of you already shows on your cards. If AI features are on, someone at the event can ask an AI model to re-order that list. The model is then sent your line and the fields of your card used for suggestions (headline, tags, role or course, university), without your name or photo, unless you have switched off AI search in Settings. See section 8c. Nobody outside the event, and
       nobody once the event has ended, can see it. Turning it off deletes your photo and line at once; otherwise they are deleted
       48 hours after the event ends. You must be 18 or over to use Lanyard, so this is only ever shown between adults.
     </p>
