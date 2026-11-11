@@ -40,6 +40,8 @@ import { presenceApp } from "./presenceApp.js";
 import { exportAi } from "./ai/data.js";
 import { aiApp } from "./ai/routes.js";
 import { followupApp } from "./ai/followup.js";
+import { peopleSearchApp } from "./ai/peopleSearch.js";
+import { forgetSearchReplies } from "./ai/optout.js";
 
 const app = new Hono();
 
@@ -1267,6 +1269,7 @@ app.post("/api/connections/:id/report", async (c) => {
     await run(db, "INSERT OR IGNORE INTO blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)", u.id, target, now());
     if (cn.selfie_key) await deleteImage(c.env, cn.selfie_key).catch(() => {});
     await run(db, "DELETE FROM connections WHERE id = ?", cn.id);
+    await forgetSearchReplies(db); // F24: no kept search result can name them
   }
   return c.json({ ok: true, blocked: !!body.block });
 });
@@ -1277,6 +1280,7 @@ app.route("/", myEventsApp);
 app.route("/", presenceApp);
 app.route("/", aiApp);
 app.route("/", followupApp);
+app.route("/", peopleSearchApp);
 app.route("/", feedbackApp);
 app.route("/", hostApp);
 app.route("/", adminApp);

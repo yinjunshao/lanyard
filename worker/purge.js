@@ -6,6 +6,7 @@ import { inactiveEmail } from "./mail-templates.js";
 import { publicOrigin } from "./unsub.js";
 import { eraseUserPresence, purgePresence } from "./presence.js";
 import { eraseAi, purgeAi } from "./ai/data.js";
+import { forgetSearchReplies } from "./ai/optout.js";
 import { purgeSummaries } from "./ai/feedbackSummary.js";
 
 const DAY = 86400_000;
@@ -36,6 +37,7 @@ export async function eraseUser(env, userId) {
      WHERE m.photo_key IS NOT NULL AND (c.user_a = ? OR c.user_b = ?)`, userId, userId);
   for (const m of msgs) await tryDel(env, m.photo_key);
   await eraseUserPresence(env, userId); // F17 event-presence selfies (the rows go with the user)
+  await forgetSearchReplies(db); // F24: kept search results that could name this person
   await eraseAi(db, "user", userId); // F21 usage counts and any cached reply (no foreign key, so removed here)
   const prof = await one(db, "SELECT photo_key, projects FROM profiles WHERE user_id = ?", userId);
   if (prof) {

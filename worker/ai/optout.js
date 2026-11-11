@@ -5,7 +5,7 @@
 // also pass the people they used as `subjects` to callModel, which checks again (and blocks, in both
 // directions) and refuses the whole call if anyone fails: a cached reply is never served for someone who has
 // opted out since, because the check runs before the cache is read.
-import { all, newId, one } from "../db.js";
+import { all, newId, one, run } from "../db.js";
 
 const CHUNK = 40; // D1 allows 100 bound values in one statement
 
@@ -42,6 +42,13 @@ export async function blockedAmong(db, askerId, userIds) {
 }
 
 /**
+ * F24: "Do I know someone who" keeps a checked reply for 10 minutes. It can never be served for a different set of
+ * people (the people are part of its key), but when someone opts out, blocks or leaves, the kept ones are deleted at
+ * once as well, so nothing about them lingers even in the asker's own data download.
+ */
+export const forgetSearchReplies = (db) => run(db, "DELETE FROM ai_cache WHERE feature = 'people_search'");
+
+/**
  * Sets a person's choice and records it in the consent history (what they chose, and when), like the other
  * privacy choices. The basis is legitimate interests, so this is an opt-out, not a consent; the log is for
  * them to see and for us to show.
@@ -56,5 +63,6 @@ export async function setAiSearchOk(db, userId, ok) {
       .bind(newId() + newId(), userId, ok ? "granted" : "withdrawn", Date.now()));
   }
   await db.batch(stmts);
+  if (!ok) await forgetSearchReplies(db);
   return true;
 }

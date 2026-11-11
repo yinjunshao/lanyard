@@ -1,5 +1,4 @@
-// F24: "Do I know someone who...". Who is searched, what each person is shown as, and how a reply is checked.
-// (The route that calls the model is added in F24.2.)
+// F24: "Do I know someone who...". One route to ask, one to see what is left of today's allowance.
 //   GET  /api/ai/people-search   { allowance: { day } | null }   (null: this person cannot use AI search)
 //   POST /api/ai/people-search   { query, regenerate }
 //          { fallback:false, matches:[{ connectionId, reason, matchedOn }], cached, allowance }
@@ -22,17 +21,23 @@
 // WHAT COMES BACK is checked in code (refine): ids must be ones that were sent; every match must carry a quote that
 // really is in that person's record (found again, normalised), or the match is dropped; a reason that names something
 // not in their record is replaced by the verified quote. Results are mapped to connection ids on the server.
+import { Hono } from "hono";
 import { all } from "../db.js";
+import { requireUser } from "../session.js";
 import { blockedSet } from "../blocks.js";
 import { visibleSide } from "../inCommon.js";
 import { cardFacts } from "../../src/lib/cardmerge.js";
 import { subtitleOf } from "../../src/lib/profile.js";
 import { askTerms, hitCount } from "../../src/lib/ask.js";
 import { normalize } from "../../src/lib/search.js";
+import { callModel, allowanceFor } from "./client.js";
 import { cleanText, CAPS } from "./sanitize.js";
+import { assignIds } from "./prompt.js";
 import { filterIds } from "./validate.js";
 import { searchableIds } from "./optout.js";
-import { MAX_MATCHES, MAX_PEOPLE } from "./prompts/peopleSearch.js";
+import { MAX_MATCHES, MAX_PEOPLE, MAX_TOKENS, CACHE_MS, PEOPLE_SEARCH_SCHEMA, PEOPLE_SEARCH_SYSTEM, PROMPT_VERSION } from "./prompts/peopleSearch.js";
+
+export const peopleSearchApp = new Hono();
 
 const MAX_CONNECTIONS = 600; // the most recent connections considered at all, so one request stays small
 export const FIELD_LABELS = {
@@ -197,3 +202,68 @@ export function verifyMatches(matches, byId, query) {
   }
   return out;
 }
+
+/* ----------------------------------- routes ----------------------------------- */
+
+// Local stub mode only (AI_STUB): picks the people the query's words match, with a quote that is really in their record.
+function stubMatches(records, query) {
+  const ts = askTerms(query);
+  const out = [];
+  for (const rec of records) {
+    for (const t of ts) {
+      const word = tokensOf(rec).find((w) => w.startsWith(t));
+      if (word) { out.push({ id: rec.id, quote: word, reason: `Has ${word} in what they share with you.` }); break; }
+    }
+    if (out.length >= 3) break;
+  }
+  return { matches: out };
+}
+
+const leftOf = (a) => (a ? { day: a.remaining.day, month: a.remaining.month } : null);
+
+peopleSearchApp.get("/api/ai/people-search", async (c) => {
+  const u = requireUser(c);
+  return c.json({ allowance: leftOf(await allowanceFor(c.env, { kind: "user", id: u.id }, "people_search")) });
+});
+
+peopleSearchApp.post("/api/ai/people-search", async (c) => {
+  const u = requireUser(c);
+  const b = await c.req.json().catch(() => ({}));
+  if (typeof b.query !== "string") return c.json({ error: "Say who you are looking for." }, 400);
+  const query = cleanText(b.query, CAPS.query);
+  if (query.length < 3 || !/[\p{L}\p{N}]{2}/u.test(query)) return c.json({ error: "Say a little more about who you are looking for." }, 400);
+  const db = c.env.DB;
+  const actor = { kind: "user", id: u.id };
+  const sent = narrow(await gatherPeople(db, u.id), query);
+  // Nobody to look through (no connections, or none who can be searched): no call, nothing used up, and the same answer as "nobody fits".
+  if (!sent.length) return c.json({ fallback: false, matches: [], cached: false, allowance: leftOf(await allowanceFor(c.env, actor, "people_search")) });
+  const { records, idMap } = assignIds(sent, (p) => p.userId, (p, id) => ({ id, ...p.record }));
+  const byId = new Map(records.map((r) => [r.id, r]));
+  const personOf = new Map(sent.map((p) => [p.userId, p]));
+  const r = await callModel(c.env, {
+    feature: "people_search",
+    actor,
+    promptVersion: PROMPT_VERSION,
+    system: PEOPLE_SEARCH_SYSTEM,
+    data: { query, people: records },
+    schema: PEOPLE_SEARCH_SCHEMA,
+    maxTokens: MAX_TOKENS,
+    subjects: sent.map((p) => p.userId), // the same people who are in the data
+    regenerate: b.regenerate === true,
+    ip: c.req.header("cf-connecting-ip"),
+    cacheTtlMs: CACHE_MS,
+    // A reply that picked people but none with a real quote is not trusted: it falls back to keywords.
+    refine: (v) => { const m = verifyMatches(v.matches, byId, query); return v.matches.length && !m.length ? null : { matches: m }; },
+    stub: stubMatches(records, query),
+  });
+  const allowance = leftOf(await allowanceFor(c.env, actor, "people_search"));
+  if (r.fallback) {
+    const message = r.reason === "ineligible" ? "Save your card and confirm your email to search with AI." : r.message;
+    return c.json({ fallback: true, reason: r.reason, message, allowance });
+  }
+  // Checked again on the way out, so a reply from the cache goes through the same gate as a new one.
+  const matches = verifyMatches(r.result.matches, byId, query).map((m) => ({
+    connectionId: personOf.get(idMap.get(m.id)).connectionId, reason: m.reason, matchedOn: FIELD_LABELS[m.field],
+  }));
+  return c.json({ fallback: false, matches, cached: r.cached, allowance });
+});
