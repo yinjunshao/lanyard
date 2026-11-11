@@ -520,6 +520,15 @@ console.log("\n# F23.2 The hourly job: failures, retries, the switch and the rol
   await setSetting(env.DB, "rollout", "everyone");
   const ok = await writeDueSummaries(env, t2 + 9 * H);
   check("…and once allowed it is written", ok.written === 1 && q1("SELECT source s FROM feedback_summaries WHERE event_id = ?", e4.id)?.s === "auto", ok);
+  // A mail failure (no key, Resend down) must not lose the summary or stop the job.
+  const t3 = realNow() + skew;
+  const e = await newEvent(hostA, "Mail Fails", { startsAt: t3 - 8 * DAY - 2 * H, endsAt: t3 - 8 * DAY });
+  for (let i = 0; i < 8; i++) addResponse(e.id, { overall: 4 }, { improve: `The room was too loud (${i}) mailfail`, h1: `Great speakers ${i}` });
+  const noMail = { ...env, MAIL_OUTBOX: undefined, MAIL_LOG: undefined };
+  const sent0 = env.MAIL_OUTBOX.length;
+  reset();
+  const out = await writeDueSummaries(noMail, t3);
+  check("if the email cannot be sent the summary is still saved, the job carries on, and no email is logged as sent", out.written >= 1 && q1("SELECT source s FROM feedback_summaries WHERE event_id = ?", e.id)?.s === "auto" && !q1("SELECT 1 x FROM host_mail_log WHERE event_id = ? AND kind = 'feedback_summary'", e.id) && env.MAIL_OUTBOX.length === sent0, out);
 }
 
 console.log("\n# F23.2 The recap email carries a summary that already exists");
@@ -590,6 +599,20 @@ console.log("\n# F23.2 Migration 0027 and the host reset");
 }
 
 Date.now = realNow;
+
+console.log("\n# F23.4 The emails");
+{
+  const { feedbackSummaryEmail, hostSummaryEmail } = await import("../worker/mail-templates.js");
+  const evil = "<script>alert(1)</script> Tom & Jerry \"liked\" it";
+  const m = feedbackSummaryEmail({ eventName: "Night <b>1</b>", paragraph: evil, answers: 12, url: "https://host.lanyard.test/events/x" });
+  check("the summary email says it is written by AI, from how many answers, and that it can be wrong", /Written by AI from 12 written answers/.test(m.text) && /Written by AI from 12 written answers/.test(m.html) && /can be wrong/.test(m.text));
+  check("the paragraph and the event name are escaped in the HTML part", !/<script>|<b>1/.test(m.html) && /&lt;script&gt;/.test(m.html) && /Night &lt;b&gt;1&lt;\/b&gt;/.test(m.html));
+  check("a link to the report is in it", /events\/x/.test(m.text));
+  const plain = hostSummaryEmail({ eventName: "N", checkins: 1, connections: 0, responses: 0, nudged: 0, url: "https://x" });
+  const withAi = hostSummaryEmail({ eventName: "N", checkins: 1, connections: 0, responses: 9, nudged: 0, url: "https://x", aiSummary: { paragraph: "People liked it.", answers: 9 } });
+  check("the recap is unchanged without a summary, and labelled with one", !/AI/.test(plain.text) && /Written by AI from 9 written answers/.test(withAi.text) && /People liked it\./.test(withAi.html));
+  check("the recap carries only the paragraph, never quotes or points", !/quote|worked|change/i.test(withAi.text.replace(/Written by AI[^\n]*\n/, "")));
+}
 
 console.log("\n# F23.3 The screen (source guards; the layout was checked in a browser, see the plan note)");
 {
