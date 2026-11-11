@@ -41,7 +41,10 @@ tags: [product, features]
 ## AI foundation (F21, built, off until the owner turns it on)
 No AI feature is visible yet. The shared plumbing is: one Worker-side client, limits per person, a budget, a kill switch and an allow-list on `/admin`, a Settings switch "Let people I've connected with find me using AI search" (on by default) and the Plan page's allowances. See [[F21 AI foundation]] and [[AI Safety and Cost Plan]].
 
+## Follow-up drafts (F22, built on the AI foundation, in progress)
+On a connection's page, under Follow up: "Draft a follow-up" opens a sheet. Pick where it will go (LinkedIn or WhatsApp only if their card shows that link; Email always), a tone, a goal, up to 3 things to talk about (from their side, the top one chosen for you) and up to 2 you can offer, whether to use your private note, and a line of your own (300 characters). The draft is plain text in a box you can edit, with Copy, Open in LinkedIn, Mail or WhatsApp, Try again (uses an allowance) and Mark as followed up. It says it is a draft to check before you send it; Lanyard never sends it. When AI is off, a limit is reached, you are not let in yet or the reply fails its checks, you get a template ("Here's a starting point") with the reason, never an error. Free: 3 a day, 15 a month; Plus: 15 a day, 150 a month. Counts of drafts shown, copied, opened and marked are on `/admin`. See [[F22 AI follow-up drafts]] and [[D032 Follow-up drafts are built from database rows and checked on the way out]].
+
 ## Not built yet (as far as the project files show)
-Stripe checkout, sponsor talent search page, Apple/Google Wallet pass, NFC tap, Eventbrite/Luma native integrations (only generic webhook + RSVP count), AI follow-up drafts (an env var `CLAUDE_API_KEY` exists; confirm whether used).
+Stripe checkout, sponsor talent search page, Apple/Google Wallet pass, NFC tap, Eventbrite/Luma native integrations (only generic webhook + RSVP count), a draft menu on the People rows (the draft lives on the person's page).
 
 Related: [[Screens and Routes]], [[Product Overview]]
