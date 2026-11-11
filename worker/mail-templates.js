@@ -17,7 +17,7 @@ export function feedbackReminderEmail({ eventName, url, stopUrl }) {
 }
 
 // To the person who runs the event, a day after it ended.
-export function hostSummaryEmail({ eventName, checkins, connections, responses, nudged, url }) {
+export function hostSummaryEmail({ eventName, checkins, connections, responses, nudged, url, aiSummary }) {
   const lines = [
     `${eventName} finished yesterday. Here is where it stands:`,
     `People who checked in: ${checkins}\nConnections made at the event: ${connections}\nFeedback answers so far: ${responses}`,
@@ -25,8 +25,21 @@ export function hostSummaryEmail({ eventName, checkins, connections, responses, 
       ? `We sent a one-off reminder to ${nudged} ${nudged === 1 ? "person" : "people"} who hadn't answered yet. Feedback appears in your report once at least 3 people have answered.`
       : "Feedback appears in your report once at least 3 people have answered.",
   ];
+  // F23: a summary the organiser already asked for. Always labelled, and always with the answers a click away.
+  if (aiSummary?.paragraph) lines.push(`Written by AI from ${aiSummary.answers} written answers (check it against the answers before you share it):\n${aiSummary.paragraph}`);
   const text = `${lines.join("\n\n")}\n\nOpen the report: ${url}`;
   return { subject: `How ${eventName} went`, text, html: `${paragraphs(lines.join("\n\n"))}${button(url, "Open the report")}` };
+}
+
+// F23: sent once to the person who runs the event, after its feedback window has closed, when the summary has been written.
+export function feedbackSummaryEmail({ eventName, paragraph, answers, url }) {
+  const lines = [
+    `Feedback for ${eventName} has closed. Here is a short summary of the written answers.`,
+    paragraph,
+    `Written by AI from ${answers} written answers. It can be wrong, so read the answers before you share it. The report has the counts, a few quotes taken word for word, and all the answers.`,
+  ];
+  const nn = "\n\n";
+  return { subject: `Feedback summary for ${eventName}`, text: `${lines.join(nn)}${nn}Open the report: ${url}`, html: `${paragraphs(lines.join(nn))}${button(url, "Open the report")}` };
 }
 
 // "New sign-in": sent to the account's verified email when someone signs in with a passkey, code or key.

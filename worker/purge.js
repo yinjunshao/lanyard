@@ -6,6 +6,7 @@ import { inactiveEmail } from "./mail-templates.js";
 import { publicOrigin } from "./unsub.js";
 import { eraseUserPresence, purgePresence } from "./presence.js";
 import { eraseAi, purgeAi } from "./ai/data.js";
+import { purgeSummaries } from "./ai/feedbackSummary.js";
 
 const DAY = 86400_000;
 export const SELFIE_MAX_AGE = 365 * DAY;
@@ -100,12 +101,14 @@ export async function purgeExpired(env, ts = Date.now()) {
   // Feedback: free-text answers are removed after 12 months; the anonymous
   // ratings and choices stay for the host's year-on-year comparison.
   const oldText = await all(db,
-    "SELECT id, answers FROM feedback_responses WHERE day < ? AND answers LIKE '%\"text\":{\"%' LIMIT 500", ts - SELFIE_MAX_AGE);
+    "SELECT id, event_id, answers FROM feedback_responses WHERE day < ? AND answers LIKE '%\"text\":{\"%' LIMIT 500", ts - SELFIE_MAX_AGE);
   for (const r of oldText) {
     const a = typeof r.answers === "string" ? JSON.parse(r.answers) : r.answers;
     await run(db, "UPDATE feedback_responses SET answers = ? WHERE id = ?", JSON.stringify({ closed: a?.closed || {}, text: {} }), r.id);
   }
   out.feedbackText = oldText.length;
+  // F23: an AI summary of that feedback quotes the written answers, so it is removed with them.
+  out.feedbackSummaries = await purgeSummaries(db, oldText.map((r) => r.event_id), ts, SELFIE_MAX_AGE);
   await run(db, "DELETE FROM card_notes WHERE redeemed_at IS NULL AND created_at < ?", ts - DAY);
 
   // Guests who never made a profile and have no live session.

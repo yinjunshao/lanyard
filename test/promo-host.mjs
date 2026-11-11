@@ -149,7 +149,7 @@ console.log("\n# The host reset (scripts/reset-hosts.mjs, option B) and host pro
   check("…the host promo throttle counters go and others stay", r.prepare("SELECT key FROM rate_limits").all().map((x) => x.key).join() === "promo:look:1.2.3.4");
   check("the script's own check passes", verify(pre, post).length === 0, verify(pre, post));
   check("…and fails if a host code still counts claims that are gone", verify(pre, { ...post, host_codes_with_uses: 1 }).length > 0);
-  check("a database without migration 0025 is refused by the script", (() => { const o = makeDb({ before: "0025" }).raw; return o.prepare(SCHEMA_SQL).get().n < 5; })());
+  check("a database without migration 0025 is refused by the script", (() => { const o = makeDb({ before: "0025" }).raw; return o.prepare(SCHEMA_SQL).get().n < 6; })());
 }
 function q1Raw(raw, sql) { return Object.values(raw.prepare(sql).get())[0]; }
 

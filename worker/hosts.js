@@ -19,6 +19,7 @@ import { validateWebhookUrl, newWebhookSecret, newApiKey, sendWebhook } from "./
 import { readInstitution } from "./institutions.js";
 import { normEmail, validEmail, emailProblem, moveOwnership, openTransfer } from "./hostorg.js";
 import { exportAi } from "./ai/data.js";
+import { summaryGet, summaryPost } from "./ai/feedbackSummary.js";
 import { normPromo } from "./promo.js";
 import { registerHostPromo, releaseHeldClaims, heldClaims, exportHostClaims } from "./host-promo.js";
 import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
@@ -498,6 +499,16 @@ hostApp.put("/api/host/events/:id/feedback", async (c) => {
   const keys = Object.keys(sets);
   if (keys.length) await run(db, `UPDATE events SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`, ...Object.values(sets), ev.id);
   return c.json({ ok: true, questions: sets.feedback_questions ? JSON.parse(sets.feedback_questions) : undefined });
+});
+
+// F23: the AI summary of the written feedback (worker/ai/feedbackSummary.js). Same event rule as every route here.
+hostApp.get("/api/host/events/:id/feedback/summary", async (c) => {
+  const me = c.get("host");
+  return summaryGet(c, await hostEvent(c, me), me);
+});
+hostApp.post("/api/host/events/:id/feedback/summary", async (c) => {
+  const me = c.get("host");
+  return summaryPost(c, await hostEvent(c, me), me);
 });
 
 // Live screen: check-in count + connections so far (aggregate only).

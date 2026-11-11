@@ -9,6 +9,7 @@ import { sendBatch, sendMail } from "./mail.js";
 import { feedbackReminderEmail, hostSummaryEmail } from "./mail-templates.js";
 import { emailLink, publicOrigin } from "./unsub.js";
 import { hostOrigin } from "./host-auth.js";
+import { recapParagraph } from "./ai/feedbackSummary.js";
 
 const HOUR = 3600e3;
 const WAIT_MS = 24 * HOUR;          // how long after the end
@@ -76,6 +77,7 @@ export async function sendEventEmails(env, ts = now()) {
         responses: await n("SELECT COUNT(*) AS n FROM feedback_responses WHERE event_id = ?"),
         nudged: await n("SELECT COUNT(*) AS n FROM event_mail_log WHERE event_id = ? AND kind = 'feedback'"),
         url: `${hostOrigin(env)}/events/${ev.id}`, // the host portal (F10)
+        aiSummary: await recapParagraph(db, ev.id), // F23: only if one was already written; labelled in the email
       }),
     });
     await run(db, "INSERT OR IGNORE INTO host_mail_log (event_id, kind, host_account_id, sent_at) VALUES (?, 'host_summary', ?, ?)", ev.id, owner.id, ts);

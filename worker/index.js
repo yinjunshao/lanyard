@@ -25,6 +25,7 @@ import { cardFacts } from "../src/lib/cardmerge.js";
 import { privacyApp } from "./privacy.js";
 import * as Alerts from "./alerts.js";
 import { sendEventEmails } from "./eventmail.js";
+import { writeDueSummaries } from "./ai/feedbackSummary.js";
 import {
   newCardCode, rotateCardCode, freshenCards, findCardByCode, normaliseCode,
   isThrottled, recordMiss, throttleKeys, checkCustomCode, setCustomCode, CUSTOM_EVERY_MS,
@@ -1306,6 +1307,9 @@ export default {
   scheduled: (event, env, ctx) => {
     // Hourly: post-event emails. Daily (03:17): retention clean-up.
     if (event.cron === "17 3 * * *") ctx.waitUntil(purgeExpired(env));
-    else ctx.waitUntil(sendEventEmails(env).catch((e) => console.error(e)));
+    else {
+      ctx.waitUntil(sendEventEmails(env).catch((e) => console.error(e)));
+      ctx.waitUntil(writeDueSummaries(env).catch((e) => console.error("feedback summaries failed")));
+    }
   },
 };
