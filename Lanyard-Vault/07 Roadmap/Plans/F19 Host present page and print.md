@@ -53,11 +53,31 @@ On the host live page (`HostLive.vue`), two buttons side by side: **Present** (o
 
 ## Acceptance checks
 - [ ] On a 1280 × 720 screen, the QR scans from a phone 3 m away.
-- [ ] The counter rises within 20 s of a test check-in.
-- [ ] Print preview shows one A4 page, with no cut-off and no controls.
+  - Not ticked: no phone was used. What was checked: the real Present page was screenshotted in headless Edge at 1280 x 720 (code 518 px wide, about 14 px a module) and at 1920 x 1080, and jsQR read the address from the screenshot and from copies shrunk to a quarter and a fifth of the size (a code 104 px wide, about 2.8 px a module, still read, with a little blur); `test/present.mjs` reads the same path back at 3 px a module with softness. A phone at 3 m sees a laptop-screen code at about that size. Owner step: put it on a screen or projector and scan it from 3 m with a phone.
+- [x] The counter rises within 20 s of a test check-in.
+  - Browser, local Worker: a test check-in showed on the page 7.4 s later (the page asks every 15 s, so the worst case is about 15 s plus the request). `test/present.mjs` checks the 15 s timing with a fake clock and that a check-in raises the count the route returns.
+- [x] Print preview shows one A4 page, with no cut-off and no controls.
+  - Checked through the browser engine's own PDF output (Edge, not Chrome's dialog): one page, "1 of 1" in the viewer, for a short event and for a 120-character name with a 120-character venue; margins, strap rule and QR all inside the page; no buttons or note. See F19.4. The print dialog itself and a printer were not used.
 
 ## Log
 - 2026-11-11 (owner decision, relayed by the orchestrator): F19 lists "Needs: F10". F10 is fully built and committed but not ticked, because its last checks need the production subdomain. The owner said to build the items behind F10 now, on F10's code as it stands. Anything F10's production rollout changes (the host site address, the host cookie, `HOST_ORIGIN`) may need rework here: the present and print pages are host pages that call `HostApi.hostLive`, and the check-in address comes from `lib/checkinlink.js` (the main site's origin).
 - 2026-11-11: claimed by Claude subagent.
+
+- 2026-11-11 (Claude subagent): Built, all five tasks. **Left In progress** (not Done): the first acceptance check needs a phone and a screen, which I did not have. Present (`/events/:id/present`) and the A4 poster (`/events/:id/print`) are in, with two buttons on the live tab. Decision: [[D030 Present and the poster share one route, one address and one QR path]]. No migration, no new dependency.
+- First-load JS (gzip, `test/budget.mjs`), before (HEAD at the start, 8facd82) and after: PublicCard 50,979 to 50,981 B, PrivacyRequest 50,462 to 50,499 B, Landing 45,073 to 45,092 B (all under 51,200). Three separate lazy routes would have cost PublicCard +97 B and, with `defineAsyncComponent`, +770 B, so one route goes to a small `HostEvent.vue` that loads the live page, Present or the poster with a plain `import()`. **The card page has about 220 B of headroom, PrivacyRequest about 700 B, as before.**
+- Tests: new `test/present.mjs` (85 checks: address, QR decoded with jsQR, access rules and nothing per person, polling with a fake clock, rotated code, controls and wake lock with fakes, the poster's A4 rules, the buttons, budget source guards), wired into `npm test` before the budget check. Changed: `test/hostsite.mjs` (the host route table check now looks for `/events/:id/:screen(present|print)?` where it looked for `/events/:id`; the same check, one route).
+- Decisions I made without the owner: (1) the page shows the check-in count only, always (the live tab shows it raw too; nothing per person; connections, selfies, feedback and the presence figure are not on the page). (2) The typed address reads "Or go to lanyd.fyi/e/CODE", not "go to lanyd.fyi and enter", because the landing page has no code box (the code box is on /app/scan). (3) A Night event starts dark and anything else starts light; the Light/Dark button is for the page only and nothing is saved. (4) No "Codes rotate. Print on the day." warning: event codes only change when the host presses New check-in code, so the poster stays valid; the screen note says so. (5) Present's QR sits on a white square in dark mode too. (6) `?auto=0` on the poster stops the print dialog opening (needed for checking it; also useful if someone wants to look first). (7) Fixed the live tab's QR not being drawn on first load, and Present scrolls on a portrait screen.
+- Checked, and how: see each task and acceptance check above. Not checked: the Fullscreen button in a real browser (the browser pane blocks it), the wake lock being held, the real print dialog and a printer, a phone scanning from 3 m, a screen reader.
+- Found on the way, not changed: `Decision Log.md` has the D028 row above its table separator (D030 is placed after the separator, with D029).
+
+> [!question] A link for a venue screen that works without signing in. The plan says Present is for a screen or projector, and a venue's own screen or a spare laptop cannot sign in as a host. The plan does not say how such a page would be reached, and an address that works without signing in would be a secret link on the open internet, so I did not build it. Owner: do you want one (for example a long random link per event that you can switch off, showing only the same name, QR, code and count)? Today the host signs in on the machine that drives the screen.
+
+> [!question] Wording on the poster and Present. "Add your name. No app to install." and "Keep a face and a name for everyone you meet." are mine (plain words, no named societies). Owner: change them if you want other words; they are in `HostPrint.vue`.
+
+### Owner steps
+- Review the F19 commits, `git push`, then `npm run deploy`. No migration. Present and the poster need the host site (`host.lanyd.fyi`) to be live, as F10 does.
+- Open Present on a real screen or projector at 1280 x 720 and 1920 x 1080 and scan the QR from 3 m with a phone (the first acceptance check). Try the Fullscreen button and check the screen stays awake.
+- Print a poster on paper (Chrome's print dialog, A4, margins Default) and scan it. Check the strap rule prints (it is a border, so it should, even with background graphics off).
+- F10 rework risk: this was built on F10 as it stands. If the production rollout changes the host site address or cookie, only the host pages and `HostApi` change; the check-in address comes from `lib/checkinlink.js` (the main site's origin).
 
 Related: [[Host Portal and Billing]], [[F18 Live previews for cards and events]] · back to [[00 Master To-Do]]

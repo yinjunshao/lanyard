@@ -35,7 +35,7 @@ From `src/router/index.js`. All views are code-split so public pages stay light 
 
 ## Host portal (its own site, F10)
 Served at the root of `host.lanyd.fyi` (locally `http://host.localhost:5173`), from `src/router/routes.host.js`:
-`/` (sign in by email code, then details, Host Terms and own name or organisation, then the dashboard), `/signin` (same page), `/events/:id` (live, details, feedback, report), `/billing`, `/account` (sign-in email, devices, organisation, team, integrations), `/signout` (signs out and reloads to `/`). Old `/host/...` addresses on the host site redirect to the root; anything else goes to the main site.
+`/` (sign in by email code, then details, Host Terms and own name or organisation, then the dashboard), `/signin` (same page), `/events/:id` (live, details, feedback, report), `/events/:id/present` (F19: the projector page: event name, venue and time, a QR at least 40% of the screen height, the code in large figures, the typed address and a check-in count; Fullscreen, Light/Dark and Exit show on movement and hide after 3 s; refreshes every 15 s, not while hidden), `/events/:id/print` (F19: the A4 poster, black on white with a thin strap rule; opens the print dialog on load, `?auto=0` stops that), `/billing`, `/account` (sign-in email, devices, organisation, team, integrations), `/signout` (signs out and reloads to `/`). Old `/host/...` addresses on the host site redirect to the root; anything else goes to the main site.
 
 On the main site, `/host` and `/host/...` go to the same page on the host site (the router, and a 301 from the Worker). `/hosts` (the pitch page) stays on the main site and links to the portal. `/admin` stays on the main site.
 

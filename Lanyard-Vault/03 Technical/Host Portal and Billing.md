@@ -26,6 +26,9 @@ See [[D009 Manual invoicing before Stripe]].
 ## Emails
 From `hosts@lanyd.fyi`: sign-in codes, application received and decided, ticket decisions, transfers waiting, team invites, and the recap a day after an event. All link to the host portal's pages (`host.lanyd.fyi/`, `/events/:id`, `/account#join`).
 
+## Present and print (F19)
+The live tab has two buttons. **Present** opens `/events/:id/present` in a new tab: a page for a screen or projector with the event name, venue and time, a large QR (the main site's check-in address, never `host.*`), the code, "Or go to lanyd.fyi/e/CODE" and how many people have checked in. It asks the same host-only `/live` route every 15 s (not while the tab is hidden) and shows nothing but the event's own details and that one count, so a room can see it ([[D004 Aggregate-only host analytics]]); a new check-in code appears without a reload. **Print poster** opens `/events/:id/print`: one A4 portrait page of black ink on white with a thin strap rule, a QR about 100 mm wide, the code and three steps. Both are reachable only by a signed-in host of the event's organisation (the page's data comes from `/live`: 401 signed out, 404 for another organisation's event). There is no link that works without signing in (see the plan note's question).
+
 ## Data hosts get
 Aggregate report (attendance, connections per person, courses/tags), CSV, feedback results, optional sponsor leads (opt-in only). Hosts never see who connected with whom. See [[D004 Aggregate-only host analytics]].
 
