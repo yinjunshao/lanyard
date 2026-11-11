@@ -17,6 +17,9 @@ Create event (uses a credit) → event QR + rotating code → attendees check in
 ## Credits
 `credits` table with expiry; first org gets 3 free events; societies get 1 free event a week up to 200 check-ins; packs defined in `worker/plans.js` (`HOST_SKUS`). See [[Pricing]].
 
+## Promo codes for event credits (F20)
+An admin makes a host code on `/admin` (credits, days they last, a required limit, optional kinds of organisation). A host opens `host.lanyd.fyi/redeem/CODE` (or Billing, "Have a promo code?"), sees what it gives, and presses Add. Credits are added to the host's own organisation at once (reason `promo:CODE`, granted by `promo`, lasting the code's days from that day). A society or institution still waiting for approval has its claim **held** (it takes a slot; Billing says so) and the credits are issued in the same transaction as the admin's approval. Once per organisation and once per host account, enforced by the database. Anyone who cannot use a code gets one message whatever the reason. Attendee Plus codes and host codes cannot be redeemed in each other's flow. See [[D031 Host promo codes are one table, one claim per organisation and one generic refusal]].
+
 ## Billing without Stripe
 1. Host submits a request under Host portal → Billing (sku, quantity, contact, PO).
 2. Admin lists open requests with a D1 query, invoices, receives payment.

@@ -75,7 +75,7 @@ Nothing new is stored. The hub shows a person only their own connections at that
 - AI replies (`ai_cache`): 7 days. AI usage counts (`ai_usage`, `ai_daily`): 13 months.
 - Cron: daily 03:17 and hourly :47.
 - User can export and delete their own data; delete removes R2 objects too.
-- Host accounts (F10) are separate: a host can download their host account data on the host portal (`/api/host/account/export`). Expired host sessions, sign-in codes and invites are purged daily. Deleting a host account is by request for now (no self-serve button). Invoice records are kept 6 years even when the organisation is deleted (the organisation's name stays on the row).
+- Host accounts (F10) are separate: a host can download their host account data on the host portal (`/api/host/account/export`). Expired host sessions, sign-in codes and invites are purged daily. Deleting a host account is by request for now (no self-serve button). Invoice records are kept 6 years even when the organisation is deleted (the organisation's name stays on the row). Host promo claims (F20: which host account and organisation took which code, and the credits given) are in the host download (`promoCodes`), go with the host account, and are wiped by the host reset with the credits they led to; they are not invoice records. The admin page sees totals per code only.
 
 ## Rules of the product
 - Face images are never used for recognition and never sold.

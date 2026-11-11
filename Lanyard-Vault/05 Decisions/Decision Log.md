@@ -8,6 +8,7 @@ Newest context first. Each decision has its own note (context, decision, consequ
 | ID | Decision | Status |
 | [[D028 AI goes through one Worker-side foundation that fails closed]] | Every AI feature calls one Worker-side client with a kill switch, quotas, budget, per-person cache, fallbacks and injection helpers; off in production until the owner turns it on | Accepted |
 | --- | --- | --- |
+| [[D031 Host promo codes are one table, one claim per organisation and one generic refusal]] | Host codes share `promo_codes` (audience host), a claim is one transaction with database rules per organisation and host account, unusable codes all give one answer (no waiting list), held claims issue on approval, the reset wipes claims | Accepted |
 | [[D030 Present and the poster share one route, one address and one QR path]] | Present and the A4 poster show only the event and one count, take the main site's check-in address from one helper, draw the QR as an SVG path and share one route to keep the entry's chunk list the same; no link that works without signing in | Accepted |
 | [[D029 A preview is the real component fed from the same data]] | A preview draws the real page component from the same data function, does nothing and is inert; hosts never use attendee routes for it | Accepted |
 | [[D026 Shared ground is worked out from what each person shows, and never stored]] | Shared ground is built on each request from only what each person shows the other (their mode's fields and the shared card's tags), never stored, never shown to hosts | Accepted |

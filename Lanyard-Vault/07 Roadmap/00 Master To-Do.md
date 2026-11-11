@@ -79,7 +79,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 ### Phase 3: host tools
 - [x] **F18** [[F18 Live previews for cards and events]] · P2 · M · Needs: F10, F11 (done 2026-11-11, last commit 494f69d; built on F10 as it stands, with the owner's say-so)
 - [ ] **F19** [[F19 Host present page and print]] · P1 · M · Needs: F10 (in progress: Claude subagent, 2026-11-11; all tasks built, waiting on one check that needs a phone: scan the Present QR from 3 m; built on F10 as it stands, with the owner's say-so)
-- [ ] **F20** [[F20 Host promo codes for event credits]] · P2 · M · Needs: F10, F04 (in progress: Claude subagent, 2026-11-11; built on F10 as it stands, with the owner's say-so)
+- [x] **F20** [[F20 Host promo codes for event credits]] · P2 · M · Needs: F10, F04 (done 2026-11-11, last commit 72109e2; built on F10 as it stands, with the owner's say-so)
 
 ### Phase 4: AI (all through [[AI Safety and Cost Plan]])
 - [ ] **F21** [[F21 AI foundation]] · P1 · L · Needs: F09 + owner decision (AI search default) (in progress: Claude subagent, 2026-11-10; all tasks built and tested with a stub, waiting on the owner steps and one check that needs a real key)
@@ -140,6 +140,7 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
+- 2026-11-11 · F20 · 72109e2 · Host promo codes: an admin makes codes that give an organisation event credits; a host redeems at host.<site>/redeem once per organisation and per host account (database rules, one transaction), pending societies hold the claim until approved, every unusable code gets one answer; migration 0025, D031; PublicCard +52 B gzip (50,981 to 51,033)
 - 2026-11-11 · F18 · 494f69d · Live previews: hosts see the real check-in page beside the Create event form and Details (theme strip, brand colour), people see their badge and card page while editing; same component and data function as the real pages, nothing saved or sent; the theme and brand colour now show on the check-in head; no migration; card page +1.1 KB gzip (49,911 to 50,979 B, about 200 B left)
 - 2026-11-10 · F17 · 1e6e5a0 · Event presence and who to meet: opt-in per event "Be easy to find" (face photo, line, wish) seen only by opted-in people at the same event while it is on; suggestions without AI; photo private and deleted on withdrawal or 48 hours after the event ends; hosts see a count; migration 0023, D027; public card +55 B gzip
 - 2026-11-10 · F16 · af13322 · Shared ground without AI: one In common line on a person's card page, worked out per request from only what each of you shows the other (mode fields, shared card tags, past events you may know of); nothing stored, no migration, hosts get none; public card +162 B gzip
