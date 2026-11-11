@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { Api } from "../lib/api";
 import { me } from "../lib/store";
 import { buildIndex, search, suggest, terms } from "../lib/search";
@@ -10,6 +10,16 @@ import { relativeDay as relDay } from "../lib/time";
 import { connectedShort, subtitleOf } from "../lib/profile";
 
 const rows = ref([]);
+
+// "Do I know someone who..." (F24): the sheet is fetched only when its row is pressed, with a plain import(), so it is in no
+// page's first load.
+const AskSheet = shallowRef(null);
+const askOpen = ref(false);
+function openAsk() {
+  askOpen.value = true;
+  if (!AskSheet.value) import("../components/PeopleAsk.vue").then((m) => { AskSheet.value = m.default; }).catch(() => { askOpen.value = false; });
+}
+function askByKeyword(words) { askOpen.value = false; filter.value = "all"; query.value = words; }
 const query = ref("");
 const loading = ref(true);
 const loadError = ref("");
@@ -95,6 +105,16 @@ const fmt = (t) =>
              aria-label="Search people" autocomplete="off" spellcheck="false" />
     </div>
 
+    <button v-if="rows.length" type="button" class="ask-row" @click="openAsk">
+      <Icon name="people" :size="18" />
+      <span style="flex:1;min-width:0">
+        <strong>Do I know someone who…</strong>
+        <span class="small muted" style="display:block">Say who you need, in your own words.</span>
+      </span>
+      <Icon name="chevron" :size="16" />
+    </button>
+    <component :is="AskSheet" v-if="askOpen && AskSheet" :rows="rows" @close="askOpen = false" @keyword="askByKeyword" />
+
     <div v-if="rows.length && (followCount || myTags.length || events.length)" class="chip-row" role="group" aria-label="Filter people">
       <button type="button" class="chip chip-toggle" :class="{ on: filter === 'all' }" :aria-pressed="filter === 'all'" @click="filter = 'all'">All</button>
       <button v-if="followCount" type="button" class="chip chip-toggle" :class="{ on: filter === 'followup' }"
@@ -158,6 +178,13 @@ const fmt = (t) =>
 </template>
 
 <style scoped>
+.ask-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--tap);
+  padding: 10px 14px; text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+  border: var(--border); border-radius: var(--radius); background: var(--paper-raised);
+}
+.ask-row:active { background: var(--paper); }
+.ask-row:focus-visible { outline: 2.5px solid var(--strap); outline-offset: 1px; }
 .search-fix { margin: -4px 0 0; }
 .search-fix .link-btn { padding: 0; font-size: inherit; }
 .search-term { color: var(--ink); font-style: italic; }

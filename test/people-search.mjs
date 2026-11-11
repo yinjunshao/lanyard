@@ -437,6 +437,10 @@ console.log("\n# What is kept, who sees it, and the files");
   const ps = read("worker/ai/peopleSearch.js");
   check("the Worker route uses the foundation's gates (callModel, searchableIds, filterIds, assignIds) and no fetch of its own", /callModel\(/.test(ps) && /searchableIds\(/.test(ps) && /filterIds\(/.test(ps) && /assignIds\(/.test(ps) && !/\bfetch\(/.test(ps));
   check("it never reads host tables, emails, photos or other people's notes", !/host_accounts|recovery_email|photo_key|FROM notes WHERE user_id = \?/.test(ps) && !/\bevents e\b/.test(ps));
+  const sheet = read("src/components/PeopleAsk.vue");
+  check("the page shows results as text (no v-html) and calls the route only on Search", !/v-html/.test(sheet) && /@submit\.prevent/.test(sheet));
+  const people = read("src/views/People.vue");
+  check("People loads the sheet only when it is opened (a plain import())", /import\(["']\.\.\/components\/PeopleAsk\.vue["']\)/.test(people) && !/^import PeopleAsk/m.test(people));
   for (const f of ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/router/routes.attendee.js", "src/router/index.js"]) {
     let text = ""; try { text = read(f); } catch { continue; }
     check(`${f} (public-page code) does not know about this feature`, !/people-search|PeopleAsk|peopleSearch|lib\/ask/.test(text));
