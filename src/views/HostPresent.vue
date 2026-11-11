@@ -10,20 +10,34 @@ import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
 import { joinText, joinUrl } from "../lib/checkinlink";
 import { qrPath } from "../lib/qrpath";
+import { startPolling } from "../lib/presentpoll";
 import { fmtDateTime } from "../lib/time";
 
 const route = useRoute();
 const id = computed(() => route.params.id);
 const live = ref(null);
 const problem = ref("");
+// True after a refresh fails, until one works: the page keeps showing what it last had.
+const stale = ref(false);
 
+// The check-in count and the code come from the same host-only route as the live tab. Every
+// 15 s the page asks again (not while the tab is hidden). The QR and the code are worked out
+// from `live`, so when the host presses "New check-in code" they change here by themselves.
+async function refresh() {
+  try { live.value = await HostApi.hostLive(id.value); stale.value = false; }
+  catch (e) { stale.value = true; throw e; }
+}
+let stop = null;
 onMounted(async () => {
   try { live.value = await HostApi.hostLive(id.value); }
   catch (e) {
     problem.value = ["signed_out", "details_required", "terms_required"].includes(e.code) || e.status === 401
       ? "signin" : e.status === 404 ? "missing" : "error";
+    return;
   }
+  stop = startPolling(refresh);
 });
+onBeforeUnmount(() => stop?.());
 
 const ev = computed(() => live.value?.event || null);
 const qr = computed(() => (ev.value ? qrPath(joinUrl(ev.value.code)) : null));
@@ -46,6 +60,11 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
         <p class="present-scan">Scan to check in</p>
         <p class="present-code tnum" aria-label="Event code">{{ ev.code }}</p>
         <p class="present-or">Or go to <strong>{{ joinText(ev.code) }}</strong></p>
+        <p class="present-count" role="status">
+          <span class="present-n tnum">{{ live.checkins }}</span>
+          <span class="present-n-label">checked in<template v-if="ev.endedAt"> · ended</template></span>
+        </p>
+        <p v-if="stale" class="present-stale">Not updating. Check the connection.</p>
       </section>
       <section class="present-qr">
         <svg class="present-qr-svg" :viewBox="`0 0 ${qr.size} ${qr.size}`" role="img" aria-label="Event check-in QR code. Scan it with a phone camera to check in." shape-rendering="crispEdges">
@@ -84,6 +103,10 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
 .present-code { font-size: 13vh; font-weight: 700; letter-spacing: 0.14em; line-height: 1; }
 .present-or { font-size: 3.2vh; color: var(--graphite); line-height: 1.25; overflow-wrap: anywhere; }
 .present-or strong { color: var(--ink); }
+.present-count { display: flex; align-items: baseline; gap: 1.6vh; margin-top: 1vh; }
+.present-n { font-size: 7vh; font-weight: 700; line-height: 1; }
+.present-n-label { font-size: 3vh; color: var(--graphite); }
+.present-stale { font-size: 2.4vh; color: var(--strap-deep); }
 .present-qr { display: flex; align-items: center; justify-content: center; }
 /* At least 40% of the screen's height; as large as the width allows beside the text. */
 .present-qr-svg { width: min(72vh, 44vw); height: min(72vh, 44vw); display: block; border-radius: 0.8vh; }
@@ -93,5 +116,6 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
   .present-qr-svg { width: min(88vw, 46vh); height: min(88vw, 46vh); }
   .present-name { font-size: 6vh; }
   .present-code { font-size: 9vh; }
+  .present-count { justify-content: center; }
 }
 </style>

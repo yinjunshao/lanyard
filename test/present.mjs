@@ -92,7 +92,62 @@ const after = await A.get(path(evA.id));
 check("the check-in is counted", after.json.checkins === 1, after.json.checkins);
 const flat = JSON.stringify(after.json);
 check("the response names nobody and has no email, photo or list", !/Zed|Zebra|@|selfie_key|photo/i.test(flat.replace(/a@alpha\.example\.com/g, "")) && !Array.isArray(after.json.people) && !("attendees" in after.json), flat.slice(0, 300));
-check("the page uses only the event's details and the check-in count", /ev\.value|live\.value\??\.checkins/.test(present) && !/connections|selfies|presenceUsed|feedback\b|people|attendee/i.test(present.replace(/\/\/.*$/gm, "").replace(/<!--[\s\S]*?-->/g, "")), "");
+check("the page names no per-person or other count: no connections, selfies, presence, feedback, people", !/connections|selfies|presenceUsed|feedback\b|people|attendee/i.test(present.replace(/\/\/.*$/gm, "").replace(/<!--[\s\S]*?-->/g, "")), "");
 check("it renders no HTML from data", !/v-html|innerHTML/.test(present));
+
+console.log("\n# Refreshing every 15 s, not while hidden (F19.2)");
+{
+  const { startPolling, POLL_MS } = await import("../src/lib/presentpoll.js");
+  // A fake clock and a fake document, so the timing is exact.
+  let now = 0, timers = [], listeners = [], loads = 0;
+  const doc = { hidden: false, addEventListener: (t, f) => listeners.push(f), removeEventListener: (t, f) => { listeners = listeners.filter((x) => x !== f); } };
+  const setT = (f, ms) => { const t = { f, at: now + ms }; timers.push(t); return t; };
+  const clearT = (t) => { timers = timers.filter((x) => x !== t); };
+  const advance = async (ms) => {
+    const end = now + ms;
+    for (;;) {
+      const next = timers.filter((t) => t.at <= end).sort((a, b) => a.at - b.at)[0];
+      if (!next) break;
+      now = next.at; timers = timers.filter((t) => t !== next); next.f(); await Promise.resolve(); await Promise.resolve();
+    }
+    now = end;
+  };
+  const stop = startPolling(async () => { loads++; }, { doc, setT, clearT });
+  check("the interval is 15 seconds", POLL_MS === 15000);
+  await advance(14999); check("nothing before 15 s", loads === 0, loads);
+  await advance(1); check("one refresh at 15 s", loads === 1, loads);
+  await advance(30000); check("then one every 15 s", loads === 3, loads);
+  doc.hidden = true; listeners.forEach((f) => f());
+  await advance(120000); check("a hidden tab asks for nothing", loads === 3, loads);
+  doc.hidden = false; listeners.forEach((f) => f()); await Promise.resolve();
+  check("shown again, it asks straight away", loads === 4, loads);
+  await advance(15000); check("and carries on every 15 s", loads === 5, loads);
+  stop();
+  await advance(60000); check("stopped, it stops (and drops its listener)", loads === 5 && listeners.length === 0, [loads, listeners.length]);
+  let n = 0; const stop2 = startPolling(async () => { n++; throw new Error("offline"); }, { doc, setT, clearT });
+  await advance(45000); stop2();
+  check("a failed refresh does not stop the next one", n === 3, n);
+}
+const ps = read("src/views/HostPresent.vue");
+check("the page polls through that helper and stops it on leaving", ps.includes("startPolling(refresh)") && ps.includes("onBeforeUnmount(() => stop?.())"));
+check("the QR, the code and the spoken address are all worked out from the polled data, so a new code needs no reload",
+  ps.includes("qrPath(joinUrl(ev.value.code))") && ps.includes("const ev = computed(() => live.value?.event") && ps.includes("{{ ev.code }}") && ps.includes("joinText(ev.code)"));
+
+console.log("\n# The count rises, and a new code reaches the page (F19.2)");
+{
+  const before = (await A.get(path(evA.id))).json;
+  const second = client({ ip: "10.90.1.1" });
+  await second.post("/api/profile", { name: "Yan Yak", acceptTerms: true, over18: true });
+  await second.post(`/api/e/${evA.code}/checkin`, { name: "Yan Yak", answers: {}, agreed: true });
+  const up = (await A.get(path(evA.id))).json;
+  check("a check-in raises the count the page shows", up.checkins === before.checkins + 1, [before.checkins, up.checkins]);
+  const oldQr = qrPath(joinUrl(before.event.code)).d;
+  const rot = await A.post(`/api/host/events/${evA.id}/rotate-code`);
+  const next = (await A.get(path(evA.id))).json;
+  check("a new check-in code comes back from the same route", rot.status === 200 && next.event.code !== before.event.code, [before.event.code, next.event.code]);
+  check("…and the QR and address the page draws are different, and read back as the new address", qrPath(joinUrl(next.event.code)).d !== oldQr && decode(joinUrl(next.event.code), 6) === joinUrl(next.event.code));
+  check("the old address stops resolving (so a stale poster stops working, as the live tab warns)", (await client({ ip: "10.90.1.2" }).get(`/api/e/${before.event.code}`)).status === 404);
+  check("the count is still the same event's", next.checkins === up.checkins);
+}
 
 summary();
