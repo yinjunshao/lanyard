@@ -1,3 +1,6 @@
+// Promo codes for people: /redeem/<CODE> on the main site. (Host codes, F20, live in the
+// same table with audience 'host' and are redeemed in the host portal, host-promo.js; every
+// query here asks for audience 'user', so a host code looks like any unknown code.)
 // Promo codes: /redeem/<CODE>. A code grants Lanyard Plus for a number of days
 // to the first N people. To stop one person taking every slot with throwaway
 // guest accounts, redeeming needs a card AND a verified email (a verified
@@ -57,7 +60,7 @@ promoApp.get("/api/redeem/:code", async (c) => {
     || (u && (await bump(db, `promo:look:u:${u.id}`, LOOKUP_WINDOW)) > LOOKUPS)) {
     return c.json({ error: "That's a lot of lookups. Wait ten minutes and try again.", code: "throttled" }, 429);
   }
-  const row = code ? await one(db, "SELECT * FROM promo_codes WHERE code = ?", code) : null;
+  const row = code ? await one(db, "SELECT * FROM promo_codes WHERE code = ? AND audience = 'user'", code) : null;
   if (!row || !row.active) {
     // Guessing codes is limited per IP.
     if ((await bump(db, `promo:miss:${ip}`, HOUR)) > 30) return c.json({ error: "Too many tries. Wait an hour.", code: "throttled" }, 429);
@@ -74,7 +77,7 @@ promoApp.post("/api/redeem/:code", async (c) => {
   if ((await bump(db, `promo:u:${u.id}`, HOUR)) > 20) {
     return c.json({ error: "Too many tries. Wait an hour.", code: "throttled" }, 429);
   }
-  const row = code ? await one(db, "SELECT * FROM promo_codes WHERE code = ?", code) : null;
+  const row = code ? await one(db, "SELECT * FROM promo_codes WHERE code = ? AND audience = 'user'", code) : null;
   if (!row || !row.active) return c.json({ error: "That code doesn't exist. Check the spelling.", code: "bad_code" }, 404);
 
   const already = await one(db, "SELECT * FROM promo_claims WHERE code = ? AND user_id = ?", code, u.id);
@@ -97,11 +100,11 @@ promoApp.post("/api/redeem/:code", async (c) => {
   // grant Plus only if a slot was taken. A full code still records the place,
   // so the person can be told where they came.
   try { await db.batch([
-    db.prepare("UPDATE promo_codes SET attempts = attempts + 1 WHERE code = ?").bind(code),
+    db.prepare("UPDATE promo_codes SET attempts = attempts + 1 WHERE code = ? AND audience = 'user'").bind(code),
     db.prepare(
       `INSERT INTO promo_claims (code, user_id, position, granted, created_at)
        SELECT code, ?, attempts, CASE WHEN max_uses IS NULL OR uses < max_uses THEN 1 ELSE 0 END, ?
-       FROM promo_codes WHERE code = ?`
+       FROM promo_codes WHERE code = ? AND audience = 'user'`
     ).bind(u.id, ts, code),
     db.prepare(
       `UPDATE promo_codes SET uses = uses + 1
@@ -121,7 +124,7 @@ promoApp.post("/api/redeem/:code", async (c) => {
   }
   const [mineRow, after, plan] = await Promise.all([
     one(db, "SELECT * FROM promo_claims WHERE code = ? AND user_id = ?", code, u.id),
-    one(db, "SELECT * FROM promo_codes WHERE code = ?", code),
+    one(db, "SELECT * FROM promo_codes WHERE code = ? AND audience = 'user'", code),
     one(db, "SELECT plan, plan_until FROM users WHERE id = ?", u.id),
   ]);
   // Missed out: put them on the Plus list so they hear first when it opens.

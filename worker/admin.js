@@ -11,6 +11,7 @@ import { newId } from "./db.js";
 import { peek, bump, HOUR } from "./ratelimit.js";
 import { emailProblem, emailKind, openTransfer, normEmail } from "./hostorg.js";
 import { funnel } from "./onboarding.js";
+import { ORG_KINDS } from "./plans.js";
 import { registerAiAdmin } from "./ai/admin.js";
 
 export const adminApp = new Hono();
@@ -253,31 +254,100 @@ adminApp.post("/api/admin/users/:id/signin-code", async (c) => {
 // The welcome-steps funnel (F14): counts per step for the last 30 days. Nothing about who.
 adminApp.get("/api/admin/onboarding", async (c) => c.json(await funnel(c.env.DB, 30)));
 
+// One list for both audiences. Host codes (F20) also carry totals: how many
+// organisations took the code, how many are held until approval, and how many
+// credits were issued. Totals only; the list never names an organisation.
 adminApp.get("/api/admin/promos", async (c) => {
-  const { results } = await c.env.DB.prepare("SELECT * FROM promo_codes ORDER BY created_at DESC").all();
+  const { results } = await c.env.DB.prepare(
+    `SELECT p.*,
+       (SELECT COUNT(*) FROM host_promo_claims h WHERE h.code = p.code) AS claims,
+       (SELECT COUNT(*) FROM host_promo_claims h WHERE h.code = p.code AND h.credit_id IS NULL) AS held,
+       (SELECT COALESCE(SUM(h.credits), 0) FROM host_promo_claims h WHERE h.code = p.code AND h.credit_id IS NOT NULL) AS credits_issued
+     FROM promo_codes p ORDER BY p.created_at DESC`).all();
   return c.json({ promos: results || [] });
 });
+
+// The most credits one host code can give, and the most claims it can take. Credits are
+// spent on events, so a host code always has a limit.
+const HOST_CODE_MAX_CREDITS = 50;
+const HOST_CODE_MAX_USES = 10000;
+const dateOrNull = (v) => (v ? Number(new Date(v)) : null);
 
 adminApp.post("/api/admin/promos", async (c) => {
   const db = c.env.DB;
   const b = await c.req.json().catch(() => ({}));
+  const host = b.audience === "host";
+  if (b.audience !== undefined && b.audience !== "user" && !host) return c.json({ error: "Audience: user or host." }, 400);
   const code = String(b.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const days = Math.round(Number(b.days));
+  const days = Math.round(Number(host ? b.creditDays ?? 365 : b.days));
   const maxUses = b.maxUses === "" || b.maxUses == null ? null : Math.round(Number(b.maxUses));
-  const expiresAt = b.expiresAt ? Number(new Date(b.expiresAt)) : null;
+  const expiresAt = dateOrNull(b.expiresAt);
+  const startsAt = dateOrNull(b.startsAt);
   if (code.length < 4 || code.length > 24) return c.json({ error: "Code: 4 to 24 letters or numbers." }, 400);
-  if (!(days >= 1 && days <= 3650)) return c.json({ error: "Days: 1 to 3650." }, 400);
-  if (maxUses != null && !(maxUses >= 1 && maxUses <= 1e6)) return c.json({ error: "Limit: a positive number, or blank for no limit." }, 400);
+  if (!(days >= 1 && days <= (host ? 730 : 3650))) return c.json({ error: host ? "Credit days: 1 to 730." : "Days: 1 to 3650." }, 400);
+  if (maxUses != null && !(maxUses >= 1 && maxUses <= (host ? HOST_CODE_MAX_USES : 1e6))) return c.json({ error: host ? `Limit: 1 to ${HOST_CODE_MAX_USES}.` : "Limit: a positive number, or blank for no limit." }, 400);
+  if (host && maxUses == null) return c.json({ error: "A host code needs a limit: credits are spent on events." }, 400);
   if (expiresAt != null && !(expiresAt > now())) return c.json({ error: "The end date must be in the future." }, 400);
+  if (startsAt != null && !Number.isFinite(startsAt)) return c.json({ error: "The start date doesn't look right." }, 400);
+  if (startsAt != null && expiresAt != null && startsAt >= expiresAt) return c.json({ error: "The start must be before the end." }, 400);
+  let credits = null, kinds = null;
+  if (host) {
+    credits = Math.round(Number(b.credits));
+    if (!(credits >= 1 && credits <= HOST_CODE_MAX_CREDITS)) return c.json({ error: `Credits: 1 to ${HOST_CODE_MAX_CREDITS}.` }, 400);
+    if (b.orgKinds != null && b.orgKinds !== "") {
+      const list = [...new Set(Array.isArray(b.orgKinds) ? b.orgKinds : [])];
+      if (!list.length || !list.every((k) => ORG_KINDS.includes(k))) return c.json({ error: "Organisation kinds: society, institution, company or individual." }, 400);
+      kinds = JSON.stringify(list);
+    }
+  }
   if (await one(db, "SELECT code FROM promo_codes WHERE code = ?", code)) return c.json({ error: "That code already exists." }, 409);
-  await run(db, "INSERT INTO promo_codes (code, reward, days, max_uses, expires_at, note, created_at) VALUES (?, 'plus', ?, ?, ?, ?, ?)",
-    code, days, maxUses, expiresAt, String(b.note || "").slice(0, 200) || null, now());
+  await run(db,
+    `INSERT INTO promo_codes (code, reward, days, max_uses, starts_at, expires_at, note, created_at, audience, credits, credit_days, org_kinds)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    code, host ? "credits" : "plus", days, maxUses, startsAt, expiresAt, String(b.note || "").slice(0, 200) || null, now(),
+    host ? "host" : "user", credits, host ? days : null, kinds);
   return c.json({ ok: true, code });
+});
+
+// Change when a code runs, how many may use it, or its note. Not its code,
+// audience or reward: a mistake there is fixed by switching the code off and making a new
+// one, so a claim always matches the code it was made on.
+adminApp.post("/api/admin/promos/:code/edit", async (c) => {
+  const db = c.env.DB;
+  const row = await one(db, "SELECT * FROM promo_codes WHERE code = ?", c.req.param("code"));
+  if (!row) return c.json({ error: "No such code." }, 404);
+  const b = await c.req.json().catch(() => ({}));
+  const host = row.audience === "host";
+  const has = (k) => b[k] !== undefined;
+  const f = {};
+  if (has("note")) f.note = String(b.note || "").slice(0, 200) || null;
+  if (has("maxUses")) {
+    const m = b.maxUses === "" || b.maxUses == null ? null : Math.round(Number(b.maxUses));
+    if (m == null ? host : !(m >= 1 && m <= (host ? HOST_CODE_MAX_USES : 1e6))) return c.json({ error: host ? `Limit: 1 to ${HOST_CODE_MAX_USES}. A host code always has one.` : "Limit: a positive number, or blank for no limit." }, 400);
+    if (m != null && m < row.uses) return c.json({ error: `${row.uses} have already claimed it, so the limit can't go below that.` }, 400);
+    f.max_uses = m;
+  }
+  if (has("startsAt")) {
+    f.starts_at = dateOrNull(b.startsAt);
+    if (f.starts_at != null && !Number.isFinite(f.starts_at)) return c.json({ error: "The start date doesn't look right." }, 400);
+  }
+  if (has("expiresAt")) {
+    f.expires_at = dateOrNull(b.expiresAt);
+    if (f.expires_at != null && !(f.expires_at > now())) return c.json({ error: "The end date must be in the future. To stop a code now, switch it off." }, 400);
+  }
+  const start = "starts_at" in f ? f.starts_at : row.starts_at;
+  const end = "expires_at" in f ? f.expires_at : row.expires_at;
+  if (start != null && end != null && start >= end) return c.json({ error: "The start must be before the end." }, 400);
+  const keys = Object.keys(f);
+  if (!keys.length) return c.json({ error: "Nothing to change." }, 400);
+  await run(db, `UPDATE promo_codes SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE code = ?`, ...Object.values(f), row.code);
+  return c.json({ ok: true });
 });
 
 adminApp.post("/api/admin/promos/:code/active", async (c) => {
   const b = await c.req.json().catch(() => ({}));
-  await run(c.env.DB, "UPDATE promo_codes SET active = ? WHERE code = ?", b.active ? 1 : 0, c.req.param("code"));
+  const r = await run(c.env.DB, "UPDATE promo_codes SET active = ? WHERE code = ?", b.active ? 1 : 0, c.req.param("code"));
+  if (!r.meta?.changes) return c.json({ error: "No such code." }, 404);
   return c.json({ ok: true });
 });
 

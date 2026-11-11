@@ -11,7 +11,13 @@
 // Keeps: billing_requests (6 years, 0006/0018: the organisation's name stays on
 // the row) and consent_log (proof of what was agreed). Writes an admin_audit row.
 //
-// Needs migrations 0018 and 0023. Dry run by default: prints the counts and changes nothing.
+// F20 host promo codes: the claims (host_promo_claims, migration 0025) are wiped with the organisations
+// and host accounts they belong to, as the credits they led to are. The codes themselves
+// (promo_codes) are kept, with their uses counter set back to 0 so it again equals the claims
+// that exist; claims are not billing records (nothing was paid), and the numbers wiped are in
+// the admin_audit row. Anyone who held a code gets a fresh start, as every other host does.
+//
+// Needs migrations 0018, 0023 and 0025. Dry run by default: prints the counts and changes nothing.
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite>            dry run on a SQLite file
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite> --apply    wipe that file
 //   node scripts/reset-hosts.mjs --local [--apply]                 local D1 (wrangler --local)
@@ -30,7 +36,7 @@ import { fileURLToPath } from "node:url";
 // Tables emptied by option B, in delete order (children first).
 export const WIPED = [
   "event_mail_log", "host_mail_log", "feedback_responses", "feedback_done", "event_presence", "checkins", "sponsors", "events",
-  "credits", "promo_redemptions", "org_integrations",
+  "host_promo_claims", "credits", "promo_redemptions", "org_integrations",
   "org_invites", "org_transfers", "host_tickets", "org_members", "host_profiles",
   "host_org_invites", "host_org_transfers", "host_org_tickets", "host_org_members",
   "orgs", "host_sessions", "host_login_codes", "host_accounts",
@@ -43,6 +49,8 @@ export const COUNT_SQL = `SELECT ${[
   `(SELECT COUNT(*) FROM consents WHERE ${HOST_CONSENTS}) AS host_consents`,
   "(SELECT COUNT(*) FROM connections WHERE event_id IS NOT NULL) AS connections_with_event",
   "(SELECT COUNT(*) FROM cards WHERE event_id IS NOT NULL) AS cards_with_event",
+  "(SELECT COUNT(*) FROM promo_codes WHERE audience = 'host' AND uses != 0) AS host_codes_with_uses",
+  "(SELECT COUNT(*) FROM promo_codes WHERE audience = 'host') AS host_codes_kept",
   "(SELECT COUNT(*) FROM billing_requests) AS billing_requests_kept",
   "(SELECT COUNT(*) FROM billing_requests WHERE org_id IS NOT NULL AND org_name IS NULL) AS billing_without_name",
   "(SELECT COUNT(*) FROM users) AS users_kept",
@@ -51,7 +59,7 @@ export const COUNT_SQL = `SELECT ${[
 ].join(",\n  ")}`;
 export const LOGO_SQL = "SELECT logo_key FROM sponsors WHERE logo_key IS NOT NULL";
 export const PRESENCE_SQL = "SELECT selfie_key FROM event_presence WHERE selfie_key IS NOT NULL";
-export const SCHEMA_SQL = "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('host_accounts', 'host_org_members', 'host_mail_log', 'event_presence')";
+export const SCHEMA_SQL = "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('host_accounts', 'host_org_members', 'host_mail_log', 'event_presence', 'host_promo_claims')";
 export const R2_BUCKET = "lanyard-media";
 
 /** The wrangler arguments that delete one object from the media bucket. */
@@ -69,7 +77,9 @@ export function wipeSql(counts, at = Date.now()) {
     "UPDATE cards SET event_id = NULL WHERE event_id IS NOT NULL;",
     `DELETE FROM consents WHERE ${HOST_CONSENTS};`,
     ...WIPED.map((t) => `DELETE FROM ${t};`),
-    "DELETE FROM rate_limits WHERE key LIKE 'hmail:%' OR key LIKE 'hauth:%' OR key LIKE 'day:org:ip:%' OR key LIKE 'int:test:%';",
+    // The host codes stay; their claims are gone, so their counters start again.
+    "UPDATE promo_codes SET uses = 0 WHERE audience = 'host';",
+    "DELETE FROM rate_limits WHERE key LIKE 'hmail:%' OR key LIKE 'hauth:%' OR key LIKE 'day:org:ip:%' OR key LIKE 'int:test:%' OR key LIKE 'hpromo:%';",
   ].join("\n");
 }
 
@@ -78,6 +88,8 @@ export function verify(before, after) {
   const bad = [];
   for (const t of WIPED) if (after[t] !== 0) bad.push(`${t} still has ${after[t]} rows`);
   if (after.host_consents !== 0) bad.push("host consents are left");
+  if (after.host_codes_with_uses !== 0) bad.push("host promo codes still count claims that are gone");
+  if (after.host_codes_kept !== before.host_codes_kept) bad.push(`host promo codes changed: ${before.host_codes_kept} -> ${after.host_codes_kept}`);
   if (after.connections_with_event !== 0 || after.cards_with_event !== 0) bad.push("event labels are left");
   for (const k of ["billing_requests_kept", "users_kept", "connections_kept"]) if (after[k] !== before[k]) bad.push(`${k} changed: ${before[k]} -> ${after[k]}`);
   if (after.consent_log_kept < before.consent_log_kept) bad.push("consent_log lost rows");
@@ -133,12 +145,12 @@ function main(argv) {
   }
   const db = where === "sqlite" ? sqliteDb(sqlite) : wranglerDb(where);
   try {
-    if (Number(db.rows(SCHEMA_SQL)[0]?.n) !== 4) { console.error("Migrations 0018 and 0023 are not both applied to this database. Apply them first."); return 2; }
+    if (Number(db.rows(SCHEMA_SQL)[0]?.n) !== 5) { console.error("Migrations 0018, 0023 and 0025 are not all applied to this database. Apply them first."); return 2; }
     const before = db.rows(COUNT_SQL)[0];
     const logos = db.rows(LOGO_SQL).map((r) => r.logo_key);
     const selfies = db.rows(PRESENCE_SQL).map((r) => r.selfie_key);
     console.log(`Host reset, option B (full wipe): ${where}${where === "sqlite" ? ` ${sqlite}` : ""}${apply ? "" : " (dry run, nothing changed)"}`);
-    console.table(Object.entries(before).map(([k, v]) => ({ count: k, now: Number(v), after: WIPED.includes(k) || ["host_consents", "connections_with_event", "cards_with_event", "billing_without_name"].includes(k) ? 0 : Number(v) })));
+    console.table(Object.entries(before).map(([k, v]) => ({ count: k, now: Number(v), after: WIPED.includes(k) || ["host_consents", "connections_with_event", "cards_with_event", "billing_without_name", "host_codes_with_uses"].includes(k) ? 0 : Number(v) })));
     if (logos.length) console.log(`R2 sponsor logos to delete by hand (${logos.length}):\n${logos.join("\n")}`);
     if (selfies.length) {
       const direct = apply && where !== "sqlite";

@@ -73,12 +73,14 @@ const { COUNT_SQL, LOGO_SQL, SCHEMA_SQL, WIPED, wipeSql, verify } = await import
 const rdb = makeDb({ before: "0018" });
 const r = rdb.raw;
 r.exec(fixture);
-const hasSchema = () => r.prepare(SCHEMA_SQL).get().n === 4; // the host tables of 0018 and F17's event_presence (0023)
+const hasSchema = () => r.prepare(SCHEMA_SQL).get().n === 5; // the host tables of 0018, F17's event_presence (0023) and F20's host_promo_claims (0025)
 check("the script refuses a database without migration 0018", !hasSchema());
 r.exec(readMigration(MIGRATION));
 check("…and still refuses one that has 0018 but not 0023 (F17: it has to see presence rows to remove their selfies)", !hasSchema());
 r.exec(readMigration("0023_event_presence.sql"));
-check("…and accepts one with both", hasSchema());
+check("…and one with 0018 and 0023 but not 0025 (F20: it has to wipe the host promo claims)", !hasSchema());
+r.exec(readMigration("0025_host_promo_codes.sql"));
+check("…and accepts one with all three", hasSchema());
 // Some data on the new model too, as production will have between the deploy and the reset.
 r.exec(`INSERT INTO host_accounts (id, email, full_name, status, created_at) VALUES ('hanew00001', 'new@company.example.com', 'New Host', 'active', 1);
   INSERT INTO host_sessions (id, host_account_id, created_at, expires_at) VALUES ('hs1', 'hanew00001', 1, 4100000000000);
