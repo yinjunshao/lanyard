@@ -77,7 +77,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F17** [[F17 Event presence and who to meet]] · P2 · L · Needs: F15, F11, F16 + owner decision (selfie retention) (done 2026-11-10, last commit 1e6e5a0)
 
 ### Phase 3: host tools
-- [ ] **F18** [[F18 Live previews for cards and events]] · P2 · M · Needs: F10, F11
+- [ ] **F18** [[F18 Live previews for cards and events]] · P2 · M · Needs: F10, F11 (in progress: Claude subagent, 2026-11-11; built on F10 as it stands, with the owner's say-so)
 - [ ] **F19** [[F19 Host present page and print]] · P1 · M · Needs: F10
 - [ ] **F20** [[F20 Host promo codes for event credits]] · P2 · M · Needs: F10, F04
 

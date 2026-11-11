@@ -4,7 +4,7 @@ id: F18
 priority: P2
 phase: 3
 size: M
-status: Not started
+status: In progress
 needs: [F10, F11]
 ---
 # F18 Live previews for cards and events
@@ -34,7 +34,8 @@ needs: [F10, F11]
 - On phones, the preview sits at the top, collapsed to the badge only, and expands on tap.
 
 ## Tasks
-- [ ] F18.1 Extract `EventPage.vue`, with no visual change to `EventJoin` (compare screenshots before and after).
+- [x] F18.1 Extract `EventPage.vue`, with no visual change to `EventJoin` (compare screenshots before and after).
+  - `src/components/EventPage.vue` draws the check-in page from props and a `form` object; `EventJoin.vue` fetches, holds the form and checks in. Compared in the browser pane against the local Worker: the page's HTML before and after is character for character the same (hash and length), apart from the one wrapper `div.stack-3` that carries the page's spacing.
 - [ ] F18.2 Host preview pane, sheet and theme strip.
 - [ ] F18.3 `CardView.vue` and the card / profile preview with the Badge/Public toggle.
 - [ ] F18.4 Check at 375 px and 1280 px, light and dark, all four themes.
@@ -45,6 +46,6 @@ needs: [F10, F11]
 - [ ] The live `EventJoin` page looks exactly as before the extraction.
 
 ## Log
--
+- 2026-11-11 (owner decision, relayed by the orchestrator): F18 lists "Needs: F10". F10 is fully built and committed but not ticked, because its last checks need the production subdomain. The owner said to build the items behind F10 now, on F10's code as it stands. Anything F10's production rollout changes (the host site address, the host cookie, `HOST_ORIGIN`) may need rework here.
 
 Related: [[Design System]], [[F19 Host present page and print]] · back to [[00 Master To-Do]]
