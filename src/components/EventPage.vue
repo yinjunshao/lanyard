@@ -123,6 +123,7 @@ defineEmits(["checkin"]);
 .event-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
 .event-info dt { padding-top: 2px; }
 .event-info dd { margin: 0; }
+.event-brand { margin-bottom: calc(var(--space) * 3); } /* what .page-head gives the plain head; the info panel below has no margin of its own */
 .event-brand .page-head { margin: 0; }
 .event-brand .page-head h1 { margin: 0; overflow-wrap: anywhere; }
 </style>

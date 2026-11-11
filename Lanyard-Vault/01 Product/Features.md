@@ -15,7 +15,8 @@ tags: [product, features]
 - **People:** grouped by event and date, keyword search (name, tags), filter.
 - **Messages/threads** on a connection (table `messages`).
 - **Report and block** on any profile or connection.
-- **Shared ground** (F16): a person's card page has one "In common" line ("Both into robotics · Same course"), worked out from what each of you shows the other, with no AI and nothing stored. See [[D026 Shared ground is worked out from what each person shows, and never stored]].
+- **Live previews** (F18): hosts see the check-in page beside the event form as they type, with the theme and a brand colour; people see their badge and the card page while editing a card or profile. The real page drawn from the same data; nothing is saved or sent ([[D029 A preview is the real component fed from the same data]]).
+- **Shared ground** (F16):- **Shared ground** (F16): a person's card page has one "In common" line ("Both into robotics · Same course"), worked out from what each of you shows the other, with no AI and nothing stored. See [[D026 Shared ground is worked out from what each person shows, and never stored]].
 - **Event presence and who to meet** (F17): at an event that is on, an optional "Be easy to find" (face photo, a line, a wish), seen only by others at the same event who turned it on, with a suggested-people row ranked from the wish and shared ground (no AI). Off by default; deleted when turned off or 48 hours after the event ends; hosts see only a count.
 - **Events tab and event hub** (F15): the fourth tab lists what is on now and the events you attended (Ongoing or Ended, the date you attended, your connection count); checking in lands on the hub with your figures and the people you met there.
 - **Event room, album and Discovery** after check-in. See [[Host Portal and Billing]].

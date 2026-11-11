@@ -63,7 +63,7 @@ const open = ref(false);
 </template>
 
 <style scoped>
-.cp { margin: 0 0 16px; }
+.cp { margin-bottom: 16px; }
 .cp-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cp-toggle { width: auto; }
 .cp-label { display: none; }
