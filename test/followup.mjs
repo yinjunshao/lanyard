@@ -3,7 +3,7 @@
 // what the person gets back. Sections are added task by task (F22.1 the route, F22.2 templates, F22.3 the screen,
 // F22.4 counters). The attack strings are in test/ai-injection.mjs.
 // Run: node test/followup.mjs
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { makeEnv, check, summary, becomeHost } from "./harness.mjs";
 import { setSetting } from "../worker/ai/store.js";
 import { fitWords, followupSystem, refineFollowup, WORD_LIMIT, PROMPT_VERSION } from "../worker/ai/prompts/followup.js";
@@ -309,6 +309,32 @@ console.log("\n# The template draft (no AI)");
   check("spaces around names are trimmed", /^Hi Bea,/.test(sneaky.body) && /Spring night\./.test(sneaky.body));
   check("the AI checks accept every template for its channel (the two versions follow one set of rules)", all.every((x) => refineFollowup({ channel: x.ch, tone: x.tn })(x.d) !== null), all.filter((x) => refineFollowup({ channel: x.ch, tone: x.tn })(x.d) === null).map((x) => x.d));
   check("the module has no imports (so it stays small and loads anywhere)", !/^import /m.test(read("src/lib/followupTemplates.js")));
+}
+
+console.log("\n# The screen (source guards)");
+{
+  const comp = read("src/components/FollowupComposer.vue");
+  const conn = read("src/components/CardConnection.vue");
+  const walk = (d) => readdirSync(new URL("../" + d, import.meta.url), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + "/" + e.name) : /\.(vue|js)$/.test(e.name) ? [d + "/" + e.name] : []));
+  const importers = walk("src").filter((f) => /FollowupComposer/.test(read(f)) && f !== "src/components/FollowupComposer.vue");
+  check("only the connection panel mentions the composer, and only through a plain import()", importers.join() === "src/components/CardConnection.vue" && /await import\("\.\/FollowupComposer\.vue"\)/.test(conn) && !/^import .*FollowupComposer/m.test(conn), importers);
+  const lazy = ["src/views/PublicCard.vue", "src/router/routes.attendee.js", "src/main.js", "src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/CardView.vue", "src/components/Icon.vue", "src/components/Badge.vue"].filter((f) => { try { return /Followup/i.test(read(f)); } catch { return false; } });
+  check("no shared or public-page file imports or names the composer or the templates", lazy.length === 0, lazy);
+  check("the draft is plain text: a textarea and an input with v-model, no v-html, no innerHTML", /<textarea id="fu-body" v-model="body"/.test(comp) && /<input id="fu-subject" v-model="subject"/.test(comp) && !/v-html|innerHTML/.test(comp));
+  check("it says the draft is for the person to check, and that Lanyard sends nothing", /Check it and change it before you send it/.test(comp) && /Lanyard doesn't send anything/.test(comp));
+  check("the fallback is shown as 'Here's a starting point' with the server's message, not as an error", /Here's a starting point/.test(comp) && /result\.message/.test(comp) && /source: "template"/.test(comp));
+  check("a request that fails still ends in the template, not a dead end", /catch \(e\)[\s\S]*show\(\{ source: "template"/.test(comp));
+  check("the remaining count and the effect of Try again are shown", /left \$\{when\}/.test(comp) && /No drafts left/.test(comp) && /Trying again uses one/.test(comp));
+  check("the choices come from the lists the templates and the Worker share, and the top topic is chosen for you", /CHANNELS, TONES, GOALS, templateDraft/.test(comp) && /talk\.value = \[opts\.value\.talkAbout\[0\]\.text\]/.test(comp));
+  check("Open in LinkedIn and WhatsApp exist only where the other person shared that link; Email is always offered", /c\.id === "email" \|\| \(c\.id === "linkedin" && linkedinUrl\.value\) \|\| \(c\.id === "whatsapp" && whatsappNumber\.value\)/.test(comp));
+  check("only https addresses on the right host are used, and the WhatsApp address is rebuilt from the digits", /protocol === "https:"/.test(comp) && /https:\/\/wa\.me\/\$\{whatsappNumber\.value\}/.test(comp));
+  check("it opens in a new tab without giving the page to the other site", /target="_blank" rel="noopener noreferrer"/.test(comp));
+  check("it uses the existing follow-up setting for 'Mark as followed up' (the panel saves it)", /emit\("followed-up"\)/.test(comp) && /draftedFollowUp\(\) \{ saveMeta\(\{ followedUp: true \}\)/.test(conn));
+  check("the button sits with the follow-up controls", /Draft a follow-up/.test(conn) && conn.indexOf("Draft a follow-up") < conn.indexOf("Mark as followed up</button>"));
+  check("the topic and offer chips toggle by value (a ref passed from a template arrives unwrapped; this once broke them)", /toggleTalk\(t\.text\)/.test(comp) && /toggleOffer\(t\)/.test(comp) && !/toggle\((talk|offer)\b/.test(comp) && /length < max/.test(comp));
+  check("no sparkle, magic or wand wording or icon, and no emoji", !/sparkle|magic|wand|✨|\p{Extended_Pictographic}/iu.test(comp + read("src/lib/followupTemplates.js")));
+  check("it handles Escape and keeps focus in the sheet", /e\.key === "Escape"/.test(comp) && /e\.key !== "Tab"/.test(comp) && /aria-modal="true"/.test(comp));
+  check("each group of chips is a fieldset with a legend, and chips say whether they are on", (comp.match(/<fieldset/g) || []).length === 5 && (comp.match(/:aria-pressed/g) || []).length >= 5);
 }
 
 console.log("\n# Source guards");

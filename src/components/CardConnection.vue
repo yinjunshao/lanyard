@@ -68,6 +68,14 @@ async function pickDate() {
   pickingDate.value = true;
   if (!DatePicker.value) DatePicker.value = (await import("../components/ui/UiDatePicker.vue")).default;
 }
+// F22: the draft composer is its own chunk, fetched when "Draft a follow-up" is pressed (plain import(), as above).
+const Composer = shallowRef(null);
+const drafting = ref(false);
+async function openDraft() {
+  drafting.value = true;
+  if (!Composer.value) Composer.value = (await import("./FollowupComposer.vue")).default;
+}
+function draftedFollowUp() { saveMeta({ followedUp: true }); }
 function remindOn(v) { if (v) saveMeta({ remindAt: new Date(`${v}T09:00`).getTime() }); }
 
 function vcard() {
@@ -151,6 +159,7 @@ async function sendReport() {
           <component :is="DatePicker" v-if="pickingDate && DatePicker" bare v-model:open="pickingDate" min-today label="Remind me on" model-value=""
                         :anchor="dateBtn" @update:model-value="remindOn" />
         </div>
+        <button type="button" class="btn" aria-haspopup="dialog" @click="openDraft">Draft a follow-up</button>
         <button type="button" class="btn" @click="saveMeta({ followedUp: true })">Mark as followed up</button>
       </template>
     </div>
@@ -185,6 +194,8 @@ async function sendReport() {
       <button class="btn btn-primary" type="submit">Send report</button>
     </form>
     <p v-if="reportMsg" class="small" role="status">{{ reportMsg }}</p>
+    <component :is="Composer" v-if="drafting && Composer" :connection-id="connection.id" :links="p.links" :first="first"
+               @close="drafting = false" @followed-up="draftedFollowUp" />
   </section>
 </template>
 
