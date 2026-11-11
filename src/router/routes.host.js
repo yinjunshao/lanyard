@@ -6,7 +6,8 @@ const HostDashboard = () => import("../views/HostDashboard.vue");
 export const hostRoutes = [
   { path: "/", component: HostDashboard },
   { path: "/signin", component: HostDashboard },
-  { path: "/events/:id", component: () => import("../views/HostLive.vue") },
+  // The live page, /present and /print: HostEvent picks the screen (F19).
+  { path: "/events/:id/:screen(present|print)?", component: () => import("../views/HostEvent.vue") },
   { path: "/billing", component: () => import("../views/HostBilling.vue") },
   { path: "/account", component: () => import("../views/HostAccount.vue") },
   { path: "/signout", component: () => import("../views/HostSignOut.vue") },

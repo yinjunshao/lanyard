@@ -4,7 +4,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
-import { MAIN_ORIGIN } from "../lib/site";
+import { joinUrl as joinLink, feedbackUrl as feedbackLink } from "../lib/checkinlink";
 import { drawQR } from "../lib/qr";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import FeedbackResults from "../components/FeedbackResults.vue";
@@ -26,8 +26,9 @@ const qrCanvas = ref(null);
 let timer = null;
 
 // Attendees check in and give feedback on the main site, not the host portal (F10).
-const joinUrl = () => (live.value ? `${MAIN_ORIGIN}/e/${live.value.event.code}` : "");
-const feedbackUrl = () => (live.value ? `${MAIN_ORIGIN}/e/${live.value.event.code}/feedback` : "");
+// The same address the Present page and the poster use (lib/checkinlink.js).
+const joinUrl = () => (live.value ? joinLink(live.value.event.code) : "");
+const feedbackUrl = () => (live.value ? feedbackLink(live.value.event.code) : "");
 const signedOut = ref(false);
 
 onMounted(async () => {

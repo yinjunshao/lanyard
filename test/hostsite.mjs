@@ -44,7 +44,7 @@ const idx = read("src/router/index.js"), att = read("src/router/routes.attendee.
 check("the router picks the route table by ON_HOST_SITE", /ON_HOST_SITE\s*\?\s*\[\.\.\.hostRoutes/.test(idx) && idx.includes("...attendeeRoutes"));
 check("the attendee routes name no host page", !/Host(Dashboard|Live|Billing|Account|SignOut)/.test(att) && !/path: "\/host(\/|")/.test(att));
 check("the host routes name no attendee page", !/(Landing|PublicCard|MyCard|Settings|People|Scan|EventJoin|Admin)\.vue/.test(hr));
-for (const p of ['"/"', '"/signin"', '"/events/:id"', '"/billing"', '"/account"', '"/signout"']) {
+for (const p of ['"/"', '"/signin"', '"/events/:id/:screen(present|print)?"', '"/billing"', '"/account"', '"/signout"']) {
   check(`host page at the root: ${p}`, hr.includes(`path: ${p}`));
 }
 check("old /host/... addresses on the host site redirect to the root", hr.includes('path: "/host/:rest(.*)*", redirect:'));

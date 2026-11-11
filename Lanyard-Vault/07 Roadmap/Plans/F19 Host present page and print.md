@@ -4,7 +4,7 @@ id: F19
 priority: P1
 phase: 3
 size: M
-status: Not started
+status: In progress
 needs: [F10]
 ---
 # F19 Host present page and print
@@ -36,7 +36,9 @@ A **Present** page for hosts that displays the event better and more stylised, f
 On the host live page (`HostLive.vue`), two buttons side by side: **Present** (opens a new tab) and **Print poster**.
 
 ## Tasks
-- [ ] F19.1 Present route and layout, plus QR rendering at large sizes. Decode-test the rendered QR at 3 m equivalent (the earlier poster work used OpenCV `QRCodeDetector` for this).
+- [x] F19.1 Present route and layout, plus QR rendering at large sizes. Decode-test the rendered QR at 3 m equivalent (the earlier poster work used OpenCV `QRCodeDetector` for this).
+  - `/events/:id/present` on the host site. `HostPresent.vue` draws the event name, venue and time, "Scan to check in", the code and "Or go to lanyd.fyi/e/CODE" (the address as typed, because the landing page has no code box), and the QR as one SVG path (`lib/qrpath.js`, 4-module quiet zone, 72 vh or 44 vw, whichever is smaller). The address comes from `lib/checkinlink.js`, which `HostLive` now uses too. Decoded in `test/present.mjs` with jsQR (already a dependency; OpenCV is not): reads back exactly, and still reads at 3 px a module with camera softness (the 1280 x 720 code is 15.7 px a module).
+  - Routing: one route, `/events/:id/:screen(present|print)?`, to a small `HostEvent.vue` that loads the live page, Present or the poster. This keeps the chunk list in the entry (which every public page loads) to the same number of names: PublicCard 50,979 to 50,982 B, PrivacyRequest 50,462 to 50,458 B. Three separate routes cost PublicCard +97 B and, with `defineAsyncComponent`, +770 B.
 - [ ] F19.2 Live counter polling and code-rotation refresh.
 - [ ] F19.3 Controls, fullscreen, wake lock.
 - [ ] F19.4 Print route with A4 CSS, checked in Chrome's print preview and as a PDF.
@@ -48,6 +50,7 @@ On the host live page (`HostLive.vue`), two buttons side by side: **Present** (o
 - [ ] Print preview shows one A4 page, with no cut-off and no controls.
 
 ## Log
--
+- 2026-11-11 (owner decision, relayed by the orchestrator): F19 lists "Needs: F10". F10 is fully built and committed but not ticked, because its last checks need the production subdomain. The owner said to build the items behind F10 now, on F10's code as it stands. Anything F10's production rollout changes (the host site address, the host cookie, `HOST_ORIGIN`) may need rework here: the present and print pages are host pages that call `HostApi.hostLive`, and the check-in address comes from `lib/checkinlink.js` (the main site's origin).
+- 2026-11-11: claimed by Claude subagent.
 
 Related: [[Host Portal and Billing]], [[F18 Live previews for cards and events]] · back to [[00 Master To-Do]]
