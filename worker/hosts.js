@@ -19,6 +19,8 @@ import { validateWebhookUrl, newWebhookSecret, newApiKey, sendWebhook } from "./
 import { readInstitution } from "./institutions.js";
 import { normEmail, validEmail, emailProblem, moveOwnership, openTransfer } from "./hostorg.js";
 import { exportAi } from "./ai/data.js";
+import { normPromo } from "./promo.js";
+import { registerHostPromo, releaseHeldClaims, heldClaims, exportHostClaims } from "./host-promo.js";
 import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
 
 export const hostApp = new Hono();
@@ -95,13 +97,14 @@ hostApp.get("/api/host/account/export", async (c) => {
   const me = c.get("host");
   const db = c.env.DB;
   const q = (sql, ...a) => all(db, sql, ...a);
-  const [orgs, tickets, transfers, billing, consents, sessions] = await Promise.all([
+  const [orgs, tickets, transfers, billing, consents, sessions, promoClaims] = await Promise.all([
     q(`SELECT o.id, o.name, o.org_type, o.university, o.institution_id, m.role FROM host_org_members m JOIN orgs o ON o.id = m.org_id WHERE m.host_account_id = ?`, me.id),
     q("SELECT kind, new_email, message, status, admin_note, created_at, resolved_at FROM host_org_tickets WHERE host_account_id = ?", me.id),
     q("SELECT org_id, to_email, status, created_at, resolved_at FROM host_org_transfers WHERE from_host_id = ? OR to_host_id = ?", me.id, me.id),
     q("SELECT org_name, sku, quantity, amount_pence, contact_email, po_number, note, status, created_at FROM billing_requests WHERE host_account_id = ?", me.id),
     q("SELECT scope, action, at FROM consent_log WHERE user_id = ? AND ref = 'host_account' ORDER BY at", me.id),
     q("SELECT created_at, expires_at, user_agent FROM host_sessions WHERE host_account_id = ?", me.id),
+    exportHostClaims(db, me.id), // F20: promo codes claimed, and the credits they gave
   ]);
   return c.json({
     exportedAt: now(),
@@ -110,7 +113,7 @@ hostApp.get("/api/host/account/export", async (c) => {
       email: me.email, fullName: me.full_name, useCase: me.use_case, frequency: me.event_frequency, size: me.typical_size,
       referral: me.referral, termsVersion: me.terms_version, termsAt: me.terms_at, createdAt: me.created_at, lastLoginAt: me.last_login_at,
     },
-    organisations: orgs, tickets, transfers, billingRequests: billing, consentHistory: consents, devices: sessions,
+    organisations: orgs, tickets, transfers, billingRequests: billing, promoCodes: promoClaims, consentHistory: consents, devices: sessions,
     ai: await exportAi(db, "host", me.id), // F21
   });
 });
@@ -153,6 +156,9 @@ async function requireOrg(db, userId) {
   if (!org) throw new HttpError(409, "Create or join an organisation first.", "no_org");
   return org;
 }
+
+// F20: promo codes for event credits (host-promo.js): /api/host/redeem/:code.
+registerHostPromo(hostApp, { findOrg, normCode: normPromo });
 
 // Societies and institutions can't run events until an admin approves them.
 function assertApproved(org) {
@@ -674,6 +680,9 @@ hostApp.get("/api/host/billing", async (c) => {
   const me = c.get("host");
   const db = c.env.DB;
   const org = await requireOrg(db, me.id);
+  // A promo claim held for approval is issued as soon as the organisation is approved (the admin
+  // approval does it; this is the safety net if that step was interrupted).
+  if (org.verification_status === "approved") await releaseHeldClaims(db, org.id);
   const credits = await creditSummary(db, org.id);
   const ledger = await all(
     db,
@@ -690,6 +699,7 @@ hostApp.get("/api/host/billing", async (c) => {
     org: orgJson(org),
     freeTier: org.org_type === "society" ? SOCIETY_FREE : null,
     credits,
+    heldPromos: await heldClaims(db, org.id),
     ledger: ledger.map((r) => ({
       id: r.id, granted: r.events_granted, used: r.events_used,
       expiresAt: r.expires_at, reason: r.reason, at: r.created_at,

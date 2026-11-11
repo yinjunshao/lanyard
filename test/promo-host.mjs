@@ -1,7 +1,7 @@
 // F20: promo codes that give a host's organisation event credits.
 // Offline: the real Worker on in-memory SQLite (test/harness.mjs).
 import { readFileSync } from "node:fs";
-import { makeDb, makeEnv, migrationFiles, readMigration, becomeHost, check, summary } from "./harness.mjs";
+import { makeDb, makeEnv, migrationFiles, readMigration, becomeHost, hostSignIn, check, summary } from "./harness.mjs";
 
 const MIGRATION = migrationFiles().find((f) => f.startsWith("0025_"));
 
@@ -152,4 +152,302 @@ console.log("\n# The host reset (scripts/reset-hosts.mjs, option B) and host pro
   check("a database without migration 0025 is refused by the script", (() => { const o = makeDb({ before: "0025" }).raw; return o.prepare(SCHEMA_SQL).get().n < 5; })());
 }
 function q1Raw(raw, sql) { return Object.values(raw.prepare(sql).get())[0]; }
+
+// ---------------------------------------------------------------------------------------------
+// Redeeming (F20.2)
+// ---------------------------------------------------------------------------------------------
+let hostN = 0;
+const hostIp = () => `10.9.${10 + Math.floor(++hostN / 200)}.${(hostN % 200) + 1}`;
+const col = (sql, ...p) => Object.values(q1(sql, ...p) || {})[0];
+async function newHost(opts = {}) {
+  const c = client({ site: "host", ip: opts.ip || hostIp() });
+  const h = await becomeHost(c, opts);
+  const id = col("SELECT id FROM host_accounts WHERE email = ?", h.email);
+  const orgId = col("SELECT org_id FROM host_org_members WHERE host_account_id = ?", id);
+  if (!opts.keepStarter && orgId) env.DB.raw.prepare("DELETE FROM credits WHERE org_id = ?").run(orgId); // start from nothing
+  return { c, ...h, id, orgId };
+}
+const left = async (h) => (await h.c.get("/api/host/billing")).json.credits.remaining;
+const newCode = async (code, o = {}) => {
+  const r = await admin.post("/api/admin/promos", { audience: "host", code, credits: 3, maxUses: 10, ...o }, A);
+  if (r.status !== 200) throw new Error("could not make " + code + ": " + JSON.stringify(r.json));
+  return code;
+};
+// Makes a race certain: the first `n` transactions wait at the door until all n have arrived, so every
+// request has passed its own checks before any of them writes. (A real Worker gets this by chance; a
+// test must not leave it to chance.) A request that was refused before writing does not hold the rest up.
+async function racing(n, fn) {
+  const orig = env.DB.batch;
+  let held = [];
+  const release = () => { const go = held; held = []; go.forEach((f) => f()); };
+  env.DB.batch = (stmts) => new Promise((res, rej) => {
+    held.push(() => orig.call(env.DB, stmts).then(res, rej));
+    if (held.length >= n) release(); else setTimeout(release, 200);
+  });
+  try { return await fn(); } finally { env.DB.batch = orig; }
+}
+const claims = (code) => q("SELECT * FROM host_promo_claims WHERE code = ?", code);
+const creditRows = (orgId) => q("SELECT * FROM credits WHERE org_id = ?", orgId);
+const uses = (code) => col("SELECT uses FROM promo_codes WHERE code = ?", code);
+
+console.log("\n# Redeeming: who can");
+{
+  const code = await newCode("WHOCAN01");
+  const anon = client({ site: "host", ip: hostIp() });
+  check("signed out: looking a code up is 401", (await anon.get("/api/host/redeem/WHOCAN01")).status === 401);
+  check("signed out: redeeming is 401", (await anon.post("/api/host/redeem/WHOCAN01")).status === 401);
+  const web = client({ ip: hostIp() });
+  await web.post("/api/profile", { name: "Attendee Two", acceptTerms: true, over18: true });
+  const onMain = await web.post("/api/host/redeem/WHOCAN01");
+  check("the main site refuses the host API (403)", onMain.status === 403 && onMain.json.code === "wrong_site", onMain.json);
+  const asHost = client({ site: "host", ip: hostIp() });
+  for (const [k, v] of web.jar) asHost.jar.set(k, v); // the attendee cookie sent to the host site
+  check("an attendee cookie on the host site is not a host sign-in (401)", (await asHost.post("/api/host/redeem/WHOCAN01")).status === 401 && (await asHost.get("/api/host/redeem/WHOCAN01")).status === 401);
+  check("the admin token is not a host sign-in either", (await anon.post("/api/host/redeem/WHOCAN01", {}, A)).status === 401);
+  check("the host site serves no attendee redeem route (the other flow)", (await anon.get("/api/redeem/WHOCAN01")).status === 401);
+  const bare = await newHost({ kind: null });
+  const noOrg = await bare.c.post("/api/host/redeem/WHOCAN01");
+  check("a host with no organisation yet is told to make one first (409)", noOrg.status === 409 && noOrg.json.code === "no_org", noOrg.json);
+  const half = client({ site: "host", ip: hostIp() });
+  await hostSignIn(half, "halfway@work.example.com");
+  const unsetup = await half.post("/api/host/redeem/WHOCAN01");
+  check("a host who has not finished setup (details, Host Terms) cannot redeem (403)", unsetup.status === 403 && unsetup.json.code === "details_required", unsetup.json);
+  const h = await newHost();
+  env.DB.raw.prepare("UPDATE host_accounts SET email_verified_at = NULL WHERE id = ?").run(h.id);
+  const nv = await h.c.post("/api/host/redeem/WHOCAN01");
+  check("an account without a verified email cannot redeem", nv.status === 403 && nv.json.code === "needs_email" && claims(code).length === 0, nv.json);
+  env.DB.raw.prepare("UPDATE host_accounts SET email_verified_at = 1 WHERE id = ?").run(h.id);
+  env.DB.raw.prepare("UPDATE host_org_members SET role = 'sponsor_viewer' WHERE host_account_id = ?").run(h.id);
+  const sv = await h.c.post("/api/host/redeem/WHOCAN01");
+  check("a sponsor viewer cannot redeem for the organisation (403)", sv.status === 403 && sv.json.code === "not_allowed" && claims(code).length === 0, sv.json);
+  env.DB.raw.prepare("UPDATE host_org_members SET role = 'staff' WHERE host_account_id = ?").run(h.id);
+  const st = await h.c.post("/api/host/redeem/WHOCAN01");
+  check("a staff member can", st.status === 200 && claims(code).length === 1, st.json);
+}
+
+console.log("\n# Redeeming: a new individual host takes a 3-credit code");
+{
+  const code = await newCode("THREEFREE", { credits: 3, creditDays: 100, maxUses: 5 });
+  const h = await newHost();
+  check("they start with no credits and cannot make an event", (await left(h)) === 0 && (await h.c.post("/api/host/events", { name: "One" })).status === 402);
+  const look = await h.c.get("/api/host/redeem/threefree");
+  check("looking the code up shows what it gives, how many are left and their organisation, and nothing is taken",
+    look.status === 200 && look.json.promo.credits === 3 && look.json.promo.days === 100 && look.json.promo.left === 5 && look.json.mine === null && typeof look.json.org.name === "string", look.json);
+  check("a lookup writes nothing", claims(code).length === 0 && uses(code) === 0);
+  const t0 = Date.now();
+  const r = await h.c.post("/api/host/redeem/THREEFREE");
+  check("redeeming gives the credits straight away", r.status === 200 && !r.json.already && r.json.mine.held === false && r.json.mine.credits === 3 && r.json.credits.remaining === 3, r.json);
+  const cr = creditRows(h.orgId);
+  check("one credits row: 3 granted, none used, for 100 days, reason promo:CODE, granted by promo",
+    cr.length === 1 && cr[0].events_granted === 3 && cr[0].events_used === 0 && cr[0].reason === "promo:THREEFREE" && cr[0].granted_by === "promo"
+    && Math.abs(cr[0].expires_at - (t0 + 100 * DAY)) < 60e3, cr);
+  const cl = claims(code)[0];
+  check("the claim records who, which organisation, how many credits, which credits row and when (for an audit)",
+    claims(code).length === 1 && cl.org_id === h.orgId && cl.host_account_id === h.id && cl.credits === 3 && cl.credit_days === 100 && cl.credit_id === cr[0].id && cl.granted_at > 0 && cl.position === 1, cl);
+  check("the code counts one use", uses(code) === 1);
+  check("their Billing page lists the credits with the promo reason", (await h.c.get("/api/host/billing")).json.ledger.some((l) => l.reason === "promo:THREEFREE" && l.granted === 3));
+  const made = [];
+  for (let i = 0; i < 3; i++) made.push((await h.c.post("/api/host/events", { name: "Event " + i })).status);
+  check("they can create 3 events", made.join() === "201,201,201", made);
+  check("…and the fourth needs more credits (402)", (await h.c.post("/api/host/events", { name: "Four" })).status === 402);
+  const again = await h.c.post("/api/host/redeem/THREEFREE");
+  check("pressing again changes nothing: same claim, no second credit, no second use",
+    again.status === 200 && again.json.already === true && claims(code).length === 1 && creditRows(h.orgId).length === 1 && uses(code) === 1, again.json);
+  const lookAgain = await h.c.get("/api/host/redeem/THREEFREE");
+  check("looking again shows their own claim", lookAgain.json.mine?.credits === 3 && lookAgain.json.mine.held === false, lookAgain.json);
+  const ex = (await h.c.get("/api/host/account/export")).json;
+  check("the credits appear in their data export", ex.promoCodes?.length === 1 && ex.promoCodes[0].code === "THREEFREE" && ex.promoCodes[0].credits === 3 && ex.promoCodes[0].heldUntilApproved === false && ex.promoCodes[0].creditsIssuedAt > 0, ex.promoCodes);
+  const other = await newHost();
+  const cross = await other.c.post("/api/host/redeem/THREEFREE", { orgId: h.orgId });
+  check("an organisation id in the request is ignored: credits go to the signed-in host's own organisation only",
+    cross.status === 200 && creditRows(other.orgId).length === 1 && creditRows(h.orgId).length === 1, cross.json);
+  const peek = await newHost();
+  const pj = JSON.stringify((await peek.c.get("/api/host/redeem/THREEFREE")).json);
+  check("another organisation's lookup shows nothing about who else claimed it", !pj.includes(h.email) && !pj.includes(h.orgId) && !pj.includes(h.id) && !pj.includes(other.orgId));
+}
+
+console.log("\n# Once per organisation and once per host account");
+{
+  const code = await newCode("ONCEONLY1", { credits: 2, maxUses: 10 });
+  const a = await newHost();
+  await a.c.post("/api/host/redeem/ONCEONLY1");
+  // The same host account with a second organisation (made behind the scenes: an account has one).
+  env.DB.raw.prepare("INSERT INTO orgs (id, name, plan, org_type, verification_status, created_at) VALUES ('secondorg1', 'Second', 'starter', 'company', 'approved', 2)").run();
+  env.DB.raw.prepare("DELETE FROM host_org_members WHERE host_account_id = ?").run(a.id);
+  env.DB.raw.prepare("INSERT INTO host_org_members (org_id, host_account_id, role, created_at) VALUES ('secondorg1', ?, 'owner', 1)").run(a.id);
+  const second = await a.c.post("/api/host/redeem/ONCEONLY1");
+  check("the same host cannot claim the same code again with a second organisation", second.status === 200 && second.json.already === true
+    && claims(code).length === 1 && creditRows("secondorg1").length === 0, second.json);
+  const direct = (() => { try { env.DB.raw.prepare("INSERT INTO host_promo_claims (claim_id, code, org_id, host_account_id, position, credits, credit_days, created_at) VALUES ('forced0001', ?, 'secondorg1', ?, 2, 2, 365, 1)").run(code, a.id); return "inserted"; } catch (e) { return String(e.message); } })();
+  check("…and the database itself refuses a second claim by the same host account", /UNIQUE/i.test(direct), direct);
+  const owner = await newHost();
+  await owner.c.post("/api/host/redeem/ONCEONLY1");
+  const inv = (await owner.c.post("/api/host/team/invite", {})).json;
+  const mate = await newHost({ kind: null });
+  const joined = await mate.c.post("/api/host/team/join", { code: inv.code });
+  const mateTry = await mate.c.post("/api/host/redeem/ONCEONLY1");
+  check("a colleague in the same organisation cannot claim it again for that organisation", joined.status === 200 && mateTry.status === 200 && mateTry.json.already === true
+    && claims(code).filter((x) => x.org_id === owner.orgId).length === 1 && creditRows(owner.orgId).length === 1, [joined.json, mateTry.json]);
+  const direct2 = (() => { try { env.DB.raw.prepare("INSERT INTO host_promo_claims (claim_id, code, org_id, host_account_id, position, credits, credit_days, created_at) VALUES ('forced0002', ?, ?, ?, 9, 2, 365, 1)").run(code, owner.orgId, mate.id); return "inserted"; } catch (e) { return String(e.message); } })();
+  check("…and the database refuses a second claim for the same organisation", /UNIQUE/i.test(direct2), direct2);
+  // Deleting the organisation does not free the code for the same host account.
+  env.DB.raw.prepare("DELETE FROM orgs WHERE id = ?").run(a.orgId);
+  const orphan = q1("SELECT org_id FROM host_promo_claims WHERE host_account_id = ?", a.id);
+  check("if an organisation is deleted its claim stays (without the organisation) so the host account still cannot claim again", orphan && orphan.org_id === null);
+}
+
+console.log("\n# Two presses at the same moment");
+{
+  const code = await newCode("RACE00001", { credits: 3, maxUses: 10 });
+  const h = await newHost();
+  const [r1, r2] = await racing(2, () => Promise.all([h.c.post("/api/host/redeem/RACE00001"), h.c.post("/api/host/redeem/RACE00001")]));
+  check("two simultaneous presses by one host: both answer 200, one says it was already claimed", r1.status === 200 && r2.status === 200
+    && [r1, r2].filter((r) => r.json.already).length === 1, [r1.json, r2.json]);
+  check("…exactly one claim, one credits row, one use", claims(code).length === 1 && creditRows(h.orgId).length === 1 && uses(code) === 1);
+  check("…and 3 credits, not 6", (await left(h)) === 3);
+  const o = await newHost();
+  const inv = (await o.c.post("/api/host/team/invite", {})).json;
+  const m = await newHost({ kind: null });
+  await m.c.post("/api/host/team/join", { code: inv.code });
+  const code2 = await newCode("RACE00002", { credits: 4, maxUses: 10 });
+  const [a, b] = await racing(2, () => Promise.all([o.c.post("/api/host/redeem/RACE00002"), m.c.post("/api/host/redeem/RACE00002")]));
+  check("two colleagues pressing together: one claim, one credits row, 4 credits", a.status === 200 && b.status === 200 && claims(code2).length === 1 && creditRows(o.orgId).length === 1 && (await left(o)) === 4, [a.json, b.json]);
+  const code3 = await newCode("RACE00003", { credits: 2, maxUses: 2 });
+  const hs = [await newHost(), await newHost(), await newHost(), await newHost()];
+  const rs = await racing(4, () => Promise.all(hs.map((x) => x.c.post("/api/host/redeem/RACE00003"))));
+  const won = rs.filter((r) => r.status === 200), lost = rs.filter((r) => r.status === 404);
+  check("four organisations racing for 2 slots: exactly 2 win and 2 are refused", won.length === 2 && lost.length === 2, rs.map((r) => r.status));
+  check("…2 claims, 2 credits rows, the code says 2 used, never 3", claims(code3).length === 2 && uses(code3) === 2
+    && q("SELECT * FROM credits WHERE reason = 'promo:RACE00003'").length === 2);
+  check("…the losers get the same generic refusal as an unknown code and nothing is recorded for them",
+    lost.every((r) => JSON.stringify(r.json) === JSON.stringify(lost[0].json)) && lost[0].json.code === "bad_code"
+    && hs.filter((x, i) => rs[i].status === 404).every((x) => creditRows(x.orgId).length === 0 && !q1("SELECT 1 AS y FROM host_promo_claims WHERE host_account_id = ?", x.id)));
+  // One slot, five organisations: the cap is checked again when the claim is written.
+  const code4 = await newCode("RACE00004", { credits: 2, maxUses: 1 });
+  const five = [await newHost(), await newHost(), await newHost(), await newHost(), await newHost()];
+  const rs4 = await racing(5, () => Promise.all(five.map((x) => x.c.post("/api/host/redeem/RACE00004"))));
+  check("five organisations racing for the last slot: exactly one wins, four are refused", rs4.filter((r) => r.status === 200).length === 1 && rs4.filter((r) => r.status === 404).length === 4, rs4.map((r) => r.status));
+  check("…one claim, one credits row, one use, 2 credits issued in all", claims(code4).length === 1 && uses(code4) === 1 && q("SELECT * FROM credits WHERE reason = 'promo:RACE00004'").length === 1);
+}
+
+console.log("\n# Cap, dates, switched off, unknown and the other audience: one generic answer");
+{
+  const first = await newHost();
+  await newCode("CAPPED001", { maxUses: 1 });
+  await first.c.post("/api/host/redeem/CAPPED001");
+  const cases = {
+    "unknown code": "NOSUCHCODE",
+    "an attendee code (the other audience)": "FIRST50",
+    "total cap reached": "CAPPED001",
+    "switched off": await newCode("OFFCODE01"),
+    "not started yet": await newCode("FUTURE001"),
+    "ended": await newCode("ENDED0001"),
+    "for another kind of organisation": await newCode("SOCONLY01", { orgKinds: ["society"] }),
+  };
+  await admin.post("/api/admin/promos/OFFCODE01/active", { active: false }, A);
+  env.DB.raw.prepare("UPDATE promo_codes SET starts_at = ? WHERE code = 'FUTURE001'").run(Date.now() + 5 * DAY);
+  env.DB.raw.prepare("UPDATE promo_codes SET expires_at = ? WHERE code = 'ENDED0001'").run(Date.now() - 1000);
+  const h = await newHost();
+  const out = {};
+  for (const [why, code] of Object.entries(cases)) {
+    const g = await h.c.get(`/api/host/redeem/${code}`);
+    const p = await h.c.post(`/api/host/redeem/${code}`);
+    out[why] = [g.status, JSON.stringify(g.json), p.status, JSON.stringify(p.json)];
+  }
+  const ref = out["unknown code"];
+  check("every one of them is a 404 with the same words and code (nothing says whether the code exists)",
+    Object.values(out).every((o) => o[0] === 404 && o[2] === 404 && o[1] === ref[1] && o[3] === ref[3]) && JSON.parse(ref[1]).code === "bad_code", out);
+  check("…the answer does not mention the code, the cap, the dates or the switch", !/FIRST50|CAPPED|OFFCODE|switched|expired|not started|doesn't exist/i.test(ref[1]), ref[1]);
+  check("…nothing was claimed, credited or counted by those attempts", creditRows(h.orgId).length === 0 && !q1("SELECT 1 AS y FROM host_promo_claims WHERE host_account_id = ?", h.id)
+    && uses("CAPPED001") === 1 && uses("FIRST50") === 0 && col("SELECT attempts FROM promo_codes WHERE code = 'FIRST50'") === 0);
+  await admin.post("/api/admin/promos/CAPPED001/active", { active: false }, A);
+  check("a host who already has the claim still sees it after the code is full or switched off", (await first.c.get("/api/host/redeem/CAPPED001")).json.mine?.credits === 3);
+  await newCode("EDGETIME1", { credits: 1, maxUses: 5 });
+  env.DB.raw.prepare("UPDATE promo_codes SET starts_at = ? WHERE code = 'EDGETIME1'").run(Date.now() - 1000);
+  check("a code whose start has passed works", (await (await newHost()).c.post("/api/host/redeem/EDGETIME1")).status === 200);
+  await newCode("EDGETIME2", { credits: 1, maxUses: 5 });
+  env.DB.raw.prepare("UPDATE promo_codes SET expires_at = ? WHERE code = 'EDGETIME2'").run(Date.now() + 60e3);
+  check("a code that has not yet ended works", (await (await newHost()).c.post("/api/host/redeem/EDGETIME2")).status === 200);
+}
+
+console.log("\n# Organisation kinds and approval");
+{
+  const code = await newCode("SOCIETYONLY", { credits: 2, maxUses: 5, orgKinds: ["society"] });
+  const ind = await newHost();
+  const refused = await ind.c.post("/api/host/redeem/SOCIETYONLY");
+  const unknown = await ind.c.post("/api/host/redeem/NOTACODE12");
+  check("an individual cannot use a society-only code (same refusal as an unknown code)", refused.status === 404 && JSON.stringify(refused.json) === JSON.stringify(unknown.json) && creditRows(ind.orgId).length === 0);
+  const soc = await newHost({ email: "lead@campus.ac.uk", kind: "society", name: "Example Soc", extra: { leaderName: "Lead Person", orgLink: "https://example.org/soc", university: "Example Campus" }, keepStarter: true });
+  check("a pending society was created", col("SELECT verification_status FROM orgs WHERE id = ?", soc.orgId) === "pending");
+  const held = await soc.c.post("/api/host/redeem/SOCIETYONLY");
+  check("a pending society's claim is held until approved: the host is told so, no credits yet", held.status === 200 && held.json.mine.held === true && held.json.org.status === "pending"
+    && creditRows(soc.orgId).length === 0 && (await left(soc)) === 0, held.json);
+  check("…but it takes a slot and is recorded", uses(code) === 1 && claims(code).length === 1 && claims(code)[0].credit_id === null && claims(code)[0].granted_at === null);
+  const bill = (await soc.c.get("/api/host/billing")).json;
+  check("Billing lists it as held until approved", bill.heldPromos.length === 1 && bill.heldPromos[0].code === "SOCIETYONLY" && bill.heldPromos[0].credits === 2, bill.heldPromos);
+  check("pressing again while held changes nothing", (await soc.c.post("/api/host/redeem/SOCIETYONLY")).json.already === true && claims(code).length === 1 && creditRows(soc.orgId).length === 0);
+  check("the admin list counts it as held", (await admin.get("/api/admin/promos", A)).json.promos.find((p) => p.code === "SOCIETYONLY").held === 1);
+  const rej = await newHost({ email: "lead2@campus.ac.uk", kind: "society", name: "Rejected Soc", extra: { leaderName: "Lead Person", orgLink: "https://example.org/soc2", university: "Example Campus" } });
+  env.DB.raw.prepare("UPDATE orgs SET verification_status = 'rejected' WHERE id = ?").run(rej.orgId);
+  const rr = await rej.c.post("/api/host/redeem/SOCIETYONLY");
+  check("a rejected organisation gets the generic refusal", rr.status === 404 && JSON.stringify(rr.json) === JSON.stringify(unknown.json) && claims(code).length === 1);
+}
+
+console.log("\n# Rate limits");
+{
+  await newCode("LIMITS001", { credits: 1, maxUses: 1000 });
+  const a = await newHost({ ip: "10.9.90.1" });
+  const b = await newHost({ ip: "10.9.90.1" });
+  let okA = 0, blockedA = null;
+  for (let i = 1; i <= 31; i++) { const r = await a.c.get("/api/host/redeem/LIMITS001"); if (r.status === 200) okA = i; else if (!blockedA) blockedA = [i, r]; }
+  check("the first 30 lookups from one IP work and the 31st is a 429 with a friendly message", okA === 30 && blockedA[0] === 31 && blockedA[1].status === 429 && blockedA[1].json.code === "throttled" && /wait/i.test(blockedA[1].json.error), blockedA && [blockedA[0], blockedA[1].json]);
+  check("…a different host account on the same IP is also stopped (the limit is per IP)", (await b.c.get("/api/host/redeem/LIMITS001")).status === 429);
+  check("…another IP is fine", (await (await newHost({ ip: "10.9.90.2" })).c.get("/api/host/redeem/LIMITS001")).status === 200);
+  const hop = await newHost({ ip: "10.9.91.1" });
+  let blockedAt = 0;
+  for (let i = 1; i <= 31; i++) {
+    const c2 = client({ site: "host", ip: "10.9.92." + i });
+    for (const [k, v] of hop.c.jar) c2.jar.set(k, v);
+    if ((await c2.get("/api/host/redeem/LIMITS001")).status === 429) { blockedAt = i; break; }
+  }
+  check("one host account hopping between IPs is stopped on lookup 31 (the limit is per host account)", blockedAt === 31, blockedAt);
+  const g = await newHost({ ip: "10.9.93.1" });
+  let wrong = 0;
+  for (let i = 0; i < 40; i++) { const r = await g.c.get("/api/host/redeem/GUESS" + i + "XX"); if (r.status === 404) wrong++; else break; }
+  check("wrong guesses are stopped (a 429 after 30)", wrong === 30, wrong);
+  const rd = await newHost({ ip: "10.9.94.1" });
+  const codes = [];
+  for (let i = 0; i < 22; i++) codes.push(await newCode("MANY" + String(i).padStart(4, "0"), { credits: 1, maxUses: 1000 }));
+  let firstBlock = 0;
+  for (let i = 0; i < 22; i++) {
+    const c2 = client({ site: "host", ip: "10.9.95." + (i + 1) });
+    for (const [k, v] of rd.c.jar) c2.jar.set(k, v);
+    const r = await c2.post("/api/host/redeem/" + codes[i]);
+    if (r.status === 429) { firstBlock = i + 1; break; }
+  }
+  check("one host account can press Redeem 20 times an hour; the 21st is a 429", firstBlock === 21, firstBlock);
+  const ipHosts = [await newHost({ ip: "10.9.96.1" }), await newHost({ ip: "10.9.96.1" }), await newHost({ ip: "10.9.96.1" })];
+  let tries = 0, ipBlocked = false;
+  for (let round = 0; round < 12 && !ipBlocked; round++) for (const x of ipHosts) {
+    tries++;
+    if ((await x.c.post("/api/host/redeem/OKCODE" + round, {})).status === 429) { ipBlocked = true; break; }
+  }
+  check("redeem tries are limited per IP across accounts too (blocked by the 31st try from one IP)", ipBlocked && tries <= 31, tries);
+}
+
+console.log("\n# The 51st claimant");
+{
+  const code = await newCode("FIRSTFIFTY", { credits: 3, maxUses: 50 });
+  let granted = 0, last = null;
+  for (let i = 0; i < 50; i++) { const x = await newHost(); const r = await x.c.post("/api/host/redeem/FIRSTFIFTY"); if (r.status === 200 && r.json.mine.credits === 3 && r.json.mine.position === i + 1) granted++; }
+  check("fifty hosts each get 3 credits, in order (claim numbers 1 to 50)", granted === 50 && uses(code) === 50 && q("SELECT * FROM credits WHERE reason = 'promo:FIRSTFIFTY'").length === 50);
+  const late = await newHost();
+  const lookLate = await late.c.get("/api/host/redeem/FIRSTFIFTY");
+  const r51 = await late.c.post("/api/host/redeem/FIRSTFIFTY");
+  check("the 51st is refused with the generic answer (a full code looks like an unknown one)", r51.status === 404 && r51.json.code === "bad_code" && lookLate.status === 404, r51.json);
+  check("…no claim, no credits, no place in a queue, and the code still says 50", creditRows(late.orgId).length === 0 && claims(code).length === 50 && uses(code) === 50);
+  const twice = await late.c.post("/api/host/redeem/FIRSTFIFTY");
+  check("…pressing again stays refused", twice.status === 404 && claims(code).length === 50);
+}
+
 summary();

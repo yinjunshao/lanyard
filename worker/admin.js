@@ -12,6 +12,7 @@ import { peek, bump, HOUR } from "./ratelimit.js";
 import { emailProblem, emailKind, openTransfer, normEmail } from "./hostorg.js";
 import { funnel } from "./onboarding.js";
 import { ORG_KINDS } from "./plans.js";
+import { releaseHeldClaims } from "./host-promo.js";
 import { registerAiAdmin } from "./ai/admin.js";
 
 export const adminApp = new Hono();

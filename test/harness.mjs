@@ -16,6 +16,7 @@ export const readMigration = (f) => readFileSync(join(root, "migrations", f), "u
 // testing a migration against data in the older shape).
 export function makeDb({ before } = {}) {
   const db = new DatabaseSync(":memory:");
+  let queue = Promise.resolve();
   db.exec("PRAGMA foreign_keys = ON;");
   const wrap = (sql) => ({
     _p: [],
@@ -27,10 +28,17 @@ export function makeDb({ before } = {}) {
   const api = {
     raw: db,
     prepare: wrap,
-    async batch(stmts) {
-      db.exec("BEGIN");
-      try { const out = []; for (const s of stmts) out.push(await s.run()); db.exec("COMMIT"); return out; }
-      catch (e) { db.exec("ROLLBACK"); throw e; }
+    // One batch at a time, like D1: a second batch waits for the first to commit or roll back,
+    // so two requests that race (Promise.all) hit the database rules rather than a nested BEGIN.
+    batch(stmts) {
+      const run = async () => {
+        db.exec("BEGIN");
+        try { const out = []; for (const s of stmts) out.push(await s.run()); db.exec("COMMIT"); return out; }
+        catch (e) { db.exec("ROLLBACK"); throw e; }
+      };
+      const result = queue.then(run, run);
+      queue = result.then(() => {}, () => {});
+      return result;
     },
     exec: (sql) => db.exec(sql),
   };
