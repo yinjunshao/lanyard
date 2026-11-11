@@ -23,7 +23,8 @@ needs: [F17, F24]
 ## Tasks
 - [x] F25.1 `POST /api/ai/who-to-meet/:eventId` (checked in, presence on, event ongoing).
   - `worker/ai/whoToMeet.js` and `worker/ai/prompts/whoToMeet.js`; `test/who-to-meet.mjs` is in `npm test` before the budget check. Details in the Log.
-- [ ] F25.2 Swap-in UI on the hub suggestions row.
+- [x] F25.2 Swap-in UI on the hub suggestions row.
+  - `src/components/EventPresence.vue` only (the lazy event-hub chunk). Details in the Log.
 - [ ] F25.3 Tests: ended event → 403; ids outside the event are never returned; injection in an intro.
 
 ## Acceptance checks
@@ -33,5 +34,6 @@ needs: [F17, F24]
 ## Log
 - 2026-11-11 (owner decision, recorded by Claude subagent): F25 lists "Needs: F17, F24". F17 is done. F24 is fully built and committed but not ticked, because its last acceptance check needs a real model call, and F24 in turn sits on F21, also built but unticked for the same reason. The owner said on 2026-11-11 to build the items behind them now, on their code as it stands. **If the real-key rollout of F21 or F24 changes anything (the request shape, the reply handling, prices, the gateway address, a message, F24's quote checks that this feature reuses), this feature may need rework.** Everything here is tested with the stubbed gateway only; no real model call was made and `.dev.vars` was not opened.
 - F25.1: `POST` and `GET /api/ai/who-to-meet/:eventId` in `worker/ai/whoToMeet.js`, mounted in `worker/index.js`. See "How it works as built" below.
+- F25.2: a "Rank with AI" button under "People you might want to meet" (shown once a wish is saved and AI is available to the person). Pressing it is the only trigger. F17's list is on screen first; the AI order replaces it with "Improved with AI" and a "Usual list" button to go back; any fallback leaves F17's list (refreshed) and shows the plain message. Checked in the browser pane against the local stub (Worker from a scratchpad config copy, no `.dev.vars`): 375 px light and dark, 1280 px light, the button, the busy state, the improved state with the opted-out person after the pick, and the kill-switch fallback.
 
 Related: [[AI Safety and Cost Plan]] · back to [[00 Master To-Do]]

@@ -21,6 +21,11 @@ const list = ref(null); // { mode, topics, people }
 const busy = ref(false);
 const error = ref("");
 const note = ref("");
+// F25: the AI re-ordering of the list above. F17's own list is always shown first; this swaps it for the model's order.
+const aiLeft = ref(null); // AI rankings left for this event; null when this person cannot use them (the button is hidden)
+const aiMode = ref(""); // "" (F17's list), "improved" (the model's order) or "same" (it found nobody better)
+const aiBusy = ref(false);
+const aiNote = ref("");
 
 const over = computed(() => props.status === "ended" || me.value?.why === "not_ongoing");
 const usable = computed(() => !!me.value && me.value.available && !over.value);
@@ -34,11 +39,16 @@ async function load() {
   try {
     me.value = await api(`/api/e/${encodeURIComponent(props.eventId)}/presence`);
     intro.value = me.value.intro; wish.value = me.value.lookingFor;
-    if (me.value.on && me.value.available) await refresh();
+    if (me.value.on && me.value.available) { await refresh(); await loadAllowance(); }
   } catch { /* not checked in, or no signal: the card simply does not show */ }
 }
 
+async function loadAllowance() {
+  try { aiLeft.value = (await api(`/api/ai/who-to-meet/${encodeURIComponent(props.eventId)}`)).allowance?.left ?? null; } catch { aiLeft.value = null; }
+}
+
 async function refresh() {
+  aiMode.value = ""; aiNote.value = "";
   try { list.value = await api(`/api/e/${encodeURIComponent(props.eventId)}/suggestions`); error.value = ""; }
   catch (e) { list.value = null; if (e.code !== "presence_off") error.value = e.message; }
 }
@@ -87,6 +97,26 @@ const removeSelfie = () => change({ selfieDataUrl: null }, "Photo deleted.");
 const saveIntro = () => change({ intro: intro.value });
 async function findPeople() {
   if (await change({ lookingFor: wish.value }, "")) await refresh();
+}
+// Re-order the list with AI, from the words saved with "Find people". Nothing runs until this button is pressed.
+async function rankWithAi() {
+  if (aiBusy.value || busy.value) return;
+  if (wish.value.trim() !== me.value.lookingFor && !(await change({ lookingFor: wish.value }, ""))) return;
+  aiBusy.value = true; aiNote.value = ""; error.value = "";
+  try {
+    const r = await api(`/api/ai/who-to-meet/${encodeURIComponent(props.eventId)}`, "POST", {});
+    aiLeft.value = r.allowance?.left ?? aiLeft.value;
+    if (r.fallback) {
+      aiNote.value = r.message || "AI ranking isn't available right now. The usual list is shown.";
+      await refresh(); aiNote.value = r.message || aiNote.value; // the usual list, fresh (someone may have left)
+    } else {
+      list.value = { ...(list.value || {}), people: r.people };
+      aiMode.value = r.improved ? "improved" : "same";
+    }
+  } catch (e) {
+    // Anything the route refuses (the event ended, you turned this off): the same list as ever, and why.
+    aiNote.value = e.message; await refresh(); aiNote.value = e.message;
+  } finally { aiBusy.value = false; }
 }
 function pickTopic(t) {
   if (!wish.value.toLowerCase().includes(t.toLowerCase())) wish.value = wish.value ? `${wish.value}, ${t}` : t;
@@ -181,8 +211,15 @@ const withdrawNow = async () => {
       <div v-if="me.on" class="stack" aria-labelledby="presence-people">
         <div class="spread">
           <h2 id="presence-people" class="label">People you might want to meet</h2>
-          <button type="button" class="btn-quiet" :disabled="busy" @click="refresh">Refresh</button>
+          <button type="button" class="btn-quiet" :disabled="busy || aiBusy" @click="refresh">{{ aiMode ? "Usual list" : "Refresh" }}</button>
         </div>
+        <div v-if="aiLeft !== null && me.lookingFor.length >= 3 && list?.people?.length" class="presence-ai stack">
+          <button type="button" class="btn" :disabled="busy || aiBusy || aiLeft < 1" :aria-busy="aiBusy" @click="rankWithAi">{{ aiBusy ? "Ranking..." : "Rank with AI" }}</button>
+          <p class="small muted">Re-orders this list by what you asked for, using each person's line, headline and tags. Never their name or photo. {{ aiLeft }} left for this event.</p>
+        </div>
+        <p v-if="aiMode === 'improved'" class="small presence-ai-label" role="status"><strong>Improved with AI.</strong> Ranked from what people here show. Not right? Press Usual list.</p>
+        <p v-else-if="aiMode === 'same'" class="small muted" role="status">AI didn't find anyone who fits better, so this is the usual list.</p>
+        <p v-if="aiNote" class="small muted" role="status">{{ aiNote }}</p>
         <div v-if="!list?.people?.length" class="empty">
           <p>No one else has turned this on yet. People who do will show up here.</p>
         </div>
@@ -229,6 +266,8 @@ const withdrawNow = async () => {
 <style scoped>
 .presence-facts { margin: 0; padding-left: 18px; }
 .presence-facts li + li { margin-top: 6px; }
+.presence-ai > * + * { margin-top: 4px; }
+.presence-ai-label { margin: 0; }
 .presence-me { display: flex; gap: 14px; align-items: center; }
 .presence-me-photo { width: 96px; height: 96px; border-radius: var(--radius); object-fit: cover; flex: none; border: var(--border); }
 .presence-me-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space); }

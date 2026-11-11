@@ -465,5 +465,19 @@ console.log("\n# Where the code sits");
   check("F24's checks take the field list as a parameter and still default to F24's own", /export function verifyMatches\(matches, byId, query, fields = FIELDS\)/.test(read("worker/ai/peopleSearch.js")));
 }
 
+console.log("\n# The page (source guards; the pane check is in the plan note)");
+{
+  const ui = read("src/components/EventPresence.vue");
+  check("the AI button is pressed by the person: nothing calls the AI route on load, on typing or on a timer", /async function rankWithAi/.test(ui) && (ui.match(/\/api\/ai\/who-to-meet\/[^\n]*"POST"/g) || []).length === 1 && !/watch\([^)]*wish/.test(ui) && !/setInterval|setTimeout/.test(ui) && /@click="rankWithAi"/.test(ui));
+  check("the button is disabled while it runs and when none are left, and says how many are left for this event", /:disabled="busy \|\| aiBusy \|\| aiLeft < 1"/.test(ui) && /left for this event/.test(ui));
+  check("F17's list is the one shown first and is the fallback: every fallback path refreshes it and shows the message", /if \(r\.fallback\) \{[\s\S]*await refresh\(\)/.test(ui) && /catch \(e\) \{[\s\S]*await refresh\(\)/.test(ui));
+  check("the label is 'Improved with AI', plain words, and model text is only ever shown as text", /Improved with AI/.test(ui) && !/v-html|innerHTML/.test(ui));
+  check("no sparkle or magic styling in the AI controls", !/sparkle|magic|✨/i.test(ui) && !/<Icon/.test(ui));
+  for (const f of ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/router/routes.attendee.js", "src/router/index.js"]) {
+    check(`${f} (public or shared code) does not know about this feature`, !/who-to-meet|whoToMeet|who_to_meet/.test(read(f)));
+  }
+  check("the hub page is a lazy route and does not know this feature by name (no new chunk, no new route)", /EventDetail\.vue"\)/.test(read("src/router/routes.attendee.js")) && !/who-to-meet/.test(read("src/views/EventDetail.vue")));
+}
+
 Date.now = realNow;
 summary();
