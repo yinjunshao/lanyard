@@ -808,6 +808,47 @@ console.log("\n# F32.5 Account deletion, the host's download, and the host reset
   check("a database without migration 0029 is refused by the script's schema check", makeDb({ before: "0029" }).raw.prepare(reset.SCHEMA_SQL).get().n === 7 && makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 8 && /0028 and 0029 are not all applied/.test(read("scripts/reset-hosts.mjs")) && /0018, 0023, 0025, 0027, 0028 and 0029/.test(read("scripts/reset-hosts.mjs")));
 }
 
+console.log("\n# F32.6 Show is a tap, from the app's own pages only");
+{
+  const ev = await makeEvent("Tap Night");
+  const d = (await hcall("POST", `/api/host/events/${ev.id}/drops`, { kind: "one_each", title: "Tapped", items: "tap-key-1\ntap-key-2" })).json.id;
+  const p = await person("Tapper", ev);
+  const noTap = [await p.c.get(`/api/e/${ev.id}/drops`), await p.c.get(`/api/e/${ev.id}/drops/${d}/reveal`), await p.c.get(`/api/e/${ev.id}/drops/${d}`), await p.c.get(`/api/e/${ev.id}/drops/${d}/use`)];
+  check("looking at the list, or a GET to the Show address, gives nothing: only a POST does", q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", d).n === 0 && noTap.slice(1).every((r) => r.status === 404) && !noTap.some((r) => /tap-key/.test(r.text)));
+  const other = client({ ip: "10.98.0.1" });
+  other.jar.set("lanyard_session", p.c.jar.get("lanyard_session"));
+  const cross = await Promise.all([other.req("POST", `/api/e/${ev.id}/drops/${d}/reveal`, {}, { origin: "https://evil.example" }), other.req("POST", `/api/e/${ev.id}/drops/${d}/reveal`, {}, { origin: "https://host.lanyard.test" }), other.req("POST", `/api/e/${ev.id}/drops/${d}/reveal`, "{}", { origin: "https://evil.example", "content-type": "text/plain" })]);
+  check("a Show from another site's page (even with her cookie) is refused (403) and gives nothing, as is one from the host site's origin", cross.every((r) => r.status === 403) && q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", d).n === 0, cross.map((r) => r.status));
+  check("from the app's own page it works", (await p.c.post(`/api/e/${ev.id}/drops/${d}/reveal`)).status === 200);
+}
+
+console.log("\n# F32.6 The policy, and where the code is allowed to touch an item");
+{
+  const privacy = read("src/views/Privacy.vue");
+  check("the Privacy Policy has a section on drops: what is kept, who sees it, how long (30 days), and a retention row", /8e\. Keys, codes and vouchers from an organiser/.test(privacy) && /What we keep/.test(privacy.split("8e.")[1] || "") && /30 days after the event ends/.test(privacy) && /Keys, codes and vouchers an organiser gave you, and each voucher use/.test(privacy));
+  check("the Terms and Privacy version is NOT bumped (owner decision pending): worker/legal.js still says 2026-11-11", /TERMS_VERSION = "2026-11-11"/.test(read("worker/legal.js")));
+  check("the retention in code is 30 days after the event ends, and the policy, the vault and the plan say the same", /DROP_KEEP_MS = 30 \* 86400_000/.test(read("worker/drops.js")) && /30 days/.test(read("Lanyard-Vault/03 Technical/Privacy and Data Retention.md")));
+  const worker = ["worker/dropcrypto.js", "worker/drops.js", "worker/dropsManage.js", "worker/dropsHost.js", "worker/dropsNamed.js", "worker/dropsKeep.js", "worker/dropsApp.js", "worker/vouchers.js"];
+  check("no drop file writes to the console: an item cannot be logged by accident", worker.every((f) => !/\bconsole\./.test(read(f))), worker.filter((f) => /\bconsole\./.test(read(f))));
+  check("only three places open an item: Show (drops.js), the host's unused download and duplicate check (dropsManage.js) and a person's own export (dropsApp.js); the host's named view, routes and purge never do", worker.filter((f) => /\bopenItem\(/.test(read(f)) && f !== "worker/dropcrypto.js").join() === "worker/drops.js,worker/dropsManage.js,worker/dropsApp.js");
+  check("the host's routes and named view never select the sealed column (the named view only wipes one when it withdraws a key)", !/cipher/.test(read("worker/dropsHost.js")) && !/SELECT[^`;]*cipher/i.test(read("worker/dropsNamed.js")) && (read("worker/dropsNamed.js").match(/cipher/g) || []).length === 1);
+  check("the host's download of unused items is the only route that returns items to a host (a text response built from unusedList)", (read("worker/dropsHost.js").match(/unusedList\(/g) || []).length === 1 && !/unusedList/.test(read("worker/dropsNamed.js")));
+  check("the sealed value is never selected in a list query for a person: the list and the host's counts read no cipher column", !/cipher/.test(read("worker/dropsApp.js").split("export async function exportDrops")[0].replace(/i\.cipher != ''/g, "")));
+  check("DROP_KEY is read only by worker/dropcrypto.js, and the example file names it with a placeholder", worker.filter((f) => /DROP_KEY/.test(read(f).replace(/^\s*\/\/.*$/gm, "")) && f !== "worker/dropcrypto.js").length === 0 && /^DROP_KEY=pick_a_long_random_string/m.test(read(".dev.vars.example")));
+  const sources = { host: read("src/components/HostDrops.vue"), hub: read("src/components/EventDrops.vue") };
+  check("the two screens draw text, never HTML, and keep nothing in browser storage", Object.values(sources).every((v) => !/v-html|innerHTML|localStorage|sessionStorage|indexedDB/.test(v)));
+  check("a key is shown only after Show, cleared on Hide, and cleared when the tab is hidden or the page is left", /shown\[d\.id\] !== undefined/.test(sources.hub) && /function hide\(/.test(sources.hub) && /visibilitychange/.test(sources.hub) && /onBeforeUnmount/.test(sources.hub) && /@click="show\(d\)"/.test(sources.hub));
+  check("pasted text leaves the page once saved (the form is reset), is not spell-checked or autocompleted, and the PIN box is masked", /form\.value = blank\(\)/.test(sources.host) && /spellcheck="false"/.test(sources.host) && /autocomplete="off"/.test(sources.host) && /type="password"/.test(sources.hub) && /autocomplete="off"/.test(sources.hub));
+  check("the hub says a key is shown only to the person it was given to", /shown only to the person it was given to/.test(sources.hub) && /Only you can see this/.test(sources.hub));
+  const shared = ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/router/routes.attendee.js", "src/router/index.js", "src/views/HostEvent.vue"];
+  check("no shared front-end file, entry, router table or HostEvent.vue knows about drops (no new route, no new chunk name)", shared.every((f) => !/drops?\b/i.test(read(f).replace(/\bdropdown\b/gi, ""))), shared.filter((f) => /drops?\b/i.test(read(f))));
+  check("the hub and the host event page load the screens by plain static imports from the files that were already lazy (no new chunk)", /import EventDrops from/.test(read("src/views/EventDetail.vue")) && /import HostDrops from/.test(read("src/views/HostLive.vue")) && !/import\(.*Drops/.test(read("src/views/EventDetail.vue") + read("src/views/HostLive.vue")));
+  const hubSrc = read("src/views/EventDetail.vue");
+  check("the hub's own request, `/api/my/events/:id`, is unchanged by drops (the hub shape is pinned by F31's saved copy)", !/drops/i.test(read("worker/myevents.js")));
+  check("the voucher screen shows the event, the title, the first name, the photo and a live clock, and says a screenshot won't work", /data\.event\.name/.test(sources.hub) && /current\.title/.test(sources.hub) && /me\.firstName/.test(sources.hub) && /me\.photo/.test(sources.hub) && /role="timer"/.test(sources.hub) && /setInterval/.test(sources.hub) && /screenshot/.test(sources.hub));
+  void hubSrc;
+}
+
 console.log("\n# F32.2 Nothing the host sees, and nothing logged, holds an item");
 {
   const secrets = [...LIST, "more-key-1", "more-key-2", "guest-wifi-9931", "rf-1", "rf-2", "rf-3", "guard-1", "guard-2", "NOKEY-SECRET"];

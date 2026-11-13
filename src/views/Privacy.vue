@@ -81,6 +81,7 @@ const UPDATED = "13 November 2026";
         <tr><td>Profile, card, connections, notes</td><td>Until you delete them or your account</td></tr>
         <tr><td>Shared selfies</td><td>7 days if the other person has not accepted it, then deleted. Once accepted, until either person removes it or the connection, and no more than 12 months after it was taken</td></tr>
         <tr><td>An organiser's list of who checked in, and what you share on it</td><td>Until you untick it (then it is deleted at once), and no later than 12 months after the event ends</td></tr>
+        <tr><td>Keys, codes and vouchers an organiser gave you, and each voucher use</td><td>30 days after the event ends, or until you delete your account</td></tr>
         <tr><td>"Be easy to find" photo, line and wish</td><td>Until you turn it off, when they are deleted at once, and no later than 48 hours after the event ends</td></tr>
         <tr><td>An AI reply (a draft or a search result)</td><td>7 days, so asking again costs nothing, then deleted. We do not keep what was sent to the model</td></tr>
         <tr><td>An AI summary of an event's written feedback</td><td>With that feedback: deleted when the event is deleted or its written answers are removed after 12 months. It holds no names and no account</td></tr>
@@ -172,6 +173,17 @@ const UPDATED = "13 November 2026";
       <li><b>Our basis</b>: legitimate interests, for the organiser and for us: knowing who came, keeping people safe and following up for that event. You can object by unticking, at check-in or later. [Operator: the email and card items are pre-ticked, which is not valid consent under UK GDPR. Confirm another lawful basis for them with a lawyer before launch.]</li>
       <li><b>Changing your mind</b>: on the event's page in the app, under "Your choices at this event", or in Settings, Privacy and data. Unticking takes you off the list at once, so the organiser's next look no longer shows you. Each choice, and the words you were shown, is kept in your consent history.</li>
       <li><b>How long</b>: the list is deleted 12 months after the event ends, or sooner if you untick, delete your account or the organiser switches it off. A copy an organiser has already downloaded is theirs to look after; they must use it only for the reason they gave, keep it safe and delete it when done, and take you off if you ask. To ask us to help, write to us at the privacy contact above.</li>
+    </ul>
+
+    <h2>8e. Keys, codes and vouchers from an organiser</h2>
+    <p>
+      An organiser can give the people who checked in to their event something to keep: an API key, a code, a Wi-Fi password or a food voucher.
+      You open yours on the event's page in the app, and only you can see it.
+    </p>
+    <ul>
+      <li><b>What we keep</b>: what the organiser loaded, scrambled with a secret key so that a copy of our database cannot read it; which item went to you and when; and, for a voucher, when each use was marked.</li>
+      <li><b>Who sees it</b>: you. The organiser sees counts, such as 120 loaded and 37 given, never what you were given. At an event that also keeps a list of who checked in (section 8d), they see which item number went to each person on that list.</li>
+      <li><b>How long</b>: 30 days after the event ends, or sooner if the organiser deletes it or you delete your account. Yours is in your data download.</li>
     </ul>
 
     <h2>9. Children</h2>

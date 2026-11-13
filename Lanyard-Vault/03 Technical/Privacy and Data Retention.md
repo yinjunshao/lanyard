@@ -18,6 +18,7 @@ Not legal advice; a checklist from ICO guidance to be reviewed by a lawyer or UC
 | Event check-in | Consent / legitimate interest |
 | Organiser's list of who checked in: name and check-in time (F31) | Legitimate interests (assessment in [[UK GDPR Audit 2026-11-01]]); the untick, at check-in or later, is the objection route |
 | Organiser's list: the person's verified email and card (F31) | **Not settled.** Built pre-ticked at the owner's request; a pre-ticked box is not valid consent under UK GDPR, so these need another basis or a lawyer's review before launch |
+| Keys, codes and vouchers an organiser gives a person (F32) | Legitimate interests (the organiser's, and ours as the service): giving each person the thing the organiser meant them to have, once, and counting what was used. Stored sealed, shown only to that person; the organiser sees counts, and names only at an event with F31's list on. No consent is needed or asked |
 | Event presence: face photo, line and wish (F17) | Consent, separate per event, off by default, withdrawable at once |
 | Details shared with a sponsor | Consent, separate per sponsor, never pre-ticked |
 | Marketing email | Consent, separate unticked box |
@@ -89,6 +90,7 @@ Nothing new is stored. The hub shows a person only their own connections at that
 - Selfies: 12 months. Feedback text: 12 months.
 - Event presence (F17): at once on withdrawal, otherwise 48 hours after the event ends.
 - A host's list of who checked in (F31): at once on an untick, when the host switches it off or the account is deleted; otherwise 12 months after the event ends (proposed, owner to confirm). The consent record of each choice is kept 6 years.
+- Drops (F32): keys, codes and voucher uses an organiser gave out: 30 days after the event ends (proposed, owner to confirm; the same end rule as an event's status), or sooner when the organiser deletes the drop or the person deletes their account. The drop's title and its counts stay. Items are stored sealed with a Worker key (`DROP_KEY`); the host sees counts, and names only through F31's list. The host's audit rows (no values): 12 months. They are in the person's data download (their own) and the host's (counts only).
 - Inactive guests: 30 days. Expired codes and sessions: daily purge.
 - Consent records: 6 years.
 - Welcome-step counts: 400 days (no personal data).
