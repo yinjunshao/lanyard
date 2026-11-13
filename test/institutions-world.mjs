@@ -61,4 +61,14 @@ check("picker options carry the id, name, aliases and country", JSON.stringify(p
 check("webmail domains are known, institutions are not", isWebmail("Gmail.com") && !isWebmail("example.ca") && !isWebmail(""));
 check("a domain in any file finds its institution", institutionForDomain(eg, "mail.example.ca")?.id === "example-university-ca");
 
+console.log("\n# The US file");
+{
+  const us = files.us.institutions;
+  check(`it has a few hundred entries (${us.length}), all in the US`, us.length >= 300 && us.every((i) => i.country === "US"));
+  // Ids saved on profiles from here on must not move. Add to this list; never edit it.
+  const US_PINNED = ["massachusetts-institute-of-technology", "stanford-university", "university-of-california-los-angeles", "harvard-university", "lincoln-university-us"];
+  check("a sample of US ids is pinned", US_PINNED.every((id) => us.some((i) => i.id === id)));
+  check("the institutions the owner named are found by their short names", [["MIT", "massachusetts-institute-of-technology"], ["UCLA", "university-of-california-los-angeles"]].every(([a, id]) => us.find((i) => i.aliases.includes(a))?.id === id));
+}
+
 summary();
