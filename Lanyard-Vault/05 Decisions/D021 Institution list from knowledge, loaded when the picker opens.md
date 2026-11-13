@@ -21,4 +21,6 @@ Public first-load JS did not grow (see the F12 Log). Aliases and domains in the 
 
 **Evidence:** `src/data/institutions-uk.json`, `worker/institutions.js`, `test/institutions.mjs`
 
+Extended by [[D036 Institution list in three files, loaded as one chunk when a picker opens]] (US and world files, one chunk).
+
 Related: [[F12 Institution picker]] · back to [[Decision Log]]

@@ -93,7 +93,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F27** [[F27 Lanyard Plus and billing]] · P2 · XL · Needs: F09, F21 + owner decisions (price, legal identity)
 
 ### Phase 6: owner requests (2026-11-13)
-- [ ] **F29** [[F29 US and world universities]] · P1 · M · Needs: F12 (in progress: Claude subagent, 2026-11-13)
+- [x] **F29** [[F29 US and world universities]] · P1 · M · Needs: F12 (done 2026-11-13, last commit 8da020e)
 - [ ] **F30** [[F30 Create event in steps]] · P1 · M · Needs: F08, F18
 - [ ] **F31** [[F31 Named attendance with check-in notice]] · P1 · L · Needs: F10, F15, F30 (narrows [[D004 Aggregate-only host analytics]] by owner decision; check-in ticks pre-ticked by owner decision, 2026-11-13)
 - [ ] **F32** [[F32 Drops for codes, keys and vouchers]] · P1 · L · Needs: F10, F15, F31
@@ -150,6 +150,7 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
+- 2026-11-13 · F29 · 8da020e · US and world universities: the institution picker searches the UK, 355 US and 548 world institutions (agent-written, owner to review) with the country after non-UK names, one lazy 25.5 KB gzip chunk loaded only when a picker opens; Worker and backfill read all three files; no migration, D036; card page +10 B and privacy request page +39 B gzip
 - 2026-11-11 · F20 · 72109e2 · Host promo codes: an admin makes codes that give an organisation event credits; a host redeems at host.<site>/redeem once per organisation and per host account (database rules, one transaction), pending societies hold the claim until approved, every unusable code gets one answer; migration 0025, D031; PublicCard +52 B gzip (50,981 to 51,033)
 - 2026-11-11 · F18 · 494f69d · Live previews: hosts see the real check-in page beside the Create event form and Details (theme strip, brand colour), people see their badge and card page while editing; same component and data function as the real pages, nothing saved or sent; the theme and brand colour now show on the check-in head; no migration; card page +1.1 KB gzip (49,911 to 50,979 B, about 200 B left)
 - 2026-11-10 · F17 · 1e6e5a0 · Event presence and who to meet: opt-in per event "Be easy to find" (face photo, line, wish) seen only by opted-in people at the same event while it is on; suggestions without AI; photo private and deleted on withdrawal or 48 hours after the event ends; hosts see a count; migration 0023, D027; public card +55 B gzip
