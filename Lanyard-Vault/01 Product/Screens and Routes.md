@@ -47,6 +47,8 @@ Served at the root of `host.lanyd.fyi` (locally `http://host.localhost:5173`), f
 
 On the main site, `/host` and `/host/...` go to the same page on the host site (the router, and a 301 from the Worker). `/hosts` (the pitch page) stays on the main site and links to the portal. `/admin` stays on the main site.
 
+**Create event in steps (F30):** on the host dashboard, New event opens `/?step=1`; the five steps are Basics, Look, At the event, Questions and Review (`?step=2` to `?step=5`). "Step N of 5" and the step names show where you are, Back and Next sit in a bar at the bottom, Cancel is at the top; the browser Back button moves between steps and a refresh stays on the step. The Details tab of a saved event stays one page.
+
 **Previews (F18):** on the host portal, the Create event form and an event's Details tab show the check-in page as attendees will see it, beside the form from 1000 px and behind a Preview button (full screen) below that, with a Default / Formal / Night strip and a brand colour that change the form too. In Edit profile and My cards, a Preview shows your badge or "What they see" (the card page) while you type: a Preview button at the top below 1260 px, open beside the page from 1260 px. Nothing in a preview is saved or sent. A host's Formal or Night theme, or brand colour, shows as a strap on the check-in page head.
 
 ## Development only## Development only

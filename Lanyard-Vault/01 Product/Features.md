@@ -15,6 +15,7 @@ tags: [product, features]
 - **People:** grouped by event and date, keyword search (name, tags), filter.
 - **Messages/threads** on a connection (table `messages`).
 - **Report and block** on any profile or connection.
+- **Create event in steps** (F30): the host creates an event one stage at a time (basics, look, at the event, questions, review) with the step in the address and a draft that survives a refresh; the check-in page preview stays beside it.
 - **Live previews** (F18): hosts see the check-in page beside the event form as they type, with the theme and a brand colour; people see their badge and the card page while editing a card or profile. The real page drawn from the same data; nothing is saved or sent ([[D029 A preview is the real component fed from the same data]]).
 - **Present page and poster** (F19): from the live tab a host opens a full-screen page for a projector (event, big QR, code, a check-in count that updates by itself) in a new tab, or prints an A4 poster. Neither shows anything about a person; both use the main site's check-in address ([[D030 Present and the poster share one route, one address and one QR path]]).
 - **Shared ground** (F16):- **Shared ground** (F16): a person's card page has one "In common" line ("Both into robotics · Same course"), worked out from what each of you shows the other, with no AI and nothing stored. See [[D026 Shared ground is worked out from what each person shows, and never stored]].

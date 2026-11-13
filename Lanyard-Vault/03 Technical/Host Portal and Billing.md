@@ -14,7 +14,10 @@ tags: [technical, host, billing]
 - Admin (`/admin`): host account list and search, switch an account off, attach an organisation with no members to a host email.
 
 ## Event lifecycle
-Create event (uses a credit) → event QR + rotating code → attendees check in → live view → end event → report, feedback, summary email. Events can be duplicated.
+Create event (in five steps, F30; uses a credit) → event QR + rotating code → attendees check in → live view → end event → report, feedback, summary email. Events can be duplicated.
+
+## Create event in steps (F30)
+Five screens at `/?step=N`: Basics, Look, At the event, Questions, Review. Next checks only that step; the server's checks still decide. The half-made form is kept in this tab's session storage per host and organisation and cleared on Create, Cancel and sign-out; nothing is saved on the server before Create. "Start from" copies an earlier event: the later steps show what it brings (read-only), and Create sends only the name and times as before. See [[D037 Create event in steps keeps the old request and one draft per host and organisation]].
 
 ## Credits
 `credits` table with expiry; first org gets 3 free events; societies get 1 free event a week up to 200 check-ins; packs defined in `worker/plans.js` (`HOST_SKUS`). See [[Pricing]].

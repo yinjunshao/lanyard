@@ -94,7 +94,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 
 ### Phase 6: owner requests (2026-11-13)
 - [x] **F29** [[F29 US and world universities]] · P1 · M · Needs: F12 (done 2026-11-13, last commit 8da020e)
-- [ ] **F30** [[F30 Create event in steps]] · P1 · M · Needs: F08, F18 (in progress: Claude subagent, 2026-11-13)
+- [x] **F30** [[F30 Create event in steps]] · P1 · M · Needs: F08, F18 (done 2026-11-13, last commit da292ec; built on F10 as it stands, with the owner's say-so)
 - [ ] **F31** [[F31 Named attendance with check-in notice]] · P1 · L · Needs: F10, F15, F30 (narrows [[D004 Aggregate-only host analytics]] by owner decision; check-in ticks pre-ticked by owner decision, 2026-11-13)
 - [ ] **F32** [[F32 Drops for codes, keys and vouchers]] · P1 · L · Needs: F10, F15, F31
 
@@ -150,6 +150,7 @@ graph LR
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
+- 2026-11-13 · F30 · da292ec · Create event in steps: the host's Create form is five screens at `/?step=N` (Basics, Look, At the event, Questions, Review) with Back and Next at the bottom, checks per step, the preview beside it, and a session-storage draft per host and organisation cleared on Create, Cancel and sign-out; Create sends exactly what the single form sent (tested); a slot for F31 at the end of step 3; no migration, D037; card page +10 B gzip (51,020 to 51,030, 170 B left)
 - 2026-11-13 · F29 · 8da020e · US and world universities: the institution picker searches the UK, 355 US and 548 world institutions (agent-written, owner to review) with the country after non-UK names, one lazy 25.5 KB gzip chunk loaded only when a picker opens; Worker and backfill read all three files; no migration, D036; card page +10 B and privacy request page +39 B gzip
 - 2026-11-11 · F20 · 72109e2 · Host promo codes: an admin makes codes that give an organisation event credits; a host redeems at host.<site>/redeem once per organisation and per host account (database rules, one transaction), pending societies hold the claim until approved, every unusable code gets one answer; migration 0025, D031; PublicCard +52 B gzip (50,981 to 51,033)
 - 2026-11-11 · F18 · 494f69d · Live previews: hosts see the real check-in page beside the Create event form and Details (theme strip, brand colour), people see their badge and card page while editing; same component and data function as the real pages, nothing saved or sent; the theme and brand colour now show on the check-in head; no migration; card page +1.1 KB gzip (49,911 to 50,979 B, about 200 B left)
