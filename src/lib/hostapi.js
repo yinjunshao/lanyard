@@ -2,6 +2,7 @@
 // app (and every public page) never loads it. Same-origin fetch on the host
 // site; auth is the host-only HTTP-only cookie.
 import { api } from "./api";
+import { clearAllDrafts } from "./eventdraft";
 
 export const HostApi = {
   signInStart: (email) => api("/api/host/auth/start", "POST", { email }),
@@ -55,6 +56,7 @@ export const HostApi = {
 // Ends the host session, then a full page load, so no half-finished screen or
 // stale state survives in memory.
 export async function hostSignOutAndReload(to = "/") {
+  clearAllDrafts(); // F30: a half-made event does not outlive the session
   await HostApi.logout();
   window.location.replace(to);
 }

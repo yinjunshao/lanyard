@@ -4,20 +4,18 @@
 // below), then events. The step shown is the one the server says, so a refresh
 // or another device resumes in the right place; Back only shows an earlier
 // saved step. Sign out is in the header on every step.
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { HostApi, hostSignOutAndReload } from "../lib/hostapi";
 import { MAIN_ORIGIN } from "../lib/site";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { pendingHostCode, clearPendingHostCode } from "../lib/hostredeem";
 import HostSetup from "../components/HostSetup.vue";
-import EventStepBasics from "../components/EventStepBasics.vue";
-import EventStepLook from "../components/EventStepLook.vue";
-import EventStepAtEvent from "../components/EventStepAtEvent.vue";
-import EventStepQuestions from "../components/EventStepQuestions.vue";
+import EventCreate from "../components/EventCreate.vue";
 import EventPreview from "../components/EventPreview.vue";
 import { createBody, eventFromBody } from "../lib/eventform";
 import { UiCombobox } from "../components/ui/UiSelect.vue";
-import { blankForm, submitPlan } from "../lib/eventsteps";
+import { blankForm, copyFacts, firstBadStep, formFromDraft, serverErrorField, stepFromQuery, submitPlan } from "../lib/eventsteps";
+import { clearDraft, loadDraft, saveDraft } from "../lib/eventdraft";
 
 // loading | email | code (signed out) | details | terms | org (setup) | ready
 const view = ref("loading");
@@ -28,7 +26,6 @@ const pendingTransfers = ref([]);
 const limits = ref({ freePerWeek: 0, freeLeftThisWeek: 0, checkinCap: 300 });
 const credits = ref({ granted: 0, used: 0, remaining: 0, nextExpiry: null });
 const events = ref([]);
-const creating = ref(false);
 const error = ref("");
 const busy = ref(false);
 const createdCode = ref(null);
@@ -47,13 +44,34 @@ async function signOut() {
 
 const f = ref(blankForm());
 const FROM_OPTIONS = computed(() => [{ value: "", label: "A blank event" }, ...events.value.map((e) => ({ value: e.id, label: `A copy of ${e.name}` }))]);
+
+// What an earlier event brings when "Start from" is used (F30). Read from the host's own live route and only
+// shown: Create still sends the name and times, and the server copies the rest.
+const source = ref(null);
+const sourceState = ref("ok"); // loading | error | ok
+let sourceSeq = 0;
+watch(() => f.value.from, async (id) => {
+  const mine = ++sourceSeq;
+  source.value = null;
+  if (!id) { sourceState.value = "ok"; return; }
+  sourceState.value = "loading";
+  try { const r = await HostApi.hostLive(id); if (mine === sourceSeq) { source.value = r; sourceState.value = "ok"; } }
+  catch { if (mine === sourceSeq) sourceState.value = "error"; }
+}, { immediate: true });
+const facts = computed(() => copyFacts(source.value));
+
 // What attendees will see, from the form (F18). An empty name shows a stand-in so the preview is not blank.
 const previewEvent = computed(() => {
-  const e = eventFromBody(createBody(f.value));
+  const s = f.value.from && source.value?.event;
+  const e = s
+    ? eventFromBody({ name: f.value.name.trim() || s.name, venue: s.venue, startsAt: f.value.startsAt, theme: s.theme, strapColor: s.strapColor,
+      perks: s.perks, directoryOn: s.directoryOn, info: s.info, feedbackOn: s.feedbackOn }, s.questions)
+    : eventFromBody(createBody(f.value));
   return e.name ? e : { ...e, name: "Your event name" };
 });
 
 const router = useRouter();
+const route = useRoute();
 onMounted(load);
 async function load() {
   error.value = "";
@@ -66,6 +84,7 @@ async function load() {
     if (d.limits) limits.value = d.limits;
     if (d.credits) credits.value = d.credits;
     events.value = d.events || [];
+    if (d.step === "ready") loadDraftOnce();
     view.value = d.step;
     if (location.pathname === "/signin") history.replaceState(null, "", "/");
     // Came here from a promo-code link before signing in (F20): carry on to it once setup is done.
@@ -140,21 +159,65 @@ async function declineTransfer(t) {
 const canCreate = computed(() => org.value?.status === "approved");
 const freeNow = computed(() => org.value?.type === "society" && limits.value.freeLeftThisWeek > 0);
 
+// ----- Create event in steps (F30) -----
+// The step is in the address (?step=N), so the browser's Back button moves between steps and a refresh
+// stays put. The half-made form is kept in this tab's session storage, keyed to this host and
+// organisation (lib/eventdraft.js); it is cleared on Create, Cancel and sign-out.
+const step = computed(() => stepFromQuery(route.query.step));
+const creating = computed(() => step.value > 0 && view.value === "ready" && canCreate.value);
+const fieldError = ref(null);
+const go = (n) => router.push({ query: { step: n } });
+const leave = () => router.replace({ path: route.path, query: {} });
+
+let draftFor = "";
+const draftIds = () => [account.value?.email, org.value?.id];
+function loadDraftOnce() {
+  const key = draftIds().join(":");
+  if (!org.value || draftFor === key) return;
+  draftFor = key;
+  const form = formFromDraft(loadDraft(...draftIds()));
+  if (form.from && !events.value.some((e) => e.id === form.from)) form.from = ""; // that event is gone
+  f.value = form;
+}
+const blank = JSON.stringify(blankForm());
+watch(f, (form) => {
+  if (!draftFor) return;
+  if (JSON.stringify(form) === blank) clearDraft(...draftIds()); else saveDraft(...draftIds(), form);
+}, { deep: true });
+function cancel() {
+  clearDraft(...draftIds());
+  f.value = blankForm();
+  fieldError.value = null;
+  error.value = "";
+  leave();
+}
+// Someone who reaches a later step without finishing an earlier one (a link, a lost draft) is sent to
+// the first step with a problem. (This is a convenience: the server checks everything again.)
+watch([step, view, canCreate], () => {
+  if (!step.value || view.value !== "ready") return;
+  if (!canCreate.value) { leave(); return; }
+  const bad = firstBadStep(step.value, f.value);
+  if (bad) router.replace({ query: { step: bad } });
+}, { immediate: true });
+
 async function create() {
   error.value = "";
+  fieldError.value = null;
   busy.value = true;
   try {
     // The same two requests the single form made (lib/eventsteps.js: submitPlan).
     const plan = submitPlan(f.value);
-    if (!plan.copy && !f.value.name.trim()) { error.value = "Event name is required."; return; }
     const res = plan.copy ? await HostApi.hostDuplicateEvent(plan.from, plan.body) : await HostApi.hostCreateEvent(plan.body);
     createdCode.value = res.code;
-    creating.value = false;
+    clearDraft(...draftIds());
     f.value = blankForm();
+    leave();
     await load();
   } catch (e) {
-    error.value = e.message;
-    if (e.code === "no_credits") error.value = e.message;
+    // A refusal that belongs to one field takes the host back to that field's step.
+    const hit = serverErrorField(e.message);
+    if (hit) { fieldError.value = { ...hit, message: e.message }; go(hit.step); }
+    else error.value = e.message;
   } finally {
     busy.value = false;
   }
@@ -265,26 +328,17 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
 
       <div class="spread">
         <span class="label">Your events</span>
-        <button class="btn" style="width:auto" :disabled="!canCreate" @click="creating = !creating">New event</button>
+        <button v-if="!creating" class="btn" style="width:auto" :disabled="!canCreate" @click="go(1)">New event</button>
       </div>
 
-      <EventPreview v-if="creating" v-model:theme="f.theme" v-model:strap-color="f.strapColor" :event="previewEvent" :off="!!f.from">
-      <div class="panel stack-2">
-        <h2>Create event</h2>
-        <EventStepBasics :form="f" :from-options="FROM_OPTIONS" :has-events="events.length > 0" />
-        <template v-if="!f.from">
-          <EventStepLook :form="f" />
-          <EventStepAtEvent :form="f" />
-          <EventStepQuestions :form="f" />
-        </template>
-        <p v-if="error" class="error-text">
-          {{ error }}
-          <router-link v-if="credits.remaining <= 0" to="/billing" style="text-decoration:underline">Buy credits</router-link>
-        </p>
-        <button class="btn btn-primary" :disabled="busy" @click="create">
-          {{ busy ? "Creating…" : (f.from ? "Create the copy" : "Create event") + (freeNow ? " (free this week)" : " (uses 1 credit)") }}
-        </button>
-      </div>
+      <EventPreview v-if="creating" v-model:theme="f.theme" v-model:strap-color="f.strapColor" :event="previewEvent"
+                    :sponsors="f.from ? (source?.sponsors || []) : []" :off="!!f.from && !source?.event" :strip="!f.from">
+        <EventCreate :form="f" :step="step" :from-options="FROM_OPTIONS" :has-events="events.length > 0" :facts="facts" :facts-state="sourceState"
+                     :busy="busy" :error="error" :server-error="fieldError" :needs-credits="!freeNow"
+                     :create-label="(f.from ? 'Create the copy' : 'Create event') + (freeNow ? ' (free this week)' : ' (uses 1 credit)')"
+                     @go="go" @create="create" @cancel="cancel">
+          <template #error-extra><router-link v-if="credits.remaining <= 0" to="/billing" style="text-decoration:underline">Buy credits</router-link></template>
+        </EventCreate>
       </EventPreview>
 
       <div v-if="createdCode" class="notice success-text">

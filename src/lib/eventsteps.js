@@ -8,11 +8,11 @@ import { createBody, THEME_OPTIONS } from "./eventform";
 
 // Basics, Look, At the event, Questions, Review. Step 3 also takes F31's "What this event collects".
 export const STEPS = [
-  { n: 1, key: "basics", name: "Basics" },
-  { n: 2, key: "look", name: "Look" },
-  { n: 3, key: "event", name: "At the event" },
-  { n: 4, key: "questions", name: "Questions" },
-  { n: 5, key: "review", name: "Review" },
+  { n: 1, key: "basics", name: "Basics", lead: "What is it called, and when?" },
+  { n: 2, key: "look", name: "Look", lead: "How should the check-in page look?" },
+  { n: 3, key: "event", name: "At the event", lead: "What will people find there?" },
+  { n: 4, key: "questions", name: "Questions", lead: "What do you want to ask?" },
+  { n: 5, key: "review", name: "Review", lead: "Check it, then create it" },
 ];
 export const LAST = STEPS.length;
 
@@ -119,4 +119,42 @@ export function copyFacts(s) {
       ["Sponsors", sp.join(", ") || "None"],
     ],
   };
+}
+
+// The Review step: every choice, grouped by the step it came from (each group has a Change link
+// back to that step). For a copy, the steps after Basics show what the earlier event brings.
+const when = (ms) => (ms ? new Date(ms).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Not set");
+const lines = (t) => String(t || "").split("\n").map((s) => s.trim()).filter(Boolean);
+export function reviewGroups(f, facts) {
+  const basics = [
+    ["Event name", f.name.trim() || (f.from ? "Same name as the earlier event" : "Not set")],
+    ["Starts", when(f.startsAt)],
+    ["Ends", when(f.endsAt)],
+  ];
+  if (f.from) {
+    const c = facts || {};
+    return [
+      { step: 1, title: "Basics", rows: [...basics, ...(c.basics || [["Venue", "Copied from the earlier event"]])] },
+      { step: 2, title: "Look", rows: c.look || [["Theme and colour", "Copied from the earlier event"]] },
+      { step: 3, title: "At the event", rows: c.event || [["Perks, notes and attendee room", "Copied from the earlier event"]] },
+      { step: 4, title: "Questions", rows: c.questions || [["Questions, feedback and sponsors", "Copied from the earlier event"]] },
+    ];
+  }
+  const perks = lines(f.perksText);
+  const own = (f.feedbackQuestions || []).filter((q) => String(q.label || "").trim());
+  return [
+    { step: 1, title: "Basics", rows: [...basics, ["Venue", f.venue.trim() || "None"]] },
+    { step: 2, title: "Look", rows: [["Theme", themeLabel(f.theme)], ["Brand colour", f.strapColor || "The theme colour"]] },
+    { step: 3, title: "At the event", rows: [
+      ["Perks", perks.join(", ") || "None"],
+      ["Access info", f.access.trim() || "None"],
+      ["Food and drink", f.food.trim() || "None"],
+      ["Sign-ups so far", f.rsvpCount === "" || f.rsvpCount === null ? "None" : String(f.rsvpCount)],
+      ["Attendee room", yes(f.directoryOn)],
+    ] },
+    { step: 4, title: "Questions", rows: [
+      ["Check-in questions", [f.q1, f.q2].map((s) => s.trim()).filter(Boolean).join(", ") || "None"],
+      ["Feedback after the event", f.feedbackOn ? (own.length ? `Asked, with ${own.length} of your own question${own.length === 1 ? "" : "s"}` : "Asked, with the three standard questions") : "Not asked"],
+    ] },
+  ];
 }

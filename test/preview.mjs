@@ -148,7 +148,7 @@ console.log("\n# The preview is inert, saves nothing and reads nothing (source g
   check("the dashboard sends the same body the preview reads (F30: through submitPlan, which returns createBody(f) for a new event)", /hostCreateEvent\(plan\.body\)/.test(dash) && /submitPlan\(f\.value\)/.test(dash) && /eventFromBody\(createBody\(f\.value\)\)/.test(dash) && /body: createBody\(f\)/.test(read("src/lib/eventsteps.js")));
   check("Details saves the same body the preview reads", /hostUpdateEvent\(id\.value, detailsBody\(d\.value\)\)/.test(live) && /eventFromBody\(detailsBody\(d\.value\)/.test(live));
   check("only host pages use the preview; the attendee pages and the entry do not know it", ["src/main.js", "src/App.vue", "src/router/index.js", "src/router/routes.attendee.js", "src/lib/store.js", "src/lib/api.js", "src/lib/profile.js", "src/components/Icon.vue", "src/views/EventJoin.vue", "src/views/PublicCard.vue"].every((f) => !/EventPreview|eventform/.test(read(f))));
-  check("a copy of an earlier event shows no preview (its questions are not known here), a new event does", /:off="!!f\.from"/.test(dash));
+  check("a copy of an earlier event shows its preview once its details are read (F30: from the host's own live route), a new event always does; the theme strip is off for a copy", /:off="!!f\.from && !source\?\.event"/.test(dash) && /:strip="!f\.from"/.test(dash) && /HostApi\.hostLive\(id\)/.test(dash));
   const n = T.q1("SELECT (SELECT COUNT(*) FROM events) AS e, (SELECT COUNT(*) FROM checkins) AS c, (SELECT COUNT(*) FROM connections) AS n");
   check("(sanity) only the real create route made events here, and nobody was checked in or connected", n.c === 0 && n.n === 0 && n.e === Object.keys(FORMS).length, n);
 }

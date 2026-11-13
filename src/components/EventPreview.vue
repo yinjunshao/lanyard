@@ -15,6 +15,8 @@ const props = defineProps({
   sponsors: { type: Array, default: () => [] },
   // Draw only the form (when there is nothing to preview, such as a copy of another event).
   off: { type: Boolean, default: false },
+  // The theme strip changes the form's theme and colour; a copy of an earlier event keeps its own, so it has none.
+  strip: { type: Boolean, default: true },
 });
 const theme = defineModel("theme", { type: String, default: "default" });
 const strap = defineModel("strapColor", { type: String, default: "" });
@@ -89,7 +91,7 @@ function onKey(e) {
             <EventPage :event="shown" :sponsors="sponsors" :form="form" :show-name="firstTime" :needs-agree="firstTime" />
           </div>
         </div>
-        <div class="pv-strip" role="group" aria-label="Theme">
+        <div v-if="strip" class="pv-strip" role="group" aria-label="Theme">
           <button v-for="t in THEMES" :key="t[0]" type="button" class="chip chip-toggle" :class="{ on: theme === t[0] }"
                   :aria-pressed="theme === t[0]" @click="theme = t[0]">{{ t[1] }}</button>
           <label class="pv-brand chip" :class="{ on: !!strap }">
