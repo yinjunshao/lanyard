@@ -4,7 +4,7 @@
 // the list. The search box is a WAI-ARIA combobox with list autocomplete: focus
 // stays in the box and the list is driven by aria-activedescendant.
 //
-//   options     [{ value, label, aliases?: [] }]
+//   options     [{ value, label, aliases?: [], suffix?: "" }]  (suffix is shown after the label, e.g. a country)
 //   v-model     the chosen option's value, or null when the text is custom or empty
 //   v-model:text  what the field shows: the option's label, or the custom text
 //   @select     { value, label, custom } whenever something is chosen
@@ -151,6 +151,7 @@ watch(() => props.options, () => { if (open.value) settle(false); });
               <template v-if="r.kind === 'custom'">{{ customLabel(typed) }}</template>
               <template v-else>
                 <template v-for="(p, j) in highlight(r.option.label, r.ranges)" :key="j"><mark v-if="p.hit">{{ p.text }}</mark><template v-else>{{ p.text }}</template></template>
+                <span v-if="r.option.suffix" class="muted">, {{ r.option.suffix }}</span>
                 <small v-if="r.via" class="muted ui-opt-via">{{ r.via }}</small>
               </template>
             </span>

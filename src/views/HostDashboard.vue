@@ -97,11 +97,11 @@ let institutionsLoading = false;
 function loadInstitutions() {
   if (institutionsLoading) return;
   institutionsLoading = true;
-  import("../data/institutions-uk.json")
-    .then((m) => { institutions.value = (m.default || m).institutions; })
+  import("../data/institutions.js")
+    .then((m) => { institutions.value = m.default.institutions; institutionOptions.value = m.default.options; })
     .catch(() => { institutionsLoading = false; });
 }
-const institutionOptions = computed(() => institutions.value.map((i) => ({ value: i.id, label: i.name, aliases: i.aliases })));
+const institutionOptions = ref([]);
 const customInstitution = (t) => `Not listed? Use ‘${t}’`;
 const kindInfo = computed(() => KINDS.find((k) => k.value === orgForm.value.kind));
 const needsApproval = computed(() => ["society", "institution"].includes(orgForm.value.kind));

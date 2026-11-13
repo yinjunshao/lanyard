@@ -1,9 +1,11 @@
-// F12: the institution list on the server side, to check ids and fill in the
-// official name. The same JSON the picker loads in the browser.
-import data from "../src/data/institutions-uk.json" with { type: "json" };
+// F12, F29: the institution list on the server side, to check ids and fill in the
+// official name. The same JSON files the picker loads in the browser (UK, US, world).
+import uk from "../src/data/institutions-uk.json" with { type: "json" };
+import us from "../src/data/institutions-us.json" with { type: "json" };
+import world from "../src/data/institutions-world.json" with { type: "json" };
+import { mergeInstitutions } from "../src/lib/institutionList.js";
 
-const byId = new Map(data.institutions.map((i) => [i.id, i]));
-
+const byId = new Map(mergeInstitutions([uk, us, world]).institutions.map((i) => [i.id, i]));
 /** The listed institution for an id, or null. */
 export const institutionById = (id) => (typeof id === "string" ? byId.get(id) || null : null);
 

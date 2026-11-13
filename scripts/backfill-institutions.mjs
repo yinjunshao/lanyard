@@ -17,7 +17,7 @@
 // There is no --remote. Production runs only with the owner's go-ahead: export
 // D1, run this on the copy, read the output, then ask for a remote option.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -81,7 +81,10 @@ async function run() {
   const local = args.includes("--local");
   if (args.includes("--remote")) { console.error("There is no --remote option. See the note at the top of this file."); process.exit(2); }
   if ((si < 0) === !local) { console.error("Use --sqlite <file> or --local, optionally with --apply."); process.exit(2); }
-  const list = JSON.parse(readFileSync(fileURLToPath(new URL("../src/data/institutions-uk.json", import.meta.url)), "utf8")).institutions;
+  // UK, US and world files together (F29). A name or short name that belongs to more than one institution matches none.
+  const dataDir = fileURLToPath(new URL("../src/data/", import.meta.url));
+  const list = readdirSync(dataDir).filter((n) => /^institutions-[a-z]+\.json$/.test(n)).sort()
+    .flatMap((n) => JSON.parse(readFileSync(join(dataDir, n), "utf8")).institutions);
 
   let read, write;
   if (si >= 0) {

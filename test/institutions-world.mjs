@@ -5,8 +5,11 @@
 // Run: node test/institutions-world.mjs
 import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { check, summary } from "./harness.mjs";
-import { slugify, mergeInstitutions, countryLabel, pickerOptions, isWebmail, institutionForDomain } from "../src/lib/institutions.js";
+import { check, summary, makeEnv } from "./harness.mjs";
+import { rankOptions } from "../src/lib/match.js";
+import { plan } from "../scripts/backfill-institutions.mjs";
+import { slugify, isWebmail, institutionForDomain } from "../src/lib/institutions.js";
+import { mergeInstitutions, countryLabel, pickerOptions } from "../src/lib/institutionList.js";
 
 const dir = new URL("../src/data/", import.meta.url);
 const names = readdirSync(dir).filter((n) => /^institutions-[a-z]+\.json$/.test(n)).sort();
@@ -79,6 +82,60 @@ console.log("\n# The world file");
   const W_PINNED = ["eth-zurich", "national-university-of-singapore", "university-of-toronto", "lincoln-university-nz"];
   check("a sample of world ids is pinned (Lincoln University exists in the US and NZ, so both have the country in the id)", W_PINNED.every((id) => w.some((i) => i.id === id)) && ids.includes("lincoln-university-us"));
   check("ETH and NUS are short names of the right institutions", w.find((i) => i.aliases.includes("ETH"))?.id === "eth-zurich" && w.find((i) => i.aliases.includes("NUS"))?.id === "national-university-of-singapore");
+}
+
+console.log("\n# The picker finds them");
+{
+  const options = pickerOptions(all, countryNames);
+  const top = (q) => { const r = rankOptions(options, q)[0]?.option; return r ? r.value : null; };
+  check("MIT finds Massachusetts Institute of Technology first", top("MIT") === "massachusetts-institute-of-technology", top("MIT"));
+  check("Stanford finds Stanford University first", top("Stanford") === "stanford-university", top("Stanford"));
+  check("UCLA finds the Los Angeles campus first", top("UCLA") === "university-of-california-los-angeles", top("UCLA"));
+  check("Toronto finds the University of Toronto first", top("Toronto") === "university-of-toronto", top("Toronto"));
+  check("ETH finds ETH Zurich first", top("ETH") === "eth-zurich", top("ETH"));
+  check("NUS finds the National University of Singapore first", top("NUS") === "national-university-of-singapore", top("NUS"));
+  check("accents do not matter (zurich, montreal, bogazici)", top("zurich") === "eth-zurich" || rankOptions(options, "zurich").some((r) => r.option.value === "eth-zurich"));
+  check("Montreal finds the Université de Montréal", rankOptions(options, "montreal").some((r) => r.option.value === "universite-de-montreal"));
+  const by = (id) => options.find((o) => o.value === id);
+  check("the country is shown for a non-UK institution and not for a UK one", by("university-of-toronto").suffix === "Canada" && by("stanford-university").suffix === "United States" && by("university-of-oxford").suffix === "");
+  check("both Lincoln Universities are listed and told apart by country", by("lincoln-university-us").suffix === "United States" && by("lincoln-university-nz").suffix === "New Zealand");
+  check("a UK short name still works (UCL)", top("ucl") === "university-college-london", top("ucl"));
+}
+
+console.log("\n# Email domains suggest an institution");
+{
+  const at = (d) => institutionForDomain(all, d)?.id;
+  check(".edu, a Canadian, a Swiss and a UK domain each find their institution", at("stanford.edu") === "stanford-university" && at("student.utoronto.ca") === "university-of-toronto" && at("student.ethz.ch") === "eth-zurich" && at("ucl.ac.uk") === "university-college-london", [at("stanford.edu"), at("student.utoronto.ca"), at("student.ethz.ch")]);
+  check("a lookalike or webmail domain finds nothing", at("notstanford.edu") === undefined && at("gmail.com") === undefined && at("stanford.edu.example.com") === undefined);
+}
+
+console.log("\n# The backfill matches against all the files");
+{
+  const rows = { profiles: [{ k: "1", text: "MIT" }, { k: "2", text: "uk" }, { k: "3", text: "ETH Zurich" }, { k: "4", text: "Lincoln University" }, { k: "5", text: "University of Oxford" }, { k: "6", text: "Oxford" }, { k: "7", text: "Nowhere College" }], orgs: [] };
+  const r = plan(rows, all).profiles;
+  const m = Object.fromEntries(r.updates.map((u) => [u.k, u.id]));
+  check("a US name or short name, a world name, and a UK name are matched", m["1"] === "massachusetts-institute-of-technology" && m["3"] === "eth-zurich" && m["5"] === "university-of-oxford" && m["6"] === "university-of-oxford", m);
+  check("a name that belongs to two institutions is left alone, with unknown text", !m["4"] && !m["7"] && r.unmatched.some(([t]) => t === "Lincoln University"));
+}
+
+console.log("\n# The Worker accepts the new ids");
+{
+  const T = await makeEnv();
+  const { client, q1 } = T;
+  const signup = async (name, ip, extra) => { const c = client({ ip }); const r = await c.post("/api/profile", { name, acceptTerms: true, over18: true, ...extra }); const me = await c.get("/api/me"); return { c, r, id: me.json.user?.id, me: me.json }; };
+  const row = (id) => q1("SELECT uni, institution_id FROM profiles WHERE user_id = ?", id);
+  const us = await signup("Una", "10.29.0.1", { institutionId: "stanford-university", uni: "ignored" });
+  check("a US id is saved and uni becomes the official name", us.r.status === 201 && row(us.id).institution_id === "stanford-university" && row(us.id).uni === "Stanford University", row(us.id));
+  const w = await signup("Wim", "10.29.0.2", { institutionId: "eth-zurich" });
+  check("a world id is saved too", w.r.status === 201 && row(w.id).institution_id === "eth-zurich" && row(w.id).uni === "ETH Zurich", row(w.id));
+  const uk = await signup("Uki", "10.29.0.3", { institutionId: "university-of-oxford" });
+  check("a UK id from before still saves unchanged", uk.r.status === 201 && row(uk.id).institution_id === "university-of-oxford" && row(uk.id).uni === "University of Oxford" && uk.me.profile.institution_id === "university-of-oxford", row(uk.id));
+  const nz = await signup("Nia", "10.29.0.4", { institutionId: "lincoln-university-nz" });
+  check("the same-name institutions keep their own ids", nz.r.status === 201 && row(nz.id).institution_id === "lincoln-university-nz" && row(nz.id).uni === "Lincoln University");
+  const bad = await signup("Bad", "10.29.0.5", { institutionId: "lincoln-university" });
+  check("an id that is not on any list is still refused", bad.r.status === 400);
+  const free = await signup("Fre", "10.29.0.6", { uni: "Some Place Not Listed" });
+  check("free text still saves as typed with no id", free.r.status === 201 && row(free.id).uni === "Some Place Not Listed" && row(free.id).institution_id === null);
 }
 
 summary();

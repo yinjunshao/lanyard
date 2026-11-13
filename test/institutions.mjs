@@ -134,12 +134,15 @@ console.log("\n# Source guards");
   const walk = (d, out = []) => { for (const n of readdirSync(d)) { const f = d + "/" + n; if (statSync(f).isDirectory()) walk(f, out); else out.push(f); } return out; };
   const src = walk(fileURLToPath(new URL("../src", import.meta.url))).map((f) => f.split(sep).join("/")).filter((f) => /\.(vue|js)$/.test(f));
   const read = (f) => readFileSync(f, "utf8");
-  const importers = src.filter((f) => /institutions-[a-z]+\.json/.test(read(f))).map((f) => f.split("/").pop());
+  // F29: the three data files are put together in src/data/institutions.js, the one module the pickers fetch.
   // F14 moved the picker out of EditProfile.vue into the shared ModeFields.vue, which Edit profile and the welcome steps both use.
-  check("only the shared mode fields and the host dashboard name the data file", importers.sort().join() === "HostDashboard.vue,ModeFields.vue", importers);
+  const importers = src.filter((f) => /institutions-[a-z]+\.json/.test(read(f))).map((f) => f.split("/").pop());
+  check("only the combined data module names the data files", importers.join() === "institutions.js", importers);
+  const fetchers = src.filter((f) => /data\/institutions\.js"/.test(read(f))).map((f) => f.split("/").pop());
+  check("only the shared mode fields and the host dashboard fetch that module", fetchers.sort().join() === "HostDashboard.vue,ModeFields.vue", fetchers);
   check("each fetches it with a plain import(), never a static import or defineAsyncComponent", src.filter((f) => /(ModeFields|HostDashboard)\.vue$/.test(f)).every((f) => {
     const t = read(f);
-    return /import\("\.\.\/data\/institutions-uk\.json"\)/.test(t) && !/^import .*institutions-[a-z]+\.json/m.test(t) && !/defineAsyncComponent/.test(t);
+    return /import\("\.\.\/data\/institutions\.js"\)/.test(t) && !/^import .*data\/institutions\.js/m.test(t) && !/defineAsyncComponent/.test(t);
   }));
   const combo = read(src.find((f) => /UiCombobox\.vue$/.test(f)));
   check("the list is fetched when the picker opens (UiCombobox emits open)", /emit\("open"\)/.test(combo));

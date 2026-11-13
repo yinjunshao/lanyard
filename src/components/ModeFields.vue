@@ -7,7 +7,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { me } from "../lib/store";
 import { UiCombobox } from "./ui/UiSelect.vue";
-import { institutionForDomain } from "../lib/institutions";
+import { institutionForDomain, isWebmail } from "../lib/institutions";
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -32,11 +32,11 @@ let institutionsLoading = false;
 function loadInstitutions() {
   if (institutionsLoading) return;
   institutionsLoading = true;
-  import("../data/institutions-uk.json")
-    .then((m) => { institutions.value = (m.default || m).institutions; })
+  import("../data/institutions.js")
+    .then((m) => { institutions.value = m.default.institutions; institutionOptions.value = m.default.options; })
     .catch(() => { institutionsLoading = false; });
 }
-const institutionOptions = computed(() => institutions.value.map((i) => ({ value: i.id, label: i.name, aliases: i.aliases })));
+const institutionOptions = ref([]);
 const customInstitution = (t) => `Not listed? Use ‘${t}’`;
 // "Looks like you're at ..." from the domain of the account's verified email.
 const emailDomain = computed(() => me.user?.emailDomain || "");
@@ -49,7 +49,8 @@ function useSuggestion() {
   props.form.institutionId = inst.id;
   props.form.uni = inst.name;
 }
-onMounted(() => { if (/(^|\.)ac\.uk$/i.test(emailDomain.value)) loadInstitutions(); });
+// Fetch the list at once when the verified email is not webmail (a university or work address), so the suggestion can show.
+onMounted(() => { if (emailDomain.value && !isWebmail(emailDomain.value)) loadInstitutions(); });
 </script>
 
 <template>
