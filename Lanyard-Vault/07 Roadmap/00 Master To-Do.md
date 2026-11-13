@@ -96,7 +96,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F29** [[F29 US and world universities]] · P1 · M · Needs: F12 (done 2026-11-13, last commit 8da020e)
 - [x] **F30** [[F30 Create event in steps]] · P1 · M · Needs: F08, F18 (done 2026-11-13, last commit da292ec; built on F10 as it stands, with the owner's say-so)
 - [x] **F31** [[F31 Named attendance with check-in notice]] · P1 · L · Needs: F10, F15, F30 (narrows [[D004 Aggregate-only host analytics]] by owner decision; check-in ticks pre-ticked by owner decision, 2026-11-13) (done 2026-11-13, last commit 2be21ea; built on F10 as it stands, with the owner's say-so)
-- [ ] **F32** [[F32 Drops for codes, keys and vouchers]] · P1 · L · Needs: F10, F15, F31
+- [ ] **F32** [[F32 Drops for codes, keys and vouchers]] · P1 · L · Needs: F10, F15, F31 (in progress: Claude subagent, 2026-11-13)
 
 ## Dependency map
 ```mermaid

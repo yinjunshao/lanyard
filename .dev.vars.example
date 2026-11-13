@@ -12,3 +12,8 @@ RESEND_ACCOUNTS_KEY=re_your_accounts_key
 RESEND_DECISIONS_KEY=re_your_decisions_key
 # AI (F21). Local development never needs the key: AI_STUB=1 in wrangler.toml answers with a canned reply.
 # Other AI settings (AI_ENABLED, AI_MODEL, AI_GATEWAY_URL, budgets, prices) are plain vars, see worker/ai/config.js.
+
+# Encrypts the items hosts paste into Drops (F32: API keys, codes, Wi-Fi passwords) at rest, and keys the staff PINs of vouchers.
+# At least 16 characters; without it Drops refuse to store anything. Production: wrangler secret put DROP_KEY
+# (a long random string; changing it later makes stored items unreadable, so unused lists must be loaded again).
+DROP_KEY=pick_a_long_random_string_for_drops

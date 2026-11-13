@@ -4,7 +4,7 @@ id: F32
 priority: P1
 phase: 6
 size: L
-status: Not started
+status: In progress
 needs: [F10, F15, F31]
 ---
 # F32 Drops for codes, keys and vouchers
@@ -46,7 +46,8 @@ A host adds a **drop** to an event: a title ("API credit", "Wi-Fi password", "Lu
 - Retention: given items and the unused list are deleted a set time after the event ends (propose, for example, 30 days as an owner decision), and by the F10 reset script.
 
 ## Tasks
-- [ ] F32.1 Migration and encryption helper; tests for encryption, one-each assignment under concurrent requests, and never giving the same item twice.
+- [x] F32.1 Migration and encryption helper; tests for encryption, one-each assignment under concurrent requests, and never giving the same item twice.
+  - `migrations/0029_drops.sql` (additive: five tables, one trigger, nothing existing touched; `drops`, `drop_items`, `drop_gives`, `voucher_uses`, `drop_audit`). `worker/dropcrypto.js`: AES-256-GCM, a random IV per item, a key derived (HKDF) from the Worker secret `DROP_KEY`, the drop id and item id bound in as additional data, and it fails closed (no key, a short key or a wrong key throws one clear 503 and returns or stores nothing; unlike `totp.js` it never falls back to plain text). `worker/drops.js`: reading a pasted list (by line number in errors, never by value), `createDrop` (checks and seals everything first, removes the drop if writing fails halfway) and `revealItem` (the one conditional INSERT that gives an item, a unique constraint on one give per person per drop and one per exclusive item as the second lock, and a key check that refuses before an item is used up). `test/drops.mjs` is new and wired into `npm test` before the budget check; `DROP_KEY` is in `.dev.vars.example`.
 - [ ] F32.2 Host side: create a drop of each kind, upload a list, see counts, stop, download unused, delete, revoke.
 - [ ] F32.3 Attendee side: "For you" in the event hub, reveal, copy, voucher screen.
 - [ ] F32.4 Voucher use by staff, recorded once.
