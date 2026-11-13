@@ -439,7 +439,7 @@ console.log("\n# What is kept, who sees it, and the files");
   check("the asker's own data download includes the kept search replies (the asker's own data) and nothing of anybody's ids", exp.status === 200 && Array.isArray(exp.json.ai?.replies), Object.keys(exp.json.ai || {}));
   check("the download holds opaque ids and checked quotes, not user ids or emails", !JSON.stringify(exp.json.ai.replies).includes(B.id) && !/@secret|@evil/.test(JSON.stringify(exp.json.ai.replies)));
   const rows = q("SELECT feature, COUNT(*) n FROM ai_cache GROUP BY feature").filter((r) => r.feature === "people_search");
-  check("a search keeps only a checked reply in the existing 7-day cache (no new table)", rows.length <= 1 && readdirSync(new URL("../migrations", import.meta.url)).filter((f) => f.endsWith(".sql")).sort().at(-1) <= "0027_feedback_summaries.sql");
+  check("a search keeps only a checked reply in the existing 7-day cache (no new table)", rows.length <= 1 && readdirSync(new URL("../migrations", import.meta.url)).filter((f) => f.endsWith(".sql") && f > "0027_feedback_summaries.sql").every((f) => f === "0028_named_attendance.sql" && !/ai_w+/.test(readFileSync(new URL("../migrations/" + f, import.meta.url), "utf8"))));
   const host = client({ ip: "10.24.251.1", site: "host" });
   check("the host site has no such route", (await host.post("/api/ai/people-search", { query: "climate" })).status >= 400 && (await host.get("/api/ai/people-search")).status >= 400);
   const ps = read("worker/ai/peopleSearch.js");

@@ -4,7 +4,7 @@ id: F31
 priority: P1
 phase: 6
 size: L
-status: Not started
+status: In progress
 needs: [F10, F15, F30]
 ---
 # F31 Named attendance with check-in notice
@@ -41,7 +41,8 @@ Asked whether pre-ticked boxes are acceptable, given ICO guidance that a pre-tic
 - Privacy Policy: a section on named attendance, what organisers receive, how to opt out and how long they keep it. Do not bump the Terms version; flag it.
 
 ## Tasks
-- [ ] F31.1 Migration: per-event collection settings and per-person choices; the decision note narrowing D004.
+- [x] F31.1 Migration: per-event collection settings and per-person choices; the decision note narrowing D004.
+  - `migrations/0028_named_attendance.sql`: three columns on `events` (`collect_attendance`, `collect_items`, `collect_why`, all off or empty), the table `event_attendees` (one row per person who is on an event's list, holding the extra items they left ticked and the wording version) and two nullable columns on `consent_log` (`wording`, `version`). Additive only. [[D038 Named attendance is per event, shown on the check-in page and pre-ticked by the owner's choice]] narrows D004 and is linked from it. `test/named-attendance.mjs` is new and wired into `npm test` before the budget check; `test/fixtures/` holds what an event with named attendance off returned before F31 (field paths and the check-in page's markup), which later tasks compare against.
 - [ ] F31.2 Host settings for what the event collects (create step and Details tab), with validation.
 - [ ] F31.3 Check-in page notice with pre-ticked items; choices recorded.
 - [ ] F31.4 Host attendees list, CSV and export; retention purge; reset script.
