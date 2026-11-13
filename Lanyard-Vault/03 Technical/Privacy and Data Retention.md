@@ -7,7 +7,7 @@ Not legal advice; a checklist from ICO guidance to be reviewed by a lawyer or UC
 
 ## Roles
 - Lanyard is **controller** for profiles and connections.
-- Current Terms make Lanyard the sole controller of check-ins; hosts get aggregates only. If named exports or sponsor lead lists are added, roles change and a host DPA / sponsor agreement is needed. See [[UK GDPR Audit 2026-11-01]].
+- Current Terms make Lanyard the controller of check-ins; hosts get aggregates only, except an event's own named list (F31): the organiser decides why that list is kept, so it is a controller for its own copy and Lanyard holds the data for it. The roles, and what the Host Terms must say, need a lawyer before launch ([[D038 Named attendance is per event, shown on the check-in page and pre-ticked by the owner's choice]]). If named exports or sponsor lead lists are added, roles change and a host DPA / sponsor agreement is needed. See [[UK GDPR Audit 2026-11-01]].
 - Register with the ICO and pay the data protection fee (**TODO**).
 
 ## Lawful basis
@@ -16,6 +16,8 @@ Not legal advice; a checklist from ICO guidance to be reviewed by a lawyer or UC
 | Account and profile | Contract |
 | Shared selfie | Consent from both people, deletable by either |
 | Event check-in | Consent / legitimate interest |
+| Organiser's list of who checked in: name and check-in time (F31) | Legitimate interests (assessment in [[UK GDPR Audit 2026-11-01]]); the untick, at check-in or later, is the objection route |
+| Organiser's list: the person's verified email and card (F31) | **Not settled.** Built pre-ticked at the owner's request; a pre-ticked box is not valid consent under UK GDPR, so these need another basis or a lawyer's review before launch |
 | Event presence: face photo, line and wish (F17) | Consent, separate per event, off by default, withdrawable at once |
 | Details shared with a sponsor | Consent, separate per sponsor, never pre-ticked |
 | Marketing email | Consent, separate unticked box |
@@ -62,6 +64,19 @@ A connection records how the first scan happened (QR code, typed code or shared 
 - **Rules:** nothing runs on page load or typing; a person reads every result; nothing is sent for them; no tools, so a prompt injection can at most change a suggestion for the person asking.
 - Privacy Policy: section 8c, rows in the data and retention tables, the provider line in section 4 and the legitimate-interests bullet. **The Terms and Privacy version was not bumped**; owner decision.
 
+## Named attendance (F31)
+- **What:** an organiser may switch on, for one event, a list of the people who checked in ([[D038 Named attendance is per event, shown on the check-in page and pre-ticked by the owner's choice]]). The check-in page then shows "This event collects" above the Check in button: the organiser's name, their required "why" line and one full-width row per item, every box ticked to start with. The attendance list item puts the person's name and check-in time on the list; the host may also ask for the person's verified email and for what their default card shows (headline, the line under the name, the links). Nothing else can be enabled: the list of items is fixed in code.
+- **Pre-ticked, by the owner's decision (2026-11-13).** The owner was told that ICO guidance says a pre-ticked box is not valid consent and chose this anyway. For the attendance list the basis is legitimate interests, with the untick as the objection route. For the email and card items it is not settled: see the warning below and the audit note.
+- **What is recorded:** each item the person was shown, as `granted`, `refused` or `withdrawn`, in `consent_log` with the exact wording (the label, the organiser's name and the why line) and the wording's version. Only an explicit `true` counts: a missing value, a request with no choices or an old page never puts anyone on a list. The person's row in `event_attendees` exists only while the attendance tick stands.
+- **Who sees it:** only the event's own organisation, on the host site, with a signed-in host account: the list (name, check-in time and only the extras each person left ticked) and its CSV. The live counts, the report, its CSV, the Present page, the poster, the webhook and the admin pages stay aggregate. A host never sees anything for an event with the list off, for someone who unticked, or for an email that was never verified.
+- **Changing your mind:** event hub, "Your choices at this event", and Settings, Privacy and data. Unticking deletes the row; the host's next request no longer shows the person. Each change is in the consent history.
+- **Retention:** proposed 12 months after the event ends (owner to confirm), as the default in the daily purge; sooner on an untick, account deletion, the host switching the list off, or the host reset. A copy a host has downloaded is the host's to look after. The consent record stays 6 years like the others.
+- **Data downloads:** a person's has `namedAttendance` (lists they are on, every choice with its wording and version); a host's has `attendeeLists` with each CSV. Each key is present only when there is something in it.
+- **Policy:** Privacy Policy section 8d and rows in the data, retention, lawful-basis and "who sees your data" parts; the Terms say what they now allow and what a host must do. **The Terms and Privacy version was not bumped** (`2026-11-11`); this is a material change and the owner should decide on a bump.
+
+> [!warning] A pre-ticked box is not valid consent under UK GDPR
+> The email and card items rest on nothing yet. They are built pre-ticked as the owner asked. Before launch they need another lawful basis or a lawyer's review; until then the safest use is to leave those two items off. The Privacy Policy (8d) carries a bracketed operator note to the same effect.
+
 ## Events tab and event hub (F15)
 Nothing new is stored. The hub shows a person only their own connections at that event (the same name, subtitle fields, photo, how you met and time they already see on People) and, when the host has the room on, how many other people chose to be in it (a number, never names). It does not show who anyone else connected with, and the data export and account deletion are unchanged because no new row exists. Hosts get no new field: `worker/myevents.js` is attendee-only and `test/provenance.mjs` still treats `worker/events.js` as host-facing code that must never read `via`. When an event has been deleted (the F10 host reset) its connections stay in People without the event name and its hub is a plain 404.
 
@@ -73,6 +88,7 @@ Nothing new is stored. The hub shows a person only their own connections at that
 ## Retention (implemented in `worker/purge.js`)
 - Selfies: 12 months. Feedback text: 12 months.
 - Event presence (F17): at once on withdrawal, otherwise 48 hours after the event ends.
+- A host's list of who checked in (F31): at once on an untick, when the host switches it off or the account is deleted; otherwise 12 months after the event ends (proposed, owner to confirm). The consent record of each choice is kept 6 years.
 - Inactive guests: 30 days. Expired codes and sessions: daily purge.
 - Consent records: 6 years.
 - Welcome-step counts: 400 days (no personal data).

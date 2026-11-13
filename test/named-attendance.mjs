@@ -539,6 +539,26 @@ console.log("\n# F31.5 Unticking later takes a person off the host's list on the
   check("no shared file knows about any of it (api.js, store.js, profile.js, Icon, Badge, CardView, the entry, either router table)", ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/App.vue", "src/router/index.js", "src/router/routes.attendee.js", "src/router/routes.host.js"].every((f) => !/attendance|collects|HostAttendees|EventCollects|named attendance/i.test(src(f))));
 }
 
+console.log("\n# F31.6 The policy, the words, and the files (source guards)");
+{
+  const pol = read("src/views/Privacy.vue"), terms = read("src/views/Terms.vue");
+  check("the Privacy Policy has a named-attendance section: what organisers receive, the basis, how to untick or withdraw later, how long it is kept", /<h2>8d\. An organiser's list of who checked in<\/h2>/.test(pol) && /What the organiser receives/.test(pol) && /Our basis/.test(pol) && /Changing your mind/.test(pol) && /Your choices at this event/.test(pol) && /12 months after the event ends/.test(pol));
+  check("it is in the data table, the lawful bases, the 'who sees your data' list and the retention table", /<tr><td>Users who check in to an event whose organiser keeps a list<\/td>/.test(pol) && /an event organiser's list of who came/.test(pol) && /except at an event whose organiser has switched on a list/.test(pol) && /<tr><td>An organiser's list of who checked in, and what you share on it<\/td>/.test(pol));
+  check("it says plainly that the email and card items are pre-ticked and need a lawful basis confirmed before launch (an operator note)", /\[Operator: [^\]]*pre-ticked[^\]]*not valid consent[^\]]*lawyer[^\]]*\]/.test(pol));
+  check("the Terms say what they now allow (a list, with the untick) and ask hosts to look after what they hold; the Terms version is NOT bumped (owner decision)", /keep a list of who came/.test(terms) && /take someone off at once if they ask/.test(terms) && /TERMS_VERSION = "2026-11-11"/.test(read("worker/legal.js")));
+  const all = ["src/lib/collects.js", "src/components/EventCollects.vue", "src/components/HostAttendees.vue", "src/components/EventAttendanceChoices.vue", "src/views/settings/AttendanceSetting.vue", "worker/attendance.js", "worker/attendanceApp.js"].map(read).join("\n");
+  check("no emoji and no hard-coded colour in anything new (Design System: tokens only)", !/\p{Extended_Pictographic}/u.test(all) && !/#[0-9a-f]{3,8}\b/i.test(all.replace(/&#\d+;/g, "")));
+  check("nothing new uses v-html or innerHTML: every word from a host is shown as text", !/v-html|innerHTML|insertAdjacentHTML/.test(all + read("src/components/EventPage.vue")));
+  check("collects.js has no imports (the Worker, the page and the host form all read it), and no new route or lazy chunk was added: no import() or defineAsyncComponent in the new files", !/^import /m.test(read("src/lib/collects.js")) && !/\bimport\(|defineAsyncComponent/.test(all) && !/attendan|collect/i.test(read("src/router/routes.host.js") + read("src/router/routes.attendee.js") + read("src/views/HostEvent.vue")));
+  check("the new host screens ride in the existing host event chunk: HostLive imports HostAttendees and EventCollects statically", /import HostAttendees from/.test(read("src/views/HostLive.vue")) && /import EventCollects from/.test(read("src/views/HostLive.vue")));
+  check("the check-in page notice is part of EventPage (the check-in page's own chunk), not a shared file", /data-collects/.test(read("src/components/EventPage.vue")));
+  const c = read("src/lib/collects.js");
+  check("the wording of each item and the version are in one place", /NOTICE_VERSION = "2026-11-13"/.test(c) && /Your name and check-in time, on a list the organisers keep of who came/.test(c) && /Your email address, so the organisers can contact you after the event/.test(c) && /Your card, shared with the organisers/.test(c));
+  check("only the host event page and the host API file name the host list route", ["worker/events.js", "worker/myevents.js", "worker/host-auth.js"].every((f) => !/hostAttendees|attendees\.csv/.test(read(f))) && /hostAttendees/.test(read("worker/hosts.js")));
+  check("worker/hosts.js itself reads no attendee table (the list is read in attendance.js, which hosts.js calls): the host-code guards in hostsecurity.mjs still hold", !/\b(FROM|JOIN)\s+(users|consents|cards)\b/i.test(read("worker/hosts.js")) && read("worker/hosts.js").match(/event_attendees/g).length === 1);
+  check("the Worker only reads an attendee's email through the list's CASE, never a plain column select for the host", /CASE WHEN \?2 = 1 AND ea\.items LIKE '%"email"%' AND u\.email_verified = 1 THEN u\.recovery_email END/.test(read("worker/attendance.js")) && (read("worker/attendance.js").match(/recovery_email/g) || []).length === 1);
+}
+
 // ---------- last: these run the clock years ahead, which also expires every host session ----------
 {
   // The 12-month rule on a simulated clock (the same end rule as the event's status).

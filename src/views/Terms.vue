@@ -82,7 +82,8 @@ const UPDATED = "11 November 2026";
       Events are run by hosts, not by us. Joining an event means you check in with a card, and you may be asked
       optional questions and optional choices (for example, appearing in the event's attendee directory or sharing
       details with a named sponsor). Those choices are separate and optional, are never pre-ticked, and you can change
-      them. Hosts only receive anonymous totals about their event; they are not told who connected with whom.
+      them. Hosts only receive anonymous totals about their event; they are not told who connected with whom. The one exception is an
+      event whose host tells you on the check-in page that they keep a list of who came: you can untick it there or later, and the Privacy Policy says what they receive.
      After an event you may be asked for optional, anonymous feedback, which goes to the
       host as totals only.
     </p>
@@ -181,6 +182,7 @@ const UPDATED = "11 November 2026";
     <h3>18a. Feedback forms and integrations</h3>
     <ul>
       <li>You may add up to five of your own feedback questions. They must not ask for health, religion, ethnicity, sexuality, politics or other special category data, or for anything that would identify the person answering.</li>
+      <li>If you switch on a list of who checked in, you hold those names (and any email addresses or cards people chose to share) only for the reason you wrote on the check-in page. Keep them safe, do not pass them on or use them for anything else, delete your copies when you are done, and take someone off at once if they ask. We delete the list 12 months after the event ends.</li>
       <li>You receive feedback only as anonymous totals, and written answers only once enough people have answered. Do not try to work out who wrote an answer.</li>
       <li>If you connect a webhook or use an API key, keep the secret and key private and tell us if either leaks. You are responsible for the services you connect and for what they do with the totals we send. Send us counts only, never attendee names or emails.</li>
     </ul>

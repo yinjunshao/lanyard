@@ -6,7 +6,7 @@ const ADDRESS = "WC1E 6BT";
 import { HELP_EMAIL, LEGAL_EMAIL } from "../lib/contact";
 const CONTACT = LEGAL_EMAIL;
 const HELP = HELP_EMAIL;
-const UPDATED = "11 November 2026";
+const UPDATED = "13 November 2026";
 </script>
 
 <template>
@@ -40,6 +40,7 @@ const UPDATED = "11 November 2026";
         <tr><td>Users</td><td>Reports you make about another person (the reason you write) and people you block</td><td>To keep people safe and keep blocks working; only our admin can read reports</td></tr>
         <tr><td>Everyone</td><td>IP address and basic request data, kept briefly in rate-limit counters and security logs</td><td>To stop abuse and guessing of codes</td></tr>
         <tr><td>Hosts</td><td>Your full name and email, your answers to the sign-up questions, organisation name and type, for societies and institutions the leader's name, the society or institution link and university, billing email, ownership transfers and support tickets, team members and roles, events you create, credits and invoice requests</td><td>To run the host portal and bill you</td></tr>
+        <tr><td>Users who check in to an event whose organiser keeps a list</td><td>Your name and check-in time on the organiser's list of who came, and, only if you leave those ticks on, your verified email address and what your card shows (headline, the line under your name and its links). What you chose, and the words you were shown, are kept in your consent history</td><td>So the organiser knows who came and can follow up for that event; see section 8d</td></tr>
         <tr><td>Hosts</td><td>Integration settings: a webhook address and its signing secret, and a one-way hash of your API key; sign-up counts you send us</td><td>To connect Lanyard to your other tools</td></tr>
       </tbody>
     </table>
@@ -52,14 +53,14 @@ const UPDATED = "11 November 2026";
     <ul>
       <li><b>Contract</b>: running your account, card, connections and events, which you asked us to provide.</li>
       <li><b>Consent</b>: news and offers by email (a separate tick box, off by default), shared selfies, appearing in an event directory, being easy to find at an event (your face photo, line and wish), and sharing details with a named sponsor. You can withdraw these at any time and it is as easy to withdraw as to give.</li>
-      <li><b>Legitimate interests</b>: keeping the service secure, preventing abuse, counting usage in aggregate, and letting people you have connected with find you using AI search from what you already show them (you can switch this off at any time in Settings). We weigh this against your rights and you can object.</li>
+      <li><b>Legitimate interests</b>: keeping the service secure, preventing abuse, counting usage in aggregate, letting people you have connected with find you using AI search from what you already show them (you can switch this off at any time in Settings), and an event organiser's list of who came, where the organiser has switched it on and told you on the check-in page (section 8d; you can untick it there or later). We weigh this against your rights and you can object.</li>
       <li><b>Legal obligation</b>: keeping financial records, and responding to lawful requests.</li>
     </ul>
 
     <h2>4. Who sees your data</h2>
     <ul>
       <li><b>Other users</b> see what is on the card you share, and what you choose to show in a connection.</li>
-      <li><b>Hosts</b> only receive anonymous, aggregated figures about their events. They are not told who attended by name or who connected with whom. Feedback reaches them only as totals once at least 3 people have answered, and written answers only once at least 5 have, without names. Sponsors only receive details you opted in to share with that named sponsor.</li>
+      <li><b>Hosts</b> only receive anonymous, aggregated figures about their events. They are not told who attended by name or who connected with whom, except at an event whose organiser has switched on a list of who checked in: they then see the name and check-in time of the people who left that tick on, and the email address and card of those who also left those ticked (section 8d). Feedback reaches them only as totals once at least 3 people have answered, and written answers only once at least 5 have, without names. Sponsors only receive details you opted in to share with that named sponsor.</li>
       <li><b>Our service providers</b> process data for us under contract. Today that is Cloudflare, which hosts the app, database and image storage. Resend sends our emails (sign-in codes, account and host application messages, and news if you opt in), so your email address and the message go to them. If we add payments or other providers, we will name them here first.</li>
       <li><b>AI providers</b>, only when AI features are on: Anthropic provides the AI model and Cloudflare AI Gateway carries the request. See section 8c.</li>
       <li><b>Hosts' own tools</b>: if a host connects a webhook, we send it the same anonymous event totals they see in their report, never personal data.</li>
@@ -79,6 +80,7 @@ const UPDATED = "11 November 2026";
       <tbody>
         <tr><td>Profile, card, connections, notes</td><td>Until you delete them or your account</td></tr>
         <tr><td>Shared selfies</td><td>7 days if the other person has not accepted it, then deleted. Once accepted, until either person removes it or the connection, and no more than 12 months after it was taken</td></tr>
+        <tr><td>An organiser's list of who checked in, and what you share on it</td><td>Until you untick it (then it is deleted at once), and no later than 12 months after the event ends</td></tr>
         <tr><td>"Be easy to find" photo, line and wish</td><td>Until you turn it off, when they are deleted at once, and no later than 48 hours after the event ends</td></tr>
         <tr><td>An AI reply (a draft or a search result)</td><td>7 days, so asking again costs nothing, then deleted. We do not keep what was sent to the model</td></tr>
         <tr><td>An AI summary of an event's written feedback</td><td>With that feedback: deleted when the event is deleted or its written answers are removed after 12 months. It holds no names and no account</td></tr>
@@ -157,6 +159,19 @@ const UPDATED = "11 November 2026";
       <li><b>Who processes it</b>: Anthropic (the model) and Cloudflare (AI Gateway). Both may process data outside the UK, under the safeguards in section 5. We use them on terms that do not let them train their models on this data, and we turn off logging of what is sent. We do not keep it ourselves.</li>
       <li><b>What we keep</b>: the reply for 7 days, and counts of use for 13 months (section 6). Both are in your data download and are deleted with your account.</li>
       <li><b>Decisions</b>: results are suggestions for a person to read. They have no legal or similar effect.</li>
+    </ul>
+
+    <h2>8d. An organiser's list of who checked in</h2>
+    <p>
+      Most events only get anonymous totals. An organiser can switch on a list of the people who came, for one event. If they do,
+      the check-in page says so before you check in: it shows the organiser's name, why they want it, and each thing they ask for, with a
+      tick already in each box. You can untick any of them, and you can still check in.
+    </p>
+    <ul>
+      <li><b>What the organiser receives</b>: your name and the time you checked in, if you leave the first tick on. If they also ask for them, and you leave those ticks on, your verified email address (so they can contact you after the event) and your card: its headline, the line under your name and the links it shows. Nothing else, and never who you connected with, your photo, or your answers to other questions.</li>
+      <li><b>Our basis</b>: legitimate interests, for the organiser and for us: knowing who came, keeping people safe and following up for that event. You can object by unticking, at check-in or later. [Operator: the email and card items are pre-ticked, which is not valid consent under UK GDPR. Confirm another lawful basis for them with a lawyer before launch.]</li>
+      <li><b>Changing your mind</b>: on the event's page in the app, under "Your choices at this event", or in Settings, Privacy and data. Unticking takes you off the list at once, so the organiser's next look no longer shows you. Each choice, and the words you were shown, is kept in your consent history.</li>
+      <li><b>How long</b>: the list is deleted 12 months after the event ends, or sooner if you untick, delete your account or the organiser switches it off. A copy an organiser has already downloaded is theirs to look after; they must use it only for the reason they gave, keep it safe and delete it when done, and take you off if you ask. To ask us to help, write to us at the privacy contact above.</li>
     </ul>
 
     <h2>9. Children</h2>

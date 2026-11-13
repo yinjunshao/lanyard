@@ -13,7 +13,7 @@ date: 2026-11-01
 - 18+ confirmation recorded; Terms/Privacy acceptance versioned (`worker/legal.js`).
 - In-app data download and account deletion (removes R2 images too). Delete a connection removes the selfie for both.
 - Retention cron: selfies 12 months, feedback text 12 months, guests 30 days, codes/sessions/counters.
-- Hosts get aggregates only, small groups hidden (3 for totals, 5 for text). Feedback is stored without account.
+- Hosts get aggregates only, small groups hidden (3 for totals, 5 for text). Feedback is stored without account. (Since F31 an event can switch on a named list of who checked in, for people who left that tick on; see the F31 notes at the end.)
 - Marketing: opt-in, one-click unsubscribe, List-Unsubscribe headers, sender named.
 - Only one strictly necessary cookie; no analytics. Hashed tokens, private media, security headers.
 
@@ -93,3 +93,21 @@ Part of Medium 6. A draft for the owner and a lawyer to review; not signed off. 
 - **Necessity:** the same fields are already visible to that person on the card they connected through; the AI only ranks what they could read themselves. No new information is revealed to anyone.
 - **Balance:** reasonable expectation is moderate (people do not expect a model to read a card), so the default is on **with an easy opt-out** (owner decision 2026-11-10): Settings, Privacy and data, "Let people I've connected with find me using AI search", effective at once, recorded in the consent history, and explained in the Privacy Policy (section 8c). Blocked people never appear. Nothing runs unless the searcher taps. People can also object by writing to us.
 - **Conclusion (draft):** legitimate interests can apply; a lawyer or legal clinic should confirm before the feature is switched on for everyone.
+
+## Legitimate interests assessment: an organiser's list of who checked in (F31)
+Part of Medium 6. A draft for the owner and a lawyer to review; not signed off. Named attendance is off unless the host switches it on, per event ([[D038 Named attendance is per event, shown on the check-in page and pre-ticked by the owner's choice]]).
+
+- **Purpose:** the organiser (and Lanyard, who runs the check-in) knowing who came to an event: a register for safety, numbers by person rather than by count, and following up for that event. This is the plain reason people check in to events at all.
+- **Necessity:** the list is the least that does it: a name and a check-in time, nothing else unless the person leaves another tick on. There is no way to enable a free-text data item, no special category question, and nothing about who connected with whom. A count alone would not give a register.
+- **Balance:** people at a society or company event reasonably expect their name to be on a register. They are told before they check in, on the page itself, who asks, why and what, in plain words with a tick in each box; they can untick the first and still check in; they can come off the list later at once (event page or Settings), after which the organiser's next look no longer shows them. The host's list is kept 12 months after the event (proposed; owner to confirm), then deleted. Hosts see nothing for events without the list, and nothing on the Present page or the report. Names are shown only to the event's own organisation, on the host site, behind a signed-in host account.
+- **Risks:** an organiser using the list for another purpose or keeping a download (Host Terms now say so; Lanyard cannot police a copy); a host switching it on without a real reason (the why line is required and shown to attendees); people not noticing the notice (a full-width block above the Check in button, not behind a link); an event where people feel they cannot untick (they can, and still check in).
+- **Roles:** the organiser decides why a list is kept, so it is a controller for its own copy; Lanyard still holds the list and the choices. A host agreement or a lawyer's view on controller and processor roles is needed before launch ([[Privacy and Data Retention]]).
+- **Conclusion (draft):** legitimate interests can apply to the attendance list. The objection route is the untick, at check-in and afterwards.
+
+> [!warning] The extra items are not covered by this assessment
+> The owner chose to pre-tick every box on the check-in page (2026-11-13), after being told that ICO guidance says a pre-ticked box is **not valid consent** under UK GDPR. That does not matter for the attendance list, which rests on legitimate interests with the untick as the objection route. It does matter for the two extra items a host may add, **the person's email address and their card, shared with the organisers**: sharing an email address so an organiser can contact someone is the kind of thing consent normally covers, and consent cannot be a pre-ticked box. Those items need **another lawful basis, or a lawyer's review, before launch**. They are built pre-ticked as the owner asked. The Privacy Policy section 8d carries a bracketed operator note to the same effect. Until that review, the safest use is to leave the two extra items off for real events.
+
+### F31 DPIA notes (draft)
+- **Data:** name, check-in time, and (only if ticked) the verified email and what the default card shows (headline, the line under the name, its web links). The check-in answers, connections, photos and how people met are never part of it.
+- **Where it lives:** `event_attendees` (deleted by account deletion, by the host switching the list off, by an untick, and 12 months after the event ends); `consent_log` holds each choice with the exact wording and its version for 6 years, as for every consent record.
+- **Residual risk:** medium until the extra items' basis is settled and the host terms are reviewed. Tests: `test/named-attendance.mjs`.
