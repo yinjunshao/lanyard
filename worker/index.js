@@ -68,8 +68,9 @@ app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await
 
 app.onError((err, c) => {
   const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
-  if (status >= 500) console.error(err);
-  const body = { error: status >= 500 ? "Something went wrong on our side. Try again in a moment." : err.message };
+  if (status >= 500 && !err?.quiet) console.error(err);
+  // `expose`: a 5xx whose message is written for the person and holds nothing private (F32: drops need DROP_KEY).
+  const body = { error: status >= 500 && !err?.expose ? "Something went wrong on our side. Try again in a moment." : err.message };
   if (err?.code) body.code = err.code;
   return c.json(body, status);
 });

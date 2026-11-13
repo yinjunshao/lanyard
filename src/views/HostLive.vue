@@ -15,6 +15,7 @@ import UiSelect from "../components/ui/UiSelect.vue";
 import EventPreview from "../components/EventPreview.vue";
 import EventCollects from "../components/EventCollects.vue";
 import HostAttendees from "../components/HostAttendees.vue";
+import HostDrops from "../components/HostDrops.vue";
 import { THEME_OPTIONS, detailsBody, eventFromBody } from "../lib/eventform";
 import { defaultEnd } from "../lib/dates";
 import { cleanWhy, whyProblem } from "../lib/collects";
@@ -223,7 +224,7 @@ async function copyFeedbackLink() {
       </div>
 
       <div class="seg host-tabs" role="tablist" aria-label="Event">
-        <button v-for="t in [['live','Live'],['details','Details'],['feedback','Feedback'],['report','Report']]" :key="t[0]"
+        <button v-for="t in [['live','Live'],['details','Details'],['drops','Drops'],['feedback','Feedback'],['report','Report']]" :key="t[0]"
                 type="button" role="tab" class="seg-btn" :class="{ on: tab === t[0] }" :aria-selected="tab === t[0]"
                 @click="show(t[0])">{{ t[1] }}</button>
       </div>
@@ -270,6 +271,9 @@ async function copyFeedbackLink() {
 
       <!-- Who checked in (F31): only for an event whose host switched the list on. -->
       <HostAttendees v-if="tab === 'live' && live.event.collect" :event-id="id" :checkins="live.checkins" />
+
+      <!-- Drops (F32): keys, codes and vouchers for the people who checked in. -->
+      <HostDrops v-if="tab === 'drops'" :event-id="id" role="tabpanel" />
 
       <!-- Details -->
       <EventPreview v-if="tab === 'details'" v-model:theme="d.theme" v-model:strap-color="d.strapColor" :event="previewEvent" :sponsors="live.sponsors || []">

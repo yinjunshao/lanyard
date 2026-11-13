@@ -14,7 +14,7 @@
 //     per exclusive item.
 import { all, newId, one, run } from "./db.js";
 import { HttpError } from "./session.js";
-import { sealItem, openItem, pinMac, dropsReady, DROPS_OFF } from "./dropcrypto.js";
+import { sealItem, openItem, pinMac, dropsReady, unavailable } from "./dropcrypto.js";
 
 export const KINDS = ["same", "one_each", "random", "voucher"];
 export const MAX_ITEMS = 2000;       // per drop
@@ -86,7 +86,7 @@ export const newPin = () => String(crypto.getRandomValues(new Uint32Array(1))[0]
 
 /* ---------------------------------- creating ---------------------------------- */
 
-const itemRows = (dropId, sealed, firstSeq, ts) => {
+export const itemRows = (dropId, sealed, firstSeq, ts) => {
   const out = [];
   for (let i = 0; i < sealed.length; i += BATCH_ROWS) {
     const part = sealed.slice(i, i + BATCH_ROWS);
@@ -98,7 +98,7 @@ const itemRows = (dropId, sealed, firstSeq, ts) => {
   return out;
 };
 
-async function sealAll(env, dropId, items) {
+export async function sealAll(env, dropId, items) {
   const out = [];
   for (const plain of items) {
     const id = newId() + newId();
@@ -107,7 +107,7 @@ async function sealAll(env, dropId, items) {
   return out;
 }
 
-async function insertItems(db, rows) {
+export async function insertItems(db, rows) {
   for (let i = 0; i < rows.length; i += 20) {
     await db.batch(rows.slice(i, i + 20).map((r) => db.prepare(r.sql).bind(...r.args)));
   }
@@ -119,7 +119,7 @@ async function insertItems(db, rows) {
  * (vouchers only) is shown to the host once and is not recoverable.
  */
 export async function createDrop(env, ev, b, ts = Date.now()) {
-  if (!dropsReady(env)) throw new HttpError(503, DROPS_OFF, "drops_unavailable");
+  if (!dropsReady(env)) throw unavailable();
   const db = env.DB;
   const kind = String(b.kind || "");
   if (!KINDS.includes(kind)) throw new HttpError(400, "Choose what kind of drop this is.", "bad_kind");
@@ -211,9 +211,10 @@ ORDER BY ${ordered ? "i.seq" : "random()"}
 LIMIT 1`;
 
 /** Does a drop of this kind give each item to one person only? */
+export const isList = (d) => d.kind === "one_each" || d.kind === "random";
 export const isExclusive = (d) => d.kind === "one_each" || (d.kind === "random" && !d.reuse);
 
-const mine = (db, dropId, userId) =>
+export const mine = (db, dropId, userId) =>
   one(db, `SELECT g.id, g.item_id, g.given_at, g.revoked_at, i.cipher FROM drop_gives g JOIN drop_items i ON i.id = g.item_id
            WHERE g.drop_id = ? AND g.user_id = ?`, dropId, userId);
 

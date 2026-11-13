@@ -24,6 +24,7 @@ import { summaryGet, summaryPost } from "./ai/feedbackSummary.js";
 import { normPromo } from "./promo.js";
 import { collectFields, collectOf, hostAttendees, attendeesCsv, attendeesFileName, exportAttendeeLists } from "./attendance.js";
 import { registerHostPromo, releaseHeldClaims, heldClaims, exportHostClaims } from "./host-promo.js";
+import { registerDropsHost } from "./dropsHost.js";
 import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
 
 export const hostApp = new Hono();
@@ -394,6 +395,9 @@ async function hostEvent(c, me, id = c.req.param("id")) {
   if (!ev) throw new HttpError(404, "not found");
   return ev;
 }
+
+// F32: drops for codes, keys and vouchers (worker/dropsHost.js): the same guards, the same event rule.
+registerDropsHost(hostApp, hostEvent);
 
 // Edit an event's details (not its join code or credit).
 hostApp.put("/api/host/events/:id", async (c) => {

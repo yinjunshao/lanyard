@@ -5,6 +5,12 @@ import { makeEnv, makeDb, check, summary, becomeHost, migrationFiles, readMigrat
 import { sealItem, openItem, pinMac, sameMac, dropsReady } from "../worker/dropcrypto.js";
 import { createDrop, revealItem, readItems, MAX_ITEMS } from "../worker/drops.js";
 
+// Everything the Worker (and this file) prints is kept, so the last section can search it for item values.
+const printed = [];
+for (const m of ["log", "error", "warn", "info", "debug"]) {
+  const orig = console[m].bind(console);
+  console[m] = (...a) => { printed.push(a.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" ")); orig(...a); };
+}
 const KEY = "test-drop-key-0123456789-abcdefghijklmnop";
 const OTHER_KEY = "another-drop-key-9876543210-zyxwvutsrqpon";
 const T = await makeEnv({ DROP_KEY: KEY });
@@ -244,6 +250,160 @@ console.log("\n# F32.1 A wrong key refuses before it uses an item up");
   check("with the wrong key, and with none, Show refuses (unreadable / unavailable) and returns no value", res[0].code === "drops_unreadable" && res[1].code === "drops_unavailable" && res.every((r) => !r.value && !/wk-secret/.test(r.msg || "")));
   check("…and no item was used up by trying", q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", d.id).n === 0);
   check("…with the right key it works", (await revealItem(env, dropRow(d.id), p.id)).value === "wk-secret-1");
+}
+
+console.log("\n# F32.2 The host's side: make, count, stop, add, download the unused, delete");
+const SEEN = []; // every host response body except the deliberate download of unused items
+const hcall = async (m, path, body, c = H) => {
+  const r = await c.req(m, path, m === "GET" || m === "DELETE" ? undefined : (body ?? {}));
+  if (!path.endsWith("/unused") || m === "DELETE") SEEN.push(r.text);
+  return r;
+};
+const LIST = Array.from({ length: 120 }, (_, i) => `lst-${String(i).padStart(3, "0")}-${"qwertzuiop".repeat(2)}`);
+let evH, dropA, sameDropId;
+{
+  evH = await makeEvent("Host Drops Night");
+  const base = `/api/host/events/${evH.id}/drops`;
+  const empty = await hcall("GET", base);
+  check("a new event has no drops, and the host is told whether this server can hold items", empty.status === 200 && empty.json.drops.length === 0 && empty.json.ready === true && empty.json.kinds.join() === "same,one_each,random,voucher");
+  const mk = await hcall("POST", base, { kind: "one_each", title: "  API   credit ", note: "Paste it into the portal", items: LIST.join("\n") + "\n" + LIST[5] });
+  dropA = mk.json?.id;
+  check("a drop is made from a pasted list (201), the repeated line is counted as a duplicate and dropped", mk.status === 201 && mk.json.loaded === 120 && mk.json.duplicates === 1 && !("pin" in mk.json), mk.json);
+  check("the reply is counts only: no item in it", !/lst-/.test(mk.text));
+  const ls = await hcall("GET", base);
+  const row = ls.json.drops[0];
+  check("the title is tidied and the host sees '120 loaded, 0 given'", row.title === "API credit" && row.loaded === 120 && row.given === 0 && row.unused === 120 && row.revoked === 0 && row.kind === "one_each" && row.state === "open" && row.note === "Paste it into the portal", row);
+  check("the list never carries the PIN, the check text, the ciphertext or any item", !/pin_mac|check_cipher|cipher|v1\./.test(ls.text) && !/lst-/.test(ls.text));
+  const people = [];
+  for (let i = 0; i < 37; i++) people.push(await person(`Host Count ${i}`, evH));
+  await settle(people.map((p) => revealItem(env, dropRow(dropA), p.id)));
+  const after = (await hcall("GET", base)).json.drops[0];
+  check("after 37 people take one it reads '120 loaded, 37 given' and 83 left", after.loaded === 120 && after.given === 37 && after.unused === 83, after);
+  check("nothing in the host's answer says who took what", !/user|name|Host Count/i.test(JSON.stringify(after)));
+
+  for (const [label, body] of [
+    ["an unknown kind", { kind: "mystery", title: "X1", items: "a" }],
+    ["no title", { kind: "same", title: " ", value: "v" }],
+    ["a one-character title", { kind: "same", title: "A", value: "v" }],
+    ["an empty list", { kind: "one_each", title: "Empty", items: " \n \n" }],
+    ["items that are not text", { kind: "one_each", title: "Odd", items: 42 }],
+    ["no value for everyone", { kind: "same", title: "NoValue" }],
+    ["a window that ends before it starts", { kind: "same", title: "Window", value: "w", validFrom: Date.now() + 5e6, validUntil: Date.now() + 1e6 }],
+    ["a window that is not a date", { kind: "same", title: "Window2", value: "w", validFrom: "tomorrow" }],
+    ["a voucher for 0 uses", { kind: "voucher", title: "Lunch", perPerson: 0 }],
+    ["a voucher for 99 uses", { kind: "voucher", title: "Lunch", perPerson: 99 }],
+  ]) {
+    const r = await hcall("POST", base, body);
+    check(`refused with a plain message and nothing stored: ${label}`, r.status === 400 && typeof r.json.error === "string", [r.status, r.text]);
+  }
+  check("none of the refusals stored a drop", (await hcall("GET", base)).json.drops.length === 1);
+
+  const kinds = {};
+  kinds.same = (await hcall("POST", base, { kind: "same", title: "Wi-Fi password", value: "  guest-wifi-9931 ", validFrom: Date.now() - 1000, validUntil: Date.now() + 36e5 })).json;
+  kinds.random = (await hcall("POST", base, { kind: "random", title: "Raffle code", items: ["rf-1", "rf-2", "rf-3"], reuse: true })).json;
+  sameDropId = kinds.same.id;
+  const lunch = await hcall("POST", base, { kind: "voucher", title: "Lunch", perPerson: 2 });
+  check("one of each kind can be made: the same text, a random list with reuse, a voucher (which returns its staff PIN once)", kinds.same.ok && kinds.random.ok && kinds.random.loaded === 3 && lunch.json.ok && /^\d{6}$/.test(lunch.json.pin), [kinds, lunch.json]);
+  const all = (await hcall("GET", base)).json.drops;
+  const byTitle = Object.fromEntries(all.map((d) => [d.title, d]));
+  check("the same-for-everyone drop reads as counts too, with its window", byTitle["Wi-Fi password"].loaded === 1 && byTitle["Wi-Fi password"].given === 0 && byTitle["Wi-Fi password"].validUntil > Date.now() && !JSON.stringify(all).includes("guest-wifi-9931"));
+  check("the random drop keeps its reuse choice and the voucher its count; the PIN is not in the list", byTitle["Raffle code"].reuse === true && byTitle.Lunch.perPerson === 2 && !JSON.stringify(all).includes(lunch.json.pin) && byTitle.Lunch.entitled === 37 * 2, byTitle.Lunch);
+
+  const stop = await hcall("PUT", `${base}/${dropA}`, { status: "stopped" });
+  const stoppedP = await person("After Stop", evH);
+  const refused = await settle([revealItem(env, dropRow(dropA), stoppedP.id)]);
+  check("stopping a drop gives nothing new, and the host sees it is stopped", stop.status === 200 && refused[0].code === "stopped" && (await hcall("GET", base)).json.drops.find((d) => d.id === dropA).state === "stopped");
+  check("…and people who already had an item still have it", (await revealItem(env, dropRow(dropA), people[0].id)).value.startsWith("lst-"));
+  await hcall("PUT", `${base}/${dropA}`, { status: "on", title: "API credits", note: "", validUntil: Date.now() + 36e5 });
+  const edited = (await hcall("GET", base)).json.drops.find((d) => d.id === dropA);
+  check("it can be started again, renamed and given an end time", edited.state === "open" && edited.title === "API credits" && edited.note === "" && edited.validUntil > Date.now());
+  check("a bad edit is refused (a status that is not on or stopped; an empty title; an end before the start)", (await hcall("PUT", `${base}/${dropA}`, { status: "paused" })).status === 400 && (await hcall("PUT", `${base}/${dropA}`, { title: "" })).status === 400 && (await hcall("PUT", `${base}/${dropA}`, { validFrom: Date.now() + 9e7, validUntil: Date.now() + 1e7 })).status === 400);
+  check("the kind and the reuse choice can't be changed afterwards", (await hcall("PUT", `${base}/${dropA}`, { kind: "same", reuse: true })).status === 200 && dropRow(dropA).kind === "one_each" && dropRow(dropA).reuse === 0);
+
+  const add = await hcall("POST", `${base}/${dropA}/items`, { items: "more-key-1\nmore-key-2\n" + LIST[0] + "\n" + LIST[119] });
+  check("more items can be added to a list; the host sees the new count, and nothing else", add.status === 200 && add.json.added === 2 && add.json.loaded === 122 && !/more-key/.test(add.text), add.json);
+  check("an item already in the drop (given or not) is not added a second time, so one key can't go to two people", add.json.alreadyThere === 2 && q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ?", dropA).n === 122, add.json);
+  check("…and a paste of only items already there adds nothing and says so", (await hcall("POST", `${base}/${dropA}/items`, { items: LIST[3] + "\n" + LIST[4] })).json?.code === "already_loaded" && q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ?", dropA).n === 122);
+  check("…they carry on the host's order (seq 121 onwards)", q1("SELECT MAX(seq) m, COUNT(*) n FROM drop_items WHERE drop_id = ?", dropA).m === 122);
+  check("a voucher or a same-for-everyone drop has no list to add to", (await hcall("POST", `${base}/${lunch.json.id}/items`, { items: "x" })).status === 400 && (await hcall("POST", `${base}/${kinds.same.id}/items`, { items: "x" })).status === 400);
+  const over = await hcall("POST", `${base}/${dropA}/items`, { items: Array.from({ length: 1990 }, (_, i) => "over-" + i) });
+  check("a list past 2,000 items is refused and adds nothing", over.status === 400 && q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ?", dropA).n === 122);
+}
+
+console.log("\n# F32.2 Downloading the unused items");
+{
+  const base = `/api/host/events/${evH.id}/drops/${dropA}`;
+  const given = q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", dropA).n;
+  const dl = await H.post(`${base}/unused`);
+  const lines = dl.text.trim().split("\n");
+  check("the host can download the unused items, decrypted, as a text file that is not cached", dl.status === 200 && /^text\/plain/.test(dl.headers.get("content-type")) && /attachment/.test(dl.headers.get("content-disposition")) && /no-store/.test(dl.headers.get("cache-control")) && lines.length === 122 - given && dl.headers.get("x-unused-count") === String(122 - given), [dl.status, lines.length, given]);
+  const givenValues = new Set();
+  for (const r of q("SELECT i.id, i.cipher FROM drop_gives g JOIN drop_items i ON i.id = g.item_id WHERE g.drop_id = ?", dropA)) givenValues.add(await openItem(env, dropA, r.id, r.cipher));
+  check("the file holds every unused item and not one that was given", given === 37 && givenValues.size === 37 && lines.every((l) => !givenValues.has(l)) && [...LIST, "more-key-1", "more-key-2"].filter((v) => !givenValues.has(v)).every((v) => lines.includes(v)));
+  check("it is logged in the audit trail with how many were downloaded, and by which host account", q1("SELECT n FROM drop_audit WHERE drop_id = ? AND action = 'download_unused'", dropA)?.n === 122 - given && !!q1("SELECT host_account_id h FROM drop_audit WHERE drop_id = ?", dropA).h);
+  const rs = [];
+  for (let i = 0; i < 5; i++) rs.push((await H.post(`${base}/unused`)).status);
+  check("at most 5 downloads an hour for each drop (the sixth is refused with 429)", rs.slice(0, 4).every((x) => x === 200) && rs.at(-1) === 429, rs);
+  const sameId = q1("SELECT id FROM drops WHERE title = 'Wi-Fi password'").id;
+  check("a same-for-everyone drop or a voucher has no list to download", (await H.post(`/api/host/events/${evH.id}/drops/${sameDropId}/unused`)).status === 400);
+}
+
+console.log("\n# F32.2 Deleting");
+{
+  const base = `/api/host/events/${evH.id}/drops`;
+  const before = q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", dropA).n;
+  const racer = await person("Race Delete", evH);
+  const [del, rev] = await Promise.all([H.del(`${base}/${dropA}/unused`), settle([revealItem(env, dropRow(dropA), racer.id)])]);
+  const items = q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ?", dropA).n;
+  const gives = q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", dropA).n;
+  check("delete-unused removes the items nobody has and keeps every given one; a person given an item at the same moment either keeps it or is told all given out", del.status === 200 && items === gives && gives >= before && gives <= before + 1 && (rev[0].ok ? gives === before + 1 : rev[0].code === "all_given"), [del.json, items, gives, before, rev]);
+  const row = (await H.get(base)).json.drops.find((d) => d.id === dropA);
+  check("the host then sees loaded equal to given and nothing left", row.unused === 0 && row.loaded === row.given);
+  const late = await person("Too Late", evH);
+  check("…and a new person is told all given out", (await settle([revealItem(env, dropRow(dropA), late.id)]))[0].code === "all_given");
+  const delDrop = await H.del(`${base}/${dropA}`);
+  check("deleting the drop removes its items and what was given, and is audited", delDrop.status === 200 && q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ?", dropA).n === 0 && q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", dropA).n === 0 && !dropRow(dropA) && q1("SELECT n FROM drop_audit WHERE drop_id = ? AND action = 'delete_drop'", dropA).n === gives);
+  check("a drop that is gone is 404 on every route", (await H.del(`${base}/${dropA}`)).status === 404 && (await H.post(`${base}/${dropA}/unused`)).status === 404 && (await H.put(`${base}/${dropA}`, { status: "on" })).status === 404);
+}
+
+console.log("\n# F32.2 Who may use the host routes");
+{
+  const dropB = (await hcall("POST", `/api/host/events/${evH.id}/drops`, { kind: "one_each", title: "Guarded", items: "guard-1\nguard-2" })).json.id;
+  const paths = [["GET", `/api/host/events/${evH.id}/drops`], ["POST", `/api/host/events/${evH.id}/drops`], ["PUT", `/api/host/events/${evH.id}/drops/${dropB}`],
+    ["POST", `/api/host/events/${evH.id}/drops/${dropB}/items`], ["POST", `/api/host/events/${evH.id}/drops/${dropB}/unused`], ["DELETE", `/api/host/events/${evH.id}/drops/${dropB}/unused`], ["DELETE", `/api/host/events/${evH.id}/drops/${dropB}`]];
+  const sendAll = async (c) => { const out = []; for (const [m, p] of paths) out.push((await c.req(m, p, m === "GET" || m === "DELETE" ? undefined : {})).status); return out; };
+  const signedOut = await sendAll(client({ ip: "10.92.0.1", site: "host" }));
+  check("signed out: 401 on every route", signedOut.every((x) => x === 401), signedOut);
+  const att = await person("Cookie Thief", evH);
+  const leak = client({ ip: "10.92.0.2", site: "host" });
+  leak.jar.set("lanyard_session", att.c.jar.get("lanyard_session"));
+  const viaAtt = await sendAll(leak);
+  check("an attendee's cookie on the host site: 401 on every route", viaAtt.every((x) => x === 401), viaAtt);
+  const onMain = client({ ip: "10.92.0.3" });
+  onMain.jar.set("__Host-lanyard_host", H.jar.get("__Host-lanyard_host"));
+  const main = await sendAll(onMain);
+  check("the host's cookie on the main site: refused on every route (403)", main.every((x) => x === 403), main);
+  const H2 = client({ ip: "10.92.0.4", site: "host" });
+  await becomeHost(H2, { kind: "company", name: "Other Co", email: "other@othercompany.example.com" });
+  const other = await sendAll(H2);
+  check("another organisation's host: 404 on every route (it can't tell the drop exists)", other.every((x) => x === 404), other);
+  check("…and nothing of the drop changed", q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ?", dropB).n === 2 && dropRow(dropB).status === "on");
+  check("an attendee API route on the host site is refused as before", (await H.get(`/api/e/${evH.id}/drops`)).status === 401);
+  const noKey = await makeEnv({});
+  const H3 = noKey.client({ ip: "10.92.0.5", site: "host" });
+  const third = await becomeHost(H3, { kind: "company", name: "Keyless Co", email: "keyless@keyless.example.com" });
+  noKey.env.DB.raw.prepare("INSERT INTO credits (id, org_id, events_granted, events_used, reason, created_at) VALUES ('crk', ?, 5, 0, 't', ?)").run(third.org.json.id, Date.now());
+  const kev = (await H3.post("/api/host/events", { name: "Keyless" })).json;
+  const k = await H3.post(`/api/host/events/${kev.id}/drops`, { kind: "same", title: "Nope", value: "NOKEY-SECRET-1" });
+  check("on a server with no DROP_KEY the host is told so plainly (503), the list says drops are off, and nothing is stored", k.status === 503 && k.json.code === "drops_unavailable" && /DROP_KEY/.test(k.json.error) && !k.text.includes("NOKEY-SECRET") && (await H3.get(`/api/host/events/${kev.id}/drops`)).json.ready === false && noKey.q1("SELECT COUNT(*) n FROM drops").n === 0 && !JSON.stringify(noKey.q("SELECT * FROM drop_items")).includes("NOKEY"));
+}
+
+console.log("\n# F32.2 Nothing the host sees, and nothing logged, holds an item");
+{
+  const secrets = [...LIST, "more-key-1", "more-key-2", "guest-wifi-9931", "rf-1", "rf-2", "rf-3", "guard-1", "guard-2", "NOKEY-SECRET"];
+  const hay = SEEN.join("\n") + "\n" + printed.join("\n");
+  const leaked = secrets.filter((v) => hay.includes(v));
+  check(`every host response so far (${SEEN.length}) and everything printed by the Worker and these tests holds none of the ${secrets.length} items`, leaked.length === 0, leaked.slice(0, 3));
 }
 
 summary();

@@ -17,8 +17,9 @@ const MIN_KEY = 16;
 export const DROPS_OFF = "Drops are switched off on this server: its DROP_KEY secret is missing or too short. Ask whoever runs Lanyard to set it.";
 export const DROPS_UNREADABLE = "These items can't be read with the key this server has now. The organisers need to load them again.";
 
-const unavailable = () => new HttpError(503, DROPS_OFF, "drops_unavailable");
-const unreadable = () => new HttpError(503, DROPS_UNREADABLE, "drops_unreadable");
+/** "No usable DROP_KEY". Expected on a server that has not set it up, so the error handler shows its message and logs no stack for it. */
+export const unavailable = () => Object.assign(new HttpError(503, DROPS_OFF, "drops_unavailable"), { quiet: true, expose: true });
+const unreadable = () => Object.assign(new HttpError(503, DROPS_UNREADABLE, "drops_unreadable"), { expose: true });
 
 /** True when this server can seal and open items. */
 export const dropsReady = (env) => typeof env?.DROP_KEY === "string" && env.DROP_KEY.length >= MIN_KEY;
