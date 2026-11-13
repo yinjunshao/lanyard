@@ -4,7 +4,7 @@
 // What Create sends has not changed: submitPlan() is the old single form's `create()` choice
 // (a copy of an earlier event, or a new one through createBody), and the server's checks stay
 // the source of truth. validateStep() is a convenience that stops the host a step early.
-import { createBody, THEME_OPTIONS } from "./eventform";
+import { createBody, THEME_OPTIONS } from "./eventform.js";
 
 // Basics, Look, At the event, Questions, Review. Step 3 also takes F31's "What this event collects".
 export const STEPS = [
