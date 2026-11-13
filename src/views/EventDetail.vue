@@ -7,6 +7,7 @@ import { useRoute, useRouter } from "vue-router";
 import { api, Api } from "../lib/api";
 import Avatar from "../components/Avatar.vue";
 import EventChoices from "../components/EventChoices.vue";
+import EventDrops from "../components/EventDrops.vue";
 import EventAttendanceChoices from "../components/EventAttendanceChoices.vue";
 import EventPresence from "../components/EventPresence.vue";
 import Icon from "../components/Icon.vue";
@@ -122,6 +123,9 @@ const choicesTrigger = ref(null);
         <span class="btn btn-primary" style="width:auto">Give feedback</span>
       </router-link>
       <p v-else-if="feedback?.status === 'done'" class="small muted">Thanks for your feedback on this event.</p>
+
+      <!-- Keys, codes and vouchers the organisers gave out (F32): draws nothing when there are none. -->
+      <EventDrops :event-id="eventId" />
 
       <section class="stack" aria-labelledby="hub-people">
         <h2 id="hub-people" class="label">People you met here</h2>

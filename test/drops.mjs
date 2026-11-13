@@ -398,6 +398,109 @@ console.log("\n# F32.2 Who may use the host routes");
   check("on a server with no DROP_KEY the host is told so plainly (503), the list says drops are off, and nothing is stored", k.status === 503 && k.json.code === "drops_unavailable" && /DROP_KEY/.test(k.json.error) && !k.text.includes("NOKEY-SECRET") && (await H3.get(`/api/host/events/${kev.id}/drops`)).json.ready === false && noKey.q1("SELECT COUNT(*) n FROM drops").n === 0 && !JSON.stringify(noKey.q("SELECT * FROM drop_items")).includes("NOKEY"));
 }
 
+console.log("\n# F32.3 A person's side: who may open the drops");
+const evP = await makeEvent("Person Night");
+const PKEYS = Array.from({ length: 50 }, (_, i) => `pk-${String(i).padStart(2, "0")}-live-${"mnbvcxzlkj".repeat(2)}`);
+let dropP, dropSame, dropVoucher;
+const PERSON_SEEN = []; // every response an attendee got
+const pcall = async (p, m, path, body) => { const r = await p.c.req(m, path, m === "GET" || m === "DELETE" ? undefined : (body ?? {})); PERSON_SEEN.push(r.text); return r; };
+{
+  const base = `/api/host/events/${evP.id}/drops`;
+  dropP = (await hcall("POST", base, { kind: "one_each", title: "API key", note: "Paste it into the portal", items: PKEYS.join("\n") })).json.id;
+  dropSame = (await hcall("POST", base, { kind: "same", title: "Wi-Fi", value: "wifi-pass-PERSON-77" })).json.id;
+  dropVoucher = (await hcall("POST", base, { kind: "voucher", title: "Lunch voucher", perPerson: 1 })).json.id;
+  const outsider = await person("Outsider", evP, { checkIn: false });
+  const ghost = client({ ip: "10.93.0.1" });
+  const usersBefore = q1("SELECT COUNT(*) n FROM users").n;
+  check("signed out: 401 on the list and on Show, and pressing Show makes no guest account", (await ghost.get(`/api/e/${evP.id}/drops`)).status === 401 && (await ghost.post(`/api/e/${evP.id}/drops/${dropP}/reveal`)).status === 401 && q1("SELECT COUNT(*) n FROM users").n === usersBefore && !ghost.jar.has("lanyard_session"));
+  check("signed in but not checked in to this event: 403 on the list and on Show (and nothing is given)", (await pcall(outsider, "GET", `/api/e/${evP.id}/drops`)).status === 403 && (await pcall(outsider, "POST", `/api/e/${evP.id}/drops/${dropP}/reveal`)).status === 403 && q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", dropP).n === 0);
+  check("an event that doesn't exist: 404", (await pcall(outsider, "GET", "/api/e/nosuchevent1/drops")).status === 404);
+  const hostOnMain = client({ ip: "10.93.0.2" });
+  hostOnMain.jar.set("__Host-lanyard_host", H.jar.get("__Host-lanyard_host"));
+  check("the host's cookie on the main site is not a session: 401", (await hostOnMain.get(`/api/e/${evP.id}/drops`)).status === 401 && (await hostOnMain.post(`/api/e/${evP.id}/drops/${dropP}/reveal`)).status === 401);
+  const guestOnHostSite = client({ ip: "10.93.0.3", site: "host" });
+  guestOnHostSite.jar.set("lanyard_session", outsider.c.jar.get("lanyard_session"));
+  const hs = [await guestOnHostSite.get(`/api/e/${evP.id}/drops`), await guestOnHostSite.post(`/api/e/${evP.id}/drops/${dropP}/reveal`), await H.get(`/api/e/${evP.id}/drops`), await H.post(`/api/e/${evP.id}/drops/${dropP}/reveal`)];
+  check("the host site refuses attendee drop routes, with an attendee's cookie or the host's (401 wrong_site)", hs.every((r) => r.status === 401 && r.json?.code === "wrong_site"), hs.map((r) => r.status));
+  const guest = await person("Gus Guest", evP, { guest: true });
+  const gl = await pcall(guest, "GET", `/api/e/${evP.id}/drops`);
+  check("a guest who checked in (with just a name) sees the drops, like anyone else", gl.status === 200 && gl.json.drops.length === 3 && gl.json.me.firstName === "Gus");
+  const other = await makeEvent("Other Night");
+  const otherDrop = (await hcall("POST", `/api/host/events/${other.id}/drops`, { kind: "same", title: "Other secret", value: "other-event-SECRET-1" })).json.id;
+  const inP = await person("Ina", evP);
+  const x = await pcall(inP, "POST", `/api/e/${evP.id}/drops/${otherDrop}/reveal`);
+  check("another event's drop through this event: 404, nothing given", x.status === 404 && q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", otherDrop).n === 0 && !x.text.includes("other-event-SECRET"));
+  const y = await pcall(inP, "POST", `/api/e/${other.id}/drops/${otherDrop}/reveal`);
+  check("…and the same drop through its own event, without having checked in there: 403", y.status === 403 && !y.text.includes("other-event-SECRET"));
+  check("a made-up drop id is 404", (await pcall(inP, "POST", `/api/e/${evP.id}/drops/abc0000001/reveal`)).status === 404);
+}
+
+console.log("\n# F32.3 The list a person sees, Show and Copy's source");
+{
+  const ina = await person("Ina Lister", evP);
+  const l0 = await pcall(ina, "GET", `/api/e/${evP.id}/drops`);
+  const byTitle = Object.fromEntries(l0.json.drops.map((d) => [d.title, d]));
+  check("a person sees each drop's title, note and where it stands for them (ready), in order", l0.json.drops.map((d) => d.title).join() === "API key,Wi-Fi,Lunch voucher" && byTitle["API key"].state === "ready" && byTitle["API key"].note === "Paste it into the portal" && byTitle["Wi-Fi"].state === "ready" && byTitle["Lunch voucher"].state === "ready", l0.json.drops);
+  check("the list is never cached and holds no item, no count of what is left and no one else", /no-store/.test(l0.headers.get("cache-control")) && !/pk-|wifi-pass/.test(l0.text) && !("free" in byTitle["API key"]) && !/loaded|given|unused/.test(l0.text));
+  const show = await pcall(ina, "POST", `/api/e/${evP.id}/drops/${dropP}/reveal`);
+  check("Show gives a key from the list, and says it is not to be cached", show.status === 200 && PKEYS.includes(show.json.value) && /no-store/.test(show.headers.get("cache-control")) && show.json.title === "API key", show.json);
+  const again = await pcall(ina, "POST", `/api/e/${evP.id}/drops/${dropP}/reveal`);
+  check("Show again returns the same key and uses nothing more", again.json.value === show.json.value && q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", dropP).n === 1);
+  const l1 = await pcall(ina, "GET", `/api/e/${evP.id}/drops`);
+  check("after that the list says she has it, and still shows no value", l1.json.drops.find((d) => d.id === dropP).state === "have" && !l1.text.includes(show.json.value));
+  const sw = await pcall(ina, "POST", `/api/e/${evP.id}/drops/${dropSame}/reveal`);
+  check("the same-for-everyone text comes back too", sw.json.value === "wifi-pass-PERSON-77");
+  const v = await pcall(ina, "POST", `/api/e/${evP.id}/drops/${dropVoucher}/reveal`);
+  check("a voucher has nothing to reveal (400) and gives nothing", v.status === 400 && q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", dropVoucher).n === 0);
+  const bee = await person("Bee Lister", evP);
+  const bshow = await pcall(bee, "POST", `/api/e/${evP.id}/drops/${dropP}/reveal`);
+  const bl = await pcall(bee, "GET", `/api/e/${evP.id}/drops`);
+  check("someone else gets a different key and never sees Ina's", bshow.json.value !== show.json.value && !bl.text.includes(show.json.value));
+  const spam = [];
+  for (let i = 0; i < 14; i++) spam.push((await pcall(bee, "POST", `/api/e/${evP.id}/drops/${dropP}/reveal`)).status);
+  check("Show is rate limited: more than 12 presses in 10 minutes for one drop is refused (429), and the key is still hers afterwards", spam.slice(0, 10).every((s) => s === 200) && spam.at(-1) === 429 && q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ? AND user_id = ?", dropP, bee.id).n === 1, spam);
+}
+
+console.log("\n# F32.3 50 keys, 51 people, over HTTP, all at once");
+{
+  const ev = await makeEvent("Fifty Keys");
+  const id = (await hcall("POST", `/api/host/events/${ev.id}/drops`, { kind: "one_each", title: "Keys", items: PKEYS.map((k) => "f-" + k).join("\n") })).json.id;
+  const crowd = [];
+  for (let i = 0; i < 51; i++) crowd.push(await person(`Crowd ${i}`, ev));
+  const rs = await Promise.all(crowd.map((p) => pcall(p, "POST", `/api/e/${ev.id}/drops/${id}/reveal`)));
+  const ok = rs.filter((r) => r.status === 200), full = rs.filter((r) => r.status !== 200);
+  check("50 people get a key and the 51st is told 'All given out' (409, all_given)", ok.length === 50 && full.length === 1 && full[0].status === 409 && full[0].json.code === "all_given" && /All given out/.test(full[0].json.error), [ok.length, full.map((r) => [r.status, r.json])]);
+  check("the 50 keys are all different and all from the host's list", new Set(ok.map((r) => r.json.value)).size === 50 && ok.every((r) => PKEYS.some((k) => "f-" + k === r.json.value)));
+  const twice = await Promise.all(crowd.flatMap((p) => [pcall(p, "POST", `/api/e/${ev.id}/drops/${id}/reveal`), pcall(p, "POST", `/api/e/${ev.id}/drops/${id}/reveal`)]));
+  const byPerson = new Map();
+  crowd.forEach((p, i) => byPerson.set(p.id, [twice[2 * i], twice[2 * i + 1]]));
+  const stable = crowd.every((p, i) => rs[i].status !== 200 || byPerson.get(p.id).every((r) => r.json.value === rs[i].json.value));
+  check("everyone pressing twice at the same moment changes nobody's key and uses nothing more", stable && q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", id).n === 50 && q1("SELECT COUNT(DISTINCT item_id) n FROM drop_gives WHERE drop_id = ?", id).n === 50);
+  const lastList = await pcall(crowd[50], "GET", `/api/e/${ev.id}/drops`);
+  check("the 51st person's list says 'out'", lastList.json.drops[0].state === "out");
+  const hostView = (await hcall("GET", `/api/host/events/${ev.id}/drops`)).json.drops[0];
+  check("the host sees '50 loaded, 50 given' and none left", hostView.loaded === 50 && hostView.given === 50 && hostView.unused === 0);
+}
+
+console.log("\n# F32.3 A person's own data export");
+{
+  const ev = await makeEvent("Export Night");
+  const a = (await hcall("POST", `/api/host/events/${ev.id}/drops`, { kind: "one_each", title: "Export key", items: "exp-key-ONE\nexp-key-TWO" })).json.id;
+  const pa = await person("Exa", ev), pb = await person("Exb", ev), pc = await person("Exc", ev);
+  const ra = (await pcall(pa, "POST", `/api/e/${ev.id}/drops/${a}/reveal`)).json.value;
+  const rb = (await pcall(pb, "POST", `/api/e/${ev.id}/drops/${a}/reveal`)).json.value;
+  const ea = await pcall(pa, "GET", "/api/account/export");
+  check("their own data download holds the item they were given, opened, with the event and when", ea.status === 200 && ea.json.drops?.items?.length === 1 && ea.json.drops.items[0].given === ra && ea.json.drops.items[0].title === "Export key" && ea.json.drops.items[0].eventName === "Export Night" && ea.json.drops.items[0].givenAt > 0, ea.json.drops);
+  check("…and not the other person's", !ea.text.includes(rb));
+  const ec = await pcall(pc, "GET", "/api/account/export");
+  check("someone who was given nothing gets the download they always got (no drops key)", ec.status === 200 && !("drops" in ec.json));
+  const wrong = await makeEnv({ DROP_KEY: OTHER_KEY });
+  void wrong;
+  const { exportDrops } = await import("../worker/dropsApp.js");
+  const noKeyExport = await exportDrops({ DB: env.DB }, pa.id);
+  check("if the server's key is gone the download still works, says the item can't be opened and returns no value", noKeyExport.items.length === 1 && noKeyExport.items[0].given === null && /key changed/.test(noKeyExport.items[0].note) && !JSON.stringify(noKeyExport).includes(ra));
+}
+
 console.log("\n# F32.2 Nothing the host sees, and nothing logged, holds an item");
 {
   const secrets = [...LIST, "more-key-1", "more-key-2", "guest-wifi-9931", "rf-1", "rf-2", "rf-3", "guard-1", "guard-2", "NOKEY-SECRET"];

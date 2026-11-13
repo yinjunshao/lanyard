@@ -115,8 +115,9 @@ export async function endSession(c, db) {
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 
 // Hono middleware. Reads never create users; writes do (as a guest).
-export const sessionMiddleware = (envName = "DB") => async (c, next) => {
-  await ensureSession(c, c.env[envName], { create: !SAFE.has(c.req.method) });
+// `guests: false` (F32): pressing Show on a drop with no session is a 401, not a new throwaway account.
+export const sessionMiddleware = (envName = "DB", { guests = true } = {}) => async (c, next) => {
+  await ensureSession(c, c.env[envName], { create: guests && !SAFE.has(c.req.method) });
   await next();
 };
 

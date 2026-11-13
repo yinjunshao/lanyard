@@ -38,6 +38,7 @@ import { sharedGround } from "./inCommon.js";
 import { exportPresence, canViewPresenceSelfie } from "./presence.js";
 import { presenceApp } from "./presenceApp.js";
 import { attendanceApp } from "./attendanceApp.js";
+import { dropsApp, exportDrops } from "./dropsApp.js";
 import { exportNamedAttendance } from "./attendance.js";
 import { exportAi } from "./ai/data.js";
 import { aiApp } from "./ai/routes.js";
@@ -63,7 +64,10 @@ app.use("/api/*", async (c, next) => {
   return hostRoute ? next() : sameOriginWrites(c, next);
 });
 const withSession = sessionMiddleware("DB");
-app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/privacy-request" ? next() : withSession(c, next)));
+// Drop routes (F32) never mint a guest: a person must already be signed in and checked in.
+const withSessionNoGuest = sessionMiddleware("DB", { guests: false });
+const isDropRoute = (path) => /^\/api\/e\/[^/]+\/drops(\/|$)/.test(path);
+app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/privacy-request" ? next() : (isDropRoute(c.req.path) ? withSessionNoGuest : withSession)(c, next)));
 app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
 
 app.onError((err, c) => {
@@ -463,6 +467,7 @@ app.get("/api/account/export", async (c) => {
   ]);
   const eventPresence = await exportPresence(db, u.id); // F17
   const namedAttendance = await exportNamedAttendance(db, u.id); // F31: only for a person who was ever offered a list
+  const drops = await exportDrops(c.env, u.id); // F32: what organisers gave this person (opened, theirs only)
   const ai = await exportAi(db, "user", u.id); // F21
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
@@ -488,6 +493,7 @@ app.get("/api/account/export", async (c) => {
     eventCheckins: checkins,
     eventPresence,
     ...(namedAttendance ? { namedAttendance } : {}),
+    ...(drops ? { drops } : {}),
     ai,
     consents,
     reportsMade: reports,
@@ -1285,6 +1291,7 @@ app.route("/", eventsApp);
 app.route("/", myEventsApp);
 app.route("/", presenceApp);
 app.route("/", attendanceApp);
+app.route("/", dropsApp);
 app.route("/", aiApp);
 app.route("/", followupApp);
 app.route("/", peopleSearchApp);
