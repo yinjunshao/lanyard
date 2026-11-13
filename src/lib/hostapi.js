@@ -33,6 +33,9 @@ export const HostApi = {
   feedbackSummary: (id) => api(`/api/host/events/${id}/feedback/summary`),
   makeFeedbackSummary: (id) => api(`/api/host/events/${id}/feedback/summary`, "POST", {}),
   hostReportCsvUrl: (id) => `/api/host/events/${id}/report.csv`,
+  // F31: the list of who checked in, for an event that keeps one (404 otherwise).
+  hostAttendees: (id) => api(`/api/host/events/${id}/attendees`),
+  hostAttendeesCsvUrl: (id) => `/api/host/events/${id}/attendees.csv`,
   hostIntegrations: () => api("/api/host/integrations"),
   hostSetWebhook: (url) => api("/api/host/integrations/webhook", "PUT", { url }),
   hostRemoveWebhook: () => api("/api/host/integrations/webhook", "DELETE"),

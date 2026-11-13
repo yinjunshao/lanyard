@@ -314,5 +314,217 @@ console.log("\n# An event without named attendance: the check-in page is the pag
 }
 await vite.close();
 
+// ---------- F31.4 the host's list, the CSV, the exports, the purge and the reset ----------
+const HOST_ORIGIN = "https://host.lanyard.test";
+const setCard = (id) => env.DB.raw.prepare("UPDATE profiles SET headline = 'Robotics and coffee', course = 'Engineering', uni = 'Test University', links = ? WHERE user_id = ?")
+  .run(JSON.stringify({ Site: "https://ann.example.com", Bad: "javascript:alert(1)" }), id);
+const F = await mk({ collect: on(), venue: "Hall 2" });
+const Fid = F.json.id;
+const Fcode = (await H.get("/api/host/events/" + Fid + "/live")).json.event.code;
+const names = {};
+{
+  const mkp = async (label, name, choices, { email, verified = true } = {}) => {
+    const p = await person(name);
+    if (email) env.DB.raw.prepare("UPDATE users SET recovery_email = ?, email_verified = ? WHERE id = ?").run(email, verified ? 1 : 0, p.id);
+    await p.post(`/api/e/${Fcode}/checkin`, { collect: choices });
+    names[label] = p;
+    return p;
+  };
+  const ann = await mkp("all", "Ann All", ALL, { email: "ann.all@example.com" });
+  setCard(ann.id);
+  await mkp("cardOnly", "Cat Card", { attendance: true, email: false, card: true }, { email: "cat.secret@example.com" });
+  await mkp("emailOnly", "Eli Email", { attendance: true, email: true, card: false }, { email: "eli@example.com" });
+  await mkp("listOnly", "Lou List", { attendance: true, email: false, card: false }, { email: "lou.secret@example.com" });
+  await mkp("out", "Ollie Out", { attendance: false, email: true, card: true }, { email: "ollie.secret@example.com" });
+  await mkp("noFields", "Nora NoFields", undefined, { email: "nora.secret@example.com" });
+  await mkp("unverified", "Una Unverified", ALL, { email: "una.unverified@example.com", verified: false });
+  await mkp("formula", "=HYPERLINK(\"http://evil.example\",\"x\")", { attendance: true, email: false, card: false });
+}
+
+console.log("\n# F31.4 The host's list shows only people who left the tick on, and only what they left ticked");
+const get = (h, path) => h.get(path);
+{
+  const r = await H.get(`/api/host/events/${Fid}/attendees`);
+  const L = r.json;
+  const by = (n) => L.attendees.find((a) => a.name === n);
+  check("the host's own list answers, uncached", r.status === 200 && r.headers.get("cache-control") === "no-store" && L.items.join() === "email,card", [r.status, L.items]);
+  check("it names exactly the people who left the attendance tick on, and counts them", L.count === 6 && L.attendees.map((a) => a.name).sort().join("|") === ["=HYPERLINK(\"http://evil.example\",\"x\")", "Ann All", "Cat Card", "Eli Email", "Lou List", "Una Unverified"].sort().join("|"), L.attendees.map((a) => a.name));
+  check("it is in check-in order, each with the time they checked in", L.attendees.every((a, i, arr) => typeof a.checkedInAt === "number" && (i === 0 || a.checkedInAt >= arr[i - 1].checkedInAt)));
+  check("a person who unticked attendance is not in it (their name is nowhere in the answer)", !by("Ollie Out") && !r.text.includes("Ollie"), null);
+  check("…nor a person whose request had no choices at all", !by("Nora NoFields") && !r.text.includes("Nora"));
+  check("a person who left everything on shows their verified email and their card (headline, the line under their name, and only web links)", by("Ann All").email === "ann.all@example.com" && by("Ann All").card.headline === "Robotics and coffee" && by("Ann All").card.line === "Engineering · Test University" && JSON.stringify(by("Ann All").card.links) === '[{"label":"Site","url":"https://ann.example.com"}]', by("Ann All"));
+  check("a person who unticked the email shows no email key at all, and their address is nowhere in the answer", !("email" in by("Cat Card")) && by("Cat Card").card && !r.text.includes("cat.secret@example.com"));
+  check("a person who unticked the card shows no card key", !("card" in by("Eli Email")) && by("Eli Email").email === "eli@example.com");
+  check("a person who left only the list on shows a name and a time and nothing else", JSON.stringify(Object.keys(by("Lou List")).sort()) === '["checkedInAt","name"]' && !r.text.includes("lou.secret@example.com"));
+  check("an email that was never verified is not given out, even when ticked", "email" in by("Una Unverified") && by("Una Unverified").email === null && !r.text.includes("una.unverified@example.com"));
+  const ids = Object.values(names).map((p) => p.id);
+  check("the answer holds no user id, no check-in answer, no connection or how-you-met field", !ids.some((id) => r.text.includes(id)) && !/"(answers|via|connections|userId|user_id|photo|selfie|tags)"/.test(r.text), null);
+  const csv = await H.get(`/api/host/events/${Fid}/attendees.csv`);
+  const lines = csv.text.replace(/^﻿/, "").split("\r\n");
+  check("the CSV is a download named for the event, uncached, with a header and one line per person", csv.status === 200 && /^text\/csv/.test(csv.headers.get("content-type")) && /attachment; filename="lanyard-attendees-Night\.csv"/.test(csv.headers.get("content-disposition")) && csv.headers.get("cache-control") === "no-store" && lines[0] === "Name,Checked in (UTC),Email,Card headline,Card line,Card links" && lines.length === 7, [lines[0], lines.length]);
+  check("a name that starts with = is neutralised so it cannot run as a formula", lines.some((l) => l.startsWith("\"'=HYPERLINK(")) && !lines.some((l) => /^=/.test(l)));
+  check("the CSV holds the same people and nothing the JSON does not", !csv.text.includes("Ollie") && !csv.text.includes("Nora") && !csv.text.includes("cat.secret") && csv.text.includes("ann.all@example.com") && csv.text.includes("Site: https://ann.example.com"));
+}
+
+console.log("\n# Who may open it");
+{
+  const nobody = client({ ip: "10.31.3.1", site: "host" });
+  for (const p of ["attendees", "attendees.csv"]) {
+    const path = `/api/host/events/${Fid}/${p}`;
+    check(`${p}: a signed-out visitor to the host site is refused (401)`, (await nobody.get(path)).status === 401);
+    check(`${p}: another organisation's host gets 404 and learns nothing`, (await H2.get(path)).status === 404 && !(await H2.get(path)).text.includes("Ann"));
+    const A = names.all;
+    const asAttendee = await A.req("GET", path, undefined, { origin: HOST_ORIGIN });
+    check(`${p}: an attendee's cookie on the main site is refused (the host API is not served there)`, [401, 403, 404].includes(asAttendee.status) && !asAttendee.text.includes("Ann"), asAttendee.status);
+    const crossed = client({ ip: "10.31.3.2", site: "host" });
+    for (const [k, v] of A.jar) crossed.jar.set(k, v);
+    const onHost = await crossed.get(path);
+    check(`${p}: an attendee's cookie sent to the host site is refused (401)`, onHost.status === 401 && !onHost.text.includes("Ann"), onHost.status);
+    check(`${p}: the host's own cookie on the host site works`, (await H.get(path)).status === 200);
+  }
+  const plainId = (await mk({})).json.id;
+  const off = await H.get(`/api/host/events/${plainId}/attendees`);
+  check("an event that does not keep a list: the host gets 404 and a plain message, and no CSV either", off.status === 404 && off.json.code === "list_off" && (await H.get(`/api/host/events/${plainId}/attendees.csv`)).status === 404);
+  check("an event that does not exist: 404", (await H.get("/api/host/events/nope/attendees")).status === 404);
+  // The route does not exist on the main site at all.
+  const main = await names.all.get(`/api/host/events/${Fid}/attendees`);
+  check("on the main site the host route is refused", main.status >= 400 && !main.text.includes("Ann"), main.status);
+}
+
+console.log("\n# Everything else a host sees stays aggregate (D004, narrowed to this one list)");
+{
+  const live = await H.get(`/api/host/events/${Fid}/live`);
+  const report = await H.get(`/api/host/events/${Fid}/report`);
+  const rcsv = await H.get(`/api/host/events/${Fid}/report.csv`);
+  const me = await H.get("/api/host/me");
+  const blob = [live.text, report.text, rcsv.text, me.text].join("\n");
+  const people = Object.values(names);
+  check("the live view, the report, its CSV and the dashboard name nobody, even on an event that keeps the list", [live, report, rcsv, me].every((x) => x.status === 200) && !/Ann All|Cat Card|Eli|Lou List|Ollie|Nora|Una|HYPERLINK/.test(blob) && !people.some((p) => blob.includes(p.id)) && !/@example\.com/.test(blob.replace(/host\d+@work\d+\.example\.com/g, "")), null);
+  check("…but count them", live.json.checkins === 8);
+  const golden = JSON.parse(readFileSync(new URL("./fixtures/off-event-shapes.json", import.meta.url), "utf8"));
+  const { paths } = await import("./fixtures/off-event-shapes.mjs");
+  // The same scenario the fixture was made from (same event body, same two check-ins), with the list on.
+  const cmp = await mk({ name: "Shape night", venue: "Hall", startsAt: Date.now() + 3600e3, perks: ["Tea"], questions: [{ key: "extra1", label: "Course" }], collect: on() });
+  const cmpLive0 = (await H.get(`/api/host/events/${cmp.json.id}/live`)).json;
+  const watcher = client({ ip: "10.31.4.1" });
+  const evBefore = (await watcher.get(`/api/e/${cmpLive0.event.code}`)).json;
+  for (const n of ["Ann Shape", "Ben Shape"]) { const c = await person(n); await c.post(`/api/e/${cmp.json.code || cmpLive0.event.code}/checkin`, { answers: { extra1: "Maths" }, directoryConsent: true, collect: ALL }); }
+  const cl = (await H.get(`/api/host/events/${cmp.json.id}/live`)).json, cr = (await H.get(`/api/host/events/${cmp.json.id}/report`)).json;
+  const crc = (await H.get(`/api/host/events/${cmp.json.id}/report.csv`)).text.split("\r\n").map((r) => r.split(",").slice(0, 2).join("|")).filter((r) => !/^(Event\|(Name|Code|Starts)|Privacy)/.test(r));
+  const added = (now, before) => paths(now).filter((p) => !before.includes(p));
+  const missing = (now, before) => before.filter((p) => !paths(now).includes(p));
+  check("the live view has gained only the event's collect settings (no name, no list), and lost nothing", JSON.stringify(added(cl, golden.live)) === '[".event.collect",".event.collect.attendance",".event.collect.items",".event.collect.organiser",".event.collect.why"]' && missing(cl, golden.live).length === 0, [added(cl, golden.live), missing(cl, golden.live)]);
+  check("the report is field for field the report it was, with the list on", added(cr, golden.report).length === 0 && missing(cr, golden.report).length === 0, [added(cr, golden.report), missing(cr, golden.report)]);
+  check("the report's CSV has the same sections and items it had", JSON.stringify(crc) === JSON.stringify(golden.csv), crc);
+  const evAfter = (await watcher.get(`/api/e/${cmpLive0.event.code}`)).json;
+  check("the attendee's page data has gained only the event's notice (before and after check-in)", JSON.stringify(added(evBefore, golden.eventBefore)) === '[".event.collects",".event.collects.items",".event.collects.items[].key",".event.collects.items[].label",".event.collects.organiser",".event.collects.why"]' && missing(evBefore, golden.eventBefore).length === 0 && JSON.stringify(added(evAfter, golden.eventAfter)) === JSON.stringify(added(evBefore, golden.eventBefore)), [added(evBefore, golden.eventBefore), missing(evBefore, golden.eventBefore)]);
+  const present = read("src/views/HostPresent.vue") + read("src/views/HostPrint.vue") + read("src/lib/presentui.js") + read("src/lib/presentpoll.js");
+  check("the Present page and the poster read only the live route and never the list (source guard)", !/attendees|HostAttendees|collect/i.test(present) && /hostLive/.test(present));
+  const hostApi = read("src/lib/hostapi.js");
+  check("only the host's event page asks for the list", [...["src/views/HostPresent.vue", "src/views/HostPrint.vue", "src/views/HostDashboard.vue", "src/views/Hosts.vue"]].every((f) => !/\/attendees|hostAttendees|HostAttendees/.test(read(f))) && /\/attendees/.test(hostApi) && /HostAttendees/.test(read("src/views/HostLive.vue")));
+}
+
+console.log("\n# The list is in the host's data download; each person's choices are in theirs");
+{
+  const ex = await H.get("/api/host/account/export");
+  const lists = ex.json.attendeeLists;
+  check("the host's download has the list with its CSV for the event that keeps one", ex.status === 200 && lists.length >= 2 && lists.some((l) => l.eventId === Fid && l.count === 6 && l.attendees.some((a) => a.name === "Ann All" && a.email === "ann.all@example.com") && l.csv.includes("Ann All") && !l.csv.includes("Ollie")), lists?.map((l) => [l.eventName, l.count]));
+  check("…and nobody else's host sees it in theirs", !("attendeeLists" in (await H2.get("/api/host/account/export")).json));
+  const golden = JSON.parse(readFileSync(new URL("./fixtures/off-event-shapes.json", import.meta.url), "utf8"));
+  const H3 = await makeHost("10.31.1.3", "Quiet Events");
+  await H3.post("/api/host/events", { name: "Quiet" });
+  check("a host with no event that keeps a list gets the download it always got (same keys)", JSON.stringify(Object.keys((await H3.get("/api/host/account/export")).json).sort()) === JSON.stringify(golden.hostExport));
+  const mine = (await names.all.get("/api/account/export")).json;
+  const na = mine.namedAttendance;
+  check("a person's download says which lists they are on and what they share", na.onLists.length === 1 && na.onLists[0].eventId === Fid && na.onLists[0].sharing.join() === "email,card" && na.onLists[0].wording === "2026-11-13");
+  check("…and every choice with the exact words shown and their version", na.choices.length === 3 && na.choices.every((c) => c.action === "granted" && c.eventId === Fid && c.version === "2026-11-13" && c.wording.includes("Quad Events") && c.wording.includes(WHY)) && na.choices.map((c) => c.scope.split(":")[0]).sort().join() === "event_attendance,event_share_card,event_share_email", na.choices);
+  const out = (await names.out.get("/api/account/export")).json.namedAttendance;
+  check("a person who unticked everything still has their choices there, as refused, and is on no list", out.onLists.length === 0 && out.choices.length === 3 && out.choices.every((c) => c.action === "refused"), out);
+  const quiet = await person("Quiet Person");
+  const gotExport = (await quiet.get("/api/account/export")).json;
+  check("a person who was never offered a list gets the download they always got (same keys)", JSON.stringify(Object.keys(gotExport).sort()) === JSON.stringify(golden.userExport));
+}
+
+console.log("\n# The list goes: account deletion, switching it off, an item removed, the purge");
+{
+  const G = await mk({ collect: on() });
+  const gcode = (await H.get("/api/host/events/" + G.json.id + "/live")).json.event.code;
+  const p1 = await person("Gus Gone"), p2 = await person("Gail Stays");
+  setEmail(p1.id, "gus@example.com"); setEmail(p2.id, "gail@example.com");
+  for (const p of [p1, p2]) await p.post(`/api/e/${gcode}/checkin`, { collect: ALL });
+  const listOf = async () => (await H.get(`/api/host/events/${G.json.id}/attendees`)).json;
+  check("both are on it", (await listOf()).count === 2);
+  const { eraseUser } = await import("../worker/purge.js");
+  await eraseUser(env, p1.id);
+  const afterDelete = await listOf();
+  check("deleting an account removes the person from the host's list on the very next request, and their row is gone", afterDelete.count === 1 && afterDelete.attendees[0].name === "Gail Stays" && !JSON.stringify(afterDelete).includes("Gus") && q("SELECT 1 FROM event_attendees WHERE user_id = ?", p1.id).length === 0);
+  check("…while the record of what they chose stays (it has no foreign key, as for every consent)", q("SELECT 1 FROM consent_log WHERE user_id = ? AND scope LIKE 'event_attendance:%'", p1.id).length === 1);
+  await H.put("/api/host/events/" + G.json.id, { collect: on({ items: ["card"] }) });
+  const noEmail = await listOf();
+  check("when the host stops asking for the email, it disappears from the list at once (the person's old tick no longer counts)", noEmail.items.join() === "card" && !("email" in noEmail.attendees[0]) && !JSON.stringify(noEmail).includes("gail@example.com"));
+  await H.put("/api/host/events/" + G.json.id, { collect: { attendance: false } });
+  check("switching the list off deletes the list (the rows go)", q("SELECT 1 FROM event_attendees WHERE event_id = ?", G.json.id).length === 0 && (await H.get(`/api/host/events/${G.json.id}/attendees`)).status === 404);
+  await H.put("/api/host/events/" + G.json.id, { collect: on() });
+  check("switching it on again does not bring anyone back", (await listOf()).count === 0);
+}
+{
+  // The 12-month rule on a simulated clock (the same end rule as the event's status).
+  const { purgeExpired } = await import("../worker/purge.js");
+  const { purgeAttendees, ATTENDEES_KEEP_MS } = await import("../worker/attendance.js");
+  const DAY = 86400_000, YEAR = 365 * DAY, T0 = Date.UTC(2027, 0, 10, 12, 0, 0);
+  const raw = env.DB.raw;
+  const user = (id) => raw.prepare("INSERT OR IGNORE INTO users (id, created_at, last_seen_at, is_guest) VALUES (?, ?, ?, 0)").run(id, T0, T0);
+  const mkEvent = (id, cols) => {
+    raw.prepare("INSERT INTO events (id, code, name, created_at, collect_attendance, collect_items, collect_why, starts_at, ends_at, ended_at) VALUES (?, ?, ?, ?, 1, '[]', 'To keep a register', ?, ?, ?)")
+      .run(id, "P" + id.slice(-4).toUpperCase(), "Purge " + id, T0, cols.starts ?? null, cols.ends ?? null, cols.ended ?? null);
+    user("pu-" + id);
+    raw.prepare("INSERT INTO checkins (event_id, user_id, created_at) VALUES (?, ?, ?)").run(id, "pu-" + id, cols.checkin ?? cols.starts ?? T0);
+    raw.prepare("INSERT INTO event_attendees (event_id, user_id, items, notice_version, created_at, updated_at) VALUES (?, ?, '[]', 'v', ?, ?)").run(id, "pu-" + id, cols.checkin ?? cols.starts ?? T0, T0);
+  };
+  const has = (id) => raw.prepare("SELECT 1 FROM event_attendees WHERE event_id = ?").all(id).length > 0;
+  check("the retention period is 12 months (365 days) and the daily purge runs it", ATTENDEES_KEEP_MS === YEAR && /purgeAttendees/.test(read("worker/purge.js")));
+  mkEvent("pe-endsat", { starts: T0, ends: T0 + 5 * 3600_000 });
+  mkEvent("pe-hostended", { starts: T0, ends: T0 + 30 * DAY, ended: T0 + 2 * 3600_000 });
+  mkEvent("pe-noend", { starts: T0, checkin: T0 + 3600_000 });
+  mkEvent("pe-future", { starts: T0 + 2 * YEAR, ends: T0 + 2 * YEAR + 3600_000, checkin: T0 });
+  const endsAt = T0 + 5 * 3600_000, hostEnded = T0 + 2 * 3600_000, noEnd = T0 + 3600_000 + 12 * 3600_000 + 1;
+  await purgeExpired(env, hostEnded + YEAR - 1);
+  check("one millisecond before 12 months after the earliest end, every list is still there", has("pe-endsat") && has("pe-hostended") && has("pe-noend") && has("pe-future"));
+  await purgeExpired(env, hostEnded + YEAR);
+  check("an event the host ended early is held to the moment they ended it (not the planned end): its list goes, the others stay", !has("pe-hostended") && has("pe-endsat") && has("pe-noend"));
+  await purgeExpired(env, endsAt + YEAR - 1);
+  check("an event with an end time keeps its list until 12 months after that time", has("pe-endsat"));
+  await purgeExpired(env, endsAt + YEAR);
+  check("…and 12 months after its end time the list is deleted", !has("pe-endsat") && has("pe-noend"));
+  await purgeExpired(env, noEnd + YEAR - 1);
+  check("an event with no end time ends 12 hours after the later of its start and the person's check-in; one millisecond before 12 months after that it is still there", has("pe-noend"));
+  const gone = await purgeExpired(env, noEnd + YEAR);
+  check("…and at that moment it goes; the purge says how many it deleted", !has("pe-noend") && gone.attendees === 1, gone.attendees);
+  check("an event that has not happened yet keeps its list however long the clock runs on", has("pe-future") && (await purgeAttendees(env.DB, T0 + YEAR)) === 0 && has("pe-future"));
+  check("the purge is safe to run twice: a second run deletes nothing more", (await purgeAttendees(env.DB, noEnd + 2 * YEAR)) === 0 && has("pe-future"));
+  check("the purge leaves the record of what each person chose (consent_log) alone", q("SELECT 1 FROM consent_log WHERE scope LIKE 'event_attendance:%'").length > 0);
+
+}
+
+console.log("\n# The host reset wipes the lists");
+{
+  const reset = await import("../scripts/reset-hosts.mjs");
+  const r = makeDb().raw;
+  r.exec(`INSERT INTO users (id, created_at, last_seen_at) VALUES ('ru1', 1, 1);
+    INSERT INTO orgs (id, name, plan, org_type, verification_status, created_at) VALUES ('ro1', 'Reset Org', 'starter', 'company', 'approved', 1);
+    INSERT INTO events (id, org_id, code, name, created_at, collect_attendance, collect_items, collect_why) VALUES ('re1', 'ro1', 'RS2RS', 'Reset night', 1, 1, '["email"]', 'To keep a register');
+    INSERT INTO checkins (event_id, user_id, created_at) VALUES ('re1', 'ru1', 1);
+    INSERT INTO event_attendees (event_id, user_id, items, notice_version, created_at, updated_at) VALUES ('re1', 'ru1', '["email"]', 'v', 1, 1);
+    INSERT INTO consent_log (id, user_id, scope, action, ref, at, wording, version) VALUES ('rl1', 'ru1', 'event_attendance:re1', 'granted', 're1', 1, 'words', 'v');`);
+  const before = r.prepare(reset.COUNT_SQL).get();
+  check("the dry run counts the lists", before.event_attendees === 1 && reset.WIPED.includes("event_attendees") && reset.WIPED.indexOf("event_attendees") < reset.WIPED.indexOf("events"), before.event_attendees);
+  r.exec("BEGIN"); r.exec(reset.wipeSql(before, 1794300000000)); r.exec("COMMIT");
+  const after = r.prepare(reset.COUNT_SQL).get();
+  check("after the wipe there are no lists and the script's own check passes", after.event_attendees === 0 && reset.verify(before, after).length === 0, reset.verify(before, after));
+  check("the attendee keeps their account and the record of what they chose (consent_log is kept)", after.users_kept === 1 && after.consent_log_kept >= before.consent_log_kept && r.prepare("SELECT wording FROM consent_log WHERE id = 'rl1'").get().wording === "words");
+  check("a database without migration 0028 is refused by the script's schema check", makeDb({ before: "0028" }).raw.prepare(reset.SCHEMA_SQL).get().n === 6 && makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 7);
+  check("the script's header and its refusal message name 0028", /0018, 0023, 0025, 0027 and 0028/.test(read("scripts/reset-hosts.mjs")) && /0027 and 0028 are not all applied/.test(read("scripts/reset-hosts.mjs")));
+}
+
 summary();
 process.exit(process.exitCode || 0);

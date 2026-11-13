@@ -21,7 +21,7 @@ import { normEmail, validEmail, emailProblem, moveOwnership, openTransfer } from
 import { exportAi } from "./ai/data.js";
 import { summaryGet, summaryPost } from "./ai/feedbackSummary.js";
 import { normPromo } from "./promo.js";
-import { collectFields, collectOf } from "./attendance.js";
+import { collectFields, collectOf, hostAttendees, attendeesCsv, attendeesFileName, exportAttendeeLists } from "./attendance.js";
 import { registerHostPromo, releaseHeldClaims, heldClaims, exportHostClaims } from "./host-promo.js";
 import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
 
@@ -99,7 +99,7 @@ hostApp.get("/api/host/account/export", async (c) => {
   const me = c.get("host");
   const db = c.env.DB;
   const q = (sql, ...a) => all(db, sql, ...a);
-  const [orgs, tickets, transfers, billing, consents, sessions, promoClaims] = await Promise.all([
+  const [orgs, tickets, transfers, billing, consents, sessions, promoClaims, attendeeLists] = await Promise.all([
     q(`SELECT o.id, o.name, o.org_type, o.university, o.institution_id, m.role FROM host_org_members m JOIN orgs o ON o.id = m.org_id WHERE m.host_account_id = ?`, me.id),
     q("SELECT kind, new_email, message, status, admin_note, created_at, resolved_at FROM host_org_tickets WHERE host_account_id = ?", me.id),
     q("SELECT org_id, to_email, status, created_at, resolved_at FROM host_org_transfers WHERE from_host_id = ? OR to_host_id = ?", me.id, me.id),
@@ -107,6 +107,7 @@ hostApp.get("/api/host/account/export", async (c) => {
     q("SELECT scope, action, at FROM consent_log WHERE user_id = ? AND ref = 'host_account' ORDER BY at", me.id),
     q("SELECT created_at, expires_at, user_agent FROM host_sessions WHERE host_account_id = ?", me.id),
     exportHostClaims(db, me.id), // F20: promo codes claimed, and the credits they gave
+    exportAttendeeLists(db, me.id), // F31: the lists of who checked in that this host's organisations keep (events with the list on only)
   ]);
   return c.json({
     exportedAt: now(),
@@ -116,6 +117,7 @@ hostApp.get("/api/host/account/export", async (c) => {
       referral: me.referral, termsVersion: me.terms_version, termsAt: me.terms_at, createdAt: me.created_at, lastLoginAt: me.last_login_at,
     },
     organisations: orgs, tickets, transfers, billingRequests: billing, promoCodes: promoClaims, consentHistory: consents, devices: sessions,
+    ...(attendeeLists.length ? { attendeeLists } : {}),
     ai: await exportAi(db, "host", me.id), // F21
   });
 });
@@ -548,6 +550,29 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
     presenceUsed: t.presence >= 3 ? t.presence : null,
     cap: EVENT_CHECKIN_CAP,
     overCap: t.checkins > EVENT_CHECKIN_CAP,
+  });
+});
+
+// F31: the list of who checked in, for an event of this host's organisation that has it switched on
+// (D038). 404 for anyone else's event and for one without the list: the host sees nothing there.
+// It names only people who are on the list, with only what each of them left ticked.
+hostApp.get("/api/host/events/:id/attendees", async (c) => {
+  const ev = await hostEvent(c, c.get("host"));
+  const list = await hostAttendees(c.env.DB, ev);
+  if (!list) return c.json({ error: "This event does not keep a list of who checked in.", code: "list_off" }, 404);
+  return c.json(list, 200, { "cache-control": "no-store" });
+});
+
+hostApp.get("/api/host/events/:id/attendees.csv", async (c) => {
+  const ev = await hostEvent(c, c.get("host"));
+  const list = await hostAttendees(c.env.DB, ev);
+  if (!list) return c.json({ error: "This event does not keep a list of who checked in.", code: "list_off" }, 404);
+  return new Response(attendeesCsv(list), {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="${attendeesFileName(ev.name)}"`,
+      "cache-control": "no-store",
+    },
   });
 });
 

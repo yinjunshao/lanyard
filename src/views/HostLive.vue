@@ -14,6 +14,7 @@ import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import EventPreview from "../components/EventPreview.vue";
 import EventCollects from "../components/EventCollects.vue";
+import HostAttendees from "../components/HostAttendees.vue";
 import { THEME_OPTIONS, detailsBody, eventFromBody } from "../lib/eventform";
 import { defaultEnd } from "../lib/dates";
 import { cleanWhy, whyProblem } from "../lib/collects";
@@ -267,6 +268,9 @@ async function copyFeedbackLink() {
         </div>
       </div>
 
+      <!-- Who checked in (F31): only for an event whose host switched the list on. -->
+      <HostAttendees v-if="tab === 'live' && live.event.collect" :event-id="id" :checkins="live.checkins" />
+
       <!-- Details -->
       <EventPreview v-if="tab === 'details'" v-model:theme="d.theme" v-model:strap-color="d.strapColor" :event="previewEvent" :sponsors="live.sponsors || []">
       <form class="panel stack-2" role="tabpanel" @submit.prevent="saveDetails">
@@ -372,6 +376,7 @@ async function copyFeedbackLink() {
           </div>
           <div class="btn-row no-print">
             <a class="btn" :href="HostApi.hostReportCsvUrl(id)" download>Download CSV</a>
+            <a v-if="live.event.collect" class="btn" :href="HostApi.hostAttendeesCsvUrl(id)" download>Download attendee list (CSV)</a>
             <button class="btn" @click="printPage">Print or save as PDF</button>
           </div>
           <div class="report-stats">

@@ -37,6 +37,8 @@ import { selfieView } from "./selfie.js";
 import { sharedGround } from "./inCommon.js";
 import { exportPresence, canViewPresenceSelfie } from "./presence.js";
 import { presenceApp } from "./presenceApp.js";
+import { attendanceApp } from "./attendanceApp.js";
+import { exportNamedAttendance } from "./attendance.js";
 import { exportAi } from "./ai/data.js";
 import { aiApp } from "./ai/routes.js";
 import { followupApp } from "./ai/followup.js";
@@ -459,6 +461,7 @@ app.get("/api/account/export", async (c) => {
     q("SELECT id, kind, message, status, created_at, outcome FROM privacy_requests WHERE user_id = ? OR email = ?", u.id, u.recovery_email || "-").catch(() => []),
   ]);
   const eventPresence = await exportPresence(db, u.id); // F17
+  const namedAttendance = await exportNamedAttendance(db, u.id); // F31: only for a person who was ever offered a list
   const ai = await exportAi(db, "user", u.id); // F21
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
@@ -483,6 +486,7 @@ app.get("/api/account/export", async (c) => {
     messages: messages.map((m) => ({ ...m, photo: media(m.photo_key) })),
     eventCheckins: checkins,
     eventPresence,
+    ...(namedAttendance ? { namedAttendance } : {}),
     ai,
     consents,
     reportsMade: reports,
@@ -1279,6 +1283,7 @@ app.post("/api/connections/:id/report", async (c) => {
 app.route("/", eventsApp);
 app.route("/", myEventsApp);
 app.route("/", presenceApp);
+app.route("/", attendanceApp);
 app.route("/", aiApp);
 app.route("/", followupApp);
 app.route("/", peopleSearchApp);
