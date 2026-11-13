@@ -264,7 +264,7 @@ async function copyFeedbackLink() {
             </p>
           </template>
           <p v-else class="small muted" style="margin:0">Ended {{ fmtDateTime(live.event.endedAt) }}. Feedback is open for a week.</p>
-          <p class="small muted" style="margin:0">Aggregate only. You never see who connected with whom.</p>
+          <p class="small muted" style="margin:0">{{ live.event.collect ? "Counts only, apart from the list of who checked in below. You never see who connected with whom." : "Aggregate only. You never see who connected with whom." }}</p>
         </div>
       </div>
 

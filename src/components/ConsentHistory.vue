@@ -17,9 +17,12 @@ function name(scope) {
   if (scope.startsWith("event_directory:")) return "Showing me in an event's room";
   if (scope.startsWith("event_presence:")) return "Being easy to find at an event (photo and line)";
   if (scope.startsWith("event_sponsor:")) return "Sharing my details with an event sponsor";
+  if (scope.startsWith("event_attendance:")) return "Being on an event's list of who checked in";
+  if (scope.startsWith("event_share_email:")) return "Sharing my email with an event's organisers";
+  if (scope.startsWith("event_share_card:")) return "Sharing my card with an event's organisers";
   return NAMES[scope] || scope;
 }
-const verb = (a, scope) => (scope === "account" ? "Deleted" : a === "granted" ? "Agreed" : "Withdrawn");
+const verb = (a, scope) => (scope === "account" ? "Deleted" : a === "granted" ? "Agreed" : a === "refused" ? "Declined" : "Withdrawn");
 const when = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 onMounted(async () => {

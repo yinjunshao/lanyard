@@ -467,6 +467,79 @@ console.log("\n# The list goes: account deletion, switching it off, an item remo
   await H.put("/api/host/events/" + G.json.id, { collect: on() });
   check("switching it on again does not bring anyone back", (await listOf()).count === 0);
 }
+// ---------- F31.5 changing your mind: the event hub and Settings ----------
+console.log("\n# F31.5 Unticking later takes a person off the host's list on the very next request");
+{
+  const K = await mk({ collect: on(), directoryOn: false });
+  const kcode = (await H.get("/api/host/events/" + K.json.id + "/live")).json.event.code;
+  const kid = K.json.id;
+  const mkp = async (n, email) => { const p = await person(n); if (email) setEmail(p.id, email); await p.post(`/api/e/${kcode}/checkin`, { collect: ALL }); return p; };
+  const amy = await mkp("Amy Mind", "amy@example.com"), bob = await mkp("Bob Mind", "bob@example.com"), cy = await mkp("Cy Mind", "cy@example.com");
+  const listNames = async () => (await H.get(`/api/host/events/${kid}/attendees`)).json.attendees.map((a) => a.name).sort().join("|");
+  check("all three are on the host's list to begin with", await listNames() === "Amy Mind|Bob Mind|Cy Mind");
+
+  const hub = (await amy.get(`/api/my/events/${kid}`)).json;
+  check("the event hub says the organisers keep a list, and offers the choices even with the room off and no sponsors", hub.event.namedAttendance === true && hub.event.hasChoices === true && hub.event.directoryOn === false, hub.event);
+  const st = (await amy.get(`/api/e/${kid}/attendance`)).json;
+  check("the choices show where she stands, with the organiser, the why line and the exact words of each item", st.on === true && st.attendance === true && st.organiser === "Quad Events" && st.why === WHY && st.label === wordings.items[0].label && st.items.map((i) => [i.key, i.on, i.label].join("=")).join("|") === `email=true=${wordings.items[1].label}|card=true=${wordings.items[2].label}`, st);
+
+  const off = await amy.put(`/api/e/${kid}/attendance`, { attendance: false, email: true, card: true });
+  check("unticking the first row answers at once with her new standing", off.status === 200 && off.json.attendance === false && off.json.items.every((i) => i.on === false), off.json);
+  check("the host's very next request no longer shows her, and her name is not in it", await listNames() === "Bob Mind|Cy Mind" && !(await H.get(`/api/host/events/${kid}/attendees`)).text.includes("Amy") && !(await H.get(`/api/host/events/${kid}/attendees.csv`)).text.includes("Amy"));
+  const lg = logs(amy.id, kid);
+  check("it is in consent_log as withdrawn, for the list and for each item, with the wording", lg.filter((x) => x.action === "withdrawn").length === 3 && lg.every((x) => x.wording && x.version === "2026-11-13"), lg.map((x) => x.action));
+  check("her row is deleted, not just hidden", q("SELECT 1 FROM event_attendees WHERE event_id = ? AND user_id = ?", kid, amy.id).length === 0);
+  check("she is still checked in: the hub still works for her", (await amy.get(`/api/my/events/${kid}`)).status === 200);
+  const again = await amy.put(`/api/e/${kid}/attendance`, { attendance: false });
+  check("saying the same thing again changes nothing and writes no new record", again.status === 200 && logs(amy.id, kid).length === lg.length);
+  const back = await amy.put(`/api/e/${kid}/attendance`, { attendance: true, email: false, card: true });
+  check("she can tick it again later: on the list with the card only, the email recorded as not shared", back.json.attendance === true && (await H.get(`/api/host/events/${kid}/attendees`)).json.attendees.find((a) => a.name === "Amy Mind") && !("email" in (await H.get(`/api/host/events/${kid}/attendees`)).json.attendees.find((a) => a.name === "Amy Mind")) && logs(amy.id, kid).filter((x) => x.action === "granted").length === 5, logs(amy.id, kid).map((x) => x.action));
+
+  await bob.put(`/api/e/${kid}/attendance`, { attendance: true, email: false, card: true });
+  const bobRow = (await H.get(`/api/host/events/${kid}/attendees`)).json.attendees.find((a) => a.name === "Bob Mind");
+  check("unticking only the email takes the email away from the host's next look, and leaves him on the list", !("email" in bobRow) && !!bobRow.card && !(await H.get(`/api/host/events/${kid}/attendees`)).text.includes("bob@example.com"));
+  check("…and only the email is logged as withdrawn", logs(bob.id, kid).filter((x) => x.action === "withdrawn").map((x) => x.scope.split(":")[0]).join() === "event_share_email");
+
+  // A missing value is never a tick, on a change as on a check-in.
+  const none = await cy.put(`/api/e/${kid}/attendance`, {});
+  check("a change that carries no values takes the person off (missing means not ticked, never ticked)", none.json.attendance === false && await listNames() === "Amy Mind|Bob Mind");
+  for (const body of [{ attendance: "true" }, { attendance: 1 }, { attendance: "yes", email: true }, { email: true, card: true }]) {
+    const r = await cy.put(`/api/e/${kid}/attendance`, body);
+    check(`${JSON.stringify(body)}: does not put anyone on the list`, r.status === 200 && r.json.attendance === false && !(await listNames()).includes("Cy"));
+  }
+
+  // Who may do it.
+  const stranger = await person("Sam Stranger");
+  check("someone who did not check in cannot read or change the choices (404) and changes nobody else's", (await stranger.get(`/api/e/${kid}/attendance`)).status === 404 && (await stranger.put(`/api/e/${kid}/attendance`, { attendance: true, email: true, card: true })).status === 404 && !(await listNames()).includes("Sam"));
+  check("signed out: reading is refused (401), and changing does nothing (a visitor with no check-in gets 404)", (await client({ ip: "10.31.5.1" }).get(`/api/e/${kid}/attendance`)).status === 401 && [401, 404].includes((await client({ ip: "10.31.5.3" }).put(`/api/e/${kid}/attendance`, { attendance: true })).status) && !(await listNames()).includes("Cy"));
+  const hostTries = await H.req("PUT", `/api/e/${kid}/attendance`, { attendance: true }, { origin: HOST_ORIGIN });
+  check("the host site does not serve it at all (the host cannot tick for anyone)", hostTries.status >= 400 && !(await listNames()).includes("Cy"), hostTries.status);
+  const plain = await mk({ perks: ["Tea"] });
+  const pcode2 = (await H.get("/api/host/events/" + plain.json.id + "/live")).json.event.code;
+  await amy.post(`/api/e/${pcode2}/checkin`, {});
+  check("on an event that keeps no list, there is nothing to read or change, and the hub is as it was", (await amy.get(`/api/e/${plain.json.id}/attendance`)).json.on === false && (await amy.put(`/api/e/${plain.json.id}/attendance`, { attendance: true })).status === 404 && !("namedAttendance" in (await amy.get(`/api/my/events/${plain.json.id}`)).json.event) && q("SELECT 1 FROM event_attendees WHERE event_id = ?", plain.json.id).length === 0);
+  const golden = JSON.parse(readFileSync(new URL("./fixtures/off-event-shapes.json", import.meta.url), "utf8"));
+  const { paths } = await import("./fixtures/off-event-shapes.mjs");
+  const offHub = paths((await amy.get(`/api/my/events/${plain.json.id}`)).json);
+  check("the hub for an event without a list has exactly the fields it always had", JSON.stringify(offHub) === JSON.stringify(golden.hub), offHub.filter((p) => !golden.hub.includes(p)));
+
+  console.log("\n# Settings, Privacy and data");
+  const mine = (await amy.get("/api/account/attendance")).json.lists;
+  check("Settings lists the events whose list she is on, with the same choices", mine.length === 1 && mine[0].id === kid && mine[0].name === "Night" && mine[0].attendance === true && mine[0].items.length === 2, mine);
+  await amy.put(`/api/e/${kid}/attendance`, { attendance: false });
+  check("after unticking there it is no longer listed, and the host's next request does not show her", (await amy.get("/api/account/attendance")).json.lists.length === 0 && !(await listNames()).includes("Amy"));
+  check("a person on no list gets an empty answer; signed out is refused", (await stranger.get("/api/account/attendance")).json.lists.length === 0 && (await client({ ip: "10.31.5.2" }).get("/api/account/attendance")).status === 401);
+  const cons = (await amy.get("/api/account/consents")).json.history;
+  check("her consent history (Settings) shows the changes, newest first", cons.some((c) => c.scope === `event_attendance:${kid}` && c.action === "withdrawn"));
+  const src = (f) => read(f);
+  check("the event hub offers the list's choices only for an event that keeps one, and Settings shows the block", /v-if="event\.namedAttendance"/.test(src("src/views/EventDetail.vue")) && /<AttendanceSetting\s*\/>/.test(src("src/views/settings/SettingsPrivacy.vue")));
+  check("the choices are rows at least 44 px tall, ticked or not as the server says, each saved at once", /\.att-row\s*\{[^}]*min-height:\s*(4[4-9]|[5-9]\d)px/.test(src("src/components/EventAttendanceChoices.vue")) && /@change="setAttendance/.test(src("src/components/EventAttendanceChoices.vue")));
+  const cv = src("src/components/ConsentHistory.vue");
+  check("Settings words the new records: the list, the email and the card, and a refusal reads as declined", /event_attendance:/.test(cv) && /event_share_email:/.test(cv) && /event_share_card:/.test(cv) && /refused/.test(cv));
+  check("no shared file knows about any of it (api.js, store.js, profile.js, Icon, Badge, CardView, the entry, either router table)", ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/App.vue", "src/router/index.js", "src/router/routes.attendee.js", "src/router/routes.host.js"].every((f) => !/attendance|collects|HostAttendees|EventCollects|named attendance/i.test(src(f))));
+}
+
+// ---------- last: these run the clock years ahead, which also expires every host session ----------
 {
   // The 12-month rule on a simulated clock (the same end rule as the event's status).
   const { purgeExpired } = await import("../worker/purge.js");

@@ -1,7 +1,8 @@
 // Host API: host accounts (F10: separate from attendee accounts, signed in by
 // email code on the host site; see host-auth.js), organisations (with approval
 // for societies and institutions), ownership transfers, tickets, events and
-// billing. Hosts only ever see aggregates about attendees (D004).
+// billing. Hosts only ever see aggregates about attendees (D004), except an event's own list of who
+// checked in, if the host switched it on, for people who left the tick on (D038, worker/attendance.js).
 import { Hono } from "hono";
 import { newId, now, one, all, run, uniqueCode, countJsonTerms, countAnswerTerms } from "./db.js";
 import { TERMS_VERSION, hostTermsScope, logConsentStmt } from "./legal.js";

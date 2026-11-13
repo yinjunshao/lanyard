@@ -7,6 +7,7 @@ import { useRoute, useRouter } from "vue-router";
 import { api, Api } from "../lib/api";
 import Avatar from "../components/Avatar.vue";
 import EventChoices from "../components/EventChoices.vue";
+import EventAttendanceChoices from "../components/EventAttendanceChoices.vue";
 import EventPresence from "../components/EventPresence.vue";
 import Icon from "../components/Icon.vue";
 import UiSheet from "../components/ui/UiSheet.vue";
@@ -207,14 +208,17 @@ const choicesTrigger = ref(null);
       <div v-if="event.hasChoices" class="list">
         <button ref="choicesTrigger" type="button" class="list-row spread" aria-haspopup="dialog" @click="choicesOpen = true">
           <span><strong>Your choices at this event</strong>
-            <span class="small muted" style="display:block">The room and what you share with sponsors</span></span>
+            <span class="small muted" style="display:block">{{ event.namedAttendance ? "The room, sponsors and the organisers' list of who came" : "The room and what you share with sponsors" }}</span></span>
           <span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
         </button>
       </div>
     </template>
 
     <UiSheet v-if="event?.hasChoices" :open="choicesOpen" :anchor="choicesTrigger" label="Your choices at this event" fit @close="choicesOpen = false">
-      <EventChoices v-if="choicesOpen" :event-id="eventId" />
+      <div v-if="choicesOpen" class="stack-3">
+        <EventChoices :event-id="eventId" />
+        <EventAttendanceChoices v-if="event.namedAttendance" :event-id="eventId" />
+      </div>
     </UiSheet>
   </div>
 </template>

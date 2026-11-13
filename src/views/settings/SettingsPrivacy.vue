@@ -5,6 +5,7 @@ import { useRouter } from "vue-router";
 import { Api } from "../../lib/api";
 import ConsentHistory from "../../components/ConsentHistory.vue";
 import AiSearchSetting from "./AiSearchSetting.vue";
+import AttendanceSetting from "./AttendanceSetting.vue";
 import Icon from "../../components/Icon.vue";
 
 const router = useRouter();
@@ -29,9 +30,11 @@ async function erase() {
 
     <AiSearchSetting />
 
+    <AttendanceSetting />
+
     <ConsentHistory />
 
-    <p class="small muted">Shared selfies are deleted after 12 months. Hosts only ever see aggregate numbers.</p>
+    <p class="small muted">Shared selfies are deleted after 12 months. Hosts see aggregate numbers, and a list of names only at an event that tells you so when you check in and only if you leave that tick on.</p>
 
     <details class="list" style="padding:16px">
       <summary class="error-text" style="cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center">Delete account</summary>
