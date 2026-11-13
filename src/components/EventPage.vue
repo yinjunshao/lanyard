@@ -8,9 +8,13 @@
 //            The theme (formal, night) and the host's strap colour show on the head of the page
 //            like a card's strap. An event with the default theme and no colour looks as it always did.
 //   sponsors [{ id, name, perk }]
-//   form     { name, answers: {key: text}, sponsorConsent: {id: bool}, directoryConsent, agreed }
+//   form     { name, answers: {key: text}, sponsorConsent: {id: bool}, directoryConsent, agreed, collect, hasEmail }
+//            `collect` holds the ticks of an event that collects names (F31), each ticked to start with.
+//   event.collects  { organiser, why, items: [{ key, label }] }, present only when the host switched named
+//            attendance on. The words come from the Worker (src/lib/collects.js) and are shown as text.
 //   showName ask for a name (a guest with no card yet)
 //   needsAgree ask for the 18+ and Terms tick (first-timers)
+import { watch } from "vue";
 const INFO_LABELS = { access: "Access", dress: "Dress code", food: "Food and drink", other: "Good to know" };
 const branded = (e) => (e.theme && e.theme !== "default") || !!e.strapColor;
 const fmtDate = (t) =>
@@ -18,7 +22,7 @@ const fmtDate = (t) =>
     weekday: "short", day: "numeric", month: "long", hour: "numeric", minute: "2-digit",
   }) : "";
 
-defineProps({
+const props = defineProps({
   event: { type: Object, required: true },
   sponsors: { type: Array, default: () => [] },
   form: { type: Object, required: true },
@@ -28,6 +32,20 @@ defineProps({
   busy: { type: Boolean, default: false },
 });
 defineEmits(["checkin"]);
+
+// F31: an event that collects shows one row per item, every one ticked to start with (the owner's
+// decision, D038): the person unticks what they do not want to share. The caller normally sets
+// form.collect; this makes sure it exists so the real page and the host's preview start the same way.
+watch(() => props.event.collects, (c) => {
+  if (c && !props.form.collect) props.form.collect = { attendance: true, email: true, card: true };
+}, { immediate: true });
+const noEmail = (k) => k === "email" && props.form.hasEmail === false; // no verified email: nothing to share
+const isOn = (k) => !!props.form.collect?.[k] && (k === "attendance" || (!!props.form.collect.attendance && !noEmail(k)));
+const locked = (k) => (k !== "attendance" && !props.form.collect?.attendance) || noEmail(k);
+function tick(k, on) { props.form.collect = { ...props.form.collect, [k]: on }; }
+// What the page says about hosts depends on whether this event keeps a list.
+const hostsLine = (e) => (e.collects ? "The organisers see only what you leave ticked below, and never who you connect with." : "Hosts see aggregate numbers only — never who connected with whom.");
+const totalsLine = (e) => (e.collects ? "The organisers never see who you connect with." : "The organiser only sees anonymous totals, never who you connect with.");
 </script>
 
 <template>
@@ -63,7 +81,7 @@ defineEmits(["checkin"]);
 
     <div class="notice">
       Checking in unlocks perks and the event album. If you choose to, you can also appear in the attendee room.
-      Hosts see aggregate numbers only — never who connected with whom.
+      {{ hostsLine(event) + ' ' }}
     </div>
 
     <label v-if="event.directoryOn" class="checkbox-row" style="margin:4px 0">
@@ -95,6 +113,20 @@ defineEmits(["checkin"]);
       <p class="small muted">Each sponsor is a separate, optional choice. Never pre-ticked.</p>
     </div>
 
+    <section v-if="event.collects && form.collect" class="panel stack-2" aria-labelledby="collects-h" data-collects>
+      <h2 id="collects-h" class="label">This event collects</h2>
+      <p class="small" style="margin:0"><strong>{{ event.collects.organiser }}</strong> asks for this.
+        <span class="muted">Why:</span> {{ event.collects.why }}</p>
+      <p class="small muted" style="margin:0">Everything is ticked to start with. Untick anything you don't want to share. You can still check in.</p>
+      <label v-for="it in event.collects.items" :key="it.key" class="checkbox-row collect-row" :class="{ locked: locked(it.key) }">
+        <input type="checkbox" :checked="isOn(it.key)" :disabled="locked(it.key)" :data-item="it.key" @change="tick(it.key, $event.target.checked)" />
+        <span class="small">{{ it.label }}
+          <span v-if="noEmail(it.key)" class="muted" style="display:block">You have no verified email on your account, so there is nothing to share.</span></span>
+      </label>
+      <p class="small muted" style="margin:0">You can change your mind later, on this event's page or in Settings. See the
+        <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.</p>
+    </section>
+
     <label v-if="needsAgree" class="checkbox-row">
       <input v-model="form.agreed" type="checkbox" />
       <span class="small">
@@ -103,7 +135,7 @@ defineEmits(["checkin"]);
       </span>
     </label>
     <p class="small muted">
-      The organiser only sees anonymous totals, never who you connect with.
+      {{ ' ' + totalsLine(event) }}
       <template v-if="event.feedbackOn">After the event you'll be asked for quick, anonymous feedback.</template>
     </p>
 
@@ -120,6 +152,9 @@ defineEmits(["checkin"]);
 </template>
 
 <style scoped>
+.collect-row { width: 100%; min-height: 48px; align-items: center; padding: 10px 12px; border: var(--border); border-radius: var(--radius); background: var(--paper-raised); cursor: pointer; }
+.collect-row.locked { cursor: default; opacity: .7; }
+.collect-row input[type="checkbox"] { margin-top: 0; }
 .event-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
 .event-info dt { padding-top: 2px; }
 .event-info dd { margin: 0; }

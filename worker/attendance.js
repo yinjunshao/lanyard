@@ -68,3 +68,55 @@ export async function noticeFor(db, ev) {
   const c = collectOf(ev);
   return c ? noticeOf(c, await organiserName(db, ev.org_id)) : null;
 }
+
+/* ------------------------------- a person's choices ------------------------------- */
+
+const logStmt = (db, userId, scope, action, eventId, wording, ts) =>
+  db.prepare("INSERT INTO consent_log (id, user_id, scope, action, ref, at, wording, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(newId() + newId(), userId, scope, action, eventId, ts, wording, NOTICE_VERSION);
+
+/**
+ * What a request says about each item the event offers, as true or false. An item is granted only
+ * when the request says `true` for it: a missing key, `"true"`, `1` and anything else mean no. The
+ * extra items also need the attendance tick, because they are only ever shown on the list.
+ */
+export function readChoices(sent, notice) {
+  const s = sent && typeof sent === "object" && !Array.isArray(sent) ? sent : {};
+  const attendance = s.attendance === true;
+  const out = { attendance };
+  for (const i of notice.items) if (i.key !== "attendance") out[i.key] = attendance && s[i.key] === true;
+  return out;
+}
+
+/**
+ * The statements that record a person's choices at one event (inside the caller's batch): a
+ * consent_log row for each item offered (granted, refused or withdrawn, with the exact wording and
+ * its version), and the person's row on the list, made or updated when they are on it and deleted
+ * when they are not. `onlyChanges` (a change of mind, not a check-in) logs just the items whose
+ * state changed. Returns [] for an event that does not collect.
+ */
+export async function choiceStatements(db, ev, userId, sent, { onlyChanges = false, ts = Date.now() } = {}) {
+  const notice = await noticeFor(db, ev);
+  if (!notice) return [];
+  const had = await one(db, "SELECT items FROM event_attendees WHERE event_id = ? AND user_id = ?", ev.id, userId);
+  const hadItems = had ? itemsOf(parseList(had.items)) : [];
+  const choice = readChoices(sent, notice);
+  const stmts = [];
+  for (const item of notice.items) {
+    const granted = choice[item.key] === true;
+    const was = item.key === "attendance" ? !!had : hadItems.includes(item.key);
+    if (onlyChanges && granted === was) continue;
+    const action = granted ? "granted" : was ? "withdrawn" : "refused";
+    stmts.push(logStmt(db, userId, SCOPES[item.key](ev.id), action, ev.id, wordingFor(item, notice), ts));
+  }
+  if (choice.attendance) {
+    const items = notice.items.filter((i) => i.key !== "attendance" && choice[i.key]).map((i) => i.key);
+    stmts.push(db.prepare(
+      `INSERT INTO event_attendees (event_id, user_id, items, notice_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(event_id, user_id) DO UPDATE SET items = excluded.items, notice_version = excluded.notice_version, updated_at = excluded.updated_at`
+    ).bind(ev.id, userId, JSON.stringify(items), NOTICE_VERSION, ts, ts));
+  } else {
+    stmts.push(db.prepare("DELETE FROM event_attendees WHERE event_id = ? AND user_id = ?").bind(ev.id, userId));
+  }
+  return stmts;
+}

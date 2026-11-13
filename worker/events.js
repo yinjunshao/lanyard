@@ -8,7 +8,7 @@ import { termsScope, hasConsent, recordConsentStmt, logConsentStmt } from "./leg
 import { blockedSet } from "./blocks.js";
 import { eventInfo, feedbackOpensAt } from "./feedback.js";
 import { checkinCapFor } from "./plans.js";
-import { noticeFor } from "./attendance.js";
+import { noticeFor, choiceStatements } from "./attendance.js";
 
 export const eventsApp = new Hono();
 
@@ -137,6 +137,11 @@ eventsApp.post("/api/e/:code/checkin", async (c) => {
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(user_id, scope) DO UPDATE SET granted = excluded.granted, created_at = excluded.created_at`
     ).bind(newId(), me.id, `event_directory:${ev.id}`, directoryConsent, now()));
+  }
+  // F31: the person's choices at the notice. Only for an event that collects, and only when the
+  // request carries them: a request with no choices changes nothing and puts nobody on the list.
+  if (ev.collect_attendance && body.collect && typeof body.collect === "object") {
+    stmts.push(...await choiceStatements(db, ev, me.id, body.collect));
   }
   await db.batch(stmts);
 

@@ -14,7 +14,7 @@ const state = ref("loading");
 const event = ref(null);
 const sponsors = ref([]);
 // First-timers agree to the Terms here (the server checks it too).
-const form = reactive({ name: me.profile?.name || "", answers: {}, sponsorConsent: {}, directoryConsent: false, agreed: false });
+const form = reactive({ name: me.profile?.name || "", answers: {}, sponsorConsent: {}, directoryConsent: false, agreed: false, collect: null, hasEmail: true });
 const needsAgree = () => !me.user?.termsAccepted;
 const busy = ref(false);
 const error = ref("");
@@ -30,6 +30,12 @@ async function load() {
       return;
     }
     for (const q of event.value.questions) form.answers[q.key] = "";
+    // F31: an event that collects names starts with every tick on (the person unticks what they do not want to share).
+    // Sharing an email needs a verified one, so that row is off and says why when there is none.
+    if (event.value.collects) {
+      form.hasEmail = !!me.user?.emailVerified;
+      form.collect = { attendance: true, email: form.hasEmail, card: true };
+    }
     state.value = "checkin";
   } catch (e) {
     error.value = e.message === "event not found" ? "That event code doesn't exist." : e.message;
@@ -54,6 +60,8 @@ async function checkIn() {
       answers: { ...form.answers },
       sponsor: Object.keys(form.sponsorConsent).filter((k) => form.sponsorConsent[k]),
       directoryConsent: form.directoryConsent,
+      // The ticks as they are now. Sent only for an event that collects; each is a plain true or false.
+      ...(event.value.collects ? { collect: Object.fromEntries(event.value.collects.items.map((i) => [i.key, form.collect?.[i.key] === true])) } : {}),
       ...(needsAgree() ? { acceptTerms: form.agreed, over18: form.agreed } : {}),
     });
     router.replace(`/app/events/${event.value.id}`);

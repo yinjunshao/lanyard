@@ -167,5 +167,152 @@ console.log("\n# The form: what the stepper and the preview send and show");
   check("whyProblem: required, 10 to 200 characters", !!whyProblem("") && !!whyProblem("123456789") && !whyProblem("1234567890") && !whyProblem("x".repeat(200)) && !!whyProblem("x".repeat(201)) && cleanWhy(null) === "");
 }
 
+// ---------- F31.3 the check-in page: the notice, the ticks, and what is recorded ----------
+let ipn = 20;
+async function person(name, { email } = {}) {
+  const c = client({ ip: `10.31.2.${ipn++}` });
+  const r = await c.post("/api/profile", { name, acceptTerms: true, over18: true });
+  const id = (await c.get("/api/me")).json.user.id;
+  if (email) q("UPDATE users SET recovery_email = ?, email_verified = 1 WHERE id = ?", email, id) && 0;
+  return Object.assign(c, { id, name, status: r.status });
+}
+const setEmail = (id, email) => env.DB.raw.prepare("UPDATE users SET recovery_email = ?, email_verified = 1 WHERE id = ?").run(email, id);
+const listRow = (eventId, userId) => q1("SELECT items, notice_version v FROM event_attendees WHERE event_id = ? AND user_id = ?", eventId, userId);
+const logs = (userId, eventId) => q("SELECT scope, action, ref, wording, version FROM consent_log WHERE user_id = ? AND scope LIKE '%:' || ? ORDER BY scope", userId, eventId);
+const ALL = { attendance: true, email: true, card: true };
+const E = await mk({ collect: on(), venue: "Hall 1" });
+const Ecode = (await H.get("/api/host/events/" + E.json.id + "/live")).json.event.code;
+const Eid = E.json.id;
+const wordings = (await client({ ip: "10.31.2.1" }).get("/api/e/" + Ecode)).json.event.collects;
+
+console.log("\n# F31.3 What the check-in page is given, and what is recorded for each choice");
+{
+  check("the page's data names the organiser, the why line and one item per tick, the list itself first", wordings.organiser === "Quad Events" && wordings.why === WHY && wordings.items.map((i) => i.key).join() === "attendance,email,card" && wordings.items.every((i) => typeof i.label === "string" && i.label.length > 10), wordings);
+  const a = await person("Ann Ticks");
+  setEmail(a.id, "ann@example.com");
+  const r = await a.post(`/api/e/${Ecode}/checkin`, { collect: ALL });
+  check("checking in with every tick left on puts the person on the list with both extras", r.status === 200 && listRow(Eid, a.id)?.items === '["email","card"]', listRow(Eid, a.id));
+  const l = logs(a.id, Eid);
+  check("each item is in consent_log as granted, for this event, with the exact wording shown and the version", l.length === 3 && l.every((x) => x.action === "granted" && x.ref === Eid && x.version === "2026-11-13" && x.wording.includes(wordings.organiser) && x.wording.includes(WHY)) && l.some((x) => x.scope === "event_attendance:" + Eid && x.wording.startsWith(wordings.items[0].label)) && l.some((x) => x.scope === "event_share_email:" + Eid && x.wording.startsWith(wordings.items[1].label)) && l.some((x) => x.scope === "event_share_card:" + Eid && x.wording.startsWith(wordings.items[2].label)), l);
+
+  const b = await person("Ben Opts Out");
+  await b.post(`/api/e/${Ecode}/checkin`, { collect: { attendance: false, email: true, card: true } });
+  const lb = logs(b.id, Eid);
+  check("unticking attendance: nobody is on the list, whatever the other two say", !listRow(Eid, b.id) && lb.length === 3 && lb.every((x) => x.action === "refused"), lb);
+  const bb = await b.get(`/api/e/${Ecode}`);
+  check("…and the person is still checked in (the tick is not a condition of checking in)", bb.json.checkedIn === true);
+
+  const c = await person("Cat Cards Only");
+  await c.post(`/api/e/${Ecode}/checkin`, { collect: { attendance: true, email: false, card: true } });
+  const lc = logs(c.id, Eid);
+  check("unticking only the email: on the list with the card only; the email is recorded as refused", listRow(Eid, c.id)?.items === '["card"]' && lc.find((x) => x.scope.startsWith("event_share_email")).action === "refused" && lc.find((x) => x.scope.startsWith("event_share_card")).action === "granted" && lc.find((x) => x.scope.startsWith("event_attendance")).action === "granted", lc);
+
+  // Negative cases: a missing value is never a grant.
+  const none = await person("Dee No Fields");
+  const rn = await none.post(`/api/e/${Ecode}/checkin`, { answers: {}, directoryConsent: true });
+  check("a check-in request with no choices at all checks in, puts nobody on the list and writes no consent record", rn.status === 200 && !listRow(Eid, none.id) && logs(none.id, Eid).length === 0);
+  for (const [label, collect] of Object.entries({
+    "an empty object": {},
+    "the strings 'true'": { attendance: "true", email: "true", card: "true" },
+    "the number 1": { attendance: 1, email: 1, card: 1 },
+    "'yes'": { attendance: "yes", email: "yes", card: "yes" },
+    "null values": { attendance: null, email: null, card: null },
+    "only the extras": { email: true, card: true },
+    "a list": [true, true, true],
+    "text": "attendance",
+    "a number": 1,
+    "true": true,
+  })) {
+    const p = await person("Neg " + label);
+    const rr = await p.post(`/api/e/${Ecode}/checkin`, { collect });
+    check(`${label} sent as the choices: checks in but is not on the list and nothing is granted`, rr.status === 200 && !listRow(Eid, p.id) && logs(p.id, Eid).every((x) => x.action !== "granted"), [rr.status, logs(p.id, Eid)]);
+  }
+  const keys = await person("Key games");
+  await keys.post(`/api/e/${Ecode}/checkin`, { collect: { ...ALL, phone: true, __proto__: { attendance: true }, "attendance ": true } });
+  check("keys the event does not offer are ignored: only the offered items are recorded", logs(keys.id, Eid).length === 3 && listRow(Eid, keys.id)?.items === '["email","card"]');
+
+  // Re-check-in.
+  const again = await person("Eve Again");
+  await again.post(`/api/e/${Ecode}/checkin`, { collect: ALL });
+  await again.post(`/api/e/${Ecode}/checkin`, { answers: {} });
+  check("checking in again with no choices leaves the earlier choices as they were", listRow(Eid, again.id)?.items === '["email","card"]' && logs(again.id, Eid).length === 3);
+  await again.post(`/api/e/${Ecode}/checkin`, { collect: { attendance: true, email: false, card: false } });
+  const la = logs(again.id, Eid);
+  check("checking in again with new choices changes the row and logs what was withdrawn", listRow(Eid, again.id)?.items === "[]" && la.filter((x) => x.action === "withdrawn").length === 2 && la.filter((x) => x.action === "granted").length === 4, la.map((x) => x.action));
+  await again.post(`/api/e/${Ecode}/checkin`, { collect: { attendance: false } });
+  check("…and unticking attendance on a later request takes them off the list", !listRow(Eid, again.id));
+
+  // An event that does not collect.
+  const plain = await mk({});
+  const pcode = (await H.get("/api/host/events/" + plain.json.id + "/live")).json.event.code;
+  const q1p = await person("Pat Plain");
+  const rp = await q1p.post(`/api/e/${pcode}/checkin`, { collect: ALL });
+  check("on an event that does not collect, sent choices are ignored: nothing recorded, nobody listed", rp.status === 200 && q1("SELECT COUNT(*) n FROM event_attendees WHERE event_id = ?", plain.json.id).n === 0 && q("SELECT 1 FROM consent_log WHERE scope LIKE '%:' || ?", plain.json.id).length === 0);
+  // Switching the list on after someone checked in does not list them.
+  const late = await mk({});
+  const lcode = (await H.get("/api/host/events/" + late.json.id + "/live")).json.event.code;
+  const early = await person("Early Bird");
+  await early.post(`/api/e/${lcode}/checkin`, { collect: ALL });
+  await H.put("/api/host/events/" + late.json.id, { collect: on() });
+  check("someone who checked in before the host switched the list on is not on it", !listRow(late.json.id, early.id));
+}
+
+console.log("\n# The check-in page draws the notice (rendered on the server)");
+const { createServer } = await import("vite");
+const { renderToString } = await import("vue/server-renderer");
+const { createSSRApp, h } = await import("vue");
+const vite = await createServer({ configFile: "vite.config.js", root: process.cwd(), logLevel: "silent", appType: "custom", server: { middlewareMode: true, hmr: false, watch: null }, optimizeDeps: { noDiscovery: true } });
+const EventPage = (await vite.ssrLoadModule("/src/components/EventPage.vue")).default;
+const strip = (s) => s.replace(/<!--[\s\S]*?-->/g, "");
+async function render(props) {
+  const app = createSSRApp({ render: () => h(EventPage, props) });
+  app.component("router-link", { props: ["to"], render() { return h("a", { href: this.to, target: "_blank" }, this.$slots.default?.()); } });
+  return strip(await renderToString(app));
+}
+const pform = (extra = {}) => ({ name: "", answers: {}, sponsorConsent: {}, directoryConsent: false, agreed: false, ...extra });
+const baseEvent = { name: "Notice night", venue: "Hall 1", questions: [], directoryOn: false, feedbackOn: true, info: {} };
+let html;
+{
+  html = await render({ event: { ...baseEvent, collects: wordings }, form: pform() });
+  const inputs = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].map((m) => m[0]);
+  const rows = [...html.matchAll(/<label[^>]*collect-row[^>]*>/g)];
+  check("the heading, the organiser's name, the why line and a Privacy Policy link are on the page", html.includes("This event collects") && html.includes("<strong") && html.includes("Quad Events") && html.includes(WHY) && /<a href="\/privacy"[^>]*>Privacy Policy<\/a>/.test(html));
+  check("there is one row for each item, in order, each with its exact label", rows.length === 3 && wordings.items.every((i) => html.includes(i.label)) && html.indexOf(wordings.items[0].label) < html.indexOf(wordings.items[1].label) && html.indexOf(wordings.items[1].label) < html.indexOf(wordings.items[2].label));
+  check("every item is pre-ticked (owner's decision, D038), none is disabled, and each can be unticked", inputs.length === 3 && inputs.every((i) => /checked/.test(i) && !/disabled/.test(i)), inputs);
+  const src = readFileSync(new URL("../src/components/EventPage.vue", import.meta.url), "utf8");
+  check("each row is the full width and at least 44 px tall (a rule in the page's own styles)", /\.collect-row\s*\{[^}]*width:\s*100%/.test(src) && /\.collect-row\s*\{[^}]*min-height:\s*(4[4-9]|[5-9]\d)px/.test(src));
+  check("nothing is hidden behind a 'more' control: the rows are in the page, not in a details or dialog", !/<details|aria-hidden="true"|display:\s*none/.test(html.slice(html.indexOf("This event collects"), html.indexOf("Privacy Policy"))));
+  check("the page says it is all ticked and can be unticked, and that you can still check in", /ticked to start with/.test(html) && /Untick anything/.test(html) && /still check in/.test(html));
+  check("the old sentence that says hosts see only totals is not on a page that keeps a list", !html.includes("anonymous totals") && !html.includes("aggregate numbers only") && html.includes("never who you connect with"));
+  check("the check-in button is still there", html.includes(">Check in<"));
+  // Text, never HTML.
+  const evil = { ...wordings, organiser: "<img src=x onerror=alert(1)>", why: "<script>alert(1)</script> &amp; \"quotes\"" };
+  const h2 = await render({ event: { ...baseEvent, collects: evil }, form: pform() });
+  check("the organiser's name and the why line are escaped: shown as text, never as HTML", !h2.includes("<img src=x") && !h2.includes("<script>alert") && h2.includes("&lt;img src=x onerror=alert(1)&gt;") && h2.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
+  check("the page source has no v-html", !/v-html/.test(src) && !/innerHTML/.test(src));
+  const u = await render({ event: { ...baseEvent, collects: wordings }, form: pform({ collect: { attendance: false, email: true, card: true } }) });
+  const tag = (html, k) => html.match(new RegExp(`<input[^>]*data-item="${k}"[^>]*>`))[0].replace(/data-item="w+"/, "");
+  check("with attendance unticked the other two show unticked and locked (they only ever appear on the list)", !/checked/.test(tag(u, "attendance")) && ["email", "card"].every((k) => !/checked/.test(tag(u, k)) && /disabled/.test(tag(u, k))));
+  const ne = await render({ event: { ...baseEvent, collects: wordings }, form: pform({ hasEmail: false }) });
+  check("a person with no verified email sees the email row unticked and locked, with the reason; the others stay ticked", /no verified email/.test(ne) && !/checked/.test(tag(ne, "email")) && /disabled/.test(tag(ne, "email")) && /checked/.test(tag(ne, "attendance")) && /checked/.test(tag(ne, "card")));
+  const sp = await render({ event: { ...baseEvent, collects: wordings }, sponsors: [{ id: "s1", name: "Acme", perk: "Pens" }], form: pform({ sponsorConsent: {} }) });
+  check("sponsor ticks stay unticked: sponsors are still never pre-ticked", /Never pre-ticked/.test(sp) && ![...sp.matchAll(/<input[^>]*>/g)].some((m) => !/data-item/.test(m[0]) && /checked/.test(m[0].replace(/aria-checked/, ""))));
+}
+
+console.log("\n# An event without named attendance: the check-in page is the page it was");
+{
+  const golden = JSON.parse(readFileSync(new URL("./fixtures/checkin-page-unchanged.json", import.meta.url), "utf8"));
+  const norm = (s) => s.replace(/ data-v-[0-9a-f]+/g, "");
+  const ev = { name: "Spring night", venue: "Room 4", startsAt: Date.UTC(2026, 10, 20, 18, 0), info: { access: "Step-free", food: "Pizza" }, questions: [{ key: "extra1", label: "Course" }], directoryOn: true, feedbackOn: true, theme: "formal", strapColor: "#2a6f4e" };
+  const got = {
+    full: await render({ event: ev, form: pform({ answers: { extra1: "" } }), sponsors: [{ id: "s1", name: "Acme", perk: "Free pens" }], showName: true, needsAgree: true }),
+    bare: await render({ event: { name: "Bare", questions: [], directoryOn: false, feedbackOn: false, info: {} }, form: pform() }),
+    busy: await render({ event: { ...ev, theme: "default", strapColor: null }, form: pform({ answers: { extra1: "" } }), busy: true, error: "Oops" }),
+  };
+  for (const k of Object.keys(golden)) check(`the markup for ${k} is identical to what it was before F31 (comments aside; saved from commit 0e8d599)`, norm(got[k]) === norm(golden[k]), [norm(got[k]).length, norm(golden[k]).length]);
+  check("…and none of them mentions what the event collects or draws a tick", Object.values(got).every((x) => !/This event collects|collect-row/.test(x)));
+}
+await vite.close();
+
 summary();
 process.exit(process.exitCode || 0);
