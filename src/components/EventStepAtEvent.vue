@@ -1,6 +1,7 @@
 <script setup>
 // F30 step 3: what people find at the event. Perks, notes, sign-ups and the attendee room.
 import CopiedFacts from "./CopiedFacts.vue";
+import EventCollects from "./EventCollects.vue";
 
 defineProps({
   form: { type: Object, required: true },
@@ -32,9 +33,9 @@ defineProps({
     </label>
   </div>
   <CopiedFacts v-else-if="factsState !== 'none'" :facts="facts" :state="factsState" />
-  <!-- F31 SLOT: "What this event collects" goes here (the attendance list, the items people can
-       tick on the check-in page and the "why" line). F30 leaves it empty on purpose. Add it as
-       a component of its own and keep its fields in the same `form` object so the draft keeps them. -->
-  <div data-slot="f31-collects" hidden></div>
+  <!-- F31: "What this event collects" (the attendance list, the items people can tick on the
+       check-in page and the "why" line). Outside the copy branch: a copy chooses again, the
+       earlier event's list is never carried over (D038). Its fields live in the same `form`, so the draft keeps them. -->
+  <div data-slot="f31-collects"><EventCollects :form="form" :errors="errors" /></div>
   </div>
 </template>

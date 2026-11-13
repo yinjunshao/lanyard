@@ -6,6 +6,8 @@
 // compares the two). createBody() is the request the "Create event" button sends; the
 // dashboard sends it and the preview reads the same body, so they cannot disagree.
 
+import { noticeOf } from "./collects.js";
+
 export const THEME_OPTIONS = [
   { value: "default", label: "Default — Persimmon" },
   { value: "formal", label: "Formal — navy strap" },
@@ -17,6 +19,14 @@ const INFO_KEYS = ["access", "dress", "food", "other"];
 
 const time = (v) => (v === null || v === undefined || v === "" ? null : Number.isFinite(Number(v)) ? Math.round(Number(v)) : null);
 const lines = (text) => String(text || "").split("\n").map((s) => s.trim()).filter(Boolean);
+
+// F31: what the host switched on under "What this event collects", as the request carries it.
+// `f` is the Create form or the Details form (they share these four keys). Null when the list is
+// off, so an event without it sends and reads exactly what it did before F31.
+export function collectBody(f) {
+  if (!f.collectOn) return null;
+  return { attendance: true, items: [f.collectEmail && "email", f.collectCard && "card"].filter(Boolean), why: f.collectWhy };
+}
 
 // The body for creating an event from the dashboard form.
 export function createBody(f) {
@@ -37,12 +47,14 @@ export function createBody(f) {
     info: { access: f.access, food: f.food },
     feedbackOn: f.feedbackOn,
     feedbackQuestions: f.feedbackQuestions,
+    ...(collectBody(f) ? { collect: collectBody(f) } : {}),
   };
 }
 
 // What the check-in page is given for a create body (`b`) or for the Details form of a saved
 // event. `questions` is the event's saved check-in questions, which Details cannot change.
-export function eventFromBody(b, questions) {
+// `organiser` is the organisation's name, for the notice an event with named attendance shows.
+export function eventFromBody(b, questions, organiser) {
   const info = {};
   for (const k of INFO_KEYS) {
     const v = String(b.info?.[k] || "").trim().slice(0, 200);
@@ -62,6 +74,7 @@ export function eventFromBody(b, questions) {
     questions: qs,
     info,
     feedbackOn: b.feedbackOn !== false,
+    ...(b.collect?.attendance === true ? { collects: noticeOf(b.collect, organiser) } : {}),
   };
 }
 
@@ -69,5 +82,7 @@ export function eventFromBody(b, questions) {
 export function detailsBody(d) {
   return { name: d.name, venue: d.venue, startsAt: d.startsAt, endsAt: d.endsAt, theme: d.theme, strapColor: d.strapColor || "",
     directoryOn: d.directoryOn, perks: lines(d.perksText), rsvpCount: d.rsvpCount === "" ? null : Number(d.rsvpCount),
-    info: { access: d.access, dress: d.dress, food: d.food, other: d.other } };
+    info: { access: d.access, dress: d.dress, food: d.food, other: d.other },
+    // Sent when the list is on, and once when it was on and is being switched off; an event that never had it sends nothing.
+    ...(d.collectWas || d.collectOn ? { collect: collectBody(d) || { attendance: false } } : {}) };
 }

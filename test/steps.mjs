@@ -30,7 +30,9 @@ function oldCreate(f) {
 }
 
 console.log("\n# F30.1 The stepper sends what the single form sent");
-const blank = (o = {}) => ({ ...OLD_BLANK(), ...o });
+// F31 adds four keys to the form, all off. Everything F30 pinned is checked with them off.
+const F31_OFF = { collectOn: false, collectEmail: false, collectCard: false, collectWhy: "" };
+const blank = (o = {}) => ({ ...OLD_BLANK(), ...F31_OFF, ...o });
 const FORMS = {
   "blank except a name": blank({ name: "Only a name" }),
   "everything filled in (theme, colour, perks, questions)": blank({
@@ -45,7 +47,7 @@ const FORMS = {
   "a copy with a new name and times": blank({ name: " Copy night ", from: "ev-old", startsAt: Date.UTC(2026, 11, 1, 18, 0), endsAt: Date.UTC(2026, 11, 1, 20, 0), theme: "night", perksText: "ignored", q1: "ignored" }),
   "markup in the words": blank({ name: "<b>Bold</b> & co", venue: "\"Quoted\" <i>room</i>", perksText: "<script>x</script>" }),
 };
-check("the blank form is the old blank form, key for key", JSON.stringify(blankForm()) === JSON.stringify(OLD_BLANK()));
+check("the blank form is the old blank form, key for key, plus F31's four keys, all off", JSON.stringify(blankForm()) === JSON.stringify({ ...OLD_BLANK(), ...F31_OFF }));
 for (const [label, f] of Object.entries(FORMS)) {
   const a = submitPlan(f), b = oldCreate(f);
   check(`the request is the old request: ${label}`, JSON.stringify(a) === JSON.stringify(b), [a, b]);
@@ -251,8 +253,8 @@ try {
   check("a refusal from the server is a prop of the stepper (checked in the browser: it is shown at the field once its step is open)", /serverError/.test(read("src/components/EventCreate.vue")) && /fieldError\.value = \{ \.\.\.hit, message: e\.message \}; go\(hit\.step\)/.test(read("src/views/HostDashboard.vue")));
   check("no native select, date or time input, and no emoji, on any step", [1, 2, 3, 4, 5].every((n) => !/<select|type="(date|time|datetime-local)"/.test(P[n]) && !/\p{Extended_Pictographic}/u.test(P[n])));
   // The slot for F31.
-  check("step 3 leaves one clearly marked, empty slot for F31 (What this event collects); no other step has it", /data-slot="f31-collects"/.test(read("src/components/EventStepAtEvent.vue")) && /F31 SLOT/.test(read("src/components/EventStepAtEvent.vue"))
-    && ["EventStepBasics", "EventStepLook", "EventStepQuestions", "EventCreate"].every((n) => !/f31-collects/.test(read(`src/components/${n}.vue`))) && !/collects/i.test(P[3].replace(/<[^>]*data-slot[^>]*>/g, "")));
+  check("F31 fills the slot on step 3 (What this event collects, off until switched on), and no other step has it", /data-slot="f31-collects"/.test(read("src/components/EventStepAtEvent.vue")) && /<EventCollects\b/.test(read("src/components/EventStepAtEvent.vue"))
+    && ["EventStepBasics", "EventStepLook", "EventStepQuestions", "EventCreate"].every((n) => !/f31-collects|EventCollects/.test(read(`src/components/${n}.vue`))) && P[3].includes("What this event collects") && !P[3].includes("collect-why") && [1, 2, 4].every((n) => !P[n].includes("What this event collects")));
   // Review.
   const rev = await page(5, blank({ name: "Review night", venue: "Hall", theme: "formal", strapColor: "#2a6f4e", perksText: "Tea\nCake", access: "Ramp", rsvpCount: "12", q1: "Course", directoryOn: false,
     feedbackQuestions: [{ type: "rating", label: "Good?" }, { type: "text", label: "" }] }), { createLabel: "Create event (uses 1 credit)", needsCredits: true });
@@ -266,7 +268,7 @@ try {
   const C = {};
   for (const n of [1, 2, 3, 4, 5]) C[n] = strip(await render(EventCreate, props(n, blank({ from: "ev-old" }), { facts, factsState: "ok" })));
   check("a copy: step 1 shows the name, times and no venue box; steps 2 to 4 show what comes with it and have no inputs to edit",
-    ids(C[1]).includes("ev-name") && !ids(C[1]).includes("ev-venue") && C[1].includes("Venue:</span> Hall 2") && [2, 3, 4].every((n) => !/<input|<textarea|ev-theme|ev-perks/.test(C[n]) && C[n].includes("Copied from the earlier event"))
+    ids(C[1]).includes("ev-name") && !ids(C[1]).includes("ev-venue") && C[1].includes("Venue:</span> Hall 2") && [2, 3, 4].every((n) => !/<input|<textarea|ev-theme|ev-perks/.test(C[n].replace(/<section[^>]*data-collects[\s\S]*?<\/section>/, "")) && C[n].includes("Copied from the earlier event"))
     && C[2].includes("Night") && C[3].includes("Free tea") && C[3].includes("Pizza") && C[4].includes("Acme") && C[4].includes("Course"));
   check("a copy's Review shows the same values, 'Same name as the earlier event' when no name is typed, and its own Create label", C[5].includes("Same name as the earlier event") && C[5].includes("Free tea") && C[5].includes("Acme"));
   check("a copy that cannot be read says so and still copies; one being read says so", strip(await render(EventCreate, props(2, blank({ from: "e" }), { factsState: "error" }))).includes("still copied") && strip(await render(EventCreate, props(2, blank({ from: "e" }), { factsState: "loading" }))).includes("Reading its details"));
@@ -279,7 +281,7 @@ console.log("\n# F30.3 The preview stays with the form on every step; Review sho
   const ep = read("src/components/EventPreview.vue"), dash = read("src/views/HostDashboard.vue");
   check("one preview wraps the stepper, so it is beside the form from 1000 px on every step", /<EventPreview v-if="creating"[\s\S]*<EventCreate\b[\s\S]*<\/EventPreview>/.test(dash) && /min-width: 1000px/.test(ep) && /grid-template-columns: minmax\(0, 1fr\) 375px/.test(ep));
   check("below 1000 px it stays a Preview button, except on Review where the whole page is drawn under the form", /:inline="step === 5"/.test(dash) && /\.pv-inline \.pv-side \{ display: block/.test(ep) && /\.pv-inline \.pv-open \{ display: none/.test(ep));
-  check("it is still the real check-in page from the same body the Create button sends (nothing new in what it reads but the earlier event's own details)", /eventFromBody\(createBody\(f\.value\)\)/.test(dash) && !/fetch\(|HostApi/.test(ep.replace(/\/\/.*$/gm, "")));
+  check("it is still the real check-in page from the same body the Create button sends (nothing new in what it reads but the earlier event's own details)", /eventFromBody\(createBody\(f\.value\)[,)]/.test(dash) && !/fetch\(|HostApi/.test(ep.replace(/\/\/.*$/gm, "")));
   check("a copy shows the preview from its own details, with its sponsors, and no theme strip", /:sponsors="f\.from \? \(source\?\.sponsors \|\| \[\]\) : \[\]"/.test(dash) && /:strip="!f\.from"/.test(dash));
 }
 

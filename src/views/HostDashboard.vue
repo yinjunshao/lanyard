@@ -12,7 +12,7 @@ import { pendingHostCode, clearPendingHostCode } from "../lib/hostredeem";
 import HostSetup from "../components/HostSetup.vue";
 import EventCreate from "../components/EventCreate.vue";
 import EventPreview from "../components/EventPreview.vue";
-import { createBody, eventFromBody } from "../lib/eventform";
+import { collectBody, createBody, eventFromBody } from "../lib/eventform";
 import { UiCombobox } from "../components/ui/UiSelect.vue";
 import { blankForm, copyFacts, firstBadStep, formFromDraft, serverErrorField, stepFromQuery, submitPlan } from "../lib/eventsteps";
 import { clearDraft, loadDraft, saveDraft } from "../lib/eventdraft";
@@ -65,8 +65,8 @@ const previewEvent = computed(() => {
   const s = f.value.from && source.value?.event;
   const e = s
     ? eventFromBody({ name: f.value.name.trim() || s.name, venue: s.venue, startsAt: f.value.startsAt, theme: s.theme, strapColor: s.strapColor,
-      perks: s.perks, directoryOn: s.directoryOn, info: s.info, feedbackOn: s.feedbackOn }, s.questions)
-    : eventFromBody(createBody(f.value));
+      perks: s.perks, directoryOn: s.directoryOn, info: s.info, feedbackOn: s.feedbackOn, collect: collectBody(f.value) }, s.questions, org.value?.name)
+    : eventFromBody(createBody(f.value), undefined, org.value?.name);
   return e.name ? e : { ...e, name: "Your event name" };
 });
 

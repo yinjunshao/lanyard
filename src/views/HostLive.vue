@@ -1,7 +1,7 @@
 <script setup>
 // One event, four tabs: the live poster and counts, its details, the feedback
 // form and results, and the post-event report (with CSV download).
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
 import { joinUrl as joinLink, feedbackUrl as feedbackLink } from "../lib/checkinlink";
@@ -13,8 +13,10 @@ import { fmtDateTime } from "../lib/time";
 import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import EventPreview from "../components/EventPreview.vue";
+import EventCollects from "../components/EventCollects.vue";
 import { THEME_OPTIONS, detailsBody, eventFromBody } from "../lib/eventform";
 import { defaultEnd } from "../lib/dates";
+import { cleanWhy, whyProblem } from "../lib/collects";
 
 const route = useRoute();
 const id = computed(() => route.params.id);
@@ -120,18 +122,34 @@ function fillDetails() {
     rsvpCount: e.rsvpCount ?? "",
     access: e.info?.access || "", dress: e.info?.dress || "", food: e.info?.food || "", other: e.info?.other || "",
     theme: e.theme || "default", strapColor: e.strapColor || "", perksText: (e.perks || []).join("\n"), directoryOn: e.directoryOn !== false,
+    // F31: what the event collects (the live route sends it only when the list is on).
+    collectWas: !!e.collect, collectOn: !!e.collect, collectEmail: !!e.collect?.items?.includes("email"),
+    collectCard: !!e.collect?.items?.includes("card"), collectWhy: e.collect?.why || "",
   };
 }
+// The notice shows the organisation's name, which the live route gives only for an event that has the list on.
+// For one that is switching it on now it is read once from the host's own account.
+const organiser = ref("");
+watch(() => d.value.collectOn, async (on) => {
+  if (!on || organiser.value || live.value?.event?.collect?.organiser) return;
+  try { organiser.value = (await HostApi.hostMe()).org?.name || ""; } catch { /* the preview says "The organisers" */ }
+});
+const collectErrors = computed(() => {
+  const w = d.value.collectOn ? whyProblem(cleanWhy(d.value.collectWhy)) : "";
+  return w ? { collectWhy: w } : {};
+});
 // What attendees will see on the check-in page, from the form as it stands (F18).
 const previewEvent = computed(() => {
-  const e = eventFromBody(detailsBody(d.value), live.value?.event?.questions || []);
+  const e = eventFromBody(detailsBody(d.value), live.value?.event?.questions || [], live.value?.event?.collect?.organiser || organiser.value);
   return { ...e, name: e.name || "Your event name" };
 });
 async function saveDetails() {
   detailsMsg.value = ""; detailsErr.value = "";
+  if (Object.keys(collectErrors.value).length) { detailsErr.value = collectErrors.value.collectWhy; return; }
   try {
     await HostApi.hostUpdateEvent(id.value, detailsBody(d.value));
     live.value = await HostApi.hostLive(id.value);
+    d.value = { ...d.value, collectWas: d.value.collectOn };
     detailsMsg.value = "Saved.";
   } catch (e) {
     detailsErr.value = e.message;
@@ -278,6 +296,7 @@ async function copyFeedbackLink() {
           <input type="checkbox" v-model="d.directoryOn" />
           <span class="small">Show the live attendee room to checked-in people</span>
         </label>
+        <EventCollects :form="d" :errors="collectErrors" :was-on="d.collectWas" />
         <span class="label">Shown to attendees</span>
         <div class="field"><label for="d-access">Access</label><input id="d-access" v-model="d.access" type="text" maxlength="200" placeholder="Step-free entrance at the side door" /></div>
         <div class="field"><label for="d-food">Food and drink</label><input id="d-food" v-model="d.food" type="text" maxlength="200" placeholder="Pizza, vegan options, soft drinks" /></div>

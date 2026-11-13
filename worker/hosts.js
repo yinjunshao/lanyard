@@ -21,6 +21,7 @@ import { normEmail, validEmail, emailProblem, moveOwnership, openTransfer } from
 import { exportAi } from "./ai/data.js";
 import { summaryGet, summaryPost } from "./ai/feedbackSummary.js";
 import { normPromo } from "./promo.js";
+import { collectFields, collectOf } from "./attendance.js";
 import { registerHostPromo, releaseHeldClaims, heldClaims, exportHostClaims } from "./host-promo.js";
 import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
 
@@ -329,6 +330,8 @@ function eventFields(b, { partial = false } = {}) {
   if (has("feedbackOn")) f.feedback_on = b.feedbackOn === false ? 0 : 1;
   if (has("feedbackQuestions")) f.feedback_questions = JSON.stringify(sanitizeQuestions(b.feedbackQuestions));
   if (f.ends_at && f.starts_at && f.ends_at <= f.starts_at) throw new HttpError(400, "The end time must be after the start.");
+  // F31: what the event collects. Only when the request says something about it; off otherwise.
+  Object.assign(f, collectFields(b.collect));
   return f;
 }
 
@@ -403,6 +406,8 @@ hostApp.put("/api/host/events/:id", async (c) => {
   const keys = Object.keys(f);
   if (keys.length) {
     await run(c.env.DB, `UPDATE events SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`, ...Object.values(f), ev.id);
+    // F31: switching the list off deletes the list so far (D038).
+    if (f.collect_attendance === 0) await run(c.env.DB, "DELETE FROM event_attendees WHERE event_id = ?", ev.id);
   }
   return c.json({ ok: true });
 });
@@ -422,6 +427,8 @@ hostApp.post("/api/host/events/:id/duplicate", async (c) => {
     perks: JSON.stringify(src.perks || []), directory_on: src.directory_on,
     info: JSON.stringify(eventInfo(src.info)), feedback_on: src.feedback_on,
     feedback_questions: JSON.stringify(sanitizeQuestions(src.feedback_questions)),
+    // F31: the earlier event's list settings are never copied; the host chooses again (D038).
+    ...collectFields(b.collect),
   };
   if (fields.ends_at && fields.starts_at && fields.ends_at <= fields.starts_at) return c.json({ error: "The end time must be after the start." }, 400);
   const { id, code } = await insertEvent(db, org, fields, src.checkin_questions || []);
@@ -516,7 +523,7 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
   const me = c.get("host");
   const ev = await hostEvent(c, me);
   const t = await eventTotals(c.env.DB, ev.id);
-  const orgRow = await one(c.env.DB, "SELECT org_type FROM orgs WHERE id = ?", ev.org_id);
+  const orgRow = await one(c.env.DB, "SELECT name, org_type FROM orgs WHERE id = ?", ev.org_id);
   const EVENT_CHECKIN_CAP = checkinCapFor(orgRow?.org_type);
   // F18: what the host set up, so the Details tab can preview the attendee page. All of it is the host's
   // own entry; sponsors are names and perks they typed, with no attendee in it.
@@ -528,6 +535,9 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
       info: eventInfo(ev.info), feedbackOn: !!ev.feedback_on,
       theme: ev.theme, strapColor: ev.strap_color, perks: ev.perks || [], directoryOn: !!ev.directory_on,
       questions: ev.checkin_questions || [],
+      // F31: what this event collects. Present only when the list is on, so an event without it
+      // answers exactly as before.
+      ...(collectOf(ev) ? { collect: { ...collectOf(ev), organiser: orgRow?.name || "" } } : {}),
     },
     sponsors: sponsors.map((x) => ({ id: x.id, name: x.name, perk: x.perk })),
     checkins: t.checkins,

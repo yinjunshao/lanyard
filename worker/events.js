@@ -8,6 +8,7 @@ import { termsScope, hasConsent, recordConsentStmt, logConsentStmt } from "./leg
 import { blockedSet } from "./blocks.js";
 import { eventInfo, feedbackOpensAt } from "./feedback.js";
 import { checkinCapFor } from "./plans.js";
+import { noticeFor } from "./attendance.js";
 
 export const eventsApp = new Hono();
 
@@ -23,6 +24,8 @@ eventsApp.get("/api/e/:code", async (c) => {
     ? await one(db, "SELECT created_at, answers, sponsor FROM checkins WHERE event_id = ? AND user_id = ?", ev.id, me.id)
     : null;
   const sponsors = await all(db, "SELECT id, name, perk FROM sponsors WHERE event_id = ?", ev.id);
+  // F31: what this event collects, for the notice on the page. Only when the host switched it on.
+  const collects = await noticeFor(db, ev);
 
   return c.json({
     event: {
@@ -40,6 +43,7 @@ eventsApp.get("/api/e/:code", async (c) => {
       ended: !!ev.ended_at,
       info: eventInfo(ev.info),
       feedbackOn: !!ev.feedback_on,
+      ...(collects ? { collects } : {}),
     },
     sponsors: sponsors.map((s) => ({ id: s.id, name: s.name, perk: s.perk })),
     checkedIn: !!checkin,

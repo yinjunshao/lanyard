@@ -4,7 +4,8 @@
 // What Create sends has not changed: submitPlan() is the old single form's `create()` choice
 // (a copy of an earlier event, or a new one through createBody), and the server's checks stay
 // the source of truth. validateStep() is a convenience that stops the host a step early.
-import { createBody, THEME_OPTIONS } from "./eventform.js";
+import { collectBody, createBody, THEME_OPTIONS } from "./eventform.js";
+import { cleanWhy, whyProblem } from "./collects.js";
 
 // Basics, Look, At the event, Questions, Review. Step 3 also takes F31's "What this event collects".
 export const STEPS = [
@@ -20,6 +21,8 @@ export const blankForm = () => ({
   from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "",
   perksText: "", directoryOn: true, q1: "", q2: "",
   rsvpCount: "", access: "", food: "", feedbackOn: true, feedbackQuestions: [],
+  // F31: "What this event collects". Off until the host switches it on.
+  collectOn: false, collectEmail: false, collectCard: false, collectWhy: "",
 });
 
 // A saved draft laid over a blank form: unknown keys are dropped, wrong types fall back, so an
@@ -43,7 +46,7 @@ export function formFromDraft(d) {
 // name and times (the server copies everything else from the earlier event).
 export function submitPlan(f) {
   if (f.from) {
-    return { copy: true, from: f.from, body: { name: f.name.trim() || undefined, startsAt: f.startsAt, endsAt: f.endsAt } };
+    return { copy: true, from: f.from, body: { name: f.name.trim() || undefined, startsAt: f.startsAt, endsAt: f.endsAt, ...(collectBody(f) ? { collect: collectBody(f) } : {}) } };
   }
   return { copy: false, body: createBody(f) };
 }
@@ -54,6 +57,10 @@ export function validateStep(n, f) {
   if (n === 1) {
     if (!f.from && !f.name.trim()) e.name = "Give the event a name.";
     if (f.startsAt && f.endsAt && f.endsAt <= f.startsAt) e.endsAt = "The end time must be after the start.";
+  }
+  if (n === 3 && f.collectOn) {
+    const p = whyProblem(cleanWhy(f.collectWhy));
+    if (p) e.collectWhy = p;
   }
   if (n === 3 && !f.from) {
     const r = f.rsvpCount;
@@ -123,6 +130,14 @@ export function copyFacts(s) {
 
 // The Review step: every choice, grouped by the step it came from (each group has a Change link
 // back to that step). For a copy, the steps after Basics show what the earlier event brings.
+const collectRows = (f) => {
+  if (!f.collectOn) return [["Attendance list", "Off"]];
+  const extra = [f.collectEmail && "email address", f.collectCard && "card"].filter(Boolean);
+  return [
+    ["Attendance list", `On: names and check-in times${extra.length ? `, with ${extra.join(" and ")} for people who leave that tick on` : ""}`],
+    ["Why you say you collect it", cleanWhy(f.collectWhy) || "Not written yet"],
+  ];
+};
 const when = (ms) => (ms ? new Date(ms).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Not set");
 const lines = (t) => String(t || "").split("\n").map((s) => s.trim()).filter(Boolean);
 export function reviewGroups(f, facts) {
@@ -136,7 +151,7 @@ export function reviewGroups(f, facts) {
     return [
       { step: 1, title: "Basics", rows: [...basics, ...(c.basics || [["Venue", "Copied from the earlier event"]])] },
       { step: 2, title: "Look", rows: c.look || [["Theme and colour", "Copied from the earlier event"]] },
-      { step: 3, title: "At the event", rows: c.event || [["Perks, notes and attendee room", "Copied from the earlier event"]] },
+      { step: 3, title: "At the event", rows: [...(c.event || [["Perks, notes and attendee room", "Copied from the earlier event"]]), ...collectRows(f)] },
       { step: 4, title: "Questions", rows: c.questions || [["Questions, feedback and sponsors", "Copied from the earlier event"]] },
     ];
   }
@@ -151,6 +166,7 @@ export function reviewGroups(f, facts) {
       ["Food and drink", f.food.trim() || "None"],
       ["Sign-ups so far", f.rsvpCount === "" || f.rsvpCount === null ? "None" : String(f.rsvpCount)],
       ["Attendee room", yes(f.directoryOn)],
+      ...collectRows(f),
     ] },
     { step: 4, title: "Questions", rows: [
       ["Check-in questions", [f.q1, f.q2].map((s) => s.trim()).filter(Boolean).join(", ") || "None"],

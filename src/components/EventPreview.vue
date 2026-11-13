@@ -31,7 +31,8 @@ watch(() => props.event, (e) => { clearTimeout(timer); timer = setTimeout(() => 
 
 // A first-timer is asked for a name and the Terms tick; someone who has a card is not.
 const firstTime = ref(true);
-const form = reactive({ name: "", answers: {}, sponsorConsent: {}, directoryConsent: false, agreed: false });
+// `collect` is the pre-ticked state of the notice an event with named attendance shows (F31).
+const form = reactive({ name: "", answers: {}, sponsorConsent: {}, directoryConsent: false, agreed: false, collect: { attendance: true, email: true, card: true } });
 const THEMES = [["default", "Default"], ["formal", "Formal"], ["night", "Night"]];
 
 // Below 1000 px the panel is full screen while `open`.
