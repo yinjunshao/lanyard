@@ -17,6 +17,9 @@ const props = defineProps({
   off: { type: Boolean, default: false },
   // The theme strip changes the form's theme and colour; a copy of an earlier event keeps its own, so it has none.
   strip: { type: Boolean, default: true },
+  // Below 1000 px, draw the preview in the page under the form instead of behind a Preview button (the
+  // Create event Review step: the host should see the whole page before pressing Create).
+  inline: { type: Boolean, default: false },
 });
 const theme = defineModel("theme", { type: String, default: "default" });
 const strap = defineModel("strapColor", { type: String, default: "" });
@@ -64,7 +67,7 @@ function onKey(e) {
 </script>
 
 <template>
-  <div :class="{ 'pv-split': !off }">
+  <div :class="{ 'pv-split': !off, 'pv-inline': inline && !off }">
     <div class="pv-form">
       <div v-if="!off" class="pv-open">
         <button type="button" class="btn" @click="show">Preview what attendees see</button>
@@ -79,6 +82,7 @@ function onKey(e) {
         <button ref="closeBtn" type="button" class="btn pv-close" @click="hide">Close</button>
       </div>
       <div class="pv-body">
+        <h3 class="label pv-inline-label">What attendees will see</h3>
         <div class="pv-head">
           <div class="seg" role="group" aria-label="Who is looking">
             <button type="button" class="seg-btn" :class="{ on: firstTime }" :aria-pressed="firstTime" @click="firstTime = true">First time</button>
@@ -110,6 +114,7 @@ function onKey(e) {
 .pv-open { margin-bottom: 16px; }
 .pv-open .btn { width: auto; }
 .pv-bar { display: none; }
+.pv-inline-label { display: none; margin: 0 0 10px; }
 .pv-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .pv-frame {
   position: relative;
@@ -136,6 +141,12 @@ function onKey(e) {
   .pv-close { width: auto; }
   .pv-body { flex: 1; overflow: auto; padding: 16px; }
   .pv-frame { height: min(740px, calc(100vh - 230px)); min-height: 360px; }
+  /* Review step: the whole preview sits under the form, no button, no dialog. */
+  .pv-inline .pv-open { display: none; }
+  .pv-inline .pv-side { display: block; margin-top: 24px; }
+  .pv-inline .pv-bar { display: none; }
+  .pv-inline .pv-inline-label { display: block; }
+  .pv-inline .pv-frame { height: 740px; }
 }
 @media (min-width: 1000px) {
   .pv-split {

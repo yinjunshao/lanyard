@@ -332,7 +332,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       </div>
 
       <EventPreview v-if="creating" v-model:theme="f.theme" v-model:strap-color="f.strapColor" :event="previewEvent"
-                    :sponsors="f.from ? (source?.sponsors || []) : []" :off="!!f.from && !source?.event" :strip="!f.from">
+                    :sponsors="f.from ? (source?.sponsors || []) : []" :off="!!f.from && !source?.event" :strip="!f.from" :inline="step === 5">
         <EventCreate :form="f" :step="step" :from-options="FROM_OPTIONS" :has-events="events.length > 0" :facts="facts" :facts-state="sourceState"
                      :busy="busy" :error="error" :server-error="fieldError" :needs-credits="!freeNow"
                      :create-label="(f.from ? 'Create the copy' : 'Create event') + (freeNow ? ' (free this week)' : ' (uses 1 credit)')"
