@@ -826,7 +826,7 @@ console.log("\n# F32.6 The policy, and where the code is allowed to touch an ite
 {
   const privacy = read("src/views/Privacy.vue");
   check("the Privacy Policy has a section on drops: what is kept, who sees it, how long (30 days), and a retention row", /8e\. Keys, codes and vouchers from an organiser/.test(privacy) && /What we keep/.test(privacy.split("8e.")[1] || "") && /30 days after the event ends/.test(privacy) && /Keys, codes and vouchers an organiser gave you, and each voucher use/.test(privacy));
-  check("the Terms and Privacy version is NOT bumped (owner decision pending): worker/legal.js still says 2026-11-11", /TERMS_VERSION = "2026-11-11"/.test(read("worker/legal.js")));
+  check("the Terms and Privacy version is the one the owner approved after F31 and F32 (2026-11-13)", /TERMS_VERSION = "2026-11-13"/.test(read("worker/legal.js")));
   check("the retention in code is 30 days after the event ends, and the policy, the vault and the plan say the same", /DROP_KEEP_MS = 30 \* 86400_000/.test(read("worker/drops.js")) && /30 days/.test(read("Lanyard-Vault/03 Technical/Privacy and Data Retention.md")));
   const worker = ["worker/dropcrypto.js", "worker/drops.js", "worker/dropsManage.js", "worker/dropsHost.js", "worker/dropsNamed.js", "worker/dropsKeep.js", "worker/dropsApp.js", "worker/vouchers.js"];
   check("no drop file writes to the console: an item cannot be logged by accident", worker.every((f) => !/\bconsole\./.test(read(f))), worker.filter((f) => /\bconsole\./.test(read(f))));

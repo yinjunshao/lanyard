@@ -760,7 +760,7 @@ console.log("\n# The Settings pages and the policy (source guards)");
   const pol = read("src/views/Privacy.vue");
   check("the Privacy Policy has an AI features section, in the data and retention tables, the lawful bases and the provider list", /<h2>8c\. AI features<\/h2>/.test(pol) && /AI providers/.test(pol) && /Anthropic/.test(pol) && /Cloudflare AI Gateway/.test(pol) && /legitimate interests<\/b>[^<]*AI search/i.test(pol) && /An AI reply/.test(pol) && /13 months/.test(pol) && /7 days/.test(pol));
   check("it says nothing runs unless you tap, that people read before anything is sent, and how to switch being found off", /Nothing runs unless you tap/.test(pol) && /nothing is\s+sent for you/.test(pol) && /app\/settings\/privacy/.test(pol));
-  check("the Terms and Privacy version is the latest one the owner approved (2026-11-11)", /export const TERMS_VERSION = "2026-11-11"/.test(read("worker/legal.js")));
+  check("the Terms and Privacy version is the latest one the owner approved (2026-11-13)", /export const TERMS_VERSION = "2026-11-13"/.test(read("worker/legal.js")));
 }
 
 console.log("\n# Retention, the data download and deleting an account");

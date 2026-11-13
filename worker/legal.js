@@ -2,7 +2,7 @@
 // Policy change in a way people should re-accept; everyone is then asked again.
 import { newId, now, one, run } from "./db.js";
 
-export const TERMS_VERSION = "2026-11-11";
+export const TERMS_VERSION = "2026-11-13";
 export const termsScope = () => `terms:${TERMS_VERSION}`;
 export const hostTermsScope = () => `host_terms:${TERMS_VERSION}`;
 
