@@ -9,6 +9,7 @@ import { HttpError, requireUser } from "./session.js";
 import { bump, HOUR } from "./ratelimit.js";
 import { openItem } from "./dropcrypto.js";
 import { openness, revealItem } from "./drops.js";
+import { useVoucher } from "./vouchers.js";
 
 export const dropsApp = new Hono();
 
@@ -92,6 +93,15 @@ dropsApp.post("/api/e/:id/drops/:did/reveal", async (c) => {
   }
   const r = await revealItem(c.env, d, me.id);
   return c.json({ ok: true, id: d.id, title: d.title, value: r.value, givenAt: r.givenAt }, 200, noStore);
+});
+
+// A voucher is marked as used by staff, with the PIN the host gave them (worker/vouchers.js, D039). The request
+// is the holder's own, so it can only ever mark the holder's own voucher.
+dropsApp.post("/api/e/:id/drops/:did/use", async (c) => {
+  const { me, ev } = await myEvent(c);
+  const d = await dropIn(c, ev);
+  const body = await c.req.json().catch(() => ({}));
+  return c.json(await useVoucher(c.env, d, me.id, body?.pin), 200, noStore);
 });
 
 /** A person's own drops for their data download: what they were given (opened), and each voucher use. Nobody else's. */

@@ -9,7 +9,7 @@ import { HttpError } from "./session.js";
 import { bump, HOUR } from "./ratelimit.js";
 import { dropsReady } from "./dropcrypto.js";
 import { createDrop, KINDS } from "./drops.js";
-import { addItems, auditStmt, deleteUnused, listForHost, unusedList, updateDrop } from "./dropsManage.js";
+import { addItems, auditStmt, deleteUnused, listForHost, resetPin, unusedList, updateDrop } from "./dropsManage.js";
 
 export function registerDropsHost(app, hostEvent) {
   // One of the host's own events (or 404) and one of its drops (or 404).
@@ -73,6 +73,17 @@ export function registerDropsHost(app, hostEvent) {
         "cache-control": "no-store", "x-content-type-options": "nosniff", "x-unused-count": String(items.length),
       },
     });
+  });
+
+  // A new staff PIN for a voucher: the old one stops working at once. The new one is in this reply only.
+  app.post("/api/host/events/:id/drops/:did/pin", async (c) => {
+    const { me, ev, d } = await dropOf(c);
+    if (d.kind !== "voucher") throw new HttpError(400, "Only a voucher has a staff PIN.", "not_a_voucher");
+    if (d.purged_at) throw new HttpError(410, "This drop has been cleared away.", "gone");
+    await limited(c, `drop:pin:${me.id}`, 20, "new PINs");
+    const pin = await resetPin(c.env, d);
+    await audit(c, ev, d, me, "reset_pin", 0);
+    return c.json({ ok: true, pin }, 200, { "cache-control": "no-store" });
   });
 
   app.delete("/api/host/events/:id/drops/:did/unused", async (c) => {

@@ -78,6 +78,7 @@ function twice(d, what, fn) {
   return act(d, what, fn);
 }
 const delUnused = (d) => twice(d, "unused", async () => { const r = await api(`${base.value}/${d.id}/unused`, "DELETE"); notice.value = `${r.deleted} unused item${r.deleted === 1 ? "" : "s"} deleted.`; });
+const newPin = (d) => twice(d, "pin", async () => { const r = await api(`${base.value}/${d.id}/pin`, "POST"); pinShown.value = { title: d.title, pin: r.pin }; });
 const delDrop = (d) => twice(d, "drop", () => api(`${base.value}/${d.id}`, "DELETE"));
 async function saveMore(d) {
   await act(d, "add", async () => {
@@ -156,6 +157,9 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
             <button v-else type="button" class="btn" :disabled="!!busy" @click="setStatus(d, 'on')">Start again</button>
             <button v-if="isList(d)" type="button" class="btn" :disabled="!!busy" @click="adding = adding === d.id ? '' : d.id; addText = ''">Add more</button>
             <button v-if="isList(d)" type="button" class="btn" :disabled="!!busy || d.unused === 0" @click="download(d)">Download unused</button>
+            <button v-if="d.kind === 'voucher'" type="button" class="btn" :disabled="!!busy" @click="newPin(d)">
+              {{ confirm === d.id + ':pin' ? "Tap again: the old PIN stops working" : "New staff PIN" }}
+            </button>
           </div>
           <form v-if="adding === d.id" class="stack-2" @submit.prevent="saveMore(d)">
             <div class="field" style="margin:0">

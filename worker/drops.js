@@ -192,6 +192,12 @@ const WHY = {
   gone: () => new HttpError(410, "This drop has been cleared away.", "gone"),
 };
 
+/** Throws the plain refusal for a drop that is not giving or taking anything right now (stopped, not started, finished, cleared). */
+export function assertOpen(d, ts = Date.now()) {
+  const why = openness(d, ts);
+  if (why !== "open") throw WHY[why]();
+}
+
 /**
  * The single conditional write that gives a person an item. It inserts a row only when every rule holds
  * at the moment it runs: the drop is on and unexpired, this person has nothing from the drop (not even a

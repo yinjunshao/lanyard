@@ -501,12 +501,116 @@ console.log("\n# F32.3 A person's own data export");
   check("if the server's key is gone the download still works, says the item can't be opened and returns no value", noKeyExport.items.length === 1 && noKeyExport.items[0].given === null && /key changed/.test(noKeyExport.items[0].note) && !JSON.stringify(noKeyExport).includes(ra));
 }
 
+console.log("\n# F32.4 Vouchers: only staff with the PIN can mark one used, and once");
+const PINS = [];
+{
+  const ev = await makeEvent("Voucher Night");
+  const base = `/api/host/events/${ev.id}/drops`;
+  const mkv = await hcall("POST", base, { kind: "voucher", title: "Lunch", perPerson: 1 });
+  const lunch = mkv.json.id, PIN = mkv.json.pin;
+  const second = await hcall("POST", base, { kind: "voucher", title: "Coffee", perPerson: 3 });
+  const coffee = second.json.id, COFFEE_PIN = second.json.pin;
+  PINS.push(PIN, COFFEE_PIN);
+  const row = dropRow(lunch);
+  check("the PIN is six digits, shown to the host once, and the database keeps only a keyed hash of it", /^\d{6}$/.test(PIN) && row.pin_mac.length === 64 && !JSON.stringify(q("SELECT * FROM drops")).includes(`"${PIN}"`) && !JSON.stringify(row).includes(PIN) && row.pin_mac !== PIN);
+  check("the host's list and edits never return it again", !(await hcall("GET", base)).text.includes(PIN) && !(await hcall("PUT", `${base}/${lunch}`, { title: "Lunch" })).text.includes(PIN));
+  const ann = await person("Ann Vouchered", ev), ben = await person("Ben Vouchered", ev);
+  const use = (p, drop, pin) => pcall(p, "POST", `/api/e/${ev.id}/drops/${drop}/use`, pin === undefined ? {} : { pin });
+  const used = () => q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ?", lunch).n;
+
+  const list0 = await pcall(ann, "GET", `/api/e/${ev.id}/drops`);
+  const v0 = list0.json.drops.find((d) => d.id === lunch);
+  check("the voucher screen's data: the event, the title, her first name and a photo slot, and one use left", list0.json.event.name === "Voucher Night" && v0.title === "Lunch" && list0.json.me.firstName === "Ann" && v0.state === "ready" && v0.voucher.left === 1 && v0.voucher.perPerson === 1 && v0.voucher.usedAt.length === 0, list0.json);
+
+  const noPin = await use(ann, lunch), blank = await use(ann, lunch, ""), short = await use(ann, lunch, "12345"), nonNum = await use(ann, lunch, "abcdef"), notText = await use(ann, lunch, 123456);
+  check("with no PIN, an empty one, a short one, letters or a number, nothing is marked (400)", [noPin, blank, short, nonNum, notText].every((r) => r.status === 400 && r.json.code === "pin_needed") && used() === 0);
+  const wrong = await use(ann, lunch, PIN === "000000" ? "000001" : "000000");
+  check("a wrong PIN is refused (403) and marks nothing", wrong.status === 403 && wrong.json.code === "bad_pin" && used() === 0);
+  const otherPin = await use(ann, lunch, COFFEE_PIN);
+  check("another voucher's PIN is refused too (a PIN is tied to its own drop)", otherPin.status === 403 && used() === 0);
+  const hostOnly = await pcall(ann, "POST", `/api/e/${ev.id}/drops/${lunch}/use`, { pin: PIN, userId: ben.id, user: ben.id });
+  check("the person can only mark their own voucher: a request naming someone else marks the sender", hostOnly.status === 200 && q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ? AND user_id = ?", lunch, ben.id).n === 0 && q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ? AND user_id = ?", lunch, ann.id).n === 1);
+  check("with the right PIN it is marked: no uses left, and the time is recorded", hostOnly.json.ok && hostOnly.json.left === 0 && hostOnly.json.used === 1 && Math.abs(hostOnly.json.usedAt[0] - Date.now()) < 5000);
+  const again = await use(ann, lunch, PIN);
+  check("a second use, even with the right PIN, is refused (409, already_used) and says when it was used", again.status === 409 && again.json.code === "already_used" && /already used on/.test(again.json.error) && used() === 1, again.json);
+  check("…and without a PIN it says the same (it is her own information)", (await use(ann, lunch)).json.code === "already_used");
+  const l1 = (await pcall(ann, "GET", `/api/e/${ev.id}/drops`)).json.drops.find((d) => d.id === lunch);
+  check("her list now says used, with the time", l1.state === "used" && l1.voucher.left === 0 && l1.voucher.usedAt.length === 1);
+  const l2 = (await pcall(ben, "GET", `/api/e/${ev.id}/drops`)).json.drops.find((d) => d.id === lunch);
+  check("another person's voucher is untouched: still one use left", l2.state === "ready" && l2.voucher.left === 1);
+  check("the host sees '1 of N used' and the number of people, but not who", (await hcall("GET", base)).json.drops.find((d) => d.id === lunch).used === 1 && !JSON.stringify((await hcall("GET", base)).json).includes("Ann"));
+
+  console.log("  (two staff at the same moment)");
+  const many = await Promise.all([1, 2, 3, 4, 5, 6, 7, 8].map(() => use(ben, lunch, PIN)));
+  check("eight requests for Ben's one-use voucher at once record one use: one success, seven told it was already used", many.filter((r) => r.status === 200).length === 1 && many.filter((r) => r.status === 409 && r.json.code === "already_used").length === 7 && q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ? AND user_id = ?", lunch, ben.id).n === 1, many.map((r) => r.status));
+  const cat = await person("Cat Coffee", ev);
+  const burst = await Promise.all(Array.from({ length: 10 }, () => use(cat, coffee, COFFEE_PIN)));
+  const nums = q("SELECT n FROM voucher_uses WHERE drop_id = ? AND user_id = ? ORDER BY n", coffee, cat.id).map((r) => r.n);
+  check("a three-use voucher pressed ten times at once is used exactly three times, numbered 1, 2, 3", burst.filter((r) => r.status === 200).length === 3 && nums.join() === "1,2,3" && burst.filter((r) => r.status === 409).length === 7, [burst.map((r) => r.status), nums]);
+
+  console.log("  (guessing the PIN)");
+  const eve = await person("Eve Guesser", ev);
+  const guesses = [];
+  for (let i = 0; i < 7; i++) guesses.push((await use(eve, lunch, String(100000 + i))).status);
+  const rightLate = await use(eve, lunch, PIN);
+  check("five wrong PINs and the person is held for ten minutes (429), even with the right PIN, and nothing was marked", guesses.slice(0, 5).every((s) => s === 403) && guesses[5] === 429 && rightLate.status === 429 && q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ? AND user_id = ?", lunch, eve.id).n === 0, guesses);
+  check("…while another person with the right PIN is not held", (await use(await person("Fay Fine", ev), lunch, PIN)).status === 200);
+  env.DB.raw.prepare("INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 100) ON CONFLICT(key) DO UPDATE SET count = 100, window_start = excluded.window_start").run(`drop:pinall:${coffee}`, Date.now());
+  const gus = await person("Gus Locked", ev);
+  check("a hundred wrong PINs across everyone in an hour holds the voucher for all (429) until the hour passes", (await use(gus, coffee, COFFEE_PIN)).status === 429);
+  env.DB.raw.prepare("DELETE FROM rate_limits WHERE key = ?").run(`drop:pinall:${coffee}`);
+  check("…and then it works again", (await use(gus, coffee, COFFEE_PIN)).status === 200);
+
+  console.log("  (who may, and when)");
+  const outsider = await person("Not Here", ev, { checkIn: false });
+  check("not checked in: 403; signed out: 401; the host's cookie on the main site: 401", (await use(outsider, lunch, PIN)).status === 403 && (await client({ ip: "10.94.0.1" }).post(`/api/e/${ev.id}/drops/${lunch}/use`, { pin: PIN })).status === 401);
+  const other = await makeEvent("Other Voucher Night");
+  const otherV = (await hcall("POST", `/api/host/events/${other.id}/drops`, { kind: "voucher", title: "Elsewhere" })).json;
+  PINS.push(otherV.pin);
+  check("another event's voucher through this event is 404, and marks nothing", (await use(ann, otherV.id, otherV.pin)).status === 404 && q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ?", otherV.id).n === 0);
+  const item = (await hcall("POST", base, { kind: "same", title: "Same text", value: "same-text-for-voucher-test" })).json.id;
+  check("an item drop is not a voucher (400)", (await use(ann, item, PIN)).status === 400);
+  const hal = await person("Hal Stopped", ev);
+  const beforeStop = await use(hal, coffee, COFFEE_PIN);
+  await hcall("PUT", `${base}/${coffee}`, { status: "stopped" });
+  const ida = await person("Ida Stopped", ev);
+  const stopped = await use(ida, coffee, COFFEE_PIN);
+  check("a stopped voucher can't be used (409, stopped), whoever has the PIN; a use made before it was stopped stays", beforeStop.status === 200 && stopped.status === 409 && stopped.json.code === "stopped" && q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ? AND user_id = ?", coffee, ida.id).n === 0 && q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ? AND user_id = ?", coffee, hal.id).n === 1);
+  await hcall("PUT", `${base}/${coffee}`, { status: "on", validFrom: Date.now() + 3.6e6 });
+  const early = await use(await person("Jay Early", ev), coffee, COFFEE_PIN);
+  await hcall("PUT", `${base}/${coffee}`, { validFrom: Date.now() - 7.2e6, validUntil: Date.now() - 1000 });
+  const late = await use(await person("Kay Late", ev), coffee, COFFEE_PIN);
+  check("before it starts (409, not_yet) and after it ends (409, closed) it can't be used", early.json.code === "not_yet" && late.json.code === "closed", [early.json, late.json]);
+  const stale = dropRow(coffee);
+  await hcall("PUT", `${base}/${coffee}`, { validFrom: null, validUntil: null, status: "on" });
+  env.DB.raw.prepare("UPDATE drops SET status = 'stopped' WHERE id = ?").run(coffee);
+  const { useVoucher } = await import("../worker/vouchers.js");
+  const lee = await person("Lee Race", ev);
+  const raced = await settle([useVoucher(env, { ...stale, status: "on", valid_from: null, valid_until: null }, lee.id, COFFEE_PIN)]);
+  check("the stopped state is checked in the write itself: a copy of the drop read before it was stopped can't mark a use", raced[0].ok === false && raced[0].code === "stopped" && q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ? AND user_id = ?", coffee, lee.id).n === 0, raced);
+  const noKeyUse = await settle([useVoucher({ ...env, DROP_KEY: undefined }, dropRow(lunch), lee.id, PIN)]);
+  check("with no server key the PIN can't be checked, so nothing is marked (503)", noKeyUse[0].code === "drops_unavailable");
+
+  console.log("  (a new PIN)");
+  const reset = await hcall("POST", `${base}/${lunch}/pin`);
+  PINS.push(reset.json.pin);
+  const newbie = await person("Mia New", ev);
+  check("the host can get a new PIN; the old one stops working at once and the new one works", reset.status === 200 && /^\d{6}$/.test(reset.json.pin) && reset.json.pin !== PIN && (await use(newbie, lunch, PIN)).status === 403 && (await use(newbie, lunch, reset.json.pin)).status === 200);
+  const H4 = client({ ip: "10.95.0.1", site: "host" });
+  await becomeHost(H4, { kind: "company", name: "Pin Rival Co", email: "rival@pinrival.example.com" });
+  const rival = await H4.post(`${base}/${lunch}/pin`);
+  check("only a voucher has a PIN (400), another organisation can't reset it (404), the reset is audited", (await hcall("POST", `${base}/${item}/pin`)).status === 400 && rival.status === 404 && q1("SELECT COUNT(*) n FROM drop_audit WHERE drop_id = ? AND action = 'reset_pin'", lunch).n === 1);
+  const exp = (await pcall(ann, "GET", "/api/account/export")).json;
+  check("her data download lists her voucher use, with when", exp.drops?.voucherUses?.length === 1 && exp.drops.voucherUses[0].title === "Lunch" && exp.drops.voucherUses[0].usedAt > 0 && exp.drops.voucherUses[0].use === 1 && exp.drops.voucherUses[0].of === 1, exp.drops);
+}
+
 console.log("\n# F32.2 Nothing the host sees, and nothing logged, holds an item");
 {
   const secrets = [...LIST, "more-key-1", "more-key-2", "guest-wifi-9931", "rf-1", "rf-2", "rf-3", "guard-1", "guard-2", "NOKEY-SECRET"];
   const hay = SEEN.join("\n") + "\n" + printed.join("\n");
   const leaked = secrets.filter((v) => hay.includes(v));
   check(`every host response so far (${SEEN.length}) and everything printed by the Worker and these tests holds none of the ${secrets.length} items`, leaked.length === 0, leaked.slice(0, 3));
+  check(`…nor any of the ${PINS.length} staff PINs (the logs and every response an attendee got)`, PINS.every((p) => { const re = new RegExp(`(^|\\D)${p}(\\D|$)`); return !re.test(printed.join("\n")) && !re.test(PERSON_SEEN.join("\n")); })); // as a whole number: a 6-digit run inside a timestamp is not a PIN
 }
 
 summary();

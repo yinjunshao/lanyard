@@ -3,8 +3,8 @@
 // opens only items nobody has been given.
 import { all, newId, one, run } from "./db.js";
 import { HttpError } from "./session.js";
-import { openItem, dropsReady, unavailable } from "./dropcrypto.js";
-import { MAX_ITEMS, cleanNote, cleanTitle, insertItems, isList, itemRows, openness, readItems, readWindow, sealAll } from "./drops.js";
+import { openItem, pinMac, dropsReady, unavailable } from "./dropcrypto.js";
+import { MAX_ITEMS, cleanNote, cleanTitle, insertItems, isList, itemRows, newPin, openness, readItems, readWindow, sealAll } from "./drops.js";
 
 /** A drop as a host sees it: its settings and counts. Never an item, a name or the PIN. */
 function hostJson(r, checkins, ts) {
@@ -118,4 +118,12 @@ export async function deleteUnused(db, drop) {
   if (!isList(drop)) throw new HttpError(400, "This kind of drop has no list.", "not_a_list");
   const r = await run(db, "DELETE FROM drop_items WHERE drop_id = ? AND NOT EXISTS (SELECT 1 FROM drop_gives g WHERE g.item_id = drop_items.id)", drop.id);
   return r.meta?.changes || 0;
+}
+
+/** Replaces a voucher's staff PIN. Returns the new PIN, which the caller shows once; only its HMAC is kept. */
+export async function resetPin(env, drop, ts = Date.now()) {
+  if (!dropsReady(env)) throw unavailable();
+  const pin = newPin();
+  await run(env.DB, "UPDATE drops SET pin_mac = ?, updated_at = ? WHERE id = ?", await pinMac(env, drop.id, pin), ts, drop.id);
+  return pin;
 }

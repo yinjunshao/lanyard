@@ -75,7 +75,24 @@ function openVoucher(v, ev) {
   open.value = v.id; trigger.value = ev.currentTarget; nowMs.value = Date.now();
   clearInterval(tick); tick = setInterval(() => { nowMs.value = Date.now(); }, 1000);
 }
-function closeVoucher() { open.value = null; clearInterval(tick); }
+function closeVoucher() { open.value = null; clearInterval(tick); staffOpen.value = false; pin.value = ""; staffError.value = ""; marked.value = ""; }
+// Staff mark a use by typing the PIN the host gave them, here, on the holder's own phone. The PIN is masked as it is
+// typed, never stored, and cleared after every try.
+const staffOpen = ref(false);
+const pin = ref("");
+const staffError = ref("");
+const marked = ref("");
+async function mark() {
+  if (busy.value || !current.value) return;
+  busy.value = "pin"; staffError.value = ""; marked.value = "";
+  const v = current.value;
+  try {
+    await api(`${base.value}/${encodeURIComponent(v.id)}/use`, "POST", { pin: pin.value });
+    marked.value = "Marked as used.";
+    staffOpen.value = false;
+  } catch (e) { staffError.value = e.message; }
+  finally { pin.value = ""; busy.value = ""; await load(); }
+}
 const hms = computed(() => new Date(nowMs.value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
 const today = computed(() => new Date(nowMs.value).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }));
 const voucherLine = (v) => (v.state === "used" ? `Used${v.voucher.usedAt.length ? " " + clock(v.voucher.usedAt.at(-1)) : ""}` : v.state === "ready" ? `${v.voucher.left} of ${v.voucher.perPerson} left` : note(v));
@@ -133,6 +150,18 @@ const voucherLine = (v) => (v.state === "used" ? `Used${v.voucher.usedAt.length 
         </p>
         <p v-if="current.validUntil" class="small muted" style="margin:0">Valid until {{ clock(current.validUntil) }}.</p>
         <p class="small muted" style="margin:0">Show this screen to the staff. The clock is live, so a screenshot won't work.</p>
+        <p v-if="marked" class="success-text" role="status">{{ marked }}</p>
+        <div v-if="current.state === 'ready'" class="staff stack-2">
+          <button v-if="!staffOpen" type="button" class="btn" @click="staffOpen = true">Staff: mark as used</button>
+          <form v-else class="stack-2" @submit.prevent="mark">
+            <div class="field" style="margin:0">
+              <label for="staff-pin">Staff PIN</label>
+              <input id="staff-pin" v-model="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+            </div>
+            <button type="submit" class="btn btn-primary" :disabled="busy === 'pin' || pin.length !== 6">Mark as used</button>
+          </form>
+          <p v-if="staffError" class="error-text small" role="alert" style="margin:0">{{ staffError }}</p>
+        </div>
       </div>
     </UiSheet>
   </section>
@@ -156,5 +185,6 @@ const voucherLine = (v) => (v.state === "used" ? `Used${v.voucher.usedAt.length 
 .voucher-name { font-size: 24px; }
 .voucher-clock { font-size: 44px; font-weight: 800; letter-spacing: .02em; line-height: 1; }
 .voucher-left { margin: 0; font-size: 20px; font-weight: 700; }
+.staff { width: 100%; text-align: left; }
 .voucher-left.gone { color: var(--graphite); text-decoration: line-through; }
 </style>
