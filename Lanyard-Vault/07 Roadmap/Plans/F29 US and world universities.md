@@ -32,7 +32,8 @@ needs: [F12]
   - `country: "GB"` on all 137 UK entries and a `countries` map in the file; no id touched. `src/lib/institutions.js` gained `mergeInstitutions` (throws on a repeated id), `countryLabel`, `pickerOptions`, `isWebmail`, and `slugify` now drops accents. `test/institutions-world.mjs` (in `npm test` after `institutions.mjs`) reads every `src/data/institutions-*.json` and checks unique ids, the UK ids (sample plus a hash of all 137), country names, id = slug (country suffix only for same-name pairs), domain and short-name rules.
 - [x] F29.2 Write `institutions-us.json`.
   - 355 entries (Ivy League and other private research universities, state flagships and large publics, liberal arts colleges, HBCUs, some others), written by the agent from its own knowledge; each with the official name as commonly used, a short name only where well established, and an email domain only where sure. `lincoln-university-us` is the one id with a country code added (a Lincoln University also exists in New Zealand, in the world file). Gzip 8.0 KB. The owner should review it.
-- [ ] F29.3 Write `institutions-world.json`.
+- [x] F29.3 Write `institutions-world.json`.
+  - 548 entries in 94 countries (national flagships and well-known universities, institutes of technology and business schools, grouped by country), written by the agent from its own knowledge. A `countries` map names each code. Gzip 14.5 KB. The one same-name pair across the files, Lincoln University (US and New Zealand), has `-us` and `-nz` ids. The owner should review it.
 - [ ] F29.4 Picker searches all files and shows the country; `.edu` and other domain suggestions; Worker and backfill accept the new ids.
 - [ ] F29.5 Check in a browser, measure the chunk sizes, write the vault and Log.
 

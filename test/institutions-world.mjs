@@ -71,4 +71,14 @@ console.log("\n# The US file");
   check("the institutions the owner named are found by their short names", [["MIT", "massachusetts-institute-of-technology"], ["UCLA", "university-of-california-los-angeles"]].every(([a, id]) => us.find((i) => i.aliases.includes(a))?.id === id));
 }
 
+console.log("\n# The world file");
+{
+  const w = files.world.institutions;
+  const nonGB = w.filter((i) => i.country === "GB" || i.country === "US");
+  check(`it has several hundred entries (${w.length}) across many countries (${new Set(w.map((i) => i.country)).size}), none in the UK or US`, w.length >= 400 && new Set(w.map((i) => i.country)).size >= 40 && nonGB.length === 0);
+  const W_PINNED = ["eth-zurich", "national-university-of-singapore", "university-of-toronto", "lincoln-university-nz"];
+  check("a sample of world ids is pinned (Lincoln University exists in the US and NZ, so both have the country in the id)", W_PINNED.every((id) => w.some((i) => i.id === id)) && ids.includes("lincoln-university-us"));
+  check("ETH and NUS are short names of the right institutions", w.find((i) => i.aliases.includes("ETH"))?.id === "eth-zurich" && w.find((i) => i.aliases.includes("NUS"))?.id === "national-university-of-singapore");
+}
+
 summary();
