@@ -4,7 +4,7 @@ id: F29
 priority: P1
 phase: 6
 size: M
-status: Not started
+status: In progress
 needs: [F12]
 ---
 # F29 US and world universities
@@ -28,7 +28,8 @@ needs: [F12]
 - Shared ground ([[F16 Shared ground without AI]]) keeps matching by id.
 
 ## Tasks
-- [ ] F29.1 Add `country` to the UK file and a loader and validator for several files; tests that every id is unique across files and existing UK ids are unchanged.
+- [x] F29.1 Add `country` to the UK file and a loader and validator for several files; tests that every id is unique across files and existing UK ids are unchanged.
+  - `country: "GB"` on all 137 UK entries and a `countries` map in the file; no id touched. `src/lib/institutions.js` gained `mergeInstitutions` (throws on a repeated id), `countryLabel`, `pickerOptions`, `isWebmail`, and `slugify` now drops accents. `test/institutions-world.mjs` (in `npm test` after `institutions.mjs`) reads every `src/data/institutions-*.json` and checks unique ids, the UK ids (sample plus a hash of all 137), country names, id = slug (country suffix only for same-name pairs), domain and short-name rules.
 - [ ] F29.2 Write `institutions-us.json`.
 - [ ] F29.3 Write `institutions-world.json`.
 - [ ] F29.4 Picker searches all files and shows the country; `.edu` and other domain suggestions; Worker and backfill accept the new ids.
