@@ -4,7 +4,7 @@ id: F31
 priority: P1
 phase: 6
 size: L
-status: In progress
+status: Done
 needs: [F10, F15, F30]
 ---
 # F31 Named attendance with check-in notice
