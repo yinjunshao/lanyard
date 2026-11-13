@@ -615,8 +615,8 @@ console.log("\n# The host reset wipes the lists");
   const after = r.prepare(reset.COUNT_SQL).get();
   check("after the wipe there are no lists and the script's own check passes", after.event_attendees === 0 && reset.verify(before, after).length === 0, reset.verify(before, after));
   check("the attendee keeps their account and the record of what they chose (consent_log is kept)", after.users_kept === 1 && after.consent_log_kept >= before.consent_log_kept && r.prepare("SELECT wording FROM consent_log WHERE id = 'rl1'").get().wording === "words");
-  check("a database without migration 0028 is refused by the script's schema check", makeDb({ before: "0028" }).raw.prepare(reset.SCHEMA_SQL).get().n === 6 && makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 7);
-  check("the script's header and its refusal message name 0028", /0018, 0023, 0025, 0027 and 0028/.test(read("scripts/reset-hosts.mjs")) && /0027 and 0028 are not all applied/.test(read("scripts/reset-hosts.mjs")));
+  check("a database without migration 0028 is refused by the script's schema check", makeDb({ before: "0028" }).raw.prepare(reset.SCHEMA_SQL).get().n === 6 && makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 8 && makeDb({ before: "0029" }).raw.prepare(reset.SCHEMA_SQL).get().n === 7); // 0029 (F32) adds the eighth table
+  check("the script's header and its refusal message name 0028", /0018, 0023, 0025, 0027, 0028 and 0029/.test(read("scripts/reset-hosts.mjs")) && /0027, 0028 and 0029 are not all applied/.test(read("scripts/reset-hosts.mjs")));
 }
 
 summary();

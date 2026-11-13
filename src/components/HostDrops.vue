@@ -101,6 +101,18 @@ async function download(d) {
   });
 }
 
+/* ------------- who has it: only for an event that keeps a list of who checked in (F31) ------------- */
+const who = ref({}); // drop id -> { people, others, kind } while open
+async function toggleWho(d) {
+  if (who.value[d.id]) { const { [d.id]: _gone, ...rest } = who.value; who.value = rest; return; }
+  await act(d, "who", async () => { who.value = { ...who.value, [d.id]: await api(`${base.value}/${d.id}/people`) }; });
+}
+const withdraw = (d, p) => twice(d, "w" + p.giveId, async () => {
+  await api(`${base.value}/${d.id}/revoke`, "POST", { giveId: p.giveId });
+  who.value = { ...who.value, [d.id]: await api(`${base.value}/${d.id}/people`) };
+  notice.value = `${p.name}'s item is withdrawn. It won't be given to anyone else.`;
+});
+
 /* ---------------------------------- words for a drop ---------------------------------- */
 const counts = (d) => {
   if (d.purged) return d.kind === "voucher" ? `Cleared away. ${d.used} used in all.` : `Cleared away. ${d.loaded} were loaded and ${d.given} given.`;
@@ -169,6 +181,24 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
             </div>
             <button type="submit" class="btn btn-primary" :disabled="!!busy">Add these</button>
           </form>
+          <button v-if="data.named" type="button" class="btn" :aria-expanded="!!who[d.id]" :disabled="!!busy" @click="toggleWho(d)">{{ who[d.id] ? "Hide who has it" : "Who has it" }}</button>
+          <div v-if="who[d.id]" class="stack-2 who" data-who>
+            <p class="small muted" style="margin:0">Only people who left the list tick on are named. You see which item in your list each one has (its number), never the item itself.</p>
+            <ul class="list who-list">
+              <li v-for="p in who[d.id].people" :key="p.giveId || p.name" class="list-row who-row">
+                <span class="who-name"><strong>{{ p.name }}</strong>
+                  <span v-if="d.kind === 'voucher'" class="small muted tnum">{{ p.used }} used, last {{ when(p.lastUsedAt) }}</span>
+                  <span v-else class="small muted tnum">Item {{ p.item }}, {{ when(p.givenAt) }}<template v-if="p.withdrawn">, withdrawn</template></span>
+                </span>
+                <button v-if="d.kind !== 'voucher' && !p.withdrawn" type="button" class="btn btn-danger who-btn" :disabled="!!busy" @click="withdraw(d, p)">
+                  {{ confirm === d.id + ':w' + p.giveId ? "Tap again" : "Withdraw" }}
+                </button>
+              </li>
+            </ul>
+            <p v-if="!who[d.id].people.length" class="empty small" style="margin:0">Nobody on the list has one yet.</p>
+            <p v-if="who[d.id].others" class="small muted" style="margin:0">{{ who[d.id].others }} other {{ who[d.id].others === 1 ? "person has" : "people have" }} one but {{ who[d.id].others === 1 ? "is" : "are" }} not on the list, so {{ who[d.id].others === 1 ? "is" : "are" }} not named.</p>
+          </div>
+          <p v-else-if="!data.named" class="small muted" style="margin:0">Names aren't shown: this event doesn't keep a list of who checked in.</p>
           <div class="btn-row wrap">
             <button v-if="isList(d)" type="button" class="btn btn-danger" :disabled="!!busy || d.unused === 0" @click="delUnused(d)">
               {{ confirm === d.id + ':unused' ? `Tap again: delete ${d.unused} unused` : "Delete unused items" }}
@@ -241,4 +271,9 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
 .status-pill.stopped, .status-pill.closed { color: var(--graphite); }
 .pin { font-size: 40px; font-weight: 800; letter-spacing: .25em; }
 .pin-box { border-color: var(--strap); }
+.who-list { list-style: none; padding: 0; margin: 0; }
+.who-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.who-name { display: flex; flex-direction: column; min-width: 0; }
+.who-name strong { overflow-wrap: anywhere; }
+.who-btn { flex: none; width: auto; }
 </style>

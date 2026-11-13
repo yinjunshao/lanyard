@@ -25,6 +25,7 @@ import { normPromo } from "./promo.js";
 import { collectFields, collectOf, hostAttendees, attendeesCsv, attendeesFileName, exportAttendeeLists } from "./attendance.js";
 import { registerHostPromo, releaseHeldClaims, heldClaims, exportHostClaims } from "./host-promo.js";
 import { registerDropsHost } from "./dropsHost.js";
+import { exportHostDrops } from "./dropsKeep.js";
 import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
 
 export const hostApp = new Hono();
@@ -101,7 +102,7 @@ hostApp.get("/api/host/account/export", async (c) => {
   const me = c.get("host");
   const db = c.env.DB;
   const q = (sql, ...a) => all(db, sql, ...a);
-  const [orgs, tickets, transfers, billing, consents, sessions, promoClaims, attendeeLists] = await Promise.all([
+  const [orgs, tickets, transfers, billing, consents, sessions, promoClaims, attendeeLists, drops] = await Promise.all([
     q(`SELECT o.id, o.name, o.org_type, o.university, o.institution_id, m.role FROM host_org_members m JOIN orgs o ON o.id = m.org_id WHERE m.host_account_id = ?`, me.id),
     q("SELECT kind, new_email, message, status, admin_note, created_at, resolved_at FROM host_org_tickets WHERE host_account_id = ?", me.id),
     q("SELECT org_id, to_email, status, created_at, resolved_at FROM host_org_transfers WHERE from_host_id = ? OR to_host_id = ?", me.id, me.id),
@@ -110,6 +111,7 @@ hostApp.get("/api/host/account/export", async (c) => {
     q("SELECT created_at, expires_at, user_agent FROM host_sessions WHERE host_account_id = ?", me.id),
     exportHostClaims(db, me.id), // F20: promo codes claimed, and the credits they gave
     exportAttendeeLists(db, me.id), // F31: the lists of who checked in that this host's organisations keep (events with the list on only)
+    exportHostDrops(db, me.id), // F32: their drops and counts, never an item
   ]);
   return c.json({
     exportedAt: now(),
@@ -120,6 +122,7 @@ hostApp.get("/api/host/account/export", async (c) => {
     },
     organisations: orgs, tickets, transfers, billingRequests: billing, promoCodes: promoClaims, consentHistory: consents, devices: sessions,
     ...(attendeeLists.length ? { attendeeLists } : {}),
+    ...(drops ? { drops } : {}),
     ai: await exportAi(db, "host", me.id), // F21
   });
 });

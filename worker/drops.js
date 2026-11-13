@@ -235,10 +235,10 @@ export async function revealItem(env, drop, userId, ts = Date.now()) {
   const db = env.DB;
   let g = await mine(db, drop.id, userId);
   if (!g) {
-    // A wrong or missing key refuses here, before an item is used up.
-    await openItem(env, drop.id, CHECK_ID, drop.check_cipher);
     const why = openness(drop, ts);
     if (why !== "open") throw WHY[why]();
+    // A wrong or missing key refuses here, before an item is used up.
+    await openItem(env, drop.id, CHECK_ID, drop.check_cipher);
     const sql = claimSql(isExclusive(drop), drop.kind !== "random");
     try {
       await db.prepare(sql).bind(newId() + newId(), drop.id, userId, ts).run();

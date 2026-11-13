@@ -149,7 +149,7 @@ console.log("\n# The host reset leaves no presence rows or selfies behind");
     INSERT INTO checkins (event_id, user_id, created_at) VALUES ('e1', 'u1', 1);
     INSERT INTO event_presence (id, event_id, user_id, selfie_key, created_at, updated_at) VALUES ('p1', 'e1', 'u1', 'presence/zz9.webp', 1, 1);
     INSERT INTO consents (id, user_id, scope, granted, created_at) VALUES ('c1', 'u1', 'event_presence:e1', 1, 1);`);
-  check("the schema check needs the presence table", rdb.prepare(SCHEMA_SQL).get().n === 7); // the host tables of 0018, event_presence (0023), host_promo_claims (0025, F20), feedback_summaries (0027, F23) and event_attendees (0028, F31)
+  check("the schema check needs the presence table", rdb.prepare(SCHEMA_SQL).get().n === 8); // the host tables of 0018, event_presence (0023), host_promo_claims (0025, F20), feedback_summaries (0027, F23), event_attendees (0028, F31) and drops (0029, F32)
   const before = rdb.prepare(COUNT_SQL).get();
   check("the dry run counts presence rows and lists their selfies to delete", before.event_presence === 1 && before.host_consents >= 1 && rdb.prepare(PRESENCE_SQL).all()[0].selfie_key === "presence/zz9.webp", before);
   rdb.exec("BEGIN"); rdb.exec(wipeSql(before)); rdb.exec("COMMIT");

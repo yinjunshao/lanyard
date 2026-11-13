@@ -8,7 +8,9 @@ import { one } from "./db.js";
 import { HttpError } from "./session.js";
 import { bump, HOUR } from "./ratelimit.js";
 import { dropsReady } from "./dropcrypto.js";
+import { collectOf } from "./attendance.js";
 import { createDrop, KINDS } from "./drops.js";
+import { namedPeople, revokeGive } from "./dropsNamed.js";
 import { addItems, auditStmt, deleteUnused, listForHost, resetPin, unusedList, updateDrop } from "./dropsManage.js";
 
 export function registerDropsHost(app, hostEvent) {
@@ -27,7 +29,8 @@ export function registerDropsHost(app, hostEvent) {
 
   app.get("/api/host/events/:id/drops", async (c) => {
     const ev = await hostEvent(c, c.get("host"));
-    return c.json({ ready: dropsReady(c.env), kinds: KINDS, drops: await listForHost(c.env.DB, ev), now: Date.now() }, 200, { "cache-control": "no-store" });
+    // `named`: this event keeps a list of who checked in (F31), so the host may open "Who has it" for a drop.
+    return c.json({ ready: dropsReady(c.env), named: !!collectOf(ev), kinds: KINDS, drops: await listForHost(c.env.DB, ev), now: Date.now() }, 200, { "cache-control": "no-store" });
   });
 
   app.post("/api/host/events/:id/drops", async (c) => {
@@ -73,6 +76,22 @@ export function registerDropsHost(app, hostEvent) {
         "cache-control": "no-store", "x-content-type-options": "nosniff", "x-unused-count": String(items.length),
       },
     });
+  });
+
+  // Who has this drop: only for an event that keeps a named list, only people on it right now, and an item is shown as
+  // its number in the host's own list, never its value. 404 for an event with no list.
+  app.get("/api/host/events/:id/drops/:did/people", async (c) => {
+    const { ev, d } = await dropOf(c);
+    const r = await namedPeople(c.env.DB, ev, d);
+    if (!r) throw new HttpError(404, "This event does not keep a list of who checked in, so names are not shown.", "list_off");
+    return c.json(r, 200, { "cache-control": "no-store" });
+  });
+
+  // Withdraw one person's item (a leaked key). Only for a person on the named list right now.
+  app.post("/api/host/events/:id/drops/:did/revoke", async (c) => {
+    const { me, ev, d } = await dropOf(c);
+    const b = await c.req.json().catch(() => ({}));
+    return c.json(await revokeGive(c.env.DB, ev, d, b?.giveId, me.id), 200, { "cache-control": "no-store" });
   });
 
   // A new staff PIN for a voucher: the old one stops working at once. The new one is in this reply only.

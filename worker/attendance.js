@@ -256,6 +256,23 @@ export async function myStanding(db, ev, userId) {
   };
 }
 
+/**
+ * Which of these people are on this event's named list right now (F32 uses it for the host's view of who has
+ * which drop item): a Set of user ids, or null when the event keeps no list. An event whose list is off is not
+ * read at all, and a person with no row is never counted as on it. Asked again on every request, so a person
+ * who unticks in the hub is gone from the very next answer.
+ */
+export async function namedAmong(db, ev, userIds) {
+  if (!collectOf(ev)) return null;
+  const out = new Set();
+  const ids = [...new Set(userIds)];
+  for (let i = 0; i < ids.length; i += 90) {
+    const part = ids.slice(i, i + 90);
+    for (const r of await all(db, `SELECT user_id FROM event_attendees WHERE event_id = ? AND user_id IN (${part.map(() => "?").join(",")})`, ev.id, ...part)) out.add(r.user_id);
+  }
+  return out;
+}
+
 /** Every list a person is on, for Settings. */
 export async function myLists(db, userId) {
   const rows = await all(

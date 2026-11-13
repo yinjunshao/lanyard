@@ -24,7 +24,11 @@
 // shown and chose (event_attendance:, event_share_email:, event_share_card:) are kept with the rest of
 // consent_log, as proof; they hold no list, only a person's own choice and the words they saw.
 //
-// Needs migrations 0018, 0023, 0025, 0027 and 0028. Dry run by default: prints the counts and changes nothing.
+// F32 drops (drops, drop_items, drop_gives, voucher_uses, drop_audit, migration 0029) hold the keys, codes and voucher
+// uses an event's host gave out. They are wiped with the events they belong to (the encrypted items and who was given
+// them included); nothing of a drop is kept. The staff PIN hashes go with the drops.
+//
+// Needs migrations 0018, 0023, 0025, 0027, 0028 and 0029. Dry run by default: prints the counts and changes nothing.
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite>            dry run on a SQLite file
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite> --apply    wipe that file
 //   node scripts/reset-hosts.mjs --local [--apply]                 local D1 (wrangler --local)
@@ -42,7 +46,7 @@ import { fileURLToPath } from "node:url";
 
 // Tables emptied by option B, in delete order (children first).
 export const WIPED = [
-  "event_mail_log", "host_mail_log", "feedback_summaries", "feedback_responses", "feedback_done", "event_presence", "event_attendees", "checkins", "sponsors", "events",
+  "event_mail_log", "host_mail_log", "feedback_summaries", "feedback_responses", "feedback_done", "event_presence", "event_attendees", "voucher_uses", "drop_gives", "drop_items", "drop_audit", "drops", "checkins", "sponsors", "events",
   "host_promo_claims", "credits", "promo_redemptions", "org_integrations",
   "org_invites", "org_transfers", "host_tickets", "org_members", "host_profiles",
   "host_org_invites", "host_org_transfers", "host_org_tickets", "host_org_members",
@@ -66,7 +70,7 @@ export const COUNT_SQL = `SELECT ${[
 ].join(",\n  ")}`;
 export const LOGO_SQL = "SELECT logo_key FROM sponsors WHERE logo_key IS NOT NULL";
 export const PRESENCE_SQL = "SELECT selfie_key FROM event_presence WHERE selfie_key IS NOT NULL";
-export const SCHEMA_SQL = "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('host_accounts', 'host_org_members', 'host_mail_log', 'event_presence', 'host_promo_claims', 'feedback_summaries', 'event_attendees')";
+export const SCHEMA_SQL = "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('host_accounts', 'host_org_members', 'host_mail_log', 'event_presence', 'host_promo_claims', 'feedback_summaries', 'event_attendees', 'drops')";
 export const R2_BUCKET = "lanyard-media";
 
 /** The wrangler arguments that delete one object from the media bucket. */
@@ -86,7 +90,7 @@ export function wipeSql(counts, at = Date.now()) {
     ...WIPED.map((t) => `DELETE FROM ${t};`),
     // The host codes stay; their claims are gone, so their counters start again.
     "UPDATE promo_codes SET uses = 0 WHERE audience = 'host';",
-    "DELETE FROM rate_limits WHERE key LIKE 'hmail:%' OR key LIKE 'hauth:%' OR key LIKE 'day:org:ip:%' OR key LIKE 'int:test:%' OR key LIKE 'hpromo:%';",
+    "DELETE FROM rate_limits WHERE key LIKE 'hmail:%' OR key LIKE 'hauth:%' OR key LIKE 'day:org:ip:%' OR key LIKE 'int:test:%' OR key LIKE 'hpromo:%' OR key LIKE 'drop:%';",
   ].join("\n");
 }
 
@@ -152,7 +156,7 @@ function main(argv) {
   }
   const db = where === "sqlite" ? sqliteDb(sqlite) : wranglerDb(where);
   try {
-    if (Number(db.rows(SCHEMA_SQL)[0]?.n) !== 7) { console.error("Migrations 0018, 0023, 0025, 0027 and 0028 are not all applied to this database. Apply them first."); return 2; }
+    if (Number(db.rows(SCHEMA_SQL)[0]?.n) !== 8) { console.error("Migrations 0018, 0023, 0025, 0027, 0028 and 0029 are not all applied to this database. Apply them first."); return 2; }
     const before = db.rows(COUNT_SQL)[0];
     const logos = db.rows(LOGO_SQL).map((r) => r.logo_key);
     const selfies = db.rows(PRESENCE_SQL).map((r) => r.selfie_key);

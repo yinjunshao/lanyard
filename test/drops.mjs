@@ -604,6 +604,210 @@ const PINS = [];
   check("her data download lists her voucher use, with when", exp.drops?.voucherUses?.length === 1 && exp.drops.voucherUses[0].title === "Lunch" && exp.drops.voucherUses[0].usedAt > 0 && exp.drops.voucherUses[0].use === 1 && exp.drops.voucherUses[0].of === 1, exp.drops);
 }
 
+console.log("\n# F32.5 Who has what: only for an event with named attendance, only people on its list");
+const NAMED_KEYS = Array.from({ length: 8 }, (_, i) => `nk-${i}-named-${"plmokn".repeat(3)}`);
+let nEv, nDrop, nVoucher;
+const nPeople = {};
+{
+  nEv = await makeEvent("Named Drops Night", { collect: { attendance: true, items: ["card"], why: "So we can keep a register of who came to the event" } });
+  check("the event keeps a named list (F31)", nEv.row.collect_attendance === 1);
+  const base = `/api/host/events/${nEv.id}/drops`;
+  nDrop = (await hcall("POST", base, { kind: "one_each", title: "Named keys", items: NAMED_KEYS.join("\n") })).json.id;
+  nVoucher = (await hcall("POST", base, { kind: "voucher", title: "Named lunch", perPerson: 2 }));
+  PINS.push(nVoucher.json.pin);
+  const mk = async (name, collect) => {
+    ipN += 1;
+    const c = client({ ip: `10.96.${Math.floor(ipN / 250)}.${ipN % 250}` });
+    await c.post("/api/profile", { name, acceptTerms: true, over18: true });
+    const r = await c.post(`/api/e/${nEv.code}/checkin`, { acceptTerms: true, over18: true, ...(collect ? { collect } : {}) });
+    if (r.status !== 200) throw new Error(r.text);
+    return { c, id: (await c.get("/api/me")).json.user.id, name };
+  };
+  nPeople.ada = await mk("Ada Named", { attendance: true, card: true });
+  nPeople.bob = await mk("Bob Named", { attendance: true });
+  nPeople.cy = await mk("Cy Unnamed", { attendance: false });
+  nPeople.di = await mk("Di Nothing Said"); // no choices sent: not on the list
+  const got = {};
+  for (const [k, p] of Object.entries(nPeople)) got[k] = (await pcall(p, "POST", `/api/e/${nEv.id}/drops/${nDrop}/reveal`)).json.value;
+  for (const k of ["ada", "cy"]) await pcall(nPeople[k], "POST", `/api/e/${nEv.id}/drops/${nVoucher.json.id}/use`, { pin: nVoucher.json.pin });
+  const ls = await hcall("GET", base);
+  check("the host's list says the event keeps a named list, and its counts count everyone (4 given)", ls.json.named === true && ls.json.drops.find((d) => d.id === nDrop).given === 4 && ls.json.drops.find((d) => d.id === nDrop).unused === 4);
+
+  const people = await hcall("GET", `${base}/${nDrop}/people`);
+  const names = people.json.people.map((p) => p.name).sort();
+  check("the named view lists only the people on the list: Ada and Bob; Cy (unticked) and Di (never said yes) are not named", names.join() === "Ada Named,Bob Named" && people.json.others === 2, people.json);
+  check("each person comes with the number of their item in the host's list, when, and a handle to withdraw it, but never the item", people.json.people.every((p) => Number.isInteger(p.item) && p.item >= 1 && p.item <= 8 && p.givenAt > 0 && /^[0-9a-f]{20}$/.test(p.giveId) && p.withdrawn === false) && NAMED_KEYS.every((k) => !people.text.includes(k.slice(0, 12))) && !/user_id|userId|email/i.test(people.text));
+  const adaItem = people.json.people.find((p) => p.name === "Ada Named");
+  check("…the number matches the item's place in the host's own paste", NAMED_KEYS[adaItem.item - 1] === got.ada);
+  const vp = await hcall("GET", `${base}/${nVoucher.json.id}/people`);
+  check("a voucher's named view shows who used it and how many times, and counts the others", vp.json.people.length === 1 && vp.json.people[0].name === "Ada Named" && vp.json.people[0].used === 1 && vp.json.others === 1 && !/giveId|item/.test(JSON.stringify(vp.json.people[0])));
+
+  console.log("  (unticking in the hub)");
+  const gone = await nPeople.bob.c.put(`/api/e/${nEv.id}/attendance`, { attendance: false });
+  const after = await hcall("GET", `${base}/${nDrop}/people`);
+  check("Bob unticks the list in the hub: the very next request no longer names him (and the count of others goes up)", gone.status === 200 && after.json.people.map((p) => p.name).join() === "Ada Named" && after.json.others === 3, after.json);
+  const bobGive = people.json.people.find((p) => p.name === "Bob Named").giveId;
+  const revBob = await hcall("POST", `${base}/${nDrop}/revoke`, { giveId: bobGive });
+  check("…and his item can't be withdrawn by the host any more (404): revoke needs the person on the list", revBob.status === 404 && q1("SELECT revoked_at r FROM drop_gives WHERE id = ?", bobGive).r === null);
+  await nPeople.bob.c.put(`/api/e/${nEv.id}/attendance`, { attendance: true });
+  check("…and when he ticks it again he is named again, and the host can withdraw his item", (await hcall("GET", `${base}/${nDrop}/people`)).json.people.length === 2);
+
+  console.log("  (revoking a leaked key)");
+  const bogus = [undefined, "", "nope", "abc0000001", "0".repeat(20), 12345, { a: 1 }];
+  const bogusRes = []; for (const g of bogus) bogusRes.push((await hcall("POST", `${base}/${nDrop}/revoke`, { giveId: g })).status);
+  check("an unknown, malformed or missing handle is 404", bogusRes.every((x) => x === 404), bogusRes);
+  const diGive = q1("SELECT id FROM drop_gives WHERE drop_id = ? AND user_id = ?", nDrop, nPeople.di.id).id;
+  check("a person who is not on the list can't be withdrawn, even with their real handle (404, same answer)", (await hcall("POST", `${base}/${nDrop}/revoke`, { giveId: diGive })).status === 404 && q1("SELECT revoked_at r FROM drop_gives WHERE id = ?", diGive).r === null);
+  check("a voucher has nothing to withdraw (400)", (await hcall("POST", `${base}/${nVoucher.json.id}/revoke`, { giveId: bobGive })).status === 400);
+  const rev = await hcall("POST", `${base}/${nDrop}/revoke`, { giveId: adaItem.giveId });
+  check("a named person's item can be withdrawn", rev.status === 200 && rev.json.ok === true && q1("SELECT revoked_at r FROM drop_gives WHERE id = ?", adaItem.giveId).r > 0);
+  const adaShow = await pcall(nPeople.ada, "POST", `/api/e/${nEv.id}/drops/${nDrop}/reveal`);
+  check("Ada can no longer reveal it (410, withdrawn) and her list says so; she gets no replacement", adaShow.status === 410 && adaShow.json.code === "withdrawn" && !adaShow.text.includes(got.ada) && (await pcall(nPeople.ada, "GET", `/api/e/${nEv.id}/drops`)).json.drops.find((d) => d.id === nDrop).state === "withdrawn" && q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ? AND user_id = ?", nDrop, nPeople.ada.id).n === 1);
+  const row = q1("SELECT cipher FROM drop_items WHERE id = (SELECT item_id FROM drop_gives WHERE id = ?)", adaItem.giveId);
+  check("the leaked item is wiped, kept out of the unused list and never given again", row.cipher === "" && !(await H.post(`${base}/${nDrop}/unused`)).text.includes(got.ada));
+  const rest = [];
+  for (let i = 0; i < 6; i++) { const p = await person(`Late Named ${i}`, nEv); rest.push(await settle([revealItem(env, dropRow(nDrop), p.id)])); }
+  const lateVals = rest.map((r) => r[0].value).filter(Boolean);
+  check("people who come later are given the unused ones only: the withdrawn key is not among them", lateVals.length === 4 && !lateVals.includes(got.ada) && rest.filter((r) => r[0].code === "all_given").length === 2, lateVals);
+  check("the host's counts show one withdrawn", (await hcall("GET", base)).json.drops.find((d) => d.id === nDrop).revoked === 1 && q1("SELECT n FROM drop_audit WHERE drop_id = ? AND action = 'revoke'", nDrop).n === 1);
+  check("withdrawing twice is harmless", (await hcall("POST", `${base}/${nDrop}/revoke`, { giveId: adaItem.giveId })).json.already === true);
+
+  const H5 = client({ ip: "10.96.250.1", site: "host" });
+  await becomeHost(H5, { kind: "company", name: "Nosy Co", email: "nosy@nosy.example.com" });
+  const nosy = [await H5.get(`${base}/${nDrop}/people`), await H5.post(`${base}/${nDrop}/revoke`, { giveId: adaItem.giveId })];
+  check("another organisation's host: 404 on both; signed out and an attendee cookie: 401", nosy.every((r) => r.status === 404) && (await client({ ip: "10.96.250.2", site: "host" }).get(`${base}/${nDrop}/people`)).status === 401 && (await (() => { const l = client({ ip: "10.96.250.3", site: "host" }); l.jar.set("lanyard_session", nPeople.ada.c.jar.get("lanyard_session")); return l.get(`${base}/${nDrop}/people`); })()).status === 401);
+  const hay = [people.text, after.text, vp.text].join();
+  check("none of the named views ever held a decrypted item", ![...NAMED_KEYS, ...Object.values(got)].some((k) => hay.includes(k)));
+}
+
+console.log("\n# F32.5 An event without named attendance: counts only, names never");
+{
+  const { namedAmong } = await import("../worker/attendance.js");
+  const ev = await makeEvent("Counts Only Night");
+  const d = (await hcall("POST", `/api/host/events/${ev.id}/drops`, { kind: "one_each", title: "Counted", items: "co-1\nco-2\nco-3" })).json.id;
+  const p1 = await person("Quiet One", ev), p2 = await person("Quiet Two", ev);
+  await revealItem(env, dropRow(d), p1.id); await revealItem(env, dropRow(d), p2.id);
+  // A stray row for an event whose list is off (it should not exist, F31 deletes them): it must not be read or matter.
+  env.DB.raw.prepare("INSERT INTO event_attendees (event_id, user_id, items, notice_version, created_at, updated_at) VALUES (?, ?, '[]', 'v', 1, 1)").run(ev.id, p1.id);
+  const pe = await hcall("GET", `/api/host/events/${ev.id}/drops/${d}/people`);
+  check("the host sees counts (2 given), the list says the event has no named list, and asking for names is 404", (await hcall("GET", `/api/host/events/${ev.id}/drops`)).json.named === false && (await hcall("GET", `/api/host/events/${ev.id}/drops`)).json.drops[0].given === 2 && pe.status === 404 && pe.json.code === "list_off" && !/Quiet/.test(pe.text));
+  check("…even with a stray attendee row for the event: the list being off is checked first and the table is not read", (await namedAmong(env.DB, ev.row, [p1.id])) === null);
+  const gv = q1("SELECT id FROM drop_gives WHERE drop_id = ? AND user_id = ?", d, p1.id).id;
+  check("withdrawing needs the named list: 404 here, and the item stays", (await hcall("POST", `/api/host/events/${ev.id}/drops/${d}/revoke`, { giveId: gv })).status === 404 && q1("SELECT revoked_at r FROM drop_gives WHERE id = ?", gv).r === null);
+  check("nothing the host got names a person", !/Quiet/.test(SEEN.join("\n")));
+  const src = read("worker/dropsHost.js") + read("worker/dropsManage.js") + read("worker/dropsNamed.js");
+  check("only worker/attendance.js reads event_attendees: the drop files ask it who is on a list", !/event_attendees/.test(src) && /namedAmong/.test(read("worker/dropsNamed.js")));
+}
+
+console.log("\n# F32.5 Retention: 30 days after the event ends (a simulated clock)");
+{
+  const { purgeDrops } = await import("../worker/dropsKeep.js");
+  const { purgeExpired } = await import("../worker/purge.js");
+  const DAY = 86400_000, REAL = Date.now();
+  const mkEvent = async (name, times) => {
+    const ev = await makeEvent(name);
+    env.DB.raw.prepare("UPDATE events SET starts_at = ?, ends_at = ?, ended_at = ? WHERE id = ?").run(times.start ?? null, times.end ?? null, times.ended ?? null, ev.id);
+    const drop = (await hcall("POST", `/api/host/events/${ev.id}/drops`, { kind: "one_each", title: "Kept for a while", items: `${name}-a\n${name}-b\n${name}-c` })).json.id;
+    const v = (await hcall("POST", `/api/host/events/${ev.id}/drops`, { kind: "voucher", title: "Lunch", perPerson: 2 })).json;
+    PINS.push(v.pin);
+    const a = await person(`${name} A`, ev), b = await person(`${name} B`, ev);
+    await revealItem(env, dropRow(drop), a.id); await revealItem(env, dropRow(drop), b.id);
+    await pcall(a, "POST", `/api/e/${ev.id}/drops/${v.id}/use`, { pin: v.pin });
+    return { ev, drop, v: v.id, a, b, name };
+  };
+  const rows = (x) => ({ items: q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ?", x.drop).n, gives: q1("SELECT COUNT(*) n FROM drop_gives WHERE drop_id = ?", x.drop).n, uses: q1("SELECT COUNT(*) n FROM voucher_uses WHERE drop_id = ?", x.v).n });
+  const E = REAL - 5 * DAY; // an end time five days ago
+  const withEnd = await mkEvent("withend", { start: E - 3600e3, end: E });
+  const hostEnded = await mkEvent("hostended", { start: E - 86400e3, end: E + 20 * DAY, ended: E - 2 * DAY });
+  const noEnd = await mkEvent("noend", { start: E - 3600e3 });
+  const future = await mkEvent("future", { start: REAL + 40 * DAY, end: REAL + 41 * DAY });
+  const keep = 30 * DAY;
+  check("before anything is due: every list, give and use is there", [withEnd, hostEnded, noEnd, future].every((x) => rows(x).items === 3 && rows(x).gives === 2 && rows(x).uses === 1));
+  const lastIn = (x) => q1("SELECT MAX(created_at) m FROM checkins WHERE event_id = ?", x.ev.id).m;
+  const noEndEnds = Math.max(E - 3600e3, lastIn(noEnd)) + 12 * 3600e3 + 1;
+
+  let n = await purgeDrops(env.DB, E + keep - 2 - 2 * DAY);
+  check("one millisecond before 30 days after the host ended it early, nothing is cleared", n === 0 && rows(hostEnded).items === 3);
+  n = await purgeDrops(env.DB, E - 2 * DAY + keep);
+  check("on the moment, an event the host ended early (not its planned end) is cleared: items, gives and uses go", n === 2 && JSON.stringify(rows(hostEnded)) === JSON.stringify({ items: 0, gives: 0, uses: 0 }) && rows(withEnd).items === 3);
+  n = await purgeDrops(env.DB, E + keep - 1);
+  check("an event with an end time keeps everything until 30 days after it (one millisecond before: nothing)", n === 0 && rows(withEnd).items === 3);
+  n = await purgeDrops(env.DB, E + keep);
+  check("…and at that moment it is cleared", n === 2 && JSON.stringify(rows(withEnd)) === JSON.stringify({ items: 0, gives: 0, uses: 0 }));
+  n = await purgeDrops(env.DB, noEndEnds + keep - 1);
+  check("an event with no end time ends 12 hours after the later of its start and the last check-in: one millisecond before 30 days after that, its drops are all still there (other events made earlier in this file, with no end time either, are due about now and go)", rows(noEnd).items === 3 && rows(noEnd).gives === 2 && rows(noEnd).uses === 1);
+  n = await purgeDrops(env.DB, noEndEnds + keep);
+  check("…and then it is cleared", rows(noEnd).items === 0 && rows(noEnd).gives === 0 && rows(noEnd).uses === 0 && n >= 2);
+  n = await purgeDrops(env.DB, REAL + 35 * DAY);
+  check("an event that has not happened yet is kept however long the clock runs on to just before it ends", n === 0 && rows(future).items === 3);
+  check("running it again clears nothing more", (await purgeDrops(env.DB, E + keep + 5 * DAY)) === 0);
+
+  const d1 = dropRow(withEnd.drop), dv = dropRow(withEnd.v);
+  check("what stays is the drop's title and its counts; the staff PIN's hash and the key check are gone", d1.purged_at > 0 && d1.final_loaded === 3 && d1.final_given === 2 && dv.final_used === 1 && dv.pin_mac === null && dv.check_cipher === null && d1.title === "Kept for a while");
+  const hl = (await hcall("GET", `/api/host/events/${withEnd.ev.id}/drops`)).json.drops;
+  check("the host sees '3 were loaded and 2 given' and that it is cleared; nothing can be downloaded or added", hl.find((d) => d.id === withEnd.drop).purged === true && hl.find((d) => d.id === withEnd.drop).loaded === 3 && hl.find((d) => d.id === withEnd.drop).given === 2 && (await H.post(`/api/host/events/${withEnd.ev.id}/drops/${withEnd.drop}/unused`)).status === 410 && (await hcall("POST", `/api/host/events/${withEnd.ev.id}/drops/${withEnd.drop}/items`, { items: "x" })).status === 410);
+  const afterL = (await pcall(withEnd.a, "GET", `/api/e/${withEnd.ev.id}/drops`)).json.drops;
+  const afterShow = await pcall(withEnd.a, "POST", `/api/e/${withEnd.ev.id}/drops/${withEnd.drop}/reveal`);
+  check("a person no longer sees the cleared drops, and Show on one is refused (410, gone)", afterL.length === 0 && afterShow.status === 410 && afterShow.json.code === "gone");
+  check("the person's own data download no longer holds the cleared items", !(await pcall(withEnd.a, "GET", "/api/account/export")).json.drops);
+  const once = await mkEvent("viapurge", { start: E - 3600e3, end: E });
+  const res = await purgeExpired(env, E + keep);
+  check("the daily purge (purgeExpired) runs it", res.drops === 2 && rows(once).items === 0);
+  void withEnd.b; void hostEnded.b;
+}
+
+console.log("\n# F32.5 Account deletion, the host's download, and the host reset");
+{
+  const ev = await makeEvent("Erase Night");
+  const d = (await hcall("POST", `/api/host/events/${ev.id}/drops`, { kind: "one_each", title: "Erase keys", items: "er-key-1\ner-key-2\ner-key-3" })).json.id;
+  const same = (await hcall("POST", `/api/host/events/${ev.id}/drops`, { kind: "same", title: "Erase same", value: "er-same-value" })).json.id;
+  const a = await person("Erase Me", ev), b = await person("Keep Me", ev);
+  const ka = (await revealItem(env, dropRow(d), a.id)).value;
+  await revealItem(env, dropRow(same), a.id);
+  const kb = (await revealItem(env, dropRow(d), b.id)).value;
+  const del = await a.c.del("/api/account");
+  check("deleting an account removes the person's given items: their gives are gone and their item is not left behind as 'unused'", del.status === 200 && q1("SELECT COUNT(*) n FROM drop_gives WHERE user_id = ?", a.id).n === 0 && q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ?", d).n === 2);
+  const unused = (await H.post(`/api/host/events/${ev.id}/drops/${d}/unused`)).text;
+  check("…it is not in the host's unused download, and the key was not given to anyone else", !unused.includes(ka) && unused.trim() === "er-key-3" && kb === "er-key-2");
+  const c = await person("Third", ev), x = await person("Fourth", ev);
+  const more = await settle([revealItem(env, dropRow(d), c.id), revealItem(env, dropRow(d), x.id)]);
+  check("a new person gets the one left and the next is told all given out: the deleted person's key never comes back", more[0].value === "er-key-3" && more[1].code === "all_given");
+  check("the shared text is still there for others (it is not exclusive), and the other person's own key is untouched", (await revealItem(env, dropRow(same), c.id)).value === "er-same-value" && (await revealItem(env, dropRow(d), b.id)).value === kb);
+  const raw = await person("Raw Delete", ev);
+  const e = await settle([revealItem(env, dropRow(d), raw.id)]);
+  void e;
+  const keyHolder = q1("SELECT user_id u, item_id i FROM drop_gives WHERE drop_id = ? AND user_id = ?", d, c.id);
+  env.DB.raw.prepare("DELETE FROM users WHERE id = ?").run(c.id);
+  check("any deletion of a user, not only the account route, takes their exclusive item with them (a trigger)", q1("SELECT COUNT(*) n FROM drop_items WHERE id = ?", keyHolder.i).n === 0);
+
+  const dl = await H.get("/api/host/account/export");
+  const own = dl.json.drops;
+  check("the host's own data download lists their drops with counts and their audit trail", dl.status === 200 && Array.isArray(own?.drops) && own.drops.some((x) => x.title === "Erase keys" && x.kind === "one_each" && typeof x.loaded === "number") && own.audit.some((x) => x.action === "download_unused"));
+  const secretsHere = [...LIST.slice(0, 5), ...NAMED_KEYS, "er-key-1", "er-key-2", "er-key-3", "er-same-value", "guest-wifi-9931", ...PINS];
+  check("…and it holds no item, no PIN, no ciphertext and no name of anyone given one", !secretsHere.some((v) => dl.text.includes(`"${v}"`) || dl.text.includes(v.length > 8 ? v : "\u0000")) && !/cipher|pin_mac|v1\./.test(dl.text) && !/Erase Me|Keep Me|Ada Named|Bob Named|Quiet/.test(JSON.stringify(own)) && !/Erase Me|Keep Me/.test(dl.text)); // (F31's own attendeeLists, for an event that keeps a list, name the people on it: that is F31, not drops)
+  const sysH = client({ ip: "10.97.0.1", site: "host" });
+  await becomeHost(sysH, { kind: "company", name: "Empty Co", email: "empty@emptyco.example.com" });
+  check("a host with no drops gets the download they always got (no drops key)", !("drops" in (await sysH.get("/api/host/account/export")).json));
+
+  const reset = await import("../scripts/reset-hosts.mjs");
+  const rdb = makeDb();
+  const r = rdb.raw;
+  r.exec(`INSERT INTO users (id, created_at, is_guest) VALUES ('ru1', 1, 0);
+    INSERT INTO orgs (id, name, plan, org_type, verification_status, created_at) VALUES ('ro1', 'Reset Org', 'starter', 'company', 'approved', 1);
+    INSERT INTO events (id, org_id, code, name, created_at) VALUES ('re1', 'ro1', 'RS23', 'Reset Event', 1);
+    INSERT INTO drops (id, event_id, kind, title, status, created_at, updated_at) VALUES ('rd1', 're1', 'one_each', 'Reset', 'on', 1, 1), ('rd2', 're1', 'voucher', 'Lunch', 'on', 1, 1);
+    INSERT INTO drop_items (id, drop_id, seq, cipher, created_at) VALUES ('ri1', 'rd1', 1, 'v1.xx', 1), ('ri2', 'rd1', 2, 'v1.yy', 1);
+    INSERT INTO drop_gives (id, drop_id, user_id, item_id, exclusive, given_at) VALUES ('rg1', 'rd1', 'ru1', 'ri1', 1, 1);
+    INSERT INTO voucher_uses (drop_id, user_id, n, used_at) VALUES ('rd2', 'ru1', 1, 1);
+    INSERT INTO drop_audit (id, event_id, drop_id, host_account_id, action, n, at) VALUES ('ra1', 're1', 'rd1', 'h1', 'download_unused', 1, 1);`);
+  const before = r.prepare(reset.COUNT_SQL).get();
+  check("the reset's dry run counts every drop table, and wipes them before the events", ["drops", "drop_items", "drop_gives", "voucher_uses", "drop_audit"].every((t) => before[t] >= 1 && reset.WIPED.includes(t) && reset.WIPED.indexOf(t) < reset.WIPED.indexOf("events")), before);
+  r.exec("BEGIN"); r.exec(reset.wipeSql(before, 1794300000000)); r.exec("COMMIT");
+  const after = r.prepare(reset.COUNT_SQL).get();
+  check("after the wipe there are no drops, items, gives, uses or audit rows, the script's own check passes and the person keeps their account", ["drops", "drop_items", "drop_gives", "voucher_uses", "drop_audit"].every((t) => after[t] === 0) && reset.verify(before, after).length === 0 && after.users_kept === 1, reset.verify(before, after));
+  check("a database without migration 0029 is refused by the script's schema check", makeDb({ before: "0029" }).raw.prepare(reset.SCHEMA_SQL).get().n === 7 && makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 8 && /0028 and 0029 are not all applied/.test(read("scripts/reset-hosts.mjs")) && /0018, 0023, 0025, 0027, 0028 and 0029/.test(read("scripts/reset-hosts.mjs")));
+}
+
 console.log("\n# F32.2 Nothing the host sees, and nothing logged, holds an item");
 {
   const secrets = [...LIST, "more-key-1", "more-key-2", "guest-wifi-9931", "rf-1", "rf-2", "rf-3", "guard-1", "guard-2", "NOKEY-SECRET"];

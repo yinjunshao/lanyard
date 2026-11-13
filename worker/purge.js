@@ -6,6 +6,7 @@ import { inactiveEmail } from "./mail-templates.js";
 import { publicOrigin } from "./unsub.js";
 import { eraseUserPresence, purgePresence } from "./presence.js";
 import { purgeAttendees } from "./attendance.js";
+import { purgeDrops } from "./dropsKeep.js";
 import { eraseAi, purgeAi } from "./ai/data.js";
 import { forgetSearchReplies } from "./ai/optout.js";
 import { purgeSummaries } from "./ai/feedbackSummary.js";
@@ -84,6 +85,9 @@ export async function purgeExpired(env, ts = Date.now()) {
 
   // F31: a host's list of who checked in, 12 months after the event ends.
   out.attendees = await purgeAttendees(db, ts);
+
+  // F32: given items, unused lists and voucher uses, 30 days after the event ends.
+  out.drops = await purgeDrops(db, ts);
 
   // F21: cached AI replies after 7 days, usage counts after 13 months, rows for accounts that are gone.
   Object.assign(out, await purgeAi(db, ts));
