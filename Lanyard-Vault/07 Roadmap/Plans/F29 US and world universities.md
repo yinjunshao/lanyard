@@ -1,0 +1,45 @@
+---
+tags: [roadmap, feature, data]
+id: F29
+priority: P1
+phase: 6
+size: M
+status: Not started
+needs: [F12]
+---
+# F29 US and world universities
+
+**Priority:** P1 · **Phase:** 6 Owner requests 2026-11-13 · **Size:** M · **Needs:** [[F12 Institution picker]] · back to [[00 Master To-Do]]
+
+## What the owner asked for
+"Also support US universities and notable universities around the world." (2026-11-13)
+
+## Current state
+[[F12 Institution picker]] ships `src/data/institutions-uk.json`: 137 UK entries with `id`, `name`, `aliases`, `domains`, `nation`, written from the model's own knowledge and not checked against an official register. `worker/institutions.js` imports that one file to check ids; the picker (`UiCombobox`) loads it lazily when it opens. `test/copycheck.mjs` allows named institutions only in `src/data/institutions-*.json`.
+
+## Plan
+- Add `src/data/institutions-us.json` (US universities and colleges with a recognisable national name: the Ivy League, flagship state universities, large private research universities, well-known liberal arts colleges, HBCUs and so on) and `src/data/institutions-world.json` (notable universities elsewhere: by country, the national flagships and the ones a UK or US student would recognise). Same fields as the UK file, with `country` (ISO 3166-1 alpha-2) in place of `nation` for non-UK entries; the UK file keeps `nation` and gains `country: "GB"`.
+- Accuracy rule, as in F12: names must be correct; leave out an alias, domain or whole entry rather than guess. Each file has a `_source` line saying how it was made and that the owner should review it. Free text ("Not listed? Use ...") must keep working.
+- Ids stay globally unique slugs. Existing UK ids must not change (people have saved them).
+- The picker searches all three files. Load lazily, only when a picker opens. Measure the gzip size of each file and decide whether to load all three at once or the extra files only when needed; write the numbers and the reason in the Log. Show the country after non-UK names ("Example University, Canada") so same-name institutions are told apart.
+- The `.ac.uk` email suggestion from F12 extends to `.edu` and to the domains in the new files.
+- The Worker validates ids against all three files.
+- `scripts/backfill-institutions.mjs` matches against all three files.
+- Shared ground ([[F16 Shared ground without AI]]) keeps matching by id.
+
+## Tasks
+- [ ] F29.1 Add `country` to the UK file and a loader and validator for several files; tests that every id is unique across files and existing UK ids are unchanged.
+- [ ] F29.2 Write `institutions-us.json`.
+- [ ] F29.3 Write `institutions-world.json`.
+- [ ] F29.4 Picker searches all files and shows the country; `.edu` and other domain suggestions; Worker and backfill accept the new ids.
+- [ ] F29.5 Check in a browser, measure the chunk sizes, write the vault and Log.
+
+## Acceptance checks
+- [ ] Typing `MIT`, `Stanford`, `UCLA`, `Toronto`, `ETH` and `NUS` each finds the right institution in the picker, with the country shown for non-UK ones.
+- [ ] A saved UK institution from F12 still shows and saves unchanged.
+- [ ] No public page gets heavier ([[F28 Public-page JS budget]]); the data loads only when a picker opens.
+
+## Log
+-
+
+Related: [[F12 Institution picker]], [[Data Model]] · back to [[00 Master To-Do]]

@@ -1,0 +1,65 @@
+---
+tags: [roadmap, feature, host, security]
+id: F32
+priority: P1
+phase: 6
+size: L
+status: Not started
+needs: [F10, F15, F31]
+---
+# F32 Drops for codes, keys and vouchers
+
+**Priority:** P1 · **Phase:** 6 Owner requests 2026-11-13 · **Size:** L · **Needs:** [[F10 Separate host accounts on host subdomain]], [[F15 Events tab and event hub]], [[F31 Named attendance with check-in notice]] · back to [[00 Master To-Do]]
+
+## What the owner asked for (2026-11-13)
+"A way to distribute API keys, for example for hackathons. It doesn't have to be API keys; it just needs to be something secure that can be sent to users. It could vary for each user, be random, or anything. Just a text with a title of what it is. And food vouchers, easily."
+
+Asked what hosts may see about who got what, the owner answered: names, if the event has named attendance on ([[F31 Named attendance with check-in notice]]); counts only otherwise.
+
+## The idea: a "drop"
+A host adds a **drop** to an event: a title ("API credit", "Wi-Fi password", "Lunch voucher") and what each attendee gets. Checked-in attendees find their drops in the event hub ([[F15 Events tab and event hub]]) under "For you", tap to reveal, and copy.
+
+### Kinds
+| Kind | What the host gives | What each attendee gets |
+| --- | --- | --- |
+| Same for everyone | One text | That text (for example a Wi-Fi password or a shared promo code) |
+| One each from a list | A pasted list, one item per line (API keys, codes, links) | The next unused item, given once, never to two people |
+| Random from a list | A pasted list | One item at random, with or without reuse (host chooses) |
+| Voucher | A title, a count per person (for example 1 lunch) and an optional "valid from / until" | A voucher screen that staff mark as used |
+
+### Vouchers
+- The attendee opens the voucher and shows the screen. It shows the event, the title, their first name and photo (so it can't simply be passed on), a live clock (so a screenshot is easy to spot) and how many uses are left.
+- Marking as used: pick the simplest secure option and record why in a decision note. Candidates: a staff "Mark as used" button on the attendee's screen behind a short staff PIN the host sets; or a staff QR scan that opens a host-site page. Each use is recorded once, even if two staff tap at the same time.
+- The host sees "Lunch: 84 of 120 used" (and names if named attendance is on).
+
+### Security
+- Pasted items are secrets. Store them encrypted at rest with a Worker secret (`DROP_KEY`, like `TOTP_KEY`); decrypt only when the assigned attendee reveals theirs. Never log them, never return them in host views after upload (the host sees "120 loaded, 37 given", and can download only the unused ones, or delete them), never put them in anyone's data export except the person they were given to.
+- An item is given only to a signed-in attendee who checked in to that event, at most once per drop per person (or the per-person count for vouchers), with a single conditional write so two requests can't take two items or the same item.
+- Rate-limit reveals and voucher uses with the existing `bump()` pattern.
+- The host can stop a drop (no new items given), and revoke one person's item if named attendance is on and the host can see who had it (for a leaked key).
+- When the list runs out: "All given out" for later attendees, and the host sees it.
+- Reveal is behind a tap ("Show"), with Copy, so it isn't shown on a projector or in a screenshot by accident.
+
+### Who sees what
+- Attendee: only their own items.
+- Host: counts always; names and which item went to whom only when the event has named attendance on and the person left the attendance tick on ([[F31 Named attendance with check-in notice]]); never the decrypted value of a given item.
+- Retention: given items and the unused list are deleted a set time after the event ends (propose, for example, 30 days as an owner decision), and by the F10 reset script.
+
+## Tasks
+- [ ] F32.1 Migration and encryption helper; tests for encryption, one-each assignment under concurrent requests, and never giving the same item twice.
+- [ ] F32.2 Host side: create a drop of each kind, upload a list, see counts, stop, download unused, delete, revoke.
+- [ ] F32.3 Attendee side: "For you" in the event hub, reveal, copy, voucher screen.
+- [ ] F32.4 Voucher use by staff, recorded once.
+- [ ] F32.5 Named view for events with named attendance; retention purge; reset script; export.
+- [ ] F32.6 Policy and vault notes, security tests, browser check.
+
+## Acceptance checks
+- [ ] A host loads 50 API keys as "one each"; 50 attendees each get a different key, the 51st sees "All given out", and no key is given twice, including when requests arrive at the same moment.
+- [ ] A lunch voucher can be used once; a second use says it was already used and when.
+- [ ] Host views and logs never contain a given key's value, and the database holds only encrypted values.
+- [ ] Without named attendance the host sees counts only; with it, names too.
+
+## Log
+-
+
+Related: [[F20 Host promo codes for event credits]], [[Security]], [[F31 Named attendance with check-in notice]] · back to [[00 Master To-Do]]
