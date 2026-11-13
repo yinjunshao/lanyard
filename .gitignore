@@ -70,3 +70,13 @@ desktop.ini
 # renders, and the locked-down v1 demo. logo-concepts/ stays in git.
 brag-output/
 demo-v1/
+
+# Advertising and demo material stays off GitHub (owner decision, 2026-11-13):
+# demo video work, browser profiles used to render it, pitch decks and videos.
+brag-output*/
+**/edge-profile/
+Lanyard-pitch*
+*.mp4
+*.mov
+*.webm
+*.mkv
