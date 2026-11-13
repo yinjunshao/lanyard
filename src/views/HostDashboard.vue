@@ -10,13 +10,14 @@ import { MAIN_ORIGIN } from "../lib/site";
 import { useRouter } from "vue-router";
 import { pendingHostCode, clearPendingHostCode } from "../lib/hostredeem";
 import HostSetup from "../components/HostSetup.vue";
-import FeedbackEditor from "../components/FeedbackEditor.vue";
-import UiSelect from "../components/ui/UiSelect.vue";
+import EventStepBasics from "../components/EventStepBasics.vue";
+import EventStepLook from "../components/EventStepLook.vue";
+import EventStepAtEvent from "../components/EventStepAtEvent.vue";
+import EventStepQuestions from "../components/EventStepQuestions.vue";
 import EventPreview from "../components/EventPreview.vue";
-import { THEME_OPTIONS, createBody, eventFromBody } from "../lib/eventform";
+import { createBody, eventFromBody } from "../lib/eventform";
 import { UiCombobox } from "../components/ui/UiSelect.vue";
-import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
-import { defaultEnd } from "../lib/dates";
+import { blankForm, submitPlan } from "../lib/eventsteps";
 
 // loading | email | code (signed out) | details | terms | org (setup) | ready
 const view = ref("loading");
@@ -44,11 +45,6 @@ async function signOut() {
   catch (e) { signOutError.value = e?.message || "Couldn't sign out. Check your connection and try again."; signingOut.value = false; }
 }
 
-const blankForm = () => ({
-  from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "",
-  perksText: "", directoryOn: true, q1: "", q2: "",
-  rsvpCount: "", access: "", food: "", feedbackOn: true, feedbackQuestions: [],
-});
 const f = ref(blankForm());
 const FROM_OPTIONS = computed(() => [{ value: "", label: "A blank event" }, ...events.value.map((e) => ({ value: e.id, label: `A copy of ${e.name}` }))]);
 // What attendees will see, from the form (F18). An empty name shows a stand-in so the preview is not blank.
@@ -148,17 +144,10 @@ async function create() {
   error.value = "";
   busy.value = true;
   try {
-    let res;
-    if (f.value.from) {
-      // Start from a past event: the server copies its details, questions, form and sponsors.
-      res = await HostApi.hostDuplicateEvent(f.value.from, {
-        name: f.value.name.trim() || undefined,
-        startsAt: f.value.startsAt, endsAt: f.value.endsAt,
-      });
-    } else {
-      if (!f.value.name.trim()) { error.value = "Event name is required."; return; }
-      res = await HostApi.hostCreateEvent(createBody(f.value));
-    }
+    // The same two requests the single form made (lib/eventsteps.js: submitPlan).
+    const plan = submitPlan(f.value);
+    if (!plan.copy && !f.value.name.trim()) { error.value = "Event name is required."; return; }
+    const res = plan.copy ? await HostApi.hostDuplicateEvent(plan.from, plan.body) : await HostApi.hostCreateEvent(plan.body);
     createdCode.value = res.code;
     creating.value = false;
     f.value = blankForm();
@@ -282,52 +271,11 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       <EventPreview v-if="creating" v-model:theme="f.theme" v-model:strap-color="f.strapColor" :event="previewEvent" :off="!!f.from">
       <div class="panel stack-2">
         <h2>Create event</h2>
-        <div v-if="events.length" class="field"><label id="ev-from-l">Start from</label>
-          <UiSelect id="ev-from" v-model="f.from" labelledby="ev-from-l" :options="FROM_OPTIONS" />
-          <span v-if="f.from" class="small muted">Copies the venue, perks, questions, feedback form and sponsors. Change anything afterwards under Details.</span>
-        </div>
-        <div class="field"><label for="ev-name">Event name</label>
-          <input id="ev-name" v-model="f.name" type="text" :placeholder="f.from ? 'Same name as before' : 'Spring networking night'" /></div>
-        <div class="field"><label id="ev-start-l">Starts (optional)</label>
-          <UiDateTimePicker id="ev-start" v-model="f.startsAt" labelledby="ev-start-l" clearable /></div>
-        <div class="field"><label id="ev-end-l">Ends (optional)</label>
-          <UiDateTimePicker id="ev-end" v-model="f.endsAt" labelledby="ev-end-l" clearable :min="f.startsAt" :suggest="f.startsAt ? defaultEnd(f.startsAt) : null" />
-          <span class="small muted">Feedback opens when the event ends. Without an end time it opens 3 hours after the start, or when you press End event.</span></div>
+        <EventStepBasics :form="f" :from-options="FROM_OPTIONS" :has-events="events.length > 0" />
         <template v-if="!f.from">
-        <div class="field"><label for="ev-venue">Venue</label>
-          <input id="ev-venue" v-model="f.venue" type="text" /></div>
-        <div class="field"><label id="ev-theme-l">Theme</label>
-          <UiSelect id="ev-theme" v-model="f.theme" labelledby="ev-theme-l" :options="THEME_OPTIONS" />
-        </div>
-        <div class="field"><label for="ev-strap">Brand colour (optional)</label>
-          <div class="row">
-            <input id="ev-strap" type="color" :value="f.strapColor || '#d9502b'" style="width:56px;height:44px;padding:2px;flex:none" @input="f.strapColor = $event.target.value" />
-            <span class="small muted" style="flex:1">{{ f.strapColor || "Using the theme colour" }}</span>
-            <button v-if="f.strapColor" class="btn" style="width:auto;flex:none" type="button" @click="f.strapColor = ''">Reset</button>
-          </div>
-          <span class="small muted">Colours the strap at the top of the check-in page.</span></div>
-        <div class="field"><label for="ev-perks">Perks — one per line</label>
-          <textarea id="ev-perks" v-model="f.perksText" placeholder="Free coffee&#10;Raffle entry"></textarea></div>
-        <div class="field"><label for="ev-access">Access info for attendees (optional)</label>
-          <input id="ev-access" v-model="f.access" type="text" maxlength="200" placeholder="Step-free entrance at the side door" /></div>
-        <div class="field"><label for="ev-food">Food and drink (optional)</label>
-          <input id="ev-food" v-model="f.food" type="text" maxlength="200" /></div>
-        <div class="field"><label for="ev-rsvp">Sign-ups so far (optional)</label>
-          <input id="ev-rsvp" v-model="f.rsvpCount" type="number" min="0" inputmode="numeric" />
-          <span class="small muted">From Luma or the Union site. A number only; the report shows turnout.</span></div>
-        <div class="field"><label for="ev-q1">Check-in question 1 (optional)</label>
-          <input id="ev-q1" v-model="f.q1" type="text" placeholder="Course" /></div>
-        <div class="field"><label for="ev-q2">Check-in question 2 (optional)</label>
-          <input id="ev-q2" v-model="f.q2" type="text" placeholder="What are you looking for?" /></div>
-        <label class="checkbox-row">
-          <input type="checkbox" v-model="f.directoryOn" />
-          <span class="small">Show the live attendee room to checked-in people</span>
-        </label>
-        <label class="checkbox-row">
-          <input type="checkbox" v-model="f.feedbackOn" />
-          <span class="small">Ask attendees for anonymous feedback after the event</span>
-        </label>
-        <FeedbackEditor v-if="f.feedbackOn" v-model="f.feedbackQuestions" />
+          <EventStepLook :form="f" />
+          <EventStepAtEvent :form="f" />
+          <EventStepQuestions :form="f" />
         </template>
         <p v-if="error" class="error-text">
           {{ error }}

@@ -4,7 +4,7 @@ id: F30
 priority: P1
 phase: 6
 size: M
-status: Not started
+status: In progress
 needs: [F08, F18]
 ---
 # F30 Create event in steps
@@ -32,7 +32,8 @@ Create event on the host dashboard (`src/views/HostDashboard.vue`) is one long f
 - Keyboard: focus moves to the step heading on each step change; Enter on the last field of a step is Next.
 
 ## Tasks
-- [ ] F30.1 Split the create form into step components with shared draft state; no change to what is sent on Create.
+- [x] F30.1 Split the create form into step components with shared draft state; no change to what is sent on Create.
+  - Four field-group components (`EventStepBasics`, `EventStepLook`, `EventStepAtEvent`, `EventStepQuestions`, plus `CopiedFacts`) take the one `form` object; `lib/eventsteps.js` holds the blank form, `submitPlan` (the old Create choice, unchanged), per-step checks and the copy summary; `lib/eventdraft.js` is the session-storage draft. The dashboard still shows them as one page until F30.2. All in the existing host chunk.
 - [ ] F30.2 Stepper UI, per-step validation, step in the address, refresh-safe draft.
 - [ ] F30.3 Review step with Change links and the full preview.
 - [ ] F30.4 Tests (the created event is identical to the old single form for the same inputs; validation per step; draft survives a refresh; Cancel clears it) and a browser check at 375 and 1280 px, light and dark.
