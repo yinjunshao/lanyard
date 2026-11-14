@@ -391,7 +391,8 @@ console.log("\n# Counters: did drafts help? (migration 0026, counts only)");
   env.ADMIN_TOKEN = "test-admin-token";
   const admin = await client({ ip: "10.22.253.1" }).get("/api/admin/ai", { authorization: "Bearer test-admin-token" });
   check("the admin page gets the counts for today and this month, for every kind", admin.status === 200 && COUNT_KINDS.every((k) => Number.isInteger(admin.json.followup?.[k]?.today) && Number.isInteger(admin.json.followup?.[k]?.month)) && admin.json.followup.copied.month >= 120, admin.json.followup);
-  check("the admin response has no person or text from drafts", !/Bea|Alice|pilot plant|robotics/i.test(JSON.stringify(admin.json)));
+  // Whole words, case-sensitive for the names: random hex ids such as "6bea1d7a30" contain "bea".
+  check("the admin response has no person or text from drafts", !/\bBea\b|\bAlice\b|pilot plant|robotics/i.test(JSON.stringify(admin.json).replace(/"[0-9a-f]{8,}"/g, '""')) && !/\bBea\b|\bAlice\b/.test(JSON.stringify(admin.json)));
   const adminSrc = read("src/components/AdminAi.vue");
   check("the admin page shows the five counts", /Follow-up drafts: did they help\?/.test(adminSrc) && ["drafted_ai", "drafted_template", "copied", "opened", "marked"].every((k) => adminSrc.includes(`"${k}"`)));
 
