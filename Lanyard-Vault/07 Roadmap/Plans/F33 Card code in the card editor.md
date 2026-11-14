@@ -4,7 +4,7 @@ id: F33
 priority: P1
 phase: 6
 size: S
-status: In progress
+status: Done
 needs: [F06, F18]
 ---
 # F33 Card code in the card editor
@@ -31,12 +31,15 @@ needs: [F06, F18]
 - [x] F33.3 Tests (source guards that the panel lives in the editor and not on My card; the code actions still call the same API for the right card) and a browser check at 375 and 1280 px, light and dark.
 
 ## Acceptance checks
-- [ ] In My cards, each card's editor shows its own code and can replace it (with the confirm) and, for Plus, choose one; the change shows on that card only.
-- [ ] My card shows the note directly under the badge, and no code controls.
-- [ ] "Change in My cards" opens the right card's editor at the code section, including after a refresh.
-- [ ] No public page gets heavier ([[F28 Public-page JS budget]]).
+- [x] In My cards, each card's editor shows its own code and can replace it (with the confirm) and, for Plus, choose one; the change shows on that card only.
+- [x] My card shows the note directly under the badge, and no code controls.
+- [x] "Change in My cards" opens the right card's editor at the code section, including after a refresh.
+- [x] No public page gets heavier ([[F28 Public-page JS budget]]).
 
 ## Log
--
+- 2026-11-14 (Claude subagent): the panel is now `src/components/CardCode.vue`, drawn inside each card's editor in My cards (`Cards.vue`) and acting on that card; My card lost the code state and the panel. My card keeps a quiet line under the "Hold the card" hint, "Code ABC1 · Change in My cards", then the note straight after it; it was not crowded, so the line stayed. The link is `/app/cards?edit=<cardId>&section=code`: `Cards.vue` opens that card's editor from the address and scrolls to its code, so refresh and Back work; Save and Cancel drop the query. No server change, no new route, no shared front-end file touched.
+- Checked in a browser (local Worker and Vite, no `.dev.vars`): 375 px dark and light, 1280 px light; replace with the tap-again confirm changed card 1 only; Plus "Choose your own code" (3 letters keeps the button off, ALEX24 saved, next-change date shown); free account shows the Plus line; the link, a refresh on the address, Cancel and the browser Back button. Tests: `test/codes.mjs` gained an F33 section (source guards plus a two-card API check); the F06 and provenance guards on `MyCard.vue` still pass unchanged.
+- Budget: PublicCard 51,046 B at HEAD before, 51,061 B after (the figure moves by up to about 15 B on any rebuild because chunk file names are hashed; no public file was touched). About 140 B left.
+- Owner steps: none beyond the usual review, push and deploy.
 
 Related: [[F06 Edit profile and Cards buttons]], [[Screens and Routes]] · back to [[00 Master To-Do]]
