@@ -28,7 +28,7 @@ needs: [F06, F18]
 ## Tasks
 - [x] F33.1 Move the code panel into the per-card editor in My cards, acting on that card; shared logic in one place, not copied.
 - [x] F33.2 My card: note moves up; a quiet code line with "Change in My cards" that opens that card's editor at the code section.
-- [ ] F33.3 Tests (source guards that the panel lives in the editor and not on My card; the code actions still call the same API for the right card) and a browser check at 375 and 1280 px, light and dark.
+- [x] F33.3 Tests (source guards that the panel lives in the editor and not on My card; the code actions still call the same API for the right card) and a browser check at 375 and 1280 px, light and dark.
 
 ## Acceptance checks
 - [ ] In My cards, each card's editor shows its own code and can replace it (with the confirm) and, for Plus, choose one; the change shows on that card only.

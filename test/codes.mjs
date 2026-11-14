@@ -1,4 +1,5 @@
 // Card codes: permanent by default, random replace, Plus custom codes weekly.
+import { readFileSync } from "node:fs";
 import { makeEnv, check, summary } from "./harness.mjs";
 import { FOREVER, OLD_CODE_GRACE_MS, CODE_HOLD_MS, CUSTOM_EVERY_MS } from "../worker/codes.js";
 
@@ -113,5 +114,27 @@ check("a new account isn't marked as installed", (await H.c.get("/api/me")).json
 check("opening from the home screen marks it", (await H.c.post("/api/me/installed")).status === 200
   && (await H.c.get("/api/me")).json.user.appInstalled === true);
 check("marking needs an account", (await client({ ip: "10.6.0.1" }).get("/api/me")).json.user === null);
+
+console.log("\n# F33 Card code in the card editor");
+const src = (f) => readFileSync(new URL("../" + f, import.meta.url), "utf8");
+const strip = (t) => t.replace(/<style[\s\S]*$/, "").replace(/\/\/.*$/gm, "");
+const codeUi = strip(src("src/components/CardCode.vue")), myCard = strip(src("src/views/MyCard.vue")), cardsUi = strip(src("src/views/Cards.vue"));
+check("the code panel is one component with every part of it", ["Card code", "Choose your own code", "Replace with a random code", "Tap again: your current code stops working straight away", "Want a code you choose, like your name?", "You can choose a new code on", "4 to 8 letters or numbers", "Chosen by you"].every((t) => codeUi.includes(t)));
+check("it acts on the card it is given, through the same two API calls", /Api\.rotateCode\(props\.card\.cardId\)/.test(codeUi) && /Api\.customCode\(props\.card\.cardId, customDraft\.value\)/.test(codeUi) && /defineProps\(\{ card:/.test(codeUi));
+check("the card editor in My cards draws it, once, for the card being edited", (cardsUi.match(/<CardCode /g) || []).length === 1 && /<CardCode :card="c" \/>/.test(cardsUi) && /v-if="editingId === c\.cardId"/.test(cardsUi));
+check("My card has no code controls any more", !/rotateCode|customCode|Choose your own code|Replace with a random code|aria-label="Card code"|CardCode/.test(myCard));
+check("My card has the note straight after the badge hint, before anything else, and a quiet code line with Change in My cards",
+  myCard.indexOf("Hold the card to show it") < myCard.indexOf("Change in My cards") && myCard.indexOf("Change in My cards") < myCard.indexOf("Note for the next person")
+  && myCard.indexOf("Note for the next person") < myCard.indexOf('aria-label="Feedback"')
+  && /query: \{ edit: card\.cardId, section: 'code' \}/.test(myCard));
+check("My cards opens that card's editor from the address (so a refresh and Back work) and scrolls to its code", /route\.query\.edit/.test(cardsUi) && /route\.query\.section === "code"/.test(cardsUi) && /card-code-\$\{id\}/.test(cardsUi) && /id="`card-code-\$\{card\.cardId\}`"|:id="`card-code-\$\{card\.cardId\}`"/.test(codeUi));
+const two = await signup("Two");
+const second = await two.c.post("/api/cards", { name: "Second", theme: "default" });
+check("a second card is made", second.status === 201, second.text);
+const cardsNow = (await two.c.get("/api/me")).json.cards;
+const [c1, c2] = cardsNow;
+const rep2 = await two.c.post(`/api/cards/${c1.cardId}/rotate-code`);
+const after = (await two.c.get("/api/me")).json.cards;
+check("replacing one card's code changes that card only", rep2.status === 200 && after.find((c) => c.cardId === c1.cardId).code === rep2.json.code && after.find((c) => c.cardId === c2.cardId).code === c2.code);
 
 summary();
