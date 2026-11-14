@@ -107,6 +107,14 @@ async function toggleWho(d) {
   if (who.value[d.id]) { const { [d.id]: _gone, ...rest } = who.value; who.value = rest; return; }
   await act(d, "who", async () => { who.value = { ...who.value, [d.id]: await api(`${base.value}/${d.id}/people`) }; });
 }
+// Withdraw and replace (F34): one step for a list drop whose items go to one person each. The old item is wiped and
+// the person is given the next unused one; with none left, nothing changes and the server says so.
+const canReplace = (d) => d.kind === "one_each" || (d.kind === "random" && !d.reuse);
+const replace = (d, p) => twice(d, "r" + p.giveId, async () => {
+  await api(`${base.value}/${d.id}/replace`, "POST", { giveId: p.giveId });
+  who.value = { ...who.value, [d.id]: await api(`${base.value}/${d.id}/people`) };
+  notice.value = `${p.name} has a new item. The old one is withdrawn and won't be given to anyone else. They see the new one the next time they open the drop.`;
+});
 const withdraw = (d, p) => twice(d, "w" + p.giveId, async () => {
   await api(`${base.value}/${d.id}/revoke`, "POST", { giveId: p.giveId });
   who.value = { ...who.value, [d.id]: await api(`${base.value}/${d.id}/people`) };
@@ -118,7 +126,7 @@ const counts = (d) => {
   if (d.purged) return d.kind === "voucher" ? `Cleared away. ${d.used} used in all.` : `Cleared away. ${d.loaded} were loaded and ${d.given} given.`;
   if (d.kind === "voucher") return `${d.used} of ${d.entitled} used${d.people ? `, by ${d.people} ${d.people === 1 ? "person" : "people"}` : ""}`;
   if (d.kind === "same") return `${d.given} ${d.given === 1 ? "person has" : "people have"} it`;
-  return `${d.loaded} loaded, ${d.given} given${d.kind === "one_each" || !d.reuse ? `, ${d.unused} left` : ""}${d.revoked ? `, ${d.revoked} withdrawn` : ""}`;
+  return `${d.loaded} loaded, ${d.given} given${d.kind === "one_each" || !d.reuse ? `, ${d.unused} left` : ""}${d.revoked ? `, ${d.revoked} withdrawn` : ""}${d.replaced ? `, ${d.replaced} replaced` : ""}`;
 };
 const stateText = (d) => ({ open: "On", stopped: "Stopped", soon: "Not started", closed: "Finished", gone: "Cleared" }[d.state] || d.state);
 const isList = (d) => d.kind === "one_each" || d.kind === "random";
@@ -183,16 +191,21 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
           </form>
           <button v-if="data.named" type="button" class="btn" :aria-expanded="!!who[d.id]" :disabled="!!busy" @click="toggleWho(d)">{{ who[d.id] ? "Hide who has it" : "Who has it" }}</button>
           <div v-if="who[d.id]" class="stack-2 who" data-who>
-            <p class="small muted" style="margin:0">Only people who left the list tick on are named. You see which item in your list each one has (its number), never the item itself.</p>
+            <p class="small muted" style="margin:0">Only people who left the list tick on are named. You see which item in your list each one has (its number), never the item itself. "Withdraw and replace" takes it back and gives that person the next unused one; if none are left it changes nothing.</p>
             <ul class="list who-list">
               <li v-for="p in who[d.id].people" :key="p.giveId || p.name" class="list-row who-row">
                 <span class="who-name"><strong>{{ p.name }}</strong>
                   <span v-if="d.kind === 'voucher'" class="small muted tnum">{{ p.used }} used, last {{ when(p.lastUsedAt) }}</span>
-                  <span v-else class="small muted tnum">Item {{ p.item }}, {{ when(p.givenAt) }}<template v-if="p.withdrawn">, withdrawn</template></span>
+                  <span v-else class="small muted tnum">Item {{ p.item }}, {{ when(p.givenAt) }}<template v-if="p.withdrawn">, withdrawn</template><template v-else-if="p.replaced">, replaced</template></span>
                 </span>
-                <button v-if="d.kind !== 'voucher' && !p.withdrawn" type="button" class="btn btn-danger who-btn" :disabled="!!busy" @click="withdraw(d, p)">
-                  {{ confirm === d.id + ':w' + p.giveId ? "Tap again" : "Withdraw" }}
-                </button>
+                <span v-if="d.kind !== 'voucher'" class="who-actions">
+                  <button v-if="canReplace(d)" type="button" class="btn who-btn" :disabled="!!busy" @click="replace(d, p)">
+                    {{ confirm === d.id + ':r' + p.giveId ? "Tap again to replace" : p.withdrawn ? "Give a new one" : "Withdraw and replace" }}
+                  </button>
+                  <button v-if="!p.withdrawn" type="button" class="btn btn-danger who-btn" :disabled="!!busy" @click="withdraw(d, p)">
+                    {{ confirm === d.id + ':w' + p.giveId ? "Tap again" : "Withdraw" }}
+                  </button>
+                </span>
               </li>
             </ul>
             <p v-if="!who[d.id].people.length" class="empty small" style="margin:0">Nobody on the list has one yet.</p>
@@ -272,7 +285,8 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
 .pin { font-size: 40px; font-weight: 800; letter-spacing: .25em; }
 .pin-box { border-color: var(--strap); }
 .who-list { list-style: none; padding: 0; margin: 0; }
-.who-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.who-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.who-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .who-name { display: flex; flex-direction: column; min-width: 0; }
 .who-name strong { overflow-wrap: anywhere; }
 .who-btn { flex: none; width: auto; }

@@ -1069,6 +1069,16 @@ console.log("\n# F34.1 Migration 0030 is additive, and the code is where it shou
   check("the route sits on the host app next to revoke, behind the same event rules, and is rate limited", /app\.post\("\/api\/host\/events\/:id\/drops\/:did\/replace"/.test(host) && /dropOf\(c\)/.test(host.split('/replace"')[1].split("app.")[0]) && /limited\(c, `drop:replace:/.test(host));
 }
 
+console.log("\n# F34.2 The host's button, the person's line, and the screens' source");
+{
+  const hostUi = read("src/components/HostDrops.vue"), hubUi = read("src/components/EventDrops.vue");
+  check("the host's Who has it offers Withdraw and replace beside Withdraw, only for one-each and random-without-reuse, behind a tap-again confirm, calling the replace route", /canReplace = \(d\) => d\.kind === "one_each" \|\| \(d\.kind === "random" && !d\.reuse\)/.test(hostUi) && /v-if="canReplace\(d\)"/.test(hostUi) && /Withdraw and replace/.test(hostUi) && /Tap again to replace/.test(hostUi) && /\/replace`, "POST", \{ giveId: p\.giveId \}/.test(hostUi) && /twice\(d, "r" \+ p\.giveId/.test(hostUi) && /"Withdraw"/.test(hostUi) && /\/revoke`/.test(hostUi));
+  check("a person who was withdrawn earlier gets Give a new one instead (the same route), and the Withdraw button is gone for them", /p\.withdrawn \? "Give a new one"/.test(hostUi) && /v-if="!p\.withdrawn" type="button" class="btn btn-danger who-btn"/.test(hostUi));
+  check("the host's screen throws the replace reply away (it holds nothing to show) and its notice names only the person", /has a new item\. The old one is withdrawn/.test(hostUi) && !/(const|let)\s+\w+\s*=\s*await api\(`\$\{base\.value\}\/\$\{d\.id\}\/replace/.test(hostUi));
+  check("the person's line is Your earlier one was replaced on <date>, shown only where they hold an item, and neither screen draws HTML or uses storage", /Your earlier one was replaced on \{\{ replacedOn\(d\.replacedAt\) \}\}/.test(hubUi) && /d\.replacedAt && d\.state === 'have'/.test(hubUi) && !/v-html|innerHTML|localStorage|sessionStorage/.test(hubUi + hostUi));
+  check("the new copy has no emoji", !/[\u{1F300}-\u{1FAFF}☀-➿]/u.test(hostUi + hubUi));
+}
+
 console.log("\n# F32.2 Nothing the host sees, and nothing logged, holds an item");
 {
   const secrets = [...LIST, ...R_KEYS, "more-key-1", "more-key-2", "guest-wifi-9931", "rf-1", "rf-2", "rf-3", "guard-1", "guard-2", "NOKEY-SECRET"];

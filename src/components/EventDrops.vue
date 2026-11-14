@@ -54,6 +54,7 @@ async function copy(d) {
 }
 
 const clock = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const replacedOn = (ms) => new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 const note = (d) => ({
   out: "All given out. There are none left.",
   withdrawn: "The organisers withdrew this one.",
@@ -109,6 +110,7 @@ const voucherLine = (v) => (v.state === "used" ? `Used${v.voucher.usedAt.length 
           <strong class="drop-title">{{ d.title }}</strong>
           <span v-if="d.note" class="small muted">{{ d.note }}</span>
         </div>
+        <p v-if="d.replacedAt && d.state === 'have'" class="small drop-note" data-replaced>Your earlier one was replaced on {{ replacedOn(d.replacedAt) }}.</p>
         <template v-if="d.state === 'ready' || d.state === 'have'">
           <div v-if="shown[d.id] !== undefined" class="stack-2 drop-open">
             <div :id="'secret-' + d.id" class="secret tnum" data-secret>{{ shown[d.id] }}</div>

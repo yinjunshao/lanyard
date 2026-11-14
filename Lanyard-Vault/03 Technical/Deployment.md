@@ -32,7 +32,7 @@ AI (F21) is **off** in `wrangler.production.toml` (`AI_ENABLED = "0"`). Vars: `A
 `wrangler.toml` (local, localhost origins) and `wrangler.production.toml` (production origins, same D1/R2/KV, crons). Production also has `HOST_ORIGIN = https://host.lanyd.fyi` and `host.lanyd.fyi` in `APP_ORIGIN`. A production build (`npm run build`) points the app's host portal links at `https://host.lanyd.fyi` (set in `vite.config.js`; `VITE_HOST_ORIGIN` overrides it).
 
 ## Go-live checklist (from `wrangler.toml`)
-Drops (F32): `wrangler secret put DROP_KEY` (a long random value, at least 16 characters; without it hosts see "Drops are switched off" and nothing is stored; changing it later makes stored items unreadable) and migration 0029 (additive) with `npm run db:remote`. See [[Security]].
+Drops (F32): `wrangler secret put DROP_KEY` (a long random value, at least 16 characters; without it hosts see "Drops are switched off" and nothing is stored; changing it later makes stored items unreadable) and migration 0029 (additive) with `npm run db:remote`. See [[Security]]. F34 adds migration 0030 (one nullable column, additive): run `npm run db:remote` before the deploy, as for 0029.
 
 Create D1 and paste id; create R2 bucket; apply migrations remotely; set origins and RP_ID; custom domain; `wrangler secret put ADMIN_TOKEN` (opens `/admin`).
 
