@@ -4,6 +4,7 @@ import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
 import CardForm from "../components/CardForm.vue";
 import CardPreview from "../components/CardPreview.vue";
+import CardCode from "../components/CardCode.vue";
 import { cardOf, profileOf } from "../lib/cardpreview";
 
 const blank = () => ({ name: "", theme: "default", note: "", headline: "", about: "", tagsText: "", visibleLinks: [], strapColor: "" });
@@ -117,6 +118,7 @@ async function remove(card) {
         <template v-if="editingId === c.cardId">
           <CardPreview v-if="previewProfile" :profile="previewProfile" :card="editPreview" :url="`${origin}/c/${c.cardId}`" />
           <CardForm v-model="editForm" show-strap />
+          <CardCode :card="c" />
           <p v-if="error" class="error-text">{{ error }}</p>
           <div class="btn-row">
             <button class="btn btn-primary" @click="saveEdit">Save</button>

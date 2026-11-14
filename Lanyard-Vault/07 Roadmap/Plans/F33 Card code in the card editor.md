@@ -4,7 +4,7 @@ id: F33
 priority: P1
 phase: 6
 size: S
-status: Not started
+status: In progress
 needs: [F06, F18]
 ---
 # F33 Card code in the card editor
@@ -26,7 +26,7 @@ needs: [F06, F18]
 - No server change.
 
 ## Tasks
-- [ ] F33.1 Move the code panel into the per-card editor in My cards, acting on that card; shared logic in one place, not copied.
+- [x] F33.1 Move the code panel into the per-card editor in My cards, acting on that card; shared logic in one place, not copied.
 - [ ] F33.2 My card: note moves up; a quiet code line with "Change in My cards" that opens that card's editor at the code section.
 - [ ] F33.3 Tests (source guards that the panel lives in the editor and not on My card; the code actions still call the same API for the right card) and a browser check at 375 and 1280 px, light and dark.
 
