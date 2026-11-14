@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
 import CardForm from "../components/CardForm.vue";
@@ -31,6 +32,24 @@ const editPreview = computed(() => {
 function toggleCreating() { creating.value = !creating.value; if (creating.value) editingId.value = null; }
 
 onMounted(refreshMe);
+
+// "Change in My cards" on My card lands here as ?edit=<card>&section=code: that card's editor,
+// scrolled to its code. It is in the address, so a refresh and the Back button work.
+const route = useRoute();
+const router = useRouter();
+function openFromAddress() {
+  const id = route.query.edit;
+  if (typeof id !== "string" || editingId.value === id) return;
+  const c = me.cards.find((x) => x.cardId === id);
+  if (!c) return;
+  startEdit(c);
+  if (route.query.section === "code") nextTick(() => requestAnimationFrame(() => document.getElementById(`card-code-${id}`)?.scrollIntoView({ block: "start" })));
+}
+watch(() => [route.query.edit, me.cards.length], openFromAddress, { immediate: true });
+function closeEdit() {
+  editingId.value = null;
+  if (route.query.edit) router.replace({ path: "/app/cards" });
+}
 
 async function createCard() {
   error.value = "";
@@ -71,7 +90,7 @@ async function saveEdit() {
   if (me.plan.customStrap) body.strap_color = strapColor || "";
   try {
     await Api.updateCard(editingId.value, body);
-    editingId.value = null;
+    closeEdit();
     error.value = "";
     await refreshMe();
   } catch (e) {
@@ -122,7 +141,7 @@ async function remove(card) {
           <p v-if="error" class="error-text">{{ error }}</p>
           <div class="btn-row">
             <button class="btn btn-primary" @click="saveEdit">Save</button>
-            <button class="btn" @click="editingId = null">Cancel</button>
+            <button class="btn" @click="closeEdit">Cancel</button>
           </div>
         </template>
         <template v-else>

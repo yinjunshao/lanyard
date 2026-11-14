@@ -53,7 +53,7 @@ async function saveCustom() {
 </script>
 
 <template>
-  <section :id="`card-code-${card.cardId}`" class="panel stack-2" aria-label="Card code">
+  <section :id="`card-code-${card.cardId}`" class="panel stack-2" style="scroll-margin-top:16px" aria-label="Card code">
     <div class="spread">
       <span class="label">Card code</span>
       <span v-if="card.codeCustom" class="small muted">Chosen by you</span>

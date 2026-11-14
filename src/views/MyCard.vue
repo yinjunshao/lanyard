@@ -211,30 +211,10 @@ async function share() {
       Hold the card to show it at full brightness
     </p>
 
-    <section v-if="home.feedback.length" class="panel stack" aria-label="Feedback">
-      <span class="label">How was {{ home.feedback[0].name }}?</span>
-      <p class="small muted" style="margin:0">Tap a rating. It's anonymous and takes a minute.</p>
-      <RatingInput v-model="quick" :label="`Rate ${home.feedback[0].name}`" size="sm" />
-      <router-link v-for="f in home.feedback.slice(1)" :key="f.eventId" :to="`/app/feedback/${f.eventId}`" class="link-btn">
-        Give feedback for {{ f.name }}
-      </router-link>
-    </section>
-
-    <section v-if="home.followups.length" class="panel stack" aria-label="Follow up">
-      <span class="label">Follow up</span>
-      <div class="list">
-        <div v-for="f in home.followups" :key="f.connectionId" class="list-row spread">
-          <router-link :to="`/c/${f.cardId}`" class="row" style="flex:1;min-width:0">
-            <Avatar class="avatar" :src="f.photo" :alt="f.name" />
-            <span style="min-width:0">
-              <strong>{{ f.name }}</strong>
-              <span class="small muted" style="display:block">Reminder {{ relativeDay(f.remindAt) }}</span>
-            </span>
-          </router-link>
-          <button type="button" class="btn" style="width:auto" :aria-label="`Mark ${f.name} as followed up`" @click="doneFollowup(f)">Done</button>
-        </div>
-      </div>
-    </section>
+    <p class="small muted code-line" style="text-align:center;margin-top:0">
+      Code <span class="tnum code-glyph">{{ card.code }}</span> ·
+      <router-link :to="{ path: '/app/cards', query: { edit: card.cardId, section: 'code' } }" style="text-decoration:underline;text-underline-offset:3px">Change in My cards</router-link>
+    </p>
 
     <section class="panel stack">
       <span class="label">Note for the next person</span>
@@ -264,6 +244,31 @@ async function share() {
           Last one delivered{{ personal.last.by ? ` to ${personal.last.by}` : "" }} · {{ fmtAt(personal.last.at) }}
         </p>
       </template>
+    </section>
+
+    <section v-if="home.feedback.length" class="panel stack" aria-label="Feedback">
+      <span class="label">How was {{ home.feedback[0].name }}?</span>
+      <p class="small muted" style="margin:0">Tap a rating. It's anonymous and takes a minute.</p>
+      <RatingInput v-model="quick" :label="`Rate ${home.feedback[0].name}`" size="sm" />
+      <router-link v-for="f in home.feedback.slice(1)" :key="f.eventId" :to="`/app/feedback/${f.eventId}`" class="link-btn">
+        Give feedback for {{ f.name }}
+      </router-link>
+    </section>
+
+    <section v-if="home.followups.length" class="panel stack" aria-label="Follow up">
+      <span class="label">Follow up</span>
+      <div class="list">
+        <div v-for="f in home.followups" :key="f.connectionId" class="list-row spread">
+          <router-link :to="`/c/${f.cardId}`" class="row" style="flex:1;min-width:0">
+            <Avatar class="avatar" :src="f.photo" :alt="f.name" />
+            <span style="min-width:0">
+              <strong>{{ f.name }}</strong>
+              <span class="small muted" style="display:block">Reminder {{ relativeDay(f.remindAt) }}</span>
+            </span>
+          </router-link>
+          <button type="button" class="btn" style="width:auto" :aria-label="`Mark ${f.name} as followed up`" @click="doneFollowup(f)">Done</button>
+        </div>
+      </div>
     </section>
 
     <div class="btn-row">
