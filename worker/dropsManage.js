@@ -15,7 +15,7 @@ function hostJson(r, checkins, ts) {
   };
   if (r.purged_at) return { ...base, loaded: r.final_loaded || 0, given: r.final_given || 0, used: r.final_used || 0 };
   if (r.kind === "voucher") return { ...base, used: r.used, people: r.people, entitled: checkins * r.per_person };
-  return { ...base, loaded: r.loaded, given: r.given, unused: r.unused, revoked: r.revoked };
+  return { ...base, loaded: r.loaded, given: r.given, unused: r.unused, revoked: r.revoked, replaced: r.replaced };
 }
 
 /** Every drop of an event, with counts. The counts are all a host sees without named attendance. */
@@ -27,7 +27,8 @@ export async function listForHost(db, ev, ts = Date.now()) {
             (SELECT COUNT(*) FROM drop_items i WHERE i.drop_id = d.id) AS loaded,
             (SELECT COUNT(*) FROM drop_gives g WHERE g.drop_id = d.id) AS given,
             (SELECT COUNT(*) FROM drop_gives g WHERE g.drop_id = d.id AND g.revoked_at IS NOT NULL) AS revoked,
-            (SELECT COUNT(*) FROM drop_items i WHERE i.drop_id = d.id AND NOT EXISTS (SELECT 1 FROM drop_gives g WHERE g.item_id = i.id)) AS unused,
+            (SELECT COUNT(*) FROM drop_gives g WHERE g.drop_id = d.id AND g.replaced_at IS NOT NULL) AS replaced,
+            (SELECT COUNT(*) FROM drop_items i WHERE i.drop_id = d.id AND i.cipher != '' AND NOT EXISTS (SELECT 1 FROM drop_gives g WHERE g.item_id = i.id)) AS unused,
             (SELECT COUNT(*) FROM voucher_uses u WHERE u.drop_id = d.id) AS used,
             (SELECT COUNT(DISTINCT u.user_id) FROM voucher_uses u WHERE u.drop_id = d.id) AS people
      FROM drops d WHERE d.event_id = ? ORDER BY d.created_at, d.id`,
@@ -116,7 +117,7 @@ export async function unusedList(env, drop) {
 /** Deletes the items nobody has been given (one statement: an item someone is given at the same moment stays). Returns how many. */
 export async function deleteUnused(db, drop) {
   if (!isList(drop)) throw new HttpError(400, "This kind of drop has no list.", "not_a_list");
-  const r = await run(db, "DELETE FROM drop_items WHERE drop_id = ? AND NOT EXISTS (SELECT 1 FROM drop_gives g WHERE g.item_id = drop_items.id)", drop.id);
+  const r = await run(db, "DELETE FROM drop_items WHERE drop_id = ? AND cipher != '' AND NOT EXISTS (SELECT 1 FROM drop_gives g WHERE g.item_id = drop_items.id)", drop.id);
   return r.meta?.changes || 0;
 }
 

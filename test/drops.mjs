@@ -48,7 +48,7 @@ console.log("\n# F32.1 Migration 0029 is additive");
 {
   const sql = readMigration("0029_drops.sql");
   const code = sql.replace(/--.*$/gm, "");
-  check("it is the newest migration and the files before it are untouched", migrationFiles().at(-1) === "0029_drops.sql" && migrationFiles().includes("0028_named_attendance.sql"));
+  check("it comes after 0028 and 0028 is untouched (0030 now follows it: F34)", migrationFiles().indexOf("0029_drops.sql") > migrationFiles().indexOf("0028_named_attendance.sql") && migrationFiles().includes("0028_named_attendance.sql"));
   check("it only creates (tables, indexes, one trigger): no ALTER, DROP, UPDATE or DELETE of anything that exists", !/\b(ALTER|DROP|UPDATE|INSERT)\b/i.test(code.replace(/DELETE FROM drop_items WHERE id = OLD\.item_id/, "")) && (code.match(/CREATE TABLE/g) || []).length === 5, code.match(/\b(ALTER|DROP|UPDATE)\b/gi));
   const db = makeDb({ before: "0029_drops.sql" });
   const tables = () => db.raw.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((r) => r.name);
@@ -828,7 +828,7 @@ console.log("\n# F32.6 The policy, and where the code is allowed to touch an ite
   check("the Privacy Policy has a section on drops: what is kept, who sees it, how long (30 days), and a retention row", /8e\. Keys, codes and vouchers from an organiser/.test(privacy) && /What we keep/.test(privacy.split("8e.")[1] || "") && /30 days after the event ends/.test(privacy) && /Keys, codes and vouchers an organiser gave you, and each voucher use/.test(privacy));
   check("the Terms and Privacy version is the one the owner approved after F31 and F32 (2026-11-13)", /TERMS_VERSION = "2026-11-13"/.test(read("worker/legal.js")));
   check("the retention in code is 30 days after the event ends, and the policy, the vault and the plan say the same", /DROP_KEEP_MS = 30 \* 86400_000/.test(read("worker/drops.js")) && /30 days/.test(read("Lanyard-Vault/03 Technical/Privacy and Data Retention.md")));
-  const worker = ["worker/dropcrypto.js", "worker/drops.js", "worker/dropsManage.js", "worker/dropsHost.js", "worker/dropsNamed.js", "worker/dropsKeep.js", "worker/dropsApp.js", "worker/vouchers.js"];
+  const worker = ["worker/dropcrypto.js", "worker/drops.js", "worker/dropsManage.js", "worker/dropsHost.js", "worker/dropsNamed.js", "worker/dropsKeep.js", "worker/dropsApp.js", "worker/vouchers.js", "worker/dropsReplace.js"];
   check("no drop file writes to the console: an item cannot be logged by accident", worker.every((f) => !/\bconsole\./.test(read(f))), worker.filter((f) => /\bconsole\./.test(read(f))));
   check("only three places open an item: Show (drops.js), the host's unused download and duplicate check (dropsManage.js) and a person's own export (dropsApp.js); the host's named view, routes and purge never do", worker.filter((f) => /\bopenItem\(/.test(read(f)) && f !== "worker/dropcrypto.js").join() === "worker/drops.js,worker/dropsManage.js,worker/dropsApp.js");
   check("the host's routes and named view never select the sealed column (the named view only wipes one when it withdraws a key)", !/cipher/.test(read("worker/dropsHost.js")) && !/SELECT[^`;]*cipher/i.test(read("worker/dropsNamed.js")) && (read("worker/dropsNamed.js").match(/cipher/g) || []).length === 1);
@@ -849,9 +849,229 @@ console.log("\n# F32.6 The policy, and where the code is allowed to touch an ite
   void hubSrc;
 }
 
+console.log("\n# F34.1 Withdraw and replace: one step, from the unused items, for people on the named list");
+const R_KEYS = Array.from({ length: 30 }, (_, i) => `rk-${String(i).padStart(2, "0")}-replace-${"mnbvcx".repeat(3)}`);
+const R_SEEN = []; // every host response in this section
+const rcall = async (m, path, body, c = H) => { const r = await hcall(m, path, body, c); R_SEEN.push(r.text); return r; };
+const reveal = (p, evId, did) => pcall(p, "POST", `/api/e/${evId}/drops/${did}/reveal`);
+{
+  const rEv = await makeEvent("Replace Night", { collect: { attendance: true, items: ["card"], why: "So we can keep a register of who came to the event" } });
+  const base = `/api/host/events/${rEv.id}/drops`;
+  const mk = async (name, collect = { attendance: true }) => {
+    ipN += 1;
+    const c = client({ ip: `10.97.${Math.floor(ipN / 250)}.${ipN % 250}` });
+    await c.post("/api/profile", { name, acceptTerms: true, over18: true });
+    const r = await c.post(`/api/e/${rEv.code}/checkin`, { acceptTerms: true, over18: true, ...(collect ? { collect } : {}) });
+    if (r.status !== 200) throw new Error(r.text);
+    return { c, id: (await c.get("/api/me")).json.user.id, name };
+  };
+  const makeDrop = async (body) => (await rcall("POST", base, body)).json.id;
+  const giveOf = (did, uid) => q1("SELECT * FROM drop_gives WHERE drop_id = ? AND user_id = ?", did, uid);
+  const handle = (did, uid) => giveOf(did, uid).id;
+  const rep = (did, uid, b = {}) => rcall("POST", `${base}/${did}/replace`, { giveId: handle(did, uid), ...b });
+  const cipherOf = (itemId) => q1("SELECT cipher FROM drop_items WHERE id = ?", itemId).cipher;
+  const dupHeld = (did) => q1("SELECT COUNT(*) n FROM (SELECT item_id FROM drop_gives WHERE drop_id = ? GROUP BY item_id HAVING COUNT(*) > 1)", did).n;
+
+  console.log("  (the one-step replace)");
+  const drop = await makeDrop({ kind: "one_each", title: "Replace keys", items: R_KEYS.slice(0, 6).join("\n") });
+  const ada = await mk("Ada Replace"), bob = await mk("Bob Replace"), cy = await mk("Cy Unnamed Replace", { attendance: false });
+  const got = {};
+  for (const [k, p] of Object.entries({ ada, bob, cy })) got[k] = (await reveal(p, rEv.id, drop)).json.value;
+  check("three people hold the first three keys", got.ada === R_KEYS[0] && got.bob === R_KEYS[1] && got.cy === R_KEYS[2]);
+  const oldItem = giveOf(drop, ada.id).item_id;
+  const r1 = await rep(drop, ada.id);
+  check("replacing Ada's leaked key works (200, ok) and the reply holds no key", r1.status === 200 && r1.json.ok === true && R_KEYS.every((k) => !r1.text.includes(k)), r1.json);
+  const after = giveOf(drop, ada.id);
+  check("her give row now points at a different item, with the moment of the replace, and is not withdrawn", after.item_id !== oldItem && after.replaced_at > 0 && after.revoked_at === null && after.given_at === after.replaced_at);
+  check("the old item is wiped at once (never kept, never given again)", cipherOf(oldItem) === "");
+  const shown = await reveal(ada, rEv.id, drop);
+  check("Ada's next Show gives her the next unused key (the fourth), not the leaked one", shown.status === 200 && shown.json.value === R_KEYS[3] && shown.json.value !== got.ada && shown.json.replacedAt === after.replaced_at && !shown.text.includes(got.ada));
+  const mineNow = (await pcall(ada, "GET", `/api/e/${rEv.id}/drops`)).json.drops.find((d) => d.id === drop);
+  check("her list says she has one, and when the earlier one was replaced; Bob's says nothing of the kind", mineNow.state === "have" && mineNow.replacedAt === after.replaced_at && (await pcall(bob, "GET", `/api/e/${rEv.id}/drops`)).json.drops.find((d) => d.id === drop).replacedAt === null);
+  check("Bob and Cy still have their own keys, untouched", (await reveal(bob, rEv.id, drop)).json.value === R_KEYS[1] && (await reveal(cy, rEv.id, drop)).json.value === R_KEYS[2]);
+  const counts = (await rcall("GET", base)).json.drops.find((d) => d.id === drop);
+  check("the host's counts: 6 loaded, 3 given, 1 replaced, 2 unused (the wiped one is not counted as unused), none withdrawn", counts.loaded === 6 && counts.given === 3 && counts.replaced === 1 && counts.unused === 2 && counts.revoked === 0, counts);
+  const audit = env.DB.raw.prepare("SELECT * FROM drop_audit WHERE drop_id = ? AND action = 'replace'").all(drop);
+  check("one audit row for the replace: who (the host account), when, a count of 1", audit.length === 1 && audit[0].n === 1 && !!audit[0].host_account_id && audit[0].at > 0 && audit[0].event_id === rEv.id);
+  const named = (await rcall("GET", `${base}/${drop}/people`)).json.people.find((p) => p.name === "Ada Replace");
+  check("the named view says Ada's item is now number 4 and marks it replaced", named.item === 4 && named.replaced === true);
+  const unused = (await H.post(`${base}/${drop}/unused`)).text;
+  check("the host's unused download holds items 5 and 6 only: not the withdrawn key, not the given ones", unused.trim().split("\n").join() === `${R_KEYS[4]},${R_KEYS[5]}`);
+  const exp = await pcall(ada, "GET", "/api/account/export");
+  check("Ada's own data download has her new key and when the old one was replaced, and not the old key", exp.status === 200 && exp.text.includes(R_KEYS[3]) && !exp.text.includes(got.ada) && /replacedAt/.test(exp.text));
+  const late = [];
+  for (let i = 0; i < 4; i++) { const p = await mk(`Late Replace ${i}`); late.push((await reveal(p, rEv.id, drop)).json); }
+  check("people who arrive later are given the last two keys only; the withdrawn key goes to nobody", late.filter((l) => l.value).map((l) => l.value).sort().join() === `${R_KEYS[4]},${R_KEYS[5]}` && late.filter((l) => l.code === "all_given").length === 2 && !late.some((l) => l.value === got.ada));
+  check("…and every item in the drop is held by at most one person, whatever happened", dupHeld(drop) === 0);
+
+  console.log("  (the same checks as revoke, and the kinds with nothing to replace)");
+  const bogus = [undefined, "", "nope", "abc0000001", "0".repeat(20), 12345, { a: 1 }];
+  const bogusRes = []; for (const g of bogus) bogusRes.push((await rcall("POST", `${base}/${drop}/replace`, { giveId: g })).status);
+  check("an unknown, malformed or missing handle is 404", bogusRes.every((x) => x === 404), bogusRes);
+  const cyBefore = giveOf(drop, cy.id);
+  const cyTry = await rep(drop, cy.id);
+  check("a person who is not on the list can't be replaced, even with their real handle (404, nothing changed)", cyTry.status === 404 && giveOf(drop, cy.id).item_id === cyBefore.item_id && cipherOf(cyBefore.item_id) !== "");
+  const bobBefore = giveOf(drop, bob.id);
+  await bob.c.put(`/api/e/${rEv.id}/attendance`, { attendance: false });
+  const bobTry = await rep(drop, bob.id);
+  check("Bob unticks the list in the hub: the very next replace for him is 404 and nothing changes", bobTry.status === 404 && giveOf(drop, bob.id).item_id === bobBefore.item_id && cipherOf(bobBefore.item_id) !== "");
+  await bob.c.put(`/api/e/${rEv.id}/attendance`, { attendance: true });
+  const other = await makeDrop({ kind: "one_each", title: "Other keys", items: "other-key-1\nother-key-2" });
+  check("a handle from another drop is 404 here", (await rcall("POST", `${base}/${other}/replace`, { giveId: handle(drop, ada.id) })).status === 404);
+  const rv = await makeDrop({ kind: "voucher", title: "Replace lunch", perPerson: 1 });
+  const rs = await makeDrop({ kind: "same", title: "Replace wifi", value: "replace-wifi-secret-1" });
+  const rr = await makeDrop({ kind: "random", reuse: true, title: "Replace reuse", items: "reuse-key-1\nreuse-key-2" });
+  await reveal(ada, rEv.id, rs); await reveal(ada, rEv.id, rr);
+  const sameRes = await rcall("POST", `${base}/${rs}/replace`, { giveId: handle(rs, ada.id) });
+  const reuseRes = await rcall("POST", `${base}/${rr}/replace`, { giveId: handle(rr, ada.id) });
+  const vRes = await rcall("POST", `${base}/${rv}/replace`, { giveId: "a".repeat(20) });
+  check("the same for everyone and random-with-reuse have nothing to replace (400, nothing changed); a voucher has none either (400)", sameRes.status === 400 && sameRes.json.code === "not_replaceable" && reuseRes.status === 400 && reuseRes.json.code === "not_replaceable" && vRes.status === 400 && q1("SELECT COUNT(*) n FROM drop_audit WHERE drop_id IN (?, ?)", rs, rr).n === 0);
+  check("Ada still holds the shared Wi-Fi text and her reused key (nothing was withdrawn)", (await reveal(ada, rEv.id, rs)).json.value === "replace-wifi-secret-1" && (await reveal(ada, rEv.id, rr)).status === 200);
+  const noList = await makeEvent("Replace No List");
+  const nlDrop = (await hcall("POST", `/api/host/events/${noList.id}/drops`, { kind: "one_each", title: "No list keys", items: "nl-key-1\nnl-key-2" })).json.id;
+  const nlp = await person("No List Person", noList);
+  await pcall(nlp, "POST", `/api/e/${noList.id}/drops/${nlDrop}/reveal`);
+  env.DB.raw.prepare("INSERT OR IGNORE INTO event_attendees (event_id, user_id, created_at) VALUES (?, ?, ?)").run(noList.id, nlp.id, Date.now());
+  const nlRes = await hcall("POST", `/api/host/events/${noList.id}/drops/${nlDrop}/replace`, { giveId: q1("SELECT id FROM drop_gives WHERE drop_id = ?", nlDrop).id });
+  check("an event that keeps no named list: 404, even with a stray attendee row, and nothing changes", nlRes.status === 404 && q1("SELECT replaced_at r FROM drop_gives WHERE drop_id = ?", nlDrop).r === null);
+
+  console.log("  (random without reuse, and a person whose item was withdrawn before)");
+  const rnd = await makeDrop({ kind: "random", reuse: false, title: "Random once", items: R_KEYS.slice(6, 12).join("\n") });
+  const p1 = await mk("Ran One"), p2 = await mk("Ran Two");
+  const v1 = (await reveal(p1, rEv.id, rnd)).json.value, v2 = (await reveal(p2, rEv.id, rnd)).json.value;
+  const v1Item = giveOf(rnd, p1.id).item_id;
+  const rr1 = await rep(rnd, p1.id);
+  const n1 = (await reveal(p1, rEv.id, rnd)).json.value;
+  check("random without reuse: the replace gives a different unused item, the old one is wiped, and the other person is untouched", rr1.status === 200 && n1 && n1 !== v1 && n1 !== v2 && R_KEYS.slice(6, 12).includes(n1) && cipherOf(v1Item) === "" && (await reveal(p2, rEv.id, rnd)).json.value === v2);
+  const wd = await rcall("POST", `${base}/${rnd}/revoke`, { giveId: handle(rnd, p2.id) });
+  const rw = await rep(rnd, p2.id);
+  const nw = await reveal(p2, rEv.id, rnd);
+  check("a person whose item was withdrawn earlier can be given a new one by a replace (the host's way to undo a withdraw): a different, unused item", wd.status === 200 && rw.status === 200 && nw.status === 200 && nw.json.value !== v2 && nw.json.value !== n1 && nw.json.value !== v1 && giveOf(rnd, p2.id).revoked_at === null);
+
+  console.log("  (no unused item left: nothing is withdrawn)");
+  const tiny = await makeDrop({ kind: "one_each", title: "Tiny", items: R_KEYS.slice(12, 14).join("\n") });
+  const t1 = await mk("Tiny One"), t2 = await mk("Tiny Two");
+  const tv1 = (await reveal(t1, rEv.id, tiny)).json.value;
+  await reveal(t2, rEv.id, tiny);
+  const none = await rep(tiny, t1.id);
+  check("with none left, replace is refused with the plain sentence and a 409", none.status === 409 && none.json.code === "none_left" && /No unused items left to replace it with/.test(none.json.error || none.text), none.json);
+  check("…nothing was withdrawn: her item is the same, still readable, not wiped; no audit row; counts unchanged", (await reveal(t1, rEv.id, tiny)).json.value === tv1 && giveOf(tiny, t1.id).replaced_at === null && cipherOf(giveOf(tiny, t1.id).item_id) !== "" && q1("SELECT COUNT(*) n FROM drop_audit WHERE drop_id = ?", tiny).n === 0 && (await rcall("GET", base)).json.drops.find((d) => d.id === tiny).replaced === 0);
+  check("…and the host can still Revoke", (await rcall("POST", `${base}/${tiny}/revoke`, { giveId: handle(tiny, t1.id) })).status === 200);
+
+  console.log("  (a stopped or finished drop)");
+  const stopped = await makeDrop({ kind: "one_each", title: "Stoppable", items: R_KEYS.slice(14, 17).join("\n") });
+  const s1 = await mk("Stop One"); await reveal(s1, rEv.id, stopped);
+  await rcall("PUT", `${base}/${stopped}`, { status: "stopped" });
+  const sBefore = giveOf(stopped, s1.id);
+  const sRes = await rep(stopped, s1.id);
+  check("a stopped drop gives nothing new, so it replaces nothing (409 stopped); the item is unchanged", sRes.status === 409 && sRes.json.code === "stopped" && giveOf(stopped, s1.id).item_id === sBefore.item_id && cipherOf(sBefore.item_id) !== "");
+  await rcall("PUT", `${base}/${stopped}`, { status: "on", validUntil: Date.now() - 1000 });
+  const cRes = await rep(stopped, s1.id);
+  check("a drop whose window has ended replaces nothing either (409 closed)", cRes.status === 409 && cRes.json.code === "closed" && giveOf(stopped, s1.id).item_id === sBefore.item_id);
+
+  console.log("  (races: the new item can never go to two people)");
+  {
+    // Ten holders, four unused items, every holder's replace at the same moment.
+    const crowd = await makeDrop({ kind: "one_each", title: "Crowd", items: R_KEYS.slice(17, 27).concat(["crowd-extra-1", "crowd-extra-2", "crowd-extra-3", "crowd-extra-4"]).join("\n") });
+    const ten = []; for (let i = 0; i < 10; i++) ten.push(await mk(`Crowd ${i}`));
+    const before = []; for (const p of ten) before.push((await reveal(p, rEv.id, crowd)).json.value);
+    check("ten people hold the first ten keys", before.join() === R_KEYS.slice(17, 27).join());
+    const res = await Promise.all(ten.map((p) => rep(crowd, p.id)));
+    const ok = res.filter((r) => r.status === 200).length, left = res.filter((r) => r.status === 409 && r.json.code === "none_left").length;
+    check("ten replaces at once for four unused items: exactly four succeed, six are told none are left", ok === 4 && left === 6, res.map((r) => r.status));
+    const rows = env.DB.raw.prepare("SELECT user_id, item_id, replaced_at FROM drop_gives WHERE drop_id = ?").all(crowd);
+    check("all ten still hold an item, no item is held twice, exactly four items were wiped and each holder's item is readable", rows.length === 10 && new Set(rows.map((r) => r.item_id)).size === 10 && q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ? AND cipher = ''", crowd).n === 4 && rows.filter((r) => r.replaced_at).length === 4 && rows.every((r) => cipherOf(r.item_id) !== ""));
+    const now = []; for (const p of ten) now.push((await reveal(p, rEv.id, crowd)).json.value);
+    const moved = now.filter((v, i) => v !== before[i]);
+    check("the four who were replaced got the four unused keys (all different); the six others still have theirs", moved.length === 4 && moved.every((v) => /^crowd-extra-/.test(v)) && new Set(now).size === 10);
+    check("four audit rows, one for each replace that happened", q1("SELECT COUNT(*) n FROM drop_audit WHERE drop_id = ? AND action = 'replace'", crowd).n === 4);
+  }
+  {
+    // Two replaces for the same person at once.
+    const dbl = await makeDrop({ kind: "one_each", title: "Double press", items: ["dbl-a", "dbl-b", "dbl-c", "dbl-d"].join("\n") });
+    const d1 = await mk("Dbl One"), d2 = await mk("Dbl Two");
+    await reveal(d1, rEv.id, dbl); await reveal(d2, rEv.id, dbl);
+    const h = handle(dbl, d1.id);
+    const res = await Promise.all([rcall("POST", `${base}/${dbl}/replace`, { giveId: h }), rcall("POST", `${base}/${dbl}/replace`, { giveId: h })]);
+    const wiped = q1("SELECT COUNT(*) n FROM drop_items WHERE drop_id = ? AND cipher = ''", dbl).n;
+    const okN = res.filter((r) => r.status === 200).length;
+    check("a double press at the same moment is one replace (the other is told it just changed), and never a lost or shared item: each success wipes exactly one item", okN >= 1 && wiped === okN && res.every((r) => r.status === 200 || (r.status === 409 && r.json.code === "changed")) && dupHeld(dbl) === 0, res.map((r) => r.status + (r.json.code || "")));
+  }
+  {
+    // A replace and a new person racing for the last unused item, many rounds (own event: an event holds 30 drops).
+    const raceEv = await makeEvent("Replace Race Night", { collect: { attendance: true, items: ["card"], why: "So we can keep a register of who came to the event" } });
+    const raceBase = `/api/host/events/${raceEv.id}/drops`;
+    const mkRace = async (name) => {
+      ipN += 1;
+      const c = client({ ip: `10.98.${Math.floor(ipN / 250)}.${ipN % 250}` });
+      await c.post("/api/profile", { name, acceptTerms: true, over18: true });
+      const r = await c.post(`/api/e/${raceEv.code}/checkin`, { acceptTerms: true, over18: true, collect: { attendance: true } });
+      if (r.status !== 200) throw new Error(r.text);
+      return { c, id: (await c.get("/api/me")).json.user.id, name };
+    };
+    const bad = []; let replaceWon = 0, newcomerWon = 0;
+    for (let round = 0; round < 24; round++) {
+      const last = (await createDrop(env, raceEv.row, { kind: "one_each", title: `Last ${round}`, items: [`last-${round}-a`, `last-${round}-b`, `last-${round}-c`].join("\n") })).id;
+      const a = await mkRace(`Last A${round}`), b = await mkRace(`Last B${round}`), c = await mkRace(`Last C${round}`);
+      await reveal(a, raceEv.id, last); await reveal(b, raceEv.id, last);
+      const aOld = giveOf(last, a.id).item_id;
+      const doRep = () => rcall("POST", `${raceBase}/${last}/replace`, { giveId: handle(last, a.id) }), doNew = () => settle([revealItem(env, dropRow(last), c.id)]);
+      // Stagger the two by 0 to 5 turns of the event loop, either way round, so both outcomes happen.
+      const tick = async (n) => { for (let i = 0; i < n; i++) await new Promise((r) => setImmediate(r)); };
+      const lag = Math.floor(round / 2) % 6;
+      const [rp, rv2] = await Promise.all(round % 2 === 0 ? [doRep(), tick(lag).then(doNew)] : [tick(lag).then(doRep), doNew()]);
+      const rows = env.DB.raw.prepare("SELECT user_id, item_id FROM drop_gives WHERE drop_id = ?").all(last);
+      const consistent = rp.status === 200
+        ? (rv2[0].code === "all_given" && cipherOf(aOld) === "" && rows.length === 2)
+        : (rp.json.code === "none_left" && !!rv2[0].value && cipherOf(aOld) !== "" && rows.length === 3);
+      if (dupHeld(last) !== 0 || !consistent) bad.push({ round, rp: rp.status, c: rv2[0] });
+      if (rp.status === 200) replaceWon++; else newcomerWon++;
+    }
+    check(`a replace racing a new attendee for the last unused item, 24 times (${replaceWon} replaces won, ${newcomerWon} newcomers): exactly one gets it, never both, and the loser changes nothing`, bad.length === 0, bad);
+  }
+
+  console.log("  (who may use it)");
+  const rd = await makeDrop({ kind: "one_each", title: "Access", items: "acc-key-1\nacc-key-2\nacc-key-3" });
+  const ac = await mk("Acc One"); await reveal(ac, rEv.id, rd);
+  const path = `${base}/${rd}/replace`, gv = { giveId: handle(rd, ac.id) };
+  const H6 = client({ ip: "10.97.250.1", site: "host" });
+  await becomeHost(H6, { kind: "company", name: "Nosy Replace Co", email: "nosy@replace.example.com" });
+  const lj = client({ ip: "10.97.250.3", site: "host" }); lj.jar.set("lanyard_session", ac.c.jar.get("lanyard_session"));
+  const mainSite = client({ ip: "10.97.250.4" }); for (const [k, v] of H.jar) mainSite.jar.set(k, v);
+  const statuses = [(await client({ ip: "10.97.250.2", site: "host" }).post(path, gv)).status, (await lj.post(path, gv)).status, (await mainSite.post(path, gv)).status, (await H6.post(path, gv)).status];
+  check("signed out 401, an attendee cookie 401, the host cookie on the main site 403, another organisation's host 404", statuses.join() === "401,401,403,404", statuses);
+  check("none of those changed anything: the key is as it was", q1("SELECT replaced_at r FROM drop_gives WHERE id = ?", gv.giveId).r === null && cipherOf(giveOf(rd, ac.id).item_id) !== "");
+  check("the attendee themself cannot replace their own key (the route is on the host site only; the main site refuses)", (await ac.c.post(path, gv)).status !== 200 && q1("SELECT replaced_at r FROM drop_gives WHERE id = ?", gv.giveId).r === null);
+
+  console.log("  (nothing leaks)");
+  const allKeys = [...R_KEYS, "other-key-1", "other-key-2", "reuse-key-1", "reuse-key-2", "replace-wifi-secret-1", "nl-key-1", "nl-key-2", "crowd-extra-1", "crowd-extra-2", "crowd-extra-3", "crowd-extra-4", "dbl-a", "dbl-b", "dbl-c", "dbl-d", "acc-key-1", "acc-key-2", "acc-key-3"];
+  const auditAll = JSON.stringify(env.DB.raw.prepare("SELECT * FROM drop_audit").all());
+  const itemsAll = JSON.stringify(env.DB.raw.prepare("SELECT * FROM drop_items").all());
+  check(`no replace response (${R_SEEN.length}) and no audit row holds any of the ${allKeys.length} items, a person's name or a user id`, allKeys.every((k) => !R_SEEN.join("\n").includes(k) && !auditAll.includes(k)) && !/Ada Replace|Bob Replace/.test(auditAll) && ![ada, bob, cy].some((p) => auditAll.includes(p.id)));
+  check("the database holds none of the new items in the clear either", allKeys.every((k) => !itemsAll.includes(k)));
+  R_KEYS.push(...allKeys.filter((k) => !R_KEYS.includes(k)));
+}
+
+console.log("\n# F34.1 Migration 0030 is additive, and the code is where it should be");
+{
+  const sql = readMigration("0030_drop_replaced.sql");
+  const code = sql.replace(/--.*$/gm, "");
+  check("0030 is the newest migration, 0029 is untouched, and it only adds one nullable column", migrationFiles().at(-1) === "0030_drop_replaced.sql" && migrationFiles().includes("0029_drops.sql") && /^\s*ALTER TABLE drop_gives ADD COLUMN replaced_at INTEGER;\s*$/.test(code) && !/\b(DROP|UPDATE|DELETE|INSERT)\b/i.test(code));
+  const db = makeDb({ before: "0030_drop_replaced.sql" });
+  db.raw.exec("INSERT INTO users (id, created_at, is_guest) VALUES ('u1', 1, 0)");
+  const cols = () => db.raw.prepare("PRAGMA table_info(drop_gives)").all().map((c) => c.name);
+  const was = cols();
+  db.exec(sql);
+  check("applied to a database with data, the column appears (empty) and nothing else changes", cols().length === was.length + 1 && cols().includes("replaced_at") && db.raw.prepare("SELECT COUNT(*) n FROM users").get().n === 1);
+  const src = read("worker/dropsReplace.js"), host = read("worker/dropsHost.js");
+  check("the replace file never opens, seals, selects or logs an item, and has no console", !/openItem|sealItem|console\./.test(src) && !/SELECT[^`;]*\bcipher\b/i.test(src.replace(/i\.cipher != ''/g, "")));
+  check("the move is ONE conditional UPDATE of the give row (the new item is an unused one, only if one exists, only if the person still holds the old item), with the wipe and the audit row in the same batch and only if it moved", /UPDATE drop_gives\s+SET item_id = \(SELECT i\.id FROM drop_items i WHERE \$\{FREE\}/.test(src) && /AND EXISTS \(SELECT 1 FROM drop_items i WHERE \$\{FREE\}\)/.test(src) && /item_id = \?3 AND exclusive = 1/.test(src) && /db\.batch\(\[/.test(src) && (src.match(/m\.item_id != \?/g) || []).length === 2);
+  check("the route sits on the host app next to revoke, behind the same event rules, and is rate limited", /app\.post\("\/api\/host\/events\/:id\/drops\/:did\/replace"/.test(host) && /dropOf\(c\)/.test(host.split('/replace"')[1].split("app.")[0]) && /limited\(c, `drop:replace:/.test(host));
+}
+
 console.log("\n# F32.2 Nothing the host sees, and nothing logged, holds an item");
 {
-  const secrets = [...LIST, "more-key-1", "more-key-2", "guest-wifi-9931", "rf-1", "rf-2", "rf-3", "guard-1", "guard-2", "NOKEY-SECRET"];
+  const secrets = [...LIST, ...R_KEYS, "more-key-1", "more-key-2", "guest-wifi-9931", "rf-1", "rf-2", "rf-3", "guard-1", "guard-2", "NOKEY-SECRET"];
   const hay = SEEN.join("\n") + "\n" + printed.join("\n");
   const leaked = secrets.filter((v) => hay.includes(v));
   check(`every host response so far (${SEEN.length}) and everything printed by the Worker and these tests holds none of the ${secrets.length} items`, leaked.length === 0, leaked.slice(0, 3));

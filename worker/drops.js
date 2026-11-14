@@ -221,7 +221,7 @@ export const isList = (d) => d.kind === "one_each" || d.kind === "random";
 export const isExclusive = (d) => d.kind === "one_each" || (d.kind === "random" && !d.reuse);
 
 export const mine = (db, dropId, userId) =>
-  one(db, `SELECT g.id, g.item_id, g.given_at, g.revoked_at, i.cipher FROM drop_gives g JOIN drop_items i ON i.id = g.item_id
+  one(db, `SELECT g.id, g.item_id, g.given_at, g.revoked_at, g.replaced_at, i.cipher FROM drop_gives g JOIN drop_items i ON i.id = g.item_id
            WHERE g.drop_id = ? AND g.user_id = ?`, dropId, userId);
 
 /**
@@ -256,5 +256,5 @@ export async function revealItem(env, drop, userId, ts = Date.now()) {
   }
   if (g.revoked_at) throw new HttpError(410, "The organisers withdrew this one.", "withdrawn");
   const value = await openItem(env, drop.id, g.item_id, g.cipher);
-  return { value, givenAt: g.given_at };
+  return { value, givenAt: g.given_at, replacedAt: g.replaced_at || null };
 }

@@ -42,7 +42,7 @@ export async function listForPerson(db, ev, userId, ts = Date.now()) {
   const rows = await all(
     db,
     `SELECT d.id, d.kind, d.title, d.note, d.reuse, d.per_person, d.valid_from, d.valid_until, d.status, d.purged_at,
-            g.revoked_at, g.given_at,
+            g.revoked_at, g.given_at, g.replaced_at,
             CASE WHEN d.kind = 'one_each' OR (d.kind = 'random' AND d.reuse = 0)
                  THEN (SELECT COUNT(*) FROM drop_items i WHERE i.drop_id = d.id AND i.cipher != '' AND NOT EXISTS (SELECT 1 FROM drop_gives x WHERE x.item_id = i.id))
                  ELSE (SELECT COUNT(*) FROM drop_items i WHERE i.drop_id = d.id AND i.cipher != '') END AS free,
@@ -65,7 +65,7 @@ export async function listForPerson(db, ev, userId, ts = Date.now()) {
     else if (r.given_at) state = "have";
     else if (open !== "open") state = open;
     else state = r.free > 0 ? "ready" : "out";
-    return { ...base, state };
+    return { ...base, state, replacedAt: r.replaced_at || null };
   });
 }
 
@@ -92,7 +92,7 @@ dropsApp.post("/api/e/:id/drops/:did/reveal", async (c) => {
     throw new HttpError(429, "That's a lot of presses. Wait a few minutes and try again.", "throttled");
   }
   const r = await revealItem(c.env, d, me.id);
-  return c.json({ ok: true, id: d.id, title: d.title, value: r.value, givenAt: r.givenAt }, 200, noStore);
+  return c.json({ ok: true, id: d.id, title: d.title, value: r.value, givenAt: r.givenAt, replacedAt: r.replacedAt }, 200, noStore);
 });
 
 // A voucher is marked as used by staff, with the PIN the host gave them (worker/vouchers.js, D039). The request
@@ -108,7 +108,7 @@ dropsApp.post("/api/e/:id/drops/:did/use", async (c) => {
 export async function exportDrops(env, userId) {
   const gives = await all(
     env.DB,
-    `SELECT g.drop_id, g.item_id, g.given_at, g.revoked_at, i.cipher, d.title, d.kind, d.event_id, e.name AS event_name
+    `SELECT g.drop_id, g.item_id, g.given_at, g.revoked_at, g.replaced_at, i.cipher, d.title, d.kind, d.event_id, e.name AS event_name
      FROM drop_gives g JOIN drop_items i ON i.id = g.item_id JOIN drops d ON d.id = g.drop_id JOIN events e ON e.id = d.event_id
      WHERE g.user_id = ? ORDER BY g.given_at`,
     userId
@@ -125,7 +125,7 @@ export async function exportDrops(env, userId) {
     let value = null, unreadable = false;
     if (!g.revoked_at) { try { value = await openItem(env, g.drop_id, g.item_id, g.cipher); } catch { unreadable = true; } }
     items.push({ eventId: g.event_id, eventName: g.event_name, title: g.title, given: value, ...(unreadable ? { note: "This server can't open it any more (its key changed)." } : {}),
-      givenAt: g.given_at, withdrawn: !!g.revoked_at });
+      givenAt: g.given_at, withdrawn: !!g.revoked_at, ...(g.replaced_at ? { replacedAt: g.replaced_at } : {}) });
   }
   return {
     note: "What organisers gave you at events: keys, codes, passwords and vouchers. Only yours is here.",

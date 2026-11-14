@@ -11,6 +11,7 @@ import { dropsReady } from "./dropcrypto.js";
 import { collectOf } from "./attendance.js";
 import { createDrop, KINDS } from "./drops.js";
 import { namedPeople, revokeGive } from "./dropsNamed.js";
+import { replaceGive } from "./dropsReplace.js";
 import { addItems, auditStmt, deleteUnused, listForHost, resetPin, unusedList, updateDrop } from "./dropsManage.js";
 
 export function registerDropsHost(app, hostEvent) {
@@ -92,6 +93,15 @@ export function registerDropsHost(app, hostEvent) {
     const { me, ev, d } = await dropOf(c);
     const b = await c.req.json().catch(() => ({}));
     return c.json(await revokeGive(c.env.DB, ev, d, b?.giveId, me.id), 200, { "cache-control": "no-store" });
+  });
+
+  // Withdraw and replace (F34): take back one person's item and give them the next unused one, in one step. Same
+  // person rules as revoke (only someone on the named list right now; everything else is the same 404).
+  app.post("/api/host/events/:id/drops/:did/replace", async (c) => {
+    const { me, ev, d } = await dropOf(c);
+    await limited(c, `drop:replace:${me.id}`, 60, "replacements");
+    const b = await c.req.json().catch(() => ({}));
+    return c.json(await replaceGive(c.env.DB, ev, d, b?.giveId, me.id), 200, { "cache-control": "no-store" });
   });
 
   // A new staff PIN for a voucher: the old one stops working at once. The new one is in this reply only.

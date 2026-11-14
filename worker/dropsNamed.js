@@ -38,7 +38,7 @@ export async function namedPeople(db, ev, drop) {
   }
   const rows = await all(
     db,
-    `SELECT g.id AS give_id, g.user_id, g.given_at, g.revoked_at, i.seq FROM drop_gives g JOIN drop_items i ON i.id = g.item_id
+    `SELECT g.id AS give_id, g.user_id, g.given_at, g.revoked_at, g.replaced_at, i.seq FROM drop_gives g JOIN drop_items i ON i.id = g.item_id
      WHERE g.drop_id = ? ORDER BY g.given_at, g.id LIMIT ?`,
     drop.id, PEOPLE_LIMIT + 1
   );
@@ -48,7 +48,7 @@ export async function namedPeople(db, ev, drop) {
   const names = await profiles(db, on.map((r) => r.user_id));
   return {
     kind: drop.kind,
-    people: on.map((r) => ({ giveId: r.give_id, name: names.get(r.user_id) || "", item: r.seq, givenAt: r.given_at, withdrawn: !!r.revoked_at })),
+    people: on.map((r) => ({ giveId: r.give_id, name: names.get(r.user_id) || "", item: r.seq, givenAt: r.given_at, withdrawn: !!r.revoked_at, replaced: !!r.replaced_at })),
     others: rows.length - on.length, truncated: rows.length > PEOPLE_LIMIT,
   };
 }

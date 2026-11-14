@@ -98,7 +98,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F31** [[F31 Named attendance with check-in notice]] · P1 · L · Needs: F10, F15, F30 (narrows [[D004 Aggregate-only host analytics]] by owner decision; check-in ticks pre-ticked by owner decision, 2026-11-13) (done 2026-11-13, last commit 2be21ea; built on F10 as it stands, with the owner's say-so)
 - [x] **F32** [[F32 Drops for codes, keys and vouchers]] · P1 · L · Needs: F10, F15, F31 (done 2026-11-13, last commit 8b721da; built on F10 as it stands, with the owner's say-so)
 - [x] **F33** [[F33 Card code in the card editor]] · P1 · S · Needs: F06, F18 (done 2026-11-14, last commit cf1af77)
-- [ ] **F34** [[F34 Drop withdraw and replace]] · P1 · S · Needs: F32
+- [ ] **F34** [[F34 Drop withdraw and replace]] · P1 · S · Needs: F32 (in progress: Claude subagent, 2026-11-14; built on F10 as it stands, with the owner's say-so, because F32 rests on it)
 
 ## Dependency map
 ```mermaid
