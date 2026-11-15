@@ -27,8 +27,8 @@ needs: []
 5. A person's card and an event page follow the owner's decision below. Without a decision, they are `noindex` and their preview says only "A Lanyard card" / the event name.
 
 ## Owner decisions
-- [ ] What a shared card link (`/c/...`) shows in a preview, and whether search engines may index cards.
-- [ ] Whether public event pages (`/e/...`) may be indexed.
+- [x] What a shared card link (`/c/...`) shows in a preview, and whether search engines may index cards: answered 2026-11-15, "Name headline and photo, but no index by google." Card pages are `noindex` and left out of the sitemap; the preview shows the name, headline and photo **as that card shows them** (a hidden field or a card without a photo shows nothing extra; the image is the same one the public card already serves, never a private selfie). A card that has been retired, deleted or blocked shows the generic preview.
+- [x] Whether public event pages (`/e/...`) may be indexed: answered 2026-11-15, "Preview yes, no index". The preview shows the event name and host; event pages are `noindex` and left out of the sitemap.
 
 ## Acceptance checks
 - [ ] A link to `/`, `/hosts` and an event page shows the right title, text and image in a preview checker (checked with the bots' user agents against a local Worker; real apps are an owner check).

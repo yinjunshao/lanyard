@@ -19,6 +19,8 @@ needs: [F35]
 - Hosts pay by invoice request with credits granted by hand ([[D009 Manual invoicing before Stripe]]); prices in `worker/plans.js` (`HOST_SKUS`, `PLUS_PRICE` £1.49 / £11.99) and [[Pricing]].
 - Polar and Dodo Payments are both **merchants of record**: they sell to the customer in their own name and handle VAT and sales tax, which Stripe does not. That changes F27's compliance list.
 
+> [!note] Owner decision 2026-11-15: **Polar**. "Lets do polar first, we can change later on." So the code keeps the provider behind one Worker module (checkout, webhook verify, portal link), with our own tables holding the facts (orders, subscriptions, event ids), so a later switch to Stripe or another provider changes one module and not the data. Research: [[Payment providers 2026-11-15]] (Polar about 32% of a £1.49 charge at the Starter rate; worth revisiting the yearly-only option or a higher monthly price). Hosts at universities still pay by our own invoice (Polar shows no purchase-order or bank-transfer invoicing).
+
 ## Plan
 1. Research note `Lanyard-Vault/02 Business/Payment providers 2026-11-15.md`: Polar and Dodo Payments (and Stripe as the baseline) on fees, UK payouts, merchant of record and VAT, subscriptions, one-off packs, invoices or purchase orders for universities, customer portal and cancel, refunds, webhooks (signature scheme, retries, event ids), test mode, Cloudflare Worker support (fetch-only SDK or plain HTTP), what they need from us (entity, address, ID), acceptable-use limits, and their own reputation and age. Recommendation with reasons.
 2. Owner picks the provider (and confirms the host prices and what Plus includes, F27.1).
