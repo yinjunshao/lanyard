@@ -239,6 +239,12 @@ app.get("/api/me", async (c) => {
   });
 });
 
+// Each new profile photo is a storage write, so changes are limited per account (F35.7).
+async function photoAllowed(c, u, dataUrl) {
+  if ((await bump(c.env.DB, `photo:u:${u.id}`, HOUR)) > 20) throw new HttpError(429, "That's a lot of new photos in an hour. Try again later.", "throttled");
+  return dataUrl;
+}
+
 // Guest completes their profile the first time. Creates profile + default card.
 app.post("/api/profile", async (c) => {
   const u = requireUser(c);
@@ -257,7 +263,7 @@ app.post("/api/profile", async (c) => {
   }
 
   let photoKey = null;
-  if (body.photoDataUrl) photoKey = await putImage(c.env, body.photoDataUrl, "avatar");
+  if (body.photoDataUrl) photoKey = await putImage(c.env, await photoAllowed(c, u, body.photoDataUrl), "avatar");
   await run(db, "UPDATE users SET over_18 = 1, age_confirmed_at = ? WHERE id = ?", now(), u.id);
   await recordConsent(db, u.id, termsScope());
 
@@ -334,7 +340,7 @@ app.put("/api/profile", async (c) => {
 
   let photoKey = current.photo_key;
   if (body.photoDataUrl) {
-    photoKey = await putImage(c.env, body.photoDataUrl, "avatar");
+    photoKey = await putImage(c.env, await photoAllowed(c, u, body.photoDataUrl), "avatar");
     // The old photo is not kept once it's replaced.
     if (current.photo_key) await deleteImage(c.env, current.photo_key).catch(() => {});
   } else if (body.removePhoto === true) {
@@ -516,6 +522,8 @@ app.delete("/api/account", async (c) => {
 
 /* --------------------------------- cards --------------------------------- */
 
+const CARD_THEMES = ["default", "formal", "night", "host"];
+
 app.post("/api/cards", async (c) => {
   const u = requireUser(c);
   const body = await c.req.json().catch(() => ({}));
@@ -549,7 +557,7 @@ app.post("/api/cards", async (c) => {
       JSON.stringify(strings(body.tags, 30, 60)),
       String(body.headline || "").trim().slice(0, 80),
       String(body.about || "").trim().slice(0, 600),
-      ["default", "formal", "night", "host"].includes(body.theme) ? body.theme : "default",
+      CARD_THEMES.includes(body.theme) ? body.theme : "default",
       now(), u.id, plan.cards
     ),
     db.prepare("INSERT OR REPLACE INTO card_codes (code, card_id, valid_until) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM cards WHERE id = ?)")
@@ -565,8 +573,13 @@ app.put("/api/cards/:id", async (c) => {
   if (!card) return c.json({ error: "not found" }, 404);
   const b = await c.req.json().catch(() => ({}));
   const fields = {};
-  for (const k of ["name", "note", "theme"]) {
+  for (const k of ["name", "note"]) {
     if (b[k] !== undefined) fields[k] = String(b[k]).slice(0, k === "note" ? 300 : 60);
+  }
+  // The same four themes as a new card (F35.7); before, an edit saved any text here.
+  if (b.theme !== undefined) {
+    if (!CARD_THEMES.includes(b.theme)) return c.json({ error: "theme must be default, formal, night or host" }, 400);
+    fields.theme = b.theme;
   }
   // Custom strap colour is a Plus personalisation. "" / null clears it.
   const strap = b.strap_color ?? b.strapColor;

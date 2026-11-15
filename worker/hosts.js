@@ -331,8 +331,11 @@ function eventFields(b, { partial = false } = {}) {
   if (has("directoryOn")) f.directory_on = b.directoryOn === false ? 0 : 1;
   if (has("info")) f.info = JSON.stringify(eventInfo(b.info));
   if (has("rsvpCount")) {
-    const n = Number(b.rsvpCount);
-    f.rsvp_count = b.rsvpCount === null || b.rsvpCount === "" || !Number.isInteger(n) || n < 0 ? null : Math.min(n, 100000);
+    // Empty clears it; otherwise a whole number from 0 to 100,000, or 400 (F35.7).
+    const n = b.rsvpCount;
+    if (n === null || n === "" || n === undefined) f.rsvp_count = null;
+    else if (Number.isInteger(n) && n >= 0 && n <= 100000) f.rsvp_count = n;
+    else throw new HttpError(400, "Sign-ups so far must be a whole number, or empty.", "bad_rsvp");
   }
   if (has("feedbackOn")) f.feedback_on = b.feedbackOn === false ? 0 : 1;
   if (has("feedbackQuestions")) f.feedback_questions = JSON.stringify(sanitizeQuestions(b.feedbackQuestions));
@@ -796,7 +799,9 @@ hostApp.post("/api/host/billing/request", async (c) => {
   if (sku.audience === "quote" && !String(b.note || "").trim()) {
     return c.json({ error: "tell us a little about your organisation and events so we can quote" }, 400);
   }
-  const quantity = Math.min(20, Math.max(1, parseInt(b.quantity, 10) || 1));
+  // A whole number from 1 to 20, or left out for 1. Anything else is refused, never bent into range (F35.7).
+  const quantity = b.quantity === undefined ? 1 : b.quantity;
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) return c.json({ error: "Quantity must be a whole number from 1 to 20.", code: "bad_quantity" }, 400);
   const email = String(b.email || org.billing_email || "").trim().slice(0, 120);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: "add a billing email so we can send the invoice" }, 400);
   const open = await one(db, "SELECT COUNT(*) AS n FROM billing_requests WHERE org_id = ? AND status = 'open'", org.id);

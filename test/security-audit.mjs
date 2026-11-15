@@ -259,4 +259,74 @@ console.log("\n# Row 14: Lanyard cannot be used to fill someone's inbox (F35.6)"
   check("…but the address gets 3 acknowledgement emails, and the rest say not acknowledged", mails("victim2@target.example.com") === 3 && acks.filter((j) => j.acknowledged).length === 3, mails("victim2@target.example.com"));
 }
 
+/* ------------------------------------------------------------------------------------------ */
+// (JSON has no NaN or Infinity: a browser sending them sends null, which is in the list.)
+const BAD_NUMBERS = [0, -1, 1.5, 21, 1e9, "2", "NaN", [2], { n: 2 }, true, null];
+console.log("\n# Row 10: numbers from the browser are refused, not bent into range (F35.7)");
+{
+  const o = client({ site: "host", ip: freshIp() });
+  await becomeHost(o, { kind: "company", name: "Number Co" });
+  const org = q1("SELECT id FROM orgs WHERE name = 'Number Co'").id;
+  const st = [];
+  for (const quantity of BAD_NUMBERS) st.push((await o.post("/api/host/billing/request", { sku: "standard_5", quantity, email: "pay@firm.example.com" })).status);
+  check("an invoice request with quantity 0, -1, 1.5, 21, 1e9, \"2\", \"NaN\", [2], an object, true or null is 400", st.every((s) => s === 400), st.join());
+  check("…and saves nothing", q1("SELECT COUNT(*) n FROM billing_requests WHERE org_id = ?", org).n === 0);
+  const good = await o.post("/api/host/billing/request", { sku: "standard_5", quantity: 2, email: "pay@firm.example.com", amountPence: 1, pence: 1 });
+  check("quantity 2 is saved at the server's price, whatever amount the browser sends (row 7)", good.status === 201 && good.json.amountPence === 9900
+    && q1("SELECT amount_pence a, quantity n FROM billing_requests WHERE id = ?", good.json.id).a === 9900, good.json);
+  check("left out, the quantity is 1", (await o.post("/api/host/billing/request", { sku: "standard_1", email: "pay@firm.example.com" })).json?.amountPence === 1250);
+
+  const ev = (await o.post("/api/host/events", { name: "Counted", rsvpCount: 40 })).json;
+  const rs = [];
+  for (const rsvpCount of [-1, 1.5, 100001, "40", "NaN", [4], true, { n: 4 }]) rs.push((await o.put(`/api/host/events/${ev.id}`, { rsvpCount })).status);
+  check("an RSVP count of -1, 1.5, 100001, \"40\", \"NaN\", [4], true or an object is 400", rs.every((s) => s === 400), rs.join());
+  check("…and the saved count is unchanged", q1("SELECT rsvp_count n FROM events WHERE id = ?", ev.id).n === 40);
+  check("empty clears it, and 0 is a real count", (await o.put(`/api/host/events/${ev.id}`, { rsvpCount: "" })).status === 200 && q1("SELECT rsvp_count n FROM events WHERE id = ?", ev.id).n === null
+    && (await o.put(`/api/host/events/${ev.id}`, { rsvpCount: 0 })).status === 200 && q1("SELECT rsvp_count n FROM events WHERE id = ?", ev.id).n === 0);
+  check("a new event with a bad RSVP count is refused and uses no credit", (await o.post("/api/host/events", { name: "Bad", rsvpCount: -5 })).status === 400
+    && q1("SELECT COUNT(*) n FROM events WHERE org_id = ?", org).n === 1);
+
+  // Feedback ratings: the default form has an overall rating (1 to 5).
+  const a = await person("Rater");
+  await a.c.post(`/api/e/${ev.code}/checkin`, {});
+  await o.post(`/api/host/events/${ev.id}/end`, {});
+  env.DB.raw.prepare("UPDATE events SET ended_at = ? WHERE id = ?").run(Date.now() - 3 * 3600e3, ev.id);
+  env.DB.raw.prepare("UPDATE checkins SET created_at = ? WHERE event_id = ?").run(Date.now() - 4 * 3600e3, ev.id);
+  const form = (await a.c.get(`/api/e/${ev.id}/feedback`)).json;
+  const rating = form.questions.find((x) => x.type === "rating");
+  check("the feedback form is open and has a rating question", form.status === "open" && !!rating, form.status);
+  const fr = [];
+  for (const v of [0, 6, -1, 2.5, "5", [5], true, 1e9]) fr.push((await a.c.post(`/api/e/${ev.id}/feedback`, { answers: { [rating.id]: v } })).status);
+  check("a rating of 0, 6, -1, 2.5, \"5\", [5], true or 1e9 is 400", fr.every((s) => s === 400), fr.join());
+  check("…and no answer is stored for any of them", q1("SELECT COUNT(*) n FROM feedback_responses WHERE event_id = ?", ev.id).n === 0);
+  check("a rating of 4 is stored", (await a.c.post(`/api/e/${ev.id}/feedback`, { answers: { [rating.id]: 4 } })).status === 200);
+}
+
+console.log("\n# Rows 1, 12 and 16: small hardening (F35.7)");
+{
+  const p = await person("Theo");
+  const card = (await p.c.get("/api/me")).json.cards[0].cardId;
+  const bad = await p.c.put(`/api/cards/${card}`, { theme: "\"><img src=x onerror=alert(1)>" });
+  check("a card edit with a made-up theme is 400 and the theme is unchanged", bad.status === 400 && q1("SELECT theme FROM cards WHERE id = ?", card).theme === "default");
+  check("a real theme still saves", (await p.c.put(`/api/cards/${card}`, { theme: "night" })).status === 200 && q1("SELECT theme FROM cards WHERE id = ?", card).theme === "night");
+
+  const { PNG } = await import("./harness.mjs");
+  const photos = [];
+  for (let i = 0; i < 22; i++) photos.push((await p.c.put("/api/profile", { photoDataUrl: PNG })).status);
+  check("20 new profile photos in an hour are taken, the 21st is a 429", photos.slice(0, 20).every((s) => s === 200) && photos.slice(20).every((s) => s === 429), photos.join());
+  check("…and only one photo is kept in storage", [...env.MEDIA.store.keys()].filter((k) => k.startsWith("avatar/")).length === 1);
+  check("other profile edits still work while photos are limited", (await p.c.put("/api/profile", { headline: "Still here" })).status === 200);
+
+  const { emailLink } = await import("../worker/unsub.js");
+  const link = new URL(await emailLink(env, "https://lanyard.test", p.id, "news"));
+  const good = await client({ ip: freshIp() }).get(link.pathname + link.search);
+  const t = link.searchParams.get("t");
+  const forged = await client({ ip: freshIp() }).get(link.pathname + link.search.replace(t, t.slice(0, -1) + (t.endsWith("0") ? "1" : "0")));
+  const short = await client({ ip: freshIp() }).get(link.pathname + link.search.replace(t, t.slice(0, 31)));
+  check("an email link with its real signature opens; one wrong or missing character does not", /Unsubscribe\?/.test(good.text) && /not valid/.test(forged.text) && /not valid/.test(short.text));
+  const { readFileSync } = await import("node:fs");
+  const unsub = readFileSync("worker/unsub.js", "utf8");
+  check("…and the signature is compared character by character, not with === (source guard)", /sameText\(c\.req\.query\("t"\)/.test(unsub) && !/(===|!==)\s*\(?\s*await mac\(/.test(unsub));
+}
+
 summary();

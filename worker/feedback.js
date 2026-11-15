@@ -113,8 +113,9 @@ export function validateAnswers(questions, input) {
     const v = input?.[q.id];
     if (v === undefined || v === null || v === "") continue;
     if (q.type === "rating") {
-      const n = Number(v);
-      if (Number.isInteger(n) && n >= 1 && n <= 5) closed[q.id] = n;
+      // A star rating is a whole number from 1 to 5; anything else is refused, not dropped (F35.7).
+      if (!(Number.isInteger(v) && v >= 1 && v <= 5)) throw new HttpError(400, `Ratings are 1 to 5 stars: ${q.label}`, "bad_rating");
+      closed[q.id] = v;
     } else if (q.type === "single") {
       if (q.options.includes(v)) closed[q.id] = v;
     } else if (q.type === "multi") {

@@ -37,13 +37,21 @@ const page = (body) => new Response(
 <body style="font-family:system-ui,sans-serif;max-width:420px;margin:15vh auto;padding:0 16px;line-height:1.5">${body}</body>`,
   { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 
+// Compares every character, whatever the first difference (F35.7): how long a wrong signature takes
+// to refuse says nothing about how much of it was right.
+function sameText(a, b) {
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < b.length; i++) diff |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 async function valid(c) {
   const kind = c.req.query("k") || "news";
   const u = c.req.query("u") || "";
   const exp = Number(c.req.query("e") || 0);
   if (!KINDS.has(kind) || !/^[0-9a-f]{10}$/.test(u)) return null;
   if (kind === "revoke" && !(exp > Date.now())) return null;
-  return (c.req.query("t") || "") === (await mac(c.env, kind, u, kind === "news" ? 0 : exp)) ? { kind, u } : null;
+  return sameText(c.req.query("t") || "", await mac(c.env, kind, u, kind === "news" ? 0 : exp)) ? { kind, u } : null;
 }
 
 const COPY = {
