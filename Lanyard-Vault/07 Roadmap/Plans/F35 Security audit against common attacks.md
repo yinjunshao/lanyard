@@ -4,7 +4,7 @@ id: F35
 priority: P0
 phase: 7
 size: L
-status: In progress
+status: Done
 needs: []
 ---
 # F35 Security audit against common attacks
@@ -74,12 +74,25 @@ For each of the 16 attacks below, read the code that handles it, try it against 
 - Limited promo codes: one conditional write per claim with a unique constraint, proven under concurrent requests.
 
 ## Acceptance checks
-- [ ] Every one of the 16 attacks has a verdict with evidence in the audit note.
-- [ ] Every Gap rated High or Medium is fixed with a test, or listed as an owner decision with the reason it was not fixed.
-- [ ] `dist/` and every `/api` response searched for secret-shaped strings: none.
-- [ ] Git history (all branches) searched for secret files and key-shaped strings: none, or the owner is told exactly which key to rotate.
+- [x] Every one of the 16 attacks has a verdict with evidence in the audit note.
+- [x] Every Gap rated High or Medium is fixed with a test, or listed as an owner decision with the reason it was not fixed.
+- [x] `dist/` and every `/api` response searched for secret-shaped strings: none.
+- [x] Git history (all branches) searched for secret files and key-shaped strings: none, or the owner is told exactly which key to rotate.
 
 ## Log
--
+- 2026-11-15 (Claude subagent): Done. Each of the 16 attacks was read in the code, tried against the Worker in `test/security-audit.mjs` and, where safe, checked read-only on the live site (31 GET or HEAD requests to `lanyd.fyi` and `host.lanyd.fyi`, nothing written). Verdicts and evidence: [[Security Audit 2026-11-15]]. **Fixed:** 2 High (event credits spent many times by Create pressed at once, F35.2; code guesses sent together all checked, so a burst could sign in with an email or authenticator code, F35.3), 4 Medium (event join codes could be guessed, F35.4; the Free card limit and team invites broken by requests at once, F35.5; emails to any address without end through invites, hand-overs and privacy acknowledgements, F35.6) and some Low (numbers bent instead of refused, card theme, photo changes, the unsubscribe compare, the shared signed-out code counter; F35.3 and F35.7). Safe rows are proved in F35.8.
+- **How the tests were made to bite.** The offline database answers at once, which hid every check-then-write race (my first event-credit test passed against the broken code). The new file gives each single query one turn of the event loop, as real D1 does over the network, while a batch still runs alone. Each gap's test was run with the fix reverted (`git checkout` of the worker files, then the patch put back): F35.2 5 checks failed (20 events for 1 credit, 10 free society events), F35.3 the first check failed and the file stopped (29 wrong email codes and the right one signed in), F35.4 3 failed, F35.5 4 failed, F35.6 5 failed, F35.7 12 failed (the constant-time compare by its source guard). One F35.8 proof was checked the same way (loosening `PUT /api/cards/:id` to `OR user_id` made the IDOR check fail).
+- **What was searched for the acceptance checks.** `dist/` after the final build (111 assets, no `.map`, none of `sk-ant-`, `re_…_…`, `whsec_`, `lyk_`, `sk_live`, `AKIA`, a private key, a secret's name or `sourceMappingURL`), the live `index.html`, entry chunk and six page chunks; every response the ~940 requests in `test/security-audit.mjs` got (all six secrets set to known test values; none appears), on top of the searches `test/drops.mjs` and `test/ai.mjs` already make; signed-out live `/api` reads. Git: all 384 commits on every ref (two local branches, a backup branch, `refs/original`, `origin/main`; no stashes) for secret files and key-shaped strings: none. The one finding is not a Lanyard key: an Edge browser profile with 12 saved sign-ins (passwords encrypted with the Windows account key) in commit `c1612d9`, which is in `origin/main`; see the owner steps. `gh` is not installed, so I could not check whether the repo is public.
+- **No migration, no new secret, no front-end change**, so the public pages are unchanged (PublicCard 51,059 B gzip before and after; every page within budget). Terms and Privacy version not bumped. One wording point for the owner: the Privacy Policy says we email an acknowledgement "straight away"; since F35.6 a fourth request from the same address on one day is recorded but not acknowledged again by email.
+- **Guards and tests changed:** none of the existing tests or guards; `test/security-audit.mjs` is new and runs just before `test/budget.mjs` in `npm test`. `isThrottled` and `recordMiss` are gone from `worker/codes.js` (replaced by `takeTry` and `giveBack`); no test read them.
+- **Decisions I made without the owner:** (1) limits: event codes 30 wrong per 10 minutes per IP; invite emails 10 a day per organisation and 3 per address; hand-overs 5 a day per organisation and 3 per account; privacy acknowledgements 3 a day per address (the request itself is always recorded); profile photos 20 an hour; (2) an over-limit guess is refused even with the right code, as the existing limits did; (3) signed-out card code lookups are counted per IP only (the shared "nobody" counter let anyone lock out every signed-out visitor); (4) an invoice quantity left out still means 1; JSON `null` (which is what a browser sends for `NaN` or `Infinity`) clears an RSVP count but is refused as a quantity; (5) the host email code now takes its try first like the attendee one. Recorded as [[D040 Limits and claims are enforced in the write itself, and a guess is counted before it is checked]].
+- **Left over (Low, listed in the audit note, not fixed):** a society's 200 check-in cap can go a few over in a rush; the admin token sits in the tab's `sessionStorage` on the main site; attendee email codes are hashed without a pepper; exports and the report have no rate limit; unknown paths such as `*.map` answer the app shell.
+
+### Owner steps
+- Review the F35 commits, `git push`, `npm run deploy`. No migration and no new secret, so no `db:remote` is needed for F35 (the earlier features' steps still apply in their order).
+- **Browser profile in git history** (row 13): if the GitHub repo is or was public or shared, change the passwords of the 12 accounts saved in that profile as a precaution; decide whether to rewrite history to remove `brag-output/` and `brag-output-2026-10-27-012233/` (a force-push that changes every commit hash after 27 Oct); delete the local `backup/before-brag-removal-2026-11-13` branch and `refs/original/` when no longer needed and never push them. Exact steps in [[Security Audit 2026-11-15]].
+- Check the repo's visibility (`gh repo view --json visibility`).
+- Optional: a separate `UNSUB_SECRET` (it changes every unsubscribe link already sent), and a Cloudflare WAF rate rule on `/api/*` as an outer limit.
+- Decide whether the Privacy Policy's "acknowledgement straight away" needs a word for the daily cap (no version bump made).
 
 Related: [[Security]], [[Auth and Sessions]], [[Testing]], [[F27 Lanyard Plus and billing]] · back to [[00 Master To-Do]]
