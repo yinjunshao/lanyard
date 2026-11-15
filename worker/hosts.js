@@ -348,6 +348,10 @@ function checkinQuestions(list) {
     .filter((q) => q.key && q.label);
 }
 
+const noCredits = (society) => new HttpError(402, society
+  ? `Your free event for this week is used (societies get ${SOCIETY_FREE.eventsPerWeek} a week). Buy an event pack from Billing for more.`
+  : "No event credits left. Buy more from Billing.", "no_credits");
+
 // One credit per event, spent from the credits that expire soonest.
 async function insertEvent(db, org, fields, questions) {
   assertApproved(org);
@@ -356,24 +360,29 @@ async function insertEvent(db, org, fields, questions) {
   const society = org.org_type === "society";
   const freeWeek = society
     && !(await one(db, "SELECT 1 AS x FROM events WHERE org_id = ? AND created_at > ?", org.id, now() - 7 * DAY));
-  if (!freeWeek && (await creditSummary(db, org.id)).remaining <= 0) {
-    throw new HttpError(402, society
-      ? `Your free event for this week is used (societies get ${SOCIETY_FREE.eventsPerWeek} a week). Buy an event pack from Billing for more.`
-      : "No event credits left. Buy more from Billing.", "no_credits");
-  }
+  if (!freeWeek && (await creditSummary(db, org.id)).remaining <= 0) throw noCredits(society);
   const id = newId();
   const code = await uniqueCode(db, "events", 5);
-  const cols = { ...fields, id, org_id: org.id, code, checkin_questions: JSON.stringify(questions), is_paid: 0, created_at: now() };
+  const ts = now();
+  const cols = { ...fields, id, org_id: org.id, code, checkin_questions: JSON.stringify(questions), is_paid: 0, created_at: ts };
   const keys = Object.keys(cols);
-  await db.batch([
-    db.prepare(`INSERT INTO events (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`).bind(...Object.values(cols)),
-    ...(freeWeek ? [] : [db.prepare(
+  // The checks above are for a quick answer; the real rule is this one transaction (F35.2), so
+  // Create pressed many times at once can never make more events than there are credits. The event
+  // goes in only if, at that moment, the society's free week is still free or a credit has room;
+  // the credit is spent only if the event went in and was not the free one.
+  const freeWeekNow = society ? "NOT EXISTS (SELECT 1 FROM events WHERE org_id = ? AND created_at > ? AND id != ?)" : "0";
+  const freeArgs = society ? [org.id, ts - 7 * DAY, id] : [];
+  const creditLeft = "SELECT id FROM credits WHERE org_id = ? AND events_used < events_granted AND (expires_at IS NULL OR expires_at > ?)";
+  const out = await db.batch([
+    db.prepare(`INSERT INTO events (${keys.join(", ")}) SELECT ${keys.map(() => "?").join(", ")}
+                WHERE ${freeWeekNow} OR EXISTS (${creditLeft})`).bind(...Object.values(cols), ...freeArgs, org.id, ts),
+    db.prepare(
       `UPDATE credits SET events_used = events_used + 1 WHERE id = (
-         SELECT id FROM credits
-         WHERE org_id = ? AND events_used < events_granted AND (expires_at IS NULL OR expires_at > ?)
-         ORDER BY COALESCE(expires_at, 9007199254740991) LIMIT 1)`
-    ).bind(org.id, now())]),
+         ${creditLeft} ORDER BY COALESCE(expires_at, 9007199254740991) LIMIT 1)
+       AND EXISTS (SELECT 1 FROM events WHERE id = ?) AND NOT (${freeWeekNow})`
+    ).bind(org.id, ts, id, ...freeArgs),
   ]);
+  if (!out[0]?.meta?.changes) throw noCredits(society);
   return { id, code };
 }
 
