@@ -4,7 +4,7 @@ id: F35
 priority: P0
 phase: 7
 size: L
-status: Not started
+status: In progress
 needs: []
 ---
 # F35 Security audit against common attacks
@@ -46,8 +46,16 @@ For each of the 16 attacks below, read the code that handles it, try it against 
 | 16 | Secret handling in general | ADMIN_TOKEN, DROP_KEY, TOTP_KEY, RESEND keys, CLAUDE_API_KEY: only Worker secrets, never in vars, logs, responses, exports or the repo; how each can be rotated |
 
 ## Tasks
-- [ ] F35.1 Audit: write `Lanyard-Vault/03 Technical/Security Audit 2026-11-15.md` with a row per attack (verdict, evidence as file:line and test name, severity, fix), and the live read-only checks run. Add a task below for each Gap.
-- [ ] F35.2 onwards: one task per Gap (or a few small related ones), each with a test that fails before the fix and passes after.
+- [x] F35.1 Audit: write `Lanyard-Vault/03 Technical/Security Audit 2026-11-15.md` with a row per attack (verdict, evidence as file:line and test name, severity, fix), and the live read-only checks run. Add a task below for each Gap.
+  - [[Security Audit 2026-11-15]]. Gaps found: 2 High, 4 Medium, a few Low (below). Each was first shown failing against the Worker with requests sent at once (a test-only wrapper gives every query one turn of the event loop, as real D1 does).
+- F35.2 onwards: one task per Gap (or a few small related ones), each with a test that fails before the fix and passes after.
+- [ ] F35.2 (High, rows 9 and 10) Event credits: Create and Duplicate pressed at once spend one credit for many events, and a society's free weekly event can be taken many times. Make the event insert and the credit spend one conditional write.
+- [ ] F35.3 (High, row 11) Code guesses sent together all get through: attendee email codes (5 tries) and the authenticator (10 tries per account), and the shared wrong-guess throttle (link codes, recovery keys, card codes). Take the try before comparing.
+- [ ] F35.4 (Medium, row 15) Event join codes have no wrong-guess limit (`GET /api/e/:code`, check-in). Limit wrong event codes per IP.
+- [ ] F35.5 (Medium, row 9) The Free card limit and team invite codes are checked before the write (10 cards at once gave 11; 6 people joined on one invite). One conditional write each; prove the Plus poster code at once too.
+- [ ] F35.6 (Medium, row 14) Email floods: team invites (invite, cancel, invite again), transfer emails, privacy-request acknowledgements to one address. Limits per sender and per address.
+- [ ] F35.7 (Low, rows 1, 10, 12, 16) Numbers refused with 400 (invoice quantity, RSVP count, rating); card theme checked on edit; profile photo changes limited; unsubscribe signature compared in constant time.
+- [ ] F35.8 Proofs for the rows that were already safe (IDOR, admin, sign-up fields, price, uploads, secrets in source and config).
 - [ ] F35.last Update [[Security]] (replace the TODO with the current result), [[Testing]], and add the payment bar to [[F27 Lanyard Plus and billing]].
 
 ## The payment bar (for F27 and F36, whatever provider)

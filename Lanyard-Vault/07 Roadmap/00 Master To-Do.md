@@ -101,7 +101,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F34** [[F34 Drop withdraw and replace]] · P1 · S · Needs: F32 (done 2026-11-14, last commit 9ea67f5; built on F10 as it stands, with the owner's say-so)
 
 ### Phase 7: owner requests (2026-11-15)
-- [ ] **F35** [[F35 Security audit against common attacks]] · P0 · L · Needs: none
+- [ ] **F35** [[F35 Security audit against common attacks]] · P0 · L · Needs: none (in progress: Claude subagent, 2026-11-15)
 - [ ] **F36** [[F36 Payment provider and billing pages]] · P1 · M · Needs: F35 + owner decision (provider). Research and plan only; taking money stays blocked on the legal identity (F27).
 - [ ] **F37** [[F37 SEO and link previews]] · P1 · M · Needs: owner decision (what a shared card link shows)
 - [ ] **F38** [[F38 Loading states]] · P2 · M · Needs: none
