@@ -27,7 +27,7 @@ import * as Alerts from "./alerts.js";
 import { sendEventEmails } from "./eventmail.js";
 import { writeDueSummaries } from "./ai/feedbackSummary.js";
 import {
-  newCardCode, rotateCardCode, freshenCards, findCardByCode, normaliseCode,
+  newCardCode, rotateCardCode, FOREVER, freshenCards, findCardByCode, normaliseCode,
   takeTry, giveBack, throttleKeys, checkCustomCode, setCustomCode, CUSTOM_EVERY_MS,
 } from "./codes.js";
 import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
@@ -523,22 +523,24 @@ app.post("/api/cards", async (c) => {
 
   // Plan limit: Free keeps a few cards, Plus a lot more.
   const plan = planOf(await one(db, "SELECT plan, plan_until FROM users WHERE id = ?", u.id));
+  const atLimit = () => c.json({
+    error: plan.tier === "plus"
+      ? `You've reached the ${plan.cards}-card limit.`
+      : `Free accounts can have ${plan.cards} cards. Lanyard Plus raises that to ${USER_PLANS.plus.cards}.`,
+    code: "plan_limit",
+  }, 402);
   const have = (await one(db, "SELECT COUNT(*) AS n FROM cards WHERE user_id = ?", u.id))?.n || 0;
-  if (have >= plan.cards) {
-    return c.json({
-      error: plan.tier === "plus"
-        ? `You've reached the ${plan.cards}-card limit.`
-        : `Free accounts can have ${plan.cards} cards. Lanyard Plus raises that to ${USER_PLANS.plus.cards}.`,
-      code: "plan_limit",
-    }, 402);
-  }
+  if (have >= plan.cards) return atLimit();
 
   const id = newId();
   const cc = await newCardCode(db);
-  await db.batch([
+  // The count above is for a quick answer; the limit is enforced in the write itself (F35.5), so
+  // cards made at the same moment can never take a Free account past its limit. The code is
+  // registered only if the card went in.
+  const out = await db.batch([
     db.prepare(
       `INSERT INTO cards (id, user_id, code, code_rotates_at, name, note, visible_links, tags, headline, about, theme, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cards WHERE user_id = ?) < ?`
     ).bind(
       id, u.id, cc.code, cc.rotatesAt,
       String(body.name || "Card").slice(0, 60),
@@ -548,10 +550,12 @@ app.post("/api/cards", async (c) => {
       String(body.headline || "").trim().slice(0, 80),
       String(body.about || "").trim().slice(0, 600),
       ["default", "formal", "night", "host"].includes(body.theme) ? body.theme : "default",
-      now()
+      now(), u.id, plan.cards
     ),
-    cc.registerStmt(id),
+    db.prepare("INSERT OR REPLACE INTO card_codes (code, card_id, valid_until) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM cards WHERE id = ?)")
+      .bind(cc.code, id, FOREVER, id),
   ]);
+  if (!out[0]?.meta?.changes) return atLimit();
   return c.json({ ok: true, id, code: cc.code }, 201);
 });
 

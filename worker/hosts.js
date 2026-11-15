@@ -912,11 +912,19 @@ hostApp.post("/api/host/team/join", async (c) => {
       return c.json({ error: "You already run events under your own organisation, so you can't switch. Ask the owner to share their account instead." }, 409);
     }
   }
-  await db.batch([
-    ...(mine ? [db.prepare("DELETE FROM orgs WHERE id = ?").bind(mine.id)] : []), // empty, unused org
-    db.prepare("INSERT OR IGNORE INTO host_org_members (org_id, host_account_id, role, created_at) VALUES (?, ?, ?, ?)").bind(inv.org_id, me.id, inv.role, now()),
-    db.prepare("DELETE FROM host_org_invites WHERE code = ?").bind(code),
+  // One conditional write (F35.5): the seat is taken only if the invite is still there at that
+  // moment, and the invite and the host's empty organisation go only if the seat was taken, so two
+  // people joining with one invite at the same moment can never both get in.
+  const ts = now();
+  const joined = "EXISTS (SELECT 1 FROM host_org_members WHERE org_id = ? AND host_account_id = ?)";
+  const out = await db.batch([
+    db.prepare(`INSERT OR IGNORE INTO host_org_members (org_id, host_account_id, role, created_at)
+                SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM host_org_invites WHERE code = ? AND expires_at > ?)`)
+      .bind(inv.org_id, me.id, inv.role, ts, code, ts),
+    db.prepare(`DELETE FROM host_org_invites WHERE code = ? AND ${joined}`).bind(code, inv.org_id, me.id),
+    ...(mine ? [db.prepare(`DELETE FROM orgs WHERE id = ? AND ${joined}`).bind(mine.id, inv.org_id, me.id)] : []), // empty, unused org
   ]);
+  if (!out[0]?.meta?.changes) return c.json({ error: "That invite isn't valid or has expired. Ask for a new one." }, 404);
   return c.json({ ok: true });
 });
 

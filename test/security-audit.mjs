@@ -183,4 +183,46 @@ console.log("\n# Row 15: event join codes cannot be found by guessing (F35.4)");
     && (await other.post(`/api/e/${code}/checkin`, { name: "Real Guest", acceptTerms: true, over18: true })).status === 200);
 }
 
+/* ------------------------------------------------------------------------------------------ */
+console.log("\n# Row 9: limits and one-time codes hold when pressed at once (F35.5)");
+{
+  // The Free card limit (3) is a Plus feature: 10 new cards at once.
+  const p = await person("Cara");
+  const made = await Promise.all(Array.from({ length: 10 }, (_, i) => p.c.post("/api/cards", { name: "Card " + i })));
+  const n = q1("SELECT COUNT(*) n FROM cards WHERE user_id = ?", p.id).n;
+  check("10 new cards at once leave a Free account at its 3 cards", n === 3 && made.filter((r) => r.status === 201).length === 2, { n, st: made.map((r) => r.status).join() });
+  check("…the rest are told the Free limit (402 plan_limit)", made.filter((r) => r.status !== 201).every((r) => r.status === 402 && r.json.code === "plan_limit"));
+  check("…and no card code is registered for a card that was not made", q1("SELECT COUNT(*) n FROM card_codes WHERE card_id NOT IN (SELECT id FROM cards)").n === 0);
+  const cards = (await p.c.get("/api/me")).json.cards;
+  check("…every card that was made has its own working code", cards.length === 3 && (await Promise.all(cards.map((k) => client({ ip: freshIp() }).get(`/api/code/${k.code}`)))).every((r) => r.status === 200 && cards.some((k) => k.cardId === r.json.cardId)));
+
+  // A team invite seats one person, however many press Join with it at once.
+  const o = client({ site: "host", ip: freshIp() });
+  await becomeHost(o, { kind: "company", name: "Invite Co" });
+  const inv = await o.post("/api/host/team/invite", {});
+  const joiners = [];
+  for (let i = 0; i < 6; i++) { const j = client({ site: "host", ip: freshIp() }); await becomeHost(j, { kind: "individual", fullName: `Joiner ${i}` }); joiners.push(j); }
+  const orgsBefore = q1("SELECT COUNT(*) n FROM orgs").n;
+  const joins = await Promise.all(joiners.map((j) => j.post("/api/host/team/join", { code: inv.json.code })));
+  const org = q1("SELECT id FROM orgs WHERE name = 'Invite Co'").id;
+  check("6 people joining with one invite at once: exactly one gets in", q1("SELECT COUNT(*) n FROM host_org_members WHERE org_id = ?", org).n === 2 && joins.filter((r) => r.status === 200).length === 1, joins.map((r) => r.status).join());
+  check("…the others are told the invite is not valid (404) and keep their own organisation", joins.filter((r) => r.status !== 200).every((r) => r.status === 404) && q1("SELECT COUNT(*) n FROM orgs").n === orgsBefore - 1);
+  check("…and the invite is used up", !q1("SELECT 1 x FROM host_org_invites WHERE org_id = ?", org));
+
+  // The Plus poster code (FIRST50): 60 people at once, 50 get Plus. (Already one transaction; proved here.)
+  const people = [];
+  for (let i = 0; i < 60; i++) {
+    const x = await person("Plus" + i);
+    env.DB.raw.prepare("UPDATE users SET email_verified = 1, recovery_email = ? WHERE id = ?").run(`plus${i}@uni.test`, x.id);
+    people.push(x);
+  }
+  const claims = await Promise.all(people.map((x) => x.c.post("/api/redeem/FIRST50")));
+  const granted = claims.filter((r) => r.json?.mine?.granted).length;
+  check("60 people pressing Redeem on FIRST50 at once: exactly 50 get Plus", granted === 50 && q1("SELECT uses FROM promo_codes WHERE code = 'FIRST50'").uses === 50
+    && q1("SELECT COUNT(*) n FROM users WHERE plan = 'plus'").n === 50, { granted, uses: q1("SELECT uses FROM promo_codes WHERE code = 'FIRST50'").uses });
+  check("…every one of the 60 has one place, the places are 1 to 60 with none twice", new Set(claims.map((r) => r.json?.mine?.position)).size === 60 && Math.max(...claims.map((r) => r.json?.mine?.position)) === 60);
+  const twice = await Promise.all(Array.from({ length: 5 }, () => people[0].c.post("/api/redeem/FIRST50")));
+  check("one person pressing 5 times at once still has one claim", twice.every((r) => r.status === 200) && q1("SELECT COUNT(*) n FROM promo_claims WHERE user_id = ?", people[0].id).n === 1);
+}
+
 summary();
