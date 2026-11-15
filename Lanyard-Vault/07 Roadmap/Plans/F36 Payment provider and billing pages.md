@@ -4,7 +4,7 @@ id: F36
 priority: P1
 phase: 7
 size: M
-status: Not started
+status: In progress
 needs: [F35]
 ---
 # F36 Payment provider and billing pages
@@ -22,15 +22,23 @@ needs: [F35]
 > [!note] Owner decision 2026-11-15: **Polar**. "Lets do polar first, we can change later on." So the code keeps the provider behind one Worker module (checkout, webhook verify, portal link), with our own tables holding the facts (orders, subscriptions, event ids), so a later switch to Stripe or another provider changes one module and not the data. Research: [[Payment providers 2026-11-15]] (Polar about 32% of a £1.49 charge at the Starter rate; worth revisiting the yearly-only option or a higher monthly price). Hosts at universities still pay by our own invoice (Polar shows no purchase-order or bank-transfer invoicing).
 
 ## Plan
-1. Research note `Lanyard-Vault/02 Business/Payment providers 2026-11-15.md`: Polar and Dodo Payments (and Stripe as the baseline) on fees, UK payouts, merchant of record and VAT, subscriptions, one-off packs, invoices or purchase orders for universities, customer portal and cancel, refunds, webhooks (signature scheme, retries, event ids), test mode, Cloudflare Worker support (fetch-only SDK or plain HTTP), what they need from us (entity, address, ID), acceptable-use limits, and their own reputation and age. Recommendation with reasons.
-2. Owner picks the provider (and confirms the host prices and what Plus includes, F27.1).
-3. Rewrite F27's Payments section for the chosen provider, keep its UK checklist (adjusted for a merchant of record), and add [[F35 Security audit against common attacks]]'s payment bar.
-4. Billing page designs (no money yet): Settings > Plan for Plus and host Billing for credit packs, with the pre-contract information, the express-start tick box and cancel in two taps, drawn behind a "Coming soon" switch until the blockers are cleared.
+- [x] Research note: [[Payment providers 2026-11-15]] (Polar, Dodo Payments and Stripe as the baseline; sources and dates; recommends Polar of the two). Written 2026-11-15 before this plan was worked.
+- [x] Owner picks the provider: **Polar** (2026-11-15, above). Plus price £1.49 / £11.99 (2026-11-10). What Plus includes is still open.
+
+## Tasks
+Nothing here takes money: the legal entity, address and ICO registration ([[F27 Lanyard Plus and billing]] blockers) are not done, so everything is behind `BILLING_ENABLED = "1"`, which production does not set.
+- [x] F36.1 Rewrite F27's "Payments" section for Polar (server-side checkout from our own product table, Customer Portal, Standard Webhooks, each `webhook-id` once, grants as one conditional write, the redirect proves nothing, refunds only from Polar), adjust its UK checklist for a merchant of record, keep manual invoices for universities, keep its tasks consistent; decision note D041; [[Pricing]] says £1.49 / £11.99 and links the research.
+- [ ] F36.2 Worker: `worker/billing/provider.js` and `worker/billing/polar.js` (injectable fetch, no network in tests), `POST /api/billing/checkout`, `POST /api/webhooks/polar` (and the host pack checkout), all off unless `BILLING_ENABLED = "1"`; migration `0031_billing.sql` (additive); `test/billing.mjs` for every line of the payment bar.
+- [ ] F36.3 Billing pages behind the same switch: Settings > Plan (Free and Plus, price, what Plus includes from the server; "Paid plans are coming soon" and the waitlist when off; the pre-contract box and an unticked express-start box before Pay when on) and host Billing (credit packs from `HOST_SKUS`, the same pattern, the invoice request path kept).
+- [ ] F36.4 Vault: [[API Surface]], [[Data Model]], [[Codebase Map]], [[Testing]], [[Deployment]] (owner steps for Polar), [[Host Portal and Billing]], [[Security]].
 
 ## Acceptance checks
-- [ ] The research note compares the providers with sources and dates, and recommends one.
-- [ ] The owner's choice is recorded here, in F27 and in a decision note.
-- [ ] F27 carries the payment bar from F35.
+- [x] The research note compares the providers with sources and dates, and recommends one.
+  - [[Payment providers 2026-11-15]]: each fact has a linked source read on 2026-11-15, a comparison table and a recommendation (Polar of the two).
+- [x] The owner's choice is recorded here, in F27 and in a decision note.
+  - Here (the note above), [[F27 Lanyard Plus and billing]] (the owner-decision note and the Payments section) and [[D041 Polar as merchant of record behind one provider module]].
+- [x] F27 carries the payment bar from F35.
+  - The "Payment bar" section, with the Polar secrets named; the Payments section says how each line is met.
 
 ## Log
 -

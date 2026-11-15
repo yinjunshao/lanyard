@@ -19,11 +19,13 @@ tags: [business, pricing]
 - Societies are hard-capped at 200 check-ins per event.
 
 ## Individuals
-- Free: 3 cards. **Plus:** 12 cards and custom strap colour, £2.99/month or £24/year (waitlist stage).
+- Free: 3 cards. **Plus:** £1.49 a month or £11.99 a year (`PLUS_PRICE` in `worker/plans.js`; the owner's decision of 2026-11-10). What Plus includes is still a proposal: 12 cards, custom strap colour, your own card code and bigger AI allowances (table in [[F27 Lanyard Plus and billing]]). Waitlist stage: no money is taken until the legal identity is done.
 - Never paywalled: connecting, the selfie, a basic profile. See [[D001 Hosts pay, attendees free]].
 
 ## Billing mechanics now
-Invoice / purchase order requests, manual credit grant by admin. Stripe later. See [[D009 Manual invoicing before Stripe]] and [[Host Portal and Billing]].
+Invoice / purchase order requests, manual credit grant by admin. Card payment through **Polar** (merchant of record) is built behind a switch that is off ([[D041 Polar as merchant of record behind one provider module]], [[F36 Payment provider and billing pages]]); invoices stay for universities and anyone who wants one. See [[D009 Manual invoicing before Stripe]] and [[Host Portal and Billing]].
+
+**Fees:** Polar's Starter rate is 5% + 50c plus 1.5% for non-US cards, so about 32% of a £1.49 monthly charge, about 10% of £11.99 a year and about 8% of a £25 pack (assuming $1 = £0.75). Sums, sources and the Dodo and Stripe comparison: [[Payment providers 2026-11-15]]. Worth revisiting a yearly-only Plus or a higher monthly price.
 
 ## Planned phases (from the plan docs)
 1. Free pilots (0-6 months): show list price on free invoices ("£25, waived"), credits expire to create a natural ask.

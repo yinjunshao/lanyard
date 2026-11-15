@@ -102,7 +102,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 
 ### Phase 7: owner requests (2026-11-15)
 - [x] **F35** [[F35 Security audit against common attacks]] · P0 · L · Needs: none (done 2026-11-15, last commit c7413ca)
-- [ ] **F36** [[F36 Payment provider and billing pages]] · P1 · M · Needs: F35 + owner decision (provider). Research and plan only; taking money stays blocked on the legal identity (F27).
+- [ ] **F36** [[F36 Payment provider and billing pages]] · P1 · M · Needs: F35 + owner decision (provider). Research and plan only; taking money stays blocked on the legal identity (F27). (in progress: Claude subagent, 2026-11-15)
 - [ ] **F37** [[F37 SEO and link previews]] · P1 · M · Needs: owner decision (what a shared card link shows)
 - [ ] **F38** [[F38 Loading states]] · P2 · M · Needs: none
 - [ ] **F39** [[F39 Informative error messages]] · P2 · M · Needs: F38
@@ -157,7 +157,7 @@ graph LR
 | F31 | After the F10 and later steps: `npm run db:remote` (0028, additive: three columns, one table, two nullable columns; 0018 to 0027 first), `npm run deploy`. Decide: the 12-month retention for a host's attendee list, whether to bump the Terms and Privacy version (the Privacy Policy 8d and the Terms changed), and a lawyer's review of the email and card items (pre-ticked is not valid consent) and of the host and Lanyard roles before launch; until then leave those two items off for real events. `scripts/reset-hosts.mjs` now needs 0028 | [[F31 Named attendance with check-in notice]] |
 | F32 | `wrangler secret put DROP_KEY` (a long random value, before the deploy), then `npm run db:remote` (0029, and F34's 0030, both additive; 0018 to 0028 first), `npm run deploy`. Decide: the 30-day retention for drops, the Terms and Privacy version (Privacy 8e is new), staff PIN or a scan, and withdraw-and-replace. `scripts/reset-hosts.mjs` now needs 0029 | [[F32 Drops for codes, keys and vouchers]], [[D039 Drops are sealed with a Worker key, given by one conditional write, and vouchers are marked with a staff PIN]] |
 | F26 | `RESEND_NEWS_KEY`, Resend webhook and secret, postal address | [[F26 Mailing list from news address]] |
-| F27 | Stripe account, products, Customer Portal, webhook and secrets; lawyer review; clear the legal blockers | [[F27 Lanyard Plus and billing]] |
+| F27 / F36 | Polar account (sandbox first), products, Customer Portal, webhook and secrets (`POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`), `POLAR_PRODUCTS`, `SELLER_NAME`, `SELLER_ADDRESS`; lawyer review; clear the legal blockers; only then `BILLING_ENABLED = "1"` | [[F27 Lanyard Plus and billing]], [[F36 Payment provider and billing pages]], [[Deployment]] |
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
