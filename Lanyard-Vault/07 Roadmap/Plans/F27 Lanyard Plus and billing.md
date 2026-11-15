@@ -42,6 +42,15 @@ Plan and build Lanyard Plus, with billing support, compliant with UK law.
 - **Promo first:** someone with FIRST50 Plus until Nov 2027 who subscribes is charged only from the promo end date. Set the Checkout `trial_end` to `plan_until`, and say so on the page.
 - **Payment failed:** a 7-day grace period with an email and an in-app banner, then Free. Cards above 3 are **hidden, not deleted**, and come back on resubscribe.
 
+## Payment bar (from F35, 2026-11-15; whatever provider [[F36 Payment provider and billing pages]] picks)
+Every payment task here must meet this, with a test for each line. It comes from [[F35 Security audit against common attacks]] and [[D040 Limits and claims are enforced in the write itself, and a guess is counted before it is checked]].
+- **Prices from the server only.** The price, currency, product and quantity come only from the server's own table (`PLUS_PRICE` and `HOST_SKUS` in `worker/plans.js`, or the provider's price ids kept beside them). The browser sends a product id at most, and a quantity only where one makes sense, refused with 400 unless it is a whole number in range (as invoice requests are since F35.7). Any amount the browser sends is ignored, as `POST /api/host/billing/request` already ignores one.
+- **Paid only when the provider says so.** An order is paid only when a webhook with a verified signature says so (HMAC over the raw body, compared in constant time, with a timestamp tolerance of a few minutes), or the provider's API confirms it. A redirect back to our site proves nothing. The webhook route sits outside the session middleware (like `/api/integrations/`), so it never mints a guest, and outside the same-origin check, which lets server-to-server calls through.
+- **Replays do nothing.** Each provider event id is stored once with a unique constraint, and granting credits or Plus is one conditional write in the same batch that runs only if that event row went in. Test it with the same signed event sent 50 times at once: one grant.
+- **Refunds only from the provider.** A refund starts only in the provider's dashboard or arrives as a webhook; no route takes a quantity or amount for a refund from the browser.
+- **Limited promo codes stay one conditional write** per claim with a unique constraint behind it, proven under concurrent requests (as FIRST50 and host codes are in `test/security-audit.mjs` and `test/promo-host.mjs`).
+- **Secrets** (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` or the provider's own) are Worker secrets only: never in `[vars]`, a response, a log or the repo; add them to the secret search at the end of `test/security-audit.mjs`.
+
 ## UK compliance checklist (not legal advice; have a lawyer or legal clinic check before the first charge)
 **Blockers, before taking any money:**
 - [ ] Legal entity and a full **geographic address** shown on the site and in pre-contract info ([[UK GDPR Audit 2026-11-01]] High 3)
