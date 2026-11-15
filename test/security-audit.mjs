@@ -225,4 +225,38 @@ console.log("\n# Row 9: limits and one-time codes hold when pressed at once (F35
   check("one person pressing 5 times at once still has one claim", twice.every((r) => r.status === 200) && q1("SELECT COUNT(*) n FROM promo_claims WHERE user_id = ?", people[0].id).n === 1);
 }
 
+/* ------------------------------------------------------------------------------------------ */
+console.log("\n# Row 14: Lanyard cannot be used to fill someone's inbox (F35.6)");
+{
+  const mails = (to) => env.MAIL_OUTBOX.filter((m) => m.to[0] === to).length;
+  const o = client({ site: "host", ip: freshIp() });
+  await becomeHost(o, { kind: "company", name: "Spam Co" });
+  const statuses = [];
+  for (let i = 0; i < 25; i++) {
+    const r = await o.post("/api/host/team/invite", { email: "victim@target.example.com" });
+    statuses.push(r.status);
+    if (r.json?.code) await o.del(`/api/host/team/invite/${r.json.code.replace("-", "")}`);
+  }
+  check("invite, cancel, invite again 25 times sends one address 3 emails", mails("victim@target.example.com") === 3, mails("victim@target.example.com"));
+  check("…the 4th and later are a 429 and make no invite", statuses.slice(3).every((s) => s === 429) && !q1("SELECT 1 x FROM host_org_invites WHERE email = 'victim@target.example.com'"), statuses.join());
+  for (let i = 0; i < 12; i++) await o.post("/api/host/team/invite", { email: `person${i}@target.example.com` }).then((r) => r.json?.code && o.del(`/api/host/team/invite/${r.json.code.replace("-", "")}`));
+  const sentToMany = Array.from({ length: 12 }, (_, i) => mails(`person${i}@target.example.com`)).reduce((a, b) => a + b, 0);
+  check("one organisation sends at most 10 invite emails a day in all", sentToMany + 3 <= 10, sentToMany);
+  check("an invite without an email (a code to pass on) still works", (await o.post("/api/host/team/invite", {})).status === 201);
+
+  // Transfer emails go to a host account; one organisation can send 5 a day, one account gets 3.
+  const t = client({ site: "host", ip: freshIp() });
+  await becomeHost(t, { kind: null, email: "taker@other.example.com", fullName: "Taker" });
+  const takerBefore = mails("taker@other.example.com"); // their own sign-in code
+  const tr = [];
+  for (let i = 0; i < 8; i++) tr.push((await o.post("/api/host/transfer", { email: "taker@other.example.com" })).status);
+  check("8 hand-over requests to one account send it 3 emails", mails("taker@other.example.com") - takerBefore === 3 && tr.slice(0, 3).every((s) => s === 201) && tr.slice(3).every((s) => s === 429), [mails("taker@other.example.com") - takerBefore, tr.join()]);
+
+  // Privacy requests are always recorded, but one address gets at most 3 acknowledgements a day.
+  const acks = [];
+  for (let i = 0; i < 10; i++) acks.push((await client({ ip: freshIp() }).post("/api/privacy-request", { email: "victim2@target.example.com", message: "Please tell me what you hold.", kind: "access" })).json);
+  check("10 privacy requests from 10 networks for one address: all are recorded", acks.every((j) => j.ok) && q1("SELECT COUNT(*) n FROM privacy_requests WHERE email = 'victim2@target.example.com'").n === 10);
+  check("…but the address gets 3 acknowledgement emails, and the rest say not acknowledged", mails("victim2@target.example.com") === 3 && acks.filter((j) => j.acknowledged).length === 3, mails("victim2@target.example.com"));
+}
+
 summary();

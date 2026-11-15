@@ -37,7 +37,10 @@ privacyApp.post("/api/privacy-request", async (c) => {
      VALUES (?, ?, ?, ?, ?, 'open', ?, ?)`,
     id, kind, c.get("user")?.id || null, email, message, ts, ts + RESPOND_WITHIN_MS);
   // The acknowledgement is part of the duty, so a failure to send is logged and visible to the admin.
-  const sent = await sendMail(c.env, "accounts", { to: email, ...ackEmail({ kind, id }) }).then(() => true, (e) => { console.error(e); return false; });
+  // A request is always recorded, but one address gets at most 3 acknowledgements a day (F35.6), so
+  // the form cannot be used from many networks to fill a stranger's inbox. The admin still sees it.
+  const ackOk = (await bump(db, `day:privacy:to:${email}`, DAY)) <= 3;
+  const sent = ackOk && await sendMail(c.env, "accounts", { to: email, ...ackEmail({ kind, id }) }).then(() => true, (e) => { console.error(e); return false; });
   if (sent) await run(db, "UPDATE privacy_requests SET acknowledged_at = ? WHERE id = ?", now(), id);
   return c.json({ ok: true, id, acknowledged: sent });
 });

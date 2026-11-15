@@ -819,6 +819,14 @@ hostApp.post("/api/host/billing/request", async (c) => {
 /* --------------------------------- team ---------------------------------- */
 
 const INVITE_DAYS = 7;
+// Emails a host can make Lanyard send to someone else (F35.6): an invite can be cancelled and sent
+// again, so without these a host could fill anyone's inbox from hosts@. Counted per organisation
+// and per address, per day; going over is a 429 and nothing is sent or saved.
+const INVITE_EMAILS_PER_ORG_PER_DAY = 10;
+const INVITE_EMAILS_PER_ADDRESS_PER_DAY = 3;
+const TRANSFERS_PER_ORG_PER_DAY = 5;
+const TRANSFERS_PER_ADDRESS_PER_DAY = 3;
+const tooManyEmails = (c) => c.json({ error: "That's a lot of emails for one day. Try again tomorrow.", code: "throttled" }, 429);
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const inviteCode = () => [...crypto.getRandomValues(new Uint8Array(8))].map((b) => ALPHABET[b & 31]).join("");
 const normaliseInvite = (raw) => String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -867,6 +875,8 @@ hostApp.post("/api/host/team/invite", async (c) => {
   const email = b.email ? normEmail(b.email) : null;
   if (email && !validEmail(email)) return c.json({ error: "That email doesn't look right." }, 400);
   if (email && email === me.email) return c.json({ error: "That's your own email." }, 400);
+  if (email && ((await bump(db, `day:hinvite:org:${org.id}`, DAY)) > INVITE_EMAILS_PER_ORG_PER_DAY
+      || (await bump(db, `day:hinvite:to:${email}`, DAY)) > INVITE_EMAILS_PER_ADDRESS_PER_DAY)) return tooManyEmails(c);
   const code = inviteCode();
   const ts = now();
   const shown = code.slice(0, 4) + "-" + code.slice(4);
@@ -981,6 +991,8 @@ hostApp.post("/api/host/transfer", async (c) => {
   if (target.id === me.id) return c.json({ error: "That's your own account." }, 400);
   const problem = await transferProblem(db, org, target);
   if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
+  if ((await bump(db, `day:htransfer:org:${org.id}`, DAY)) > TRANSFERS_PER_ORG_PER_DAY
+      || (await bump(db, `day:htransfer:to:${target.id}`, DAY)) > TRANSFERS_PER_ADDRESS_PER_DAY) return tooManyEmails(c);
   const id = await openTransfer(db, org, me.id, target);
   await sendMail(c.env, "decisions", { to: target.email, ...transferEmail({ orgName: org.name, fromName: me.full_name, origin: hostOrigin(c.env, c) }) })
     .catch((e) => console.error(e));
