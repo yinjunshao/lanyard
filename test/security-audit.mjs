@@ -157,4 +157,30 @@ console.log("\n# Row 11: codes guessed all at once are still limited (F35.3)");
   check("a signed-out visitor on another IP is not locked out by someone else's wrong guesses", (await client({ ip: "203.0.113.81" }).get(`/api/code/${myCode}`)).status === 200);
 }
 
+/* ------------------------------------------------------------------------------------------ */
+console.log("\n# Row 15: event join codes cannot be found by guessing (F35.4)");
+{
+  const h = client({ site: "host", ip: freshIp() });
+  await becomeHost(h, { kind: "company", name: "Guess Co" });
+  const ev = await h.post("/api/host/events", { name: "Open evening" });
+  const code = ev.json.code;
+  const g = client({ ip: "203.0.113.90" });
+  const seen = [];
+  for (let i = 0; i < 30; i++) seen.push((await g.get(`/api/e/ZZ${String.fromCharCode(65 + (i % 26))}${i % 10}Q`)).status);
+  check("30 wrong event codes from one IP are each a plain 404", seen.every((s) => s === 404), seen.join());
+  const blocked = await g.get(`/api/e/${code}`);
+  check("the 31st lookup from that IP is refused (429), even for a real code", blocked.status === 429 && blocked.json.code === "throttled", blocked.json);
+  const checkin = await g.post(`/api/e/${code}/checkin`, { name: "Guesser", acceptTerms: true, over18: true });
+  check("…and so is checking in from it", checkin.status === 429 && !q1("SELECT 1 x FROM checkins c JOIN events e ON e.id = c.event_id WHERE e.code = ?", code));
+  const burst = await Promise.all(Array.from({ length: 40 }, (_, i) => client({ ip: "203.0.113.91" }).get(`/api/e/QQ${String.fromCharCode(65 + (i % 26))}${i % 10}Z`)));
+  check("40 wrong codes at once from one IP: at most 30 are looked up", burst.filter((r) => r.status === 404).length <= 30 && burst.filter((r) => r.status === 429).length >= 10, burst.map((r) => r.status).join());
+  const venue = client({ ip: "203.0.113.92" });
+  const fine = [];
+  for (let i = 0; i < 40; i++) fine.push((await venue.get(`/api/e/${code}`)).status);
+  check("40 people on one venue connection opening the real code are all answered", fine.every((s) => s === 200));
+  const other = client({ ip: "203.0.113.93" });
+  check("another IP is not affected, and checks in", (await other.get(`/api/e/${code}`)).status === 200
+    && (await other.post(`/api/e/${code}/checkin`, { name: "Real Guest", acceptTerms: true, over18: true })).status === 200);
+}
+
 summary();

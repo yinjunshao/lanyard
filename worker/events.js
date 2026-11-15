@@ -2,8 +2,9 @@
 // directory, attendee perks, and the event album of connection selfies.
 import { Hono } from "hono";
 import { newId, now, one, all, run } from "./db.js";
-import { newCardCode } from "./codes.js";
-import { requireUser } from "./session.js";
+import { newCardCode, giveBack, MISS_WINDOW_MS } from "./codes.js";
+import { requireUser, HttpError } from "./session.js";
+import { bump } from "./ratelimit.js";
 import { termsScope, hasConsent, recordConsentStmt, logConsentStmt } from "./legal.js";
 import { blockedSet } from "./blocks.js";
 import { eventInfo, feedbackOpensAt } from "./feedback.js";
@@ -12,11 +13,25 @@ import { noticeFor, choiceStatements } from "./attendance.js";
 
 export const eventsApp = new Hono();
 
+// Event join codes are short, so wrong ones are limited per IP (F35.4): without this a script could
+// find live events by guessing and check in from anywhere. A right code hands its place back, so a
+// venue sharing one connection only ever counts its typos.
+const EVENT_CODE_MISSES = 30;
+async function eventByCode(c) {
+  const db = c.env.DB;
+  const key = [`code:ev:${c.req.header("cf-connecting-ip") || "local"}`];
+  if ((await bump(db, key[0], MISS_WINDOW_MS)) > EVENT_CODE_MISSES) {
+    throw new HttpError(429, "Too many wrong event codes. Wait a few minutes and try again.", "throttled");
+  }
+  const ev = await one(db, "SELECT * FROM events WHERE code = ?", c.req.param("code").toUpperCase());
+  if (ev) await giveBack(db, key);
+  return ev;
+}
+
 // Public event info by join code (what the QR opens).
 eventsApp.get("/api/e/:code", async (c) => {
   const db = c.env.DB;
-  const code = c.req.param("code").toUpperCase();
-  const ev = await one(db, "SELECT * FROM events WHERE code = ?", code);
+  const ev = await eventByCode(c);
   if (!ev) return c.json({ error: "event not found" }, 404);
 
   const me = c.get("user");
@@ -57,8 +72,7 @@ eventsApp.get("/api/e/:code", async (c) => {
 eventsApp.post("/api/e/:code/checkin", async (c) => {
   const me = requireUser(c);
   const db = c.env.DB;
-  const code = c.req.param("code").toUpperCase();
-  const ev = await one(db, "SELECT * FROM events WHERE code = ?", code);
+  const ev = await eventByCode(c);
   if (!ev) return c.json({ error: "event not found" }, 404);
 
   // Student societies are held to a hard check-in limit per event. People who
