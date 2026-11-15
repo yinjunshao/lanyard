@@ -80,4 +80,81 @@ console.log("\n# Row 9/10: event credits cannot be spent twice by pressing Creat
     paid.filter((r) => r.status === 201).length === 1 && socCredit === 1 && q1("SELECT COUNT(*) n FROM events WHERE org_id = ?", soc.id).n === 2, { made: paid.filter((r) => r.status === 201).length, socCredit });
 }
 
+/* ------------------------------------------------------------------------------------------ */
+async function person(name, { ip = freshIp() } = {}) {
+  const c = client({ ip });
+  await c.post("/api/profile", { name, acceptTerms: true, over18: true });
+  const id = (await c.get("/api/me")).json.user.id;
+  return { c, id };
+}
+const others = (n, site = "main") => Array.from({ length: n }, () => client({ site, ip: freshIp() }));
+const wrongFor = (code) => (i) => String((Number(code) + 1 + i) % 1e6).padStart(6, "0");
+
+console.log("\n# Row 11: codes guessed all at once are still limited (F35.3)");
+{
+  // Attendee email sign-in: 5 tries per code, whatever the timing. Each guess comes from its own IP.
+  const p = await person("Eve");
+  env.DB.raw.prepare("UPDATE users SET recovery_email = 'eve@uni.test', email_verified = 1 WHERE id = ?").run(p.id);
+  await client({ ip: freshIp() }).post("/api/auth/email/start", { email: "eve@uni.test" });
+  const code = env.MAIL_OUTBOX.at(-1).text.match(/code is (\d{6})/)[1];
+  const wrong = wrongFor(code);
+  const res = await Promise.all(others(30).map((c, i) => c.post("/api/auth/email/verify", { email: "eve@uni.test", code: i === 29 ? code : wrong(i) })));
+  check("email code: 29 wrong guesses and the right one sent at once do not sign in", res[29].status !== 200 && res.every((r) => r.status !== 200), res.map((r) => r.status).join());
+  check("…the code took 5 tries and no more", q1("SELECT attempts FROM email_codes WHERE email = 'eve@uni.test'").attempts === 5);
+  check("…and the right code is refused afterwards too", (await client({ ip: freshIp() }).post("/api/auth/email/verify", { email: "eve@uni.test", code })).status !== 200);
+  // A fresh code with 4 wrong first still works on the 5th try (the burst above filled the per-address counter).
+  env.DB.raw.prepare("DELETE FROM rate_limits WHERE key = 'auth:email:eve@uni.test'").run();
+  await client({ ip: freshIp() }).post("/api/auth/email/start", { email: "eve@uni.test" });
+  const code2 = env.MAIL_OUTBOX.at(-1).text.match(/code is (\d{6})/)[1];
+  for (let i = 0; i < 4; i++) await client({ ip: freshIp() }).post("/api/auth/email/verify", { email: "eve@uni.test", code: wrongFor(code2)(i) });
+  check("4 wrong tries and then the right code: signed in (the limit is 5, not fewer)", (await client({ ip: freshIp() }).post("/api/auth/email/verify", { email: "eve@uni.test", code: code2 })).status === 200);
+  // The per-email counter: 10 wrong in 10 minutes, even spread over fresh codes and IPs.
+  await client({ ip: freshIp() }).post("/api/auth/email/start", { email: "eve@uni.test" });
+  const code3 = env.MAIL_OUTBOX.at(-1).text.match(/code is (\d{6})/)[1];
+  env.DB.raw.prepare("UPDATE rate_limits SET count = 10 WHERE key = 'auth:email:eve@uni.test'").run();
+  check("after 10 wrong guesses for one address, even the right code is refused (429)", (await client({ ip: freshIp() }).post("/api/auth/email/verify", { email: "eve@uni.test", code: code3 })).status === 429);
+
+  // Adding an email: the same 5 tries, at once.
+  const q2 = await person("Quinn");
+  await q2.c.post("/api/account/email", { email: "quinn@uni.test" });
+  const add = env.MAIL_OUTBOX.at(-1).text.match(/code is (\d{6})/)[1];
+  const tries = await Promise.all(Array.from({ length: 12 }, (_, i) => q2.c.post("/api/account/email/confirm", { email: "quinn@uni.test", code: i === 11 ? add : wrongFor(add)(i) })));
+  check("add-an-email code: 11 wrong and the right one at once do not confirm it", tries.every((r) => r.status !== 200) && !q1("SELECT email_verified v FROM users WHERE id = ?", q2.id).v, tries.map((r) => r.status).join());
+
+  // Authenticator: 10 wrong guesses per account in 10 minutes, at once, from 40 IPs.
+  const { hotp, unbase32 } = await import("../worker/totp.js");
+  const a = await person("Tom");
+  const setup = await a.c.post("/api/auth/totp/setup");
+  const step = Math.floor(Date.now() / 30000);
+  await a.c.post("/api/auth/totp/confirm", { code: await hotp(unbase32(setup.json.secret), step) });
+  const right = await hotp(unbase32(setup.json.secret), step + 1);
+  const burst = await Promise.all(others(40).map((c, i) => c.post("/api/auth/totp/redeem", { id: a.id, code: i === 39 ? right : String(100000 + i) })));
+  check("authenticator: 39 wrong codes and the right one sent at once do not sign in", burst.every((r) => r.status !== 200), burst.map((r) => r.status).join());
+  check("…at most 10 were checked; the rest were told to wait (429)", burst.filter((r) => r.status === 404).length <= 10 && burst.filter((r) => r.status === 429).length >= 30, [burst.filter((r) => r.status === 404).length, burst.filter((r) => r.status === 429).length]);
+  check("…and a right code alone is refused while the account is locked", (await client({ ip: freshIp() }).post("/api/auth/totp/redeem", { id: a.id, code: await hotp(unbase32(setup.json.secret), step + 2) })).status === 429);
+
+  // Host portal email code: 5 tries per code (it was already safe; proved here at once).
+  const h0 = client({ site: "host", ip: freshIp() });
+  await h0.post("/api/host/auth/start", { email: "boss@firm.example.com" });
+  const hcode = env.MAIL_OUTBOX.at(-1).text.match(/code is (\d{6})/)[1];
+  const hres = await Promise.all(others(30, "host").map((c, i) => c.post("/api/host/auth/verify", { email: "boss@firm.example.com", code: i === 29 ? hcode : wrongFor(hcode)(i) })));
+  check("host code: 29 wrong and the right one at once do not sign in", hres.every((r) => r.status !== 200), hres.map((r) => r.status).join());
+  check("…and the host code took 5 tries", q1("SELECT attempts FROM host_login_codes WHERE email = 'boss@firm.example.com'").attempts === 5);
+
+  // The shared wrong-guess counter (sign-in link codes, recovery keys, card codes): 10 per IP.
+  const one = client({ ip: "203.0.113.77" });
+  const link = await Promise.all(Array.from({ length: 25 }, (_, i) => one.post("/api/auth/redeem", { code: `ZZZZ${String(1000 + i).slice(-4).replace(/[01]/g, "Z")}` })));
+  check("25 sign-in link codes at once from one IP: at most 10 are checked", link.filter((r) => r.status === 404).length <= 10 && link.filter((r) => r.status === 429).length >= 15, link.map((r) => r.status).join());
+  const card = client({ ip: "203.0.113.78" });
+  const looks = await Promise.all(Array.from({ length: 25 }, (_, i) => card.get(`/api/code/QQ${String.fromCharCode(65 + i)}9`)));
+  check("25 card codes at once from one IP: at most 10 are checked", looks.filter((r) => r.status === 404).length <= 10 && looks.filter((r) => r.status === 429).length >= 15, looks.map((r) => r.status).join());
+  // A right guess does not count as a wrong one.
+  const owner = await person("Rita", { ip: "203.0.113.79" });
+  const myCode = (await owner.c.get("/api/me")).json.cards[0].code;
+  const ok = [];
+  for (let i = 0; i < 15; i++) ok.push((await client({ ip: "203.0.113.80" }).get(`/api/code/${myCode}`)).status);
+  check("15 right card codes in a row from one IP are all answered (right guesses are handed back)", ok.every((s) => s === 200), ok.join());
+  check("a signed-out visitor on another IP is not locked out by someone else's wrong guesses", (await client({ ip: "203.0.113.81" }).get(`/api/code/${myCode}`)).status === 200);
+}
+
 summary();

@@ -158,32 +158,36 @@ export async function findCardByCode(db, code) {
 
 export function throttleKeys(c) {
   const ip = c.req.header("cf-connecting-ip") || "local";
-  return [`code:ip:${ip}`, `code:u:${c.get("user")?.id || "none"}`];
+  // Signed out, the IP is the only counter: one shared "nobody" counter let ten wrong guesses
+  // from anyone lock every signed-out visitor out for ten minutes (F35.3).
+  const u = c.get("user")?.id;
+  return u ? [`code:ip:${ip}`, `code:u:${u}`] : [`code:ip:${ip}`];
 }
 
-export async function isThrottled(db, keys) {
-  const since = now() - MISS_WINDOW_MS;
-  const rows = await all(
-    db,
-    `SELECT count FROM rate_limits WHERE key IN (${keys.map(() => "?").join(",")}) AND window_start > ?`,
-    ...keys, since
-  );
-  return rows.some((r) => r.count >= MISS_LIMIT);
-}
-
-export async function recordMiss(db, keys) {
+// A guess takes its place on every counter BEFORE it is checked (F35.3). Checking the count first
+// and adding to it afterwards let guesses sent at the same moment all pass the check. Each counter
+// is one atomic write that returns the new count; false means a counter is over MISS_LIMIT and the
+// guess must not be checked at all. A right guess hands its place back with giveBack(), so only
+// wrong guesses stay counted, as before.
+export async function takeTry(db, keys) {
   const ts = now();
   const since = ts - MISS_WINDOW_MS;
-  await db.batch(
-    keys.map((k) =>
-      db.prepare(
-        `INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 1)
-         ON CONFLICT(key) DO UPDATE SET
-           count = CASE WHEN window_start > ? THEN count + 1 ELSE 1 END,
-           window_start = CASE WHEN window_start > ? THEN window_start ELSE ? END`
-      ).bind(k, ts, since, since, ts)
-    )
-  );
+  let over = false;
+  for (const k of keys) {
+    const row = await one(db,
+      `INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 1)
+       ON CONFLICT(key) DO UPDATE SET
+         count = CASE WHEN window_start > ? THEN count + 1 ELSE 1 END,
+         window_start = CASE WHEN window_start > ? THEN window_start ELSE ? END
+       RETURNING count`, k, ts, since, since, ts);
+    if ((row?.count ?? 1) > MISS_LIMIT) over = true;
+  }
   // Tidy only short-lived throttle keys; longer windows (guest:, day:) are cleared by the daily purge.
   await run(db, "DELETE FROM rate_limits WHERE window_start < ? AND (key LIKE 'code:%' OR key LIKE 'auth:%')", ts - 6 * MISS_WINDOW_MS);
+  return !over;
+}
+
+/** The guess was right: it does not count as a wrong one. */
+export async function giveBack(db, keys) {
+  await db.batch(keys.map((k) => db.prepare("UPDATE rate_limits SET count = count - 1 WHERE key = ? AND count > 0").bind(k)));
 }

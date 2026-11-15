@@ -2,7 +2,7 @@
 // device from one that is already signed in) and long recovery keys (for a
 // lost phone). Both end in an ordinary session cookie, like a passkey login.
 import { one, run, now } from "./db.js";
-import { isThrottled, recordMiss } from "./codes.js";
+import { takeTry, giveBack } from "./codes.js";
 import { createSession, requireUser, sha256Hex } from "./session.js";
 import { notifySignIn } from "./alerts.js";
 
@@ -41,17 +41,15 @@ export async function createLinkCode(c, db) {
 // The other device presents the code. Single use.
 export async function redeemLinkCode(c, db, raw) {
   const keys = throttleKeys(c);
-  if (await isThrottled(db, keys)) {
+  if (!(await takeTry(db, keys))) {
     return c.json({ error: "Too many wrong tries. Wait a few minutes and try again.", code: "throttled" }, 429);
   }
   const code = normaliseSecret(raw);
   const row = code.length === 8
     ? await one(db, "SELECT user_id FROM login_codes WHERE code = ? AND expires_at > ?", code, now())
     : null;
-  if (!row) {
-    await recordMiss(db, keys);
-    return c.json({ error: "That code isn't valid or has expired. Ask for a fresh one on your other device.", code: "bad_code" }, 404);
-  }
+  if (!row) return c.json({ error: "That code isn't valid or has expired. Ask for a fresh one on your other device.", code: "bad_code" }, 404);
+  await giveBack(db, keys);
   const used = await db.prepare("DELETE FROM login_codes WHERE code = ?").bind(code).run();
   if (used.meta?.changes === 0) return c.json({ error: "That code was already used.", code: "bad_code" }, 404);
   await startSession(c, db, row.user_id, "one-time code");
@@ -75,17 +73,15 @@ export async function createRecoveryKey(c, db) {
 
 export async function redeemRecoveryKey(c, db, raw) {
   const keys = throttleKeys(c);
-  if (await isThrottled(db, keys)) {
+  if (!(await takeTry(db, keys))) {
     return c.json({ error: "Too many wrong tries. Wait a few minutes and try again.", code: "throttled" }, 429);
   }
   const key = normaliseSecret(raw);
   const row = key.length === 16
     ? await one(db, "SELECT user_id FROM recovery_keys WHERE key_hash = ?", await sha256Hex(key))
     : null;
-  if (!row) {
-    await recordMiss(db, keys);
-    return c.json({ error: "That recovery key doesn't match. Check for typos.", code: "bad_key" }, 404);
-  }
+  if (!row) return c.json({ error: "That recovery key doesn't match. Check for typos.", code: "bad_key" }, 404);
+  await giveBack(db, keys);
   await startSession(c, db, row.user_id, "recovery key");
   return c.json({ ok: true });
 }

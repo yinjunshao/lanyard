@@ -28,7 +28,7 @@ import { sendEventEmails } from "./eventmail.js";
 import { writeDueSummaries } from "./ai/feedbackSummary.js";
 import {
   newCardCode, rotateCardCode, freshenCards, findCardByCode, normaliseCode,
-  isThrottled, recordMiss, throttleKeys, checkCustomCode, setCustomCode, CUSTOM_EVERY_MS,
+  takeTry, giveBack, throttleKeys, checkCustomCode, setCustomCode, CUSTOM_EVERY_MS,
 } from "./codes.js";
 import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 import { readInstitution } from "./institutions.js";
@@ -781,18 +781,17 @@ app.delete("/api/cards/:id/personal-note", async (c) => {
 app.get("/api/code/:code", async (c) => {
   const db = c.env.DB;
   const keys = throttleKeys(c);
-  if (await isThrottled(db, keys)) {
+  if (!(await takeTry(db, keys))) {
     return c.json({ error: "Too many wrong codes. Wait a few minutes and try again.", code: "throttled" }, 429);
   }
   const code = normaliseCode(c.req.param("code"));
   if (code.length >= 4 && code.length <= 12) {
     const card = await findCardByCode(db, code);
-    if (card) return c.json({ kind: "card", cardId: card.id });
+    if (card) { await giveBack(db, keys); return c.json({ kind: "card", cardId: card.id }); }
     // Event join codes live in the same short-code space (5 characters).
     const event = await one(db, "SELECT id FROM events WHERE code = ?", code);
-    if (event) return c.json({ kind: "event", eventCode: code });
+    if (event) { await giveBack(db, keys); return c.json({ kind: "event", eventCode: code }); }
   }
-  await recordMiss(db, keys);
   return c.json({
     error: "That code isn't valid. Check it with them, or scan their QR instead.",
     code: "bad_code",

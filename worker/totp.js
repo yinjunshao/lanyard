@@ -3,7 +3,7 @@
 // proves it. Wrong tries are throttled per IP and per account, and a code
 // can't be used twice. Secrets are AES-GCM encrypted at rest when TOTP_KEY is set.
 import { one, run, now } from "./db.js";
-import { isThrottled, recordMiss } from "./codes.js";
+import { takeTry, giveBack } from "./codes.js";
 import { createSession, requireUser, HttpError } from "./session.js";
 import { notifySignIn } from "./alerts.js";
 import { findUserByEmail, normEmail } from "./email-auth.js";
@@ -130,7 +130,7 @@ export async function redeem(c, db, rawId, rawCode) {
   const ip = c.req.header("cf-connecting-ip") || "local";
   const id = String(rawId || "").trim().toLowerCase();
   const keys = [`auth:ip:${ip}`, `auth:totp:${id.slice(0, 32)}`];
-  if (await isThrottled(db, keys)) {
+  if (!(await takeTry(db, keys))) {
     return c.json({ error: "Too many wrong tries. Wait a few minutes and try again.", code: "throttled" }, 429);
   }
   const code = normCode(rawCode);
@@ -145,9 +145,9 @@ export async function redeem(c, db, rawId, rawCode) {
     ? (await db.prepare("UPDATE totp_secrets SET last_step = ? WHERE user_id = ? AND last_step < ?").bind(step, userId, step).run()).meta?.changes === 1
     : false;
   if (!claimed) {
-    await recordMiss(db, keys);
     return c.json({ error: "That email (or account ID) and code don't match. Codes change every 30 seconds.", code: "bad_totp" }, 404);
   }
+  await giveBack(db, keys);
   await createSession(c, db, userId);
   await notifySignIn(c, db, userId, "authenticator app");
   return c.json({ ok: true });

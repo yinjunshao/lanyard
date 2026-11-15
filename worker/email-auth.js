@@ -3,7 +3,7 @@
 // Start never reveals whether an address has an account.
 import { one, run, now } from "./db.js";
 import { bump, HOUR } from "./ratelimit.js";
-import { isThrottled, recordMiss } from "./codes.js";
+import { takeTry, giveBack } from "./codes.js";
 import { createSession, requireUser, sha256Hex, HttpError } from "./session.js";
 import { sendMail, codeEmail, welcomeEmail } from "./mail.js";
 import { logConsentStmt } from "./legal.js";
@@ -37,18 +37,18 @@ async function issue(c, db, email, purpose, userId) {
   await sendMail(c.env, "accounts", { to: email, ...codeEmail(code, link) });
 }
 
-// Spends one try; true when the code is right (and consumed).
+// Spends one try; true when the code is right (and consumed). The try is taken in one conditional
+// write BEFORE the code is compared (F35.3), so guesses sent at the same moment cannot all be
+// compared: only MAX_TRIES of them ever are, whatever the timing.
 async function checkCode(db, email, purpose, userId, code) {
   const row = await one(db,
-    "SELECT code_hash, attempts FROM email_codes WHERE email = ? AND purpose = ? AND user_id = ? AND expires_at > ?",
-    email, purpose, userId || "", now());
-  if (!row || row.attempts >= MAX_TRIES) return false;
-  if (row.code_hash !== await hashCode(email, code)) {
-    await run(db, "UPDATE email_codes SET attempts = attempts + 1 WHERE email = ? AND purpose = ? AND user_id = ?",
-      email, purpose, userId || "");
-    return false;
-  }
-  const used = await run(db, "DELETE FROM email_codes WHERE email = ? AND purpose = ? AND user_id = ?", email, purpose, userId || "");
+    `UPDATE email_codes SET attempts = attempts + 1
+     WHERE email = ? AND purpose = ? AND user_id = ? AND expires_at > ? AND attempts < ?
+     RETURNING code_hash`,
+    email, purpose, userId || "", now(), MAX_TRIES);
+  if (!row || row.code_hash !== await hashCode(email, code)) return false;
+  const used = await run(db, "DELETE FROM email_codes WHERE email = ? AND purpose = ? AND user_id = ? AND code_hash = ?",
+    email, purpose, userId || "", row.code_hash);
   return used.meta?.changes === 1;
 }
 
@@ -72,12 +72,12 @@ export async function verify(c, db, rawEmail, rawCode) {
   const email = normEmail(rawEmail);
   const code = String(rawCode || "").replace(/\s/g, "");
   const keys = [`auth:ip:${c.req.header("cf-connecting-ip") || "local"}`, `auth:email:${email.slice(0, 120)}`];
-  if (await isThrottled(db, keys)) return c.json({ error: "Too many wrong tries. Wait a few minutes and try again.", code: "throttled" }, 429);
+  if (!(await takeTry(db, keys))) return c.json({ error: "Too many wrong tries. Wait a few minutes and try again.", code: "throttled" }, 429);
   const user = /^\d{6}$/.test(code) && validEmail(email) ? await findUserByEmail(db, email) : null;
   if (!user || !(await checkCode(db, email, "signin", null, code))) {
-    await recordMiss(db, keys);
     return c.json({ error: "That code isn't right or has expired. Ask for a new one.", code: "bad_code" }, 404);
   }
+  await giveBack(db, keys);
   // Receiving the code proves the address, so a legacy entry becomes verified.
   await run(db,
     `UPDATE users SET email_verified = 1 WHERE id = ? AND email_verified = 0
@@ -104,12 +104,12 @@ export async function addConfirm(c, db, rawEmail, rawCode, marketing) {
   const user = requireUser(c);
   const email = normEmail(rawEmail);
   const keys = [`auth:ip:${c.req.header("cf-connecting-ip") || "local"}`, `auth:verify:${user.id}`];
-  if (await isThrottled(db, keys)) throw new HttpError(429, "Too many wrong tries. Wait a few minutes and try again.", "throttled");
+  if (!(await takeTry(db, keys))) throw new HttpError(429, "Too many wrong tries. Wait a few minutes and try again.", "throttled");
   const code = String(rawCode || "").replace(/\s/g, "");
   if (!/^\d{6}$/.test(code) || !(await checkCode(db, email, "verify", user.id, code))) {
-    await recordMiss(db, keys);
     throw new HttpError(400, "That code isn't right or has expired.");
   }
+  await giveBack(db, keys);
   try {
     await db.batch([
       db.prepare(`UPDATE users SET recovery_email = ?, email_domain = ?, email_verified = 1, is_guest = 0,

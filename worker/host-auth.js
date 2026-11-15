@@ -18,7 +18,7 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { newId, newToken, now, one, all, run } from "./db.js";
 import { HttpError, sha256Hex } from "./session.js";
 import { bump, HOUR } from "./ratelimit.js";
-import { isThrottled, recordMiss } from "./codes.js";
+import { takeTry, giveBack } from "./codes.js";
 import { sendMail, hostCodeEmail } from "./mail.js";
 import { TERMS_VERSION } from "./legal.js";
 
@@ -161,19 +161,19 @@ export async function verifySignIn(c) {
   const email = normHostEmail(b.email);
   const code = String(b.code || "").replace(/\s/g, "");
   const keys = [`hauth:ip:${ipOf(c)}`, `hauth:e:${email.slice(0, 120)}`];
-  if (await isThrottled(db, keys)) return c.json({ error: "Too many wrong tries. Wait a few minutes and try again.", code: "throttled" }, 429);
+  if (!(await takeTry(db, keys))) return c.json({ error: "Too many wrong tries. Wait a few minutes and try again.", code: "throttled" }, 429);
   const ts = now();
+  // The try is taken in one conditional write before the code is compared (F35.3), so only
+  // CODE_TRIES guesses at a code are ever compared, however many arrive at once.
   const row = validHostEmail(email) && /^\d{6}$/.test(code)
-    ? await one(db, "SELECT * FROM host_login_codes WHERE email = ? AND expires_at > ? AND used_at IS NULL", email, ts)
+    ? await one(db, `UPDATE host_login_codes SET attempts = attempts + 1
+        WHERE email = ? AND expires_at > ? AND used_at IS NULL AND attempts < ? RETURNING code_hash`, email, ts, CODE_TRIES)
     : null;
-  if (!row || row.attempts >= CODE_TRIES || row.code_hash !== await codeHash(c.env, email, code)) {
-    if (row) await run(db, "UPDATE host_login_codes SET attempts = attempts + 1 WHERE email = ?", email);
-    await recordMiss(db, keys);
-    return c.json(BAD_CODE, 400);
-  }
+  if (!row || row.code_hash !== await codeHash(c.env, email, code)) return c.json(BAD_CODE, 400);
   // Single use, even if two requests race.
-  const used = await run(db, "UPDATE host_login_codes SET used_at = ? WHERE email = ? AND used_at IS NULL AND attempts < ?", ts, email, CODE_TRIES);
+  const used = await run(db, "UPDATE host_login_codes SET used_at = ? WHERE email = ? AND used_at IS NULL AND code_hash = ?", ts, email, row.code_hash);
   if (used.meta?.changes !== 1) return c.json(BAD_CODE, 400);
+  await giveBack(db, keys);
 
   let acct = await one(db, "SELECT * FROM host_accounts WHERE email = ?", email);
   if (acct && (acct.status !== "active" || acct.deleted_at)) return c.json(BAD_CODE, 400);
