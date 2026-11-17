@@ -1,4 +1,4 @@
-// F37: search and link-preview tags for the public pages.
+// F37: search and link-preview tags for the public pages, robots.txt and sitemap.xml.
 //
 // The app is one HTML shell. The Worker hands it out for every page, and passes it through
 // HTMLRewriter for the pages people share, so a chat app or search engine that never runs the
@@ -9,7 +9,7 @@
 //   /c/:cardId  the name, headline and photo exactly as the public card page shows them, nothing
 //               else. A card that does not exist, or has no profile, looks the same as a made-up id.
 //   /e/:code    the event name and its host. An unknown or ended code gives the generic tags.
-// Both pages are `noindex` and neither is in the sitemap.
+// Both pages are `noindex` (see robotsHeader), and neither is in the sitemap.
 //
 // Every value goes in through HTMLRewriter's setAttribute and setInnerContent, which escape it.
 // Nothing here ever builds HTML by joining strings, and `{ html: true }` is never used.
@@ -42,6 +42,7 @@ const MARKETING = {
 const NOT_INDEXED_PAGES = {
   "/privacy-request": { title: "Privacy request | Lanyard", description: "Ask to see, fix or delete your data." },
 };
+export const SITEMAP_PATHS = Object.keys(MARKETING);
 
 // ---------------------------------------------------------------------------------------------
 // Text
@@ -73,7 +74,47 @@ export function siteOrigin(env) {
 
 const isHostSite = (url) => url.hostname.startsWith("host.");
 
+// ---------------------------------------------------------------------------------------------
+// Which pages are indexable (the X-Robots-Tag header, set for every response in security.js)
+
 const norm = (path) => (path.length > 1 ? path.replace(/\/+$/, "") : path) || "/";
+
+// Returns the header value, or null for a page search engines may index. Marketing pages on the
+// main site, robots.txt and the sitemap are the only ones; everything else, the host site
+// included, keeps the "noindex, nofollow" the site has always sent.
+export function robotsHeader(url) {
+  if (isHostSite(url)) return "noindex, nofollow";
+  const path = norm(url.pathname);
+  if (Object.hasOwn(MARKETING, path) || path === "/robots.txt" || path === "/sitemap.xml") return null;
+  return "noindex, nofollow";
+}
+
+// ---------------------------------------------------------------------------------------------
+// robots.txt and sitemap.xml
+
+function robotsTxt(url, origin) {
+  if (isHostSite(url)) return "User-agent: *\nDisallow: /\n";
+  // /c/ and /e/ are left out of Disallow on purpose: a crawler that may not fetch a page can never
+  // read its "noindex", and could still list the bare address. They send X-Robots-Tag: noindex.
+  return [
+    "User-agent: *",
+    "Allow: /",
+    "Disallow: /api/",
+    "Disallow: /app",
+    "Disallow: /admin",
+    "Disallow: /signin",
+    "Disallow: /claim",
+    "Disallow: /redeem",
+    "",
+    `Sitemap: ${origin}/sitemap.xml`,
+    "",
+  ].join("\n");
+}
+
+function sitemapXml(origin) {
+  const urls = SITEMAP_PATHS.map((p) => `  <url><loc>${origin}${p}</loc></url>`).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Tags for one page
@@ -215,11 +256,21 @@ export function applyTags(res, t) {
   return rw.transform(res);
 }
 
-// The fallback for every request that no other route answered: the static files, and the app shell (with the tags above written in for the pages that have them).
+// The fallback for every request that no other route answered: robots.txt, sitemap.xml, the
+// static files, and the app shell (with the tags above written in for the pages that have them).
 export async function servePage(c) {
   const url = new URL(c.req.url);
   const get = c.req.method === "GET" || c.req.method === "HEAD";
-  if (!get || isHostSite(url)) return c.env.ASSETS.fetch(c.req.raw);
+  const path = norm(url.pathname);
+  if (get && path === "/robots.txt") {
+    return new Response(robotsTxt(url, siteOrigin(c.env)), { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
+  }
+  if (get && path === "/sitemap.xml") {
+    if (isHostSite(url)) return new Response("Not found", { status: 404 });
+    return new Response(sitemapXml(siteOrigin(c.env)), { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } });
+  }
+  // No HTMLRewriter (the offline tests run in Node, which has none): the plain page, with its site-wide tags.
+  if (!get || isHostSite(url) || typeof HTMLRewriter === "undefined") return c.env.ASSETS.fetch(c.req.raw);
 
   const origin = siteOrigin(c.env);
   const t = await tagsFor(c, url, origin);

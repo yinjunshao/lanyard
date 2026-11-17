@@ -149,8 +149,8 @@ console.log("\n# Export and event choices");
 
 console.log("\n# Privacy by default");
 {
-  const r = await client().get("/");
-  check("pages ask search engines not to index", /noindex/.test(r.headers.get("x-robots-tag") || ""));
+  const r = await client().get("/app");
+  check("private pages ask search engines not to index (the marketing pages may be indexed since F37, see test/seo.mjs)", /noindex/.test(r.headers.get("x-robots-tag") || ""));
 }
 
 summary();

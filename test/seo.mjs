@@ -379,6 +379,49 @@ console.log("\n# A database error still serves the page, with the generic tags")
   globalThis.HTMLRewriter = keep;
 }
 
+console.log("\n# X-Robots-Tag");
+{
+  const noindex = ["/c/ffffffffff", `/c/${ada.card}`, "/e/ZZZZ", "/app", "/app/cards", "/app/people/abc", "/admin", "/signin", "/claim", "/redeem", "/redeem/ABCD", "/ui-test", "/privacy-request", "/e/ZZZZ/feedback", "/api/health", "/api/c/ffffffffff", "/media/avatar/aaaa.webp", "/some/unknown/page"];
+  for (const p of noindex) {
+    const r = await web.get(p);
+    check(`${p} sends noindex`, /noindex/.test(r.headers.get("x-robots-tag") || ""), r.headers.get("x-robots-tag"));
+  }
+  const open = ["/", "/hosts", "/terms", "/privacy", "/hosts/", "/robots.txt", "/sitemap.xml"];
+  for (const p of open) {
+    const r = await web.get(p);
+    check(`${p} does not (search engines may index it)`, r.headers.get("x-robots-tag") === null, r.headers.get("x-robots-tag"));
+  }
+  const hostPages = ["/", "/signin", "/events/abc", "/billing", "/account", "/hosts", "/terms", "/privacy", "/robots.txt"];
+  for (const p of hostPages) {
+    const r = await hostWeb.get(p);
+    check(`host site ${p} sends noindex`, /noindex/.test(r.headers.get("x-robots-tag") || ""), r.headers.get("x-robots-tag"));
+  }
+  check("an error page does too", /noindex/.test((await web.get("/api/nothing")).headers.get("x-robots-tag") || ""));
+}
+
+console.log("\n# robots.txt and sitemap.xml");
+{
+  const r = await web.get("/robots.txt");
+  check("robots.txt is plain text, 200", r.status === 200 && /^text\/plain/.test(r.headers.get("content-type")), r.headers.get("content-type"));
+  const lines = r.text.split("\n").map((l) => l.trim());
+  check("it allows the site", lines.includes("User-agent: *") && lines.includes("Allow: /"));
+  for (const p of ["/api/", "/app", "/admin", "/signin", "/claim", "/redeem"]) check(`it disallows ${p}`, lines.includes(`Disallow: ${p}`), r.text);
+  check("it does NOT disallow /c/ or /e/ (a crawler must be able to read their noindex)", !lines.some((l) => /^Disallow:\s*\/(c|e)(\/|\s*$)/i.test(l)) && !/^Disallow:\s*\/$/m.test(r.text), r.text);
+  check("it links the sitemap on this site", lines.includes(`Sitemap: ${ORIGIN}/sitemap.xml`));
+  const s = await web.get("/sitemap.xml");
+  check("sitemap.xml is XML, 200", s.status === 200 && /^application\/xml/.test(s.headers.get("content-type")), s.headers.get("content-type"));
+  const locs = [...s.text.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
+  check("it lists the four marketing pages and nothing else", JSON.stringify(locs) === JSON.stringify([`${ORIGIN}/`, `${ORIGIN}/hosts`, `${ORIGIN}/terms`, `${ORIGIN}/privacy`]), locs);
+  check("no card, event, app, request or sign-in page is in it", !/\/c\/|\/e\/|\/app|\/privacy-request|\/signin|\/admin|\/claim|\/redeem/.test(s.text));
+  const hr = await hostWeb.get("/robots.txt");
+  check("the host site's robots.txt disallows everything", hr.status === 200 && /^Disallow: \/$/m.test(hr.text) && !/^Allow:/m.test(hr.text) && !/Sitemap/i.test(hr.text), hr.text);
+  check("and it has no sitemap", (await hostWeb.get("/sitemap.xml")).status === 404);
+  check("only GET reads them: a POST goes on to the app like any other path", (await web.post("/robots.txt", {})).text === INDEX || (await web.post("/robots.txt", {})).status !== 200);
+  env.APP_ORIGIN = "https://elsewhere.example,https://host.elsewhere.example";
+  check("the sitemap link and URLs follow APP_ORIGIN", (await web.get("/robots.txt")).text.includes("Sitemap: https://elsewhere.example/sitemap.xml") && (await web.get("/sitemap.xml")).text.includes("<loc>https://elsewhere.example/hosts</loc>"));
+  env.APP_ORIGIN = "https://lanyard.test,https://host.lanyard.test";
+}
+
 console.log("\n# Security headers are the same on a rewritten page");
 {
   const names = ["content-security-policy", "strict-transport-security", "x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy", "cross-origin-opener-policy", "cache-control", "content-type"];
@@ -409,7 +452,7 @@ console.log("\n# Nothing else on the site changed");
   const seo = read("worker/seo.js").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
   check("the Worker never builds HTML from text: no html:true, no innerHTML, no tag written in the file", !/html\s*:\s*true/.test(seo) && !/innerHTML/.test(seo) && !/<meta|<title|<link/.test(seo.replace(/\/\/.*$/gm, "")));
   check("every value goes in through setAttribute or setInnerContent", /setAttribute\(name, value\)/.test(seo) && /setInnerContent\(t\.title\)/.test(seo));
-  check("the host site is never rewritten", /isHostSite\(url\)\) return c\.env\.ASSETS\.fetch/.test(seo));
+  check("the host site is never rewritten", /isHostSite\(url\)[^\n]*return c\.env\.ASSETS\.fetch/.test(seo));
   check("index.js hands the fallback to servePage and nothing else changed there", /app\.all\("\*", \(c\) => servePage\(c\)\)/.test(read("worker/index.js")));
   check("security.js still sets every header it set before", ["x-content-type-options", "referrer-policy", "permissions-policy", "cross-origin-opener-policy", "strict-transport-security", "content-security-policy", "x-frame-options"].every((h) => read("worker/security.js").includes(`"${h}"`)));
   const migs = read("package.json");
