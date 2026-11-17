@@ -7,6 +7,7 @@ import { useRouter } from "vue-router";
 import { HostApi, hostSignOutAndReload } from "../lib/hostapi";
 import UiSelect from "../components/ui/UiSelect.vue";
 import { HELP_EMAIL } from "../lib/contact";
+document.title = "Account | Lanyard hosts";
 
 const router = useRouter();
 const loading = ref(true);

@@ -4,6 +4,7 @@ import { homePath } from "../lib/store";
 const OPERATOR = "ARCK Softworks";
 const ADDRESS = "WC1E 6BT";
 import { HELP_EMAIL, LEGAL_EMAIL } from "../lib/contact";
+document.title = "Privacy policy | Lanyard";
 const CONTACT = LEGAL_EMAIL;
 const HELP = HELP_EMAIL;
 const UPDATED = "13 November 2026";

@@ -6,6 +6,7 @@
 // pull its Vue code into the entry, which every public page loads.)
 import { markRaw, shallowRef, watch } from "vue";
 import { useRoute } from "vue-router";
+document.title = "Event | Lanyard hosts";
 
 const screens = {
   present: () => import("./HostPresent.vue"),

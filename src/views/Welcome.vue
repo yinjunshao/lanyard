@@ -13,6 +13,7 @@ import StepFor from "../components/welcome/StepFor.vue";
 import StepLinks from "../components/welcome/StepLinks.vue";
 import StepSave from "../components/welcome/StepSave.vue";
 import StepDone from "../components/welcome/StepDone.vue";
+document.title = "Set up your card | Lanyard";
 
 const route = useRoute();
 const router = useRouter();

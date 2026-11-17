@@ -9,6 +9,7 @@ import { homePath, me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 import { loginPasskey, passkeysSupported } from "../lib/passkeys";
 import { afterAccountPath } from "../lib/redeem";
+document.title = "Sign in | Lanyard";
 
 const route = useRoute();
 const router = useRouter();

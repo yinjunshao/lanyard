@@ -16,6 +16,7 @@ import { collectBody, createBody, eventFromBody } from "../lib/eventform";
 import { UiCombobox } from "../components/ui/UiSelect.vue";
 import { blankForm, copyFacts, firstBadStep, formFromDraft, serverErrorField, stepFromQuery, submitPlan } from "../lib/eventsteps";
 import { clearDraft, loadDraft, saveDraft } from "../lib/eventdraft";
+document.title = "Your events | Lanyard hosts";
 
 // loading | email | code (signed out) | details | terms | org (setup) | ready
 const view = ref("loading");

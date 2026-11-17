@@ -3,6 +3,7 @@
 // bar. Ends the host session and starts again at the host home.
 import { onMounted, ref } from "vue";
 import { hostSignOutAndReload } from "../lib/hostapi";
+document.title = "Signed out | Lanyard hosts";
 
 const error = ref("");
 

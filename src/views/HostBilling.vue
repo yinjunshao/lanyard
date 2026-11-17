@@ -9,6 +9,7 @@ import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
 import HostRedeem from "../components/HostRedeem.vue";
 import { api } from "../lib/api";
+document.title = "Billing | Lanyard hosts";
 
 const data = ref(null);
 const state = ref("loading");

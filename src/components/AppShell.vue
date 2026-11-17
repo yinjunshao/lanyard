@@ -22,6 +22,19 @@ const tabs = [
   { to: "/app/events", key: "events", label: "Events", paths: TICKET, match: (p) => p.startsWith("/app/events") },
 ];
 
+// The tab's title for each signed-in page (F37). Here and not in the router tables: those load on every
+// public page, and this frame loads on none of them. A page that knows more (a card, an event) sets its own.
+const TITLES = [["/app/cards", "Your cards"], ["/app/profile", "Edit profile"], ["/app/scan", "Scan"], ["/app/people", "People"],
+  ["/app/events", "Events"], ["/app/settings", "Settings"], ["/app/feedback", "Feedback"], ["/app", "My card"]];
+watch(
+  () => r.path,
+  (p) => {
+    const hit = p.endsWith("/feedback") ? ["", "Feedback"] : TITLES.find(([k]) => p === k || p.startsWith(k + "/"));
+    document.title = `${hit ? hit[1] : "Account"} | Lanyard`;
+  },
+  { immediate: true }
+);
+
 // A small dot on Events while an event you checked in to is on. Asked when the frame first shows,
 // again when you open an events page, and otherwise at most every two minutes.
 watch(

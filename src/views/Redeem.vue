@@ -8,6 +8,7 @@ import { Api } from "../lib/api";
 import { homePath, me, refreshMe } from "../lib/store";
 import { savePendingCode, clearPendingCode, pendingCode } from "../lib/redeem";
 import EmailSetup from "../components/EmailSetup.vue";
+document.title = "Redeem a code | Lanyard";
 
 const route = useRoute();
 const router = useRouter();

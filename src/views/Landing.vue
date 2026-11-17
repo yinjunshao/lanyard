@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { me } from "../lib/store";
 import { defaultCard } from "../lib/store";
 import Badge from "../components/Badge.vue";
+document.title = "Lanyard: a digital card and a memory of everyone you meet";
 
 // Static demo badge for the hero — scans open the same landing page until real
 // cards exist.

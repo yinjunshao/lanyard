@@ -35,6 +35,7 @@ if ("s" in route.query) {
 
 async function load() {
   view.value = await Api.getCard(route.params.cardId, noteToken.value);
+  document.title = `${view.value.profile.name} on Lanyard`;
 }
 
 onMounted(async () => {

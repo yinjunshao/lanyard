@@ -447,6 +447,25 @@ console.log("\n# Security headers are the same on a rewritten page");
   }
 }
 
+console.log("\n# The app names each page for people (document.title)");
+{
+  const titleIn = (view) => /^document\.title = "([^"]+)";$/m.exec(read(`src/views/${view}.vue`))?.[1] || null;
+  const same = { Landing: "/", Hosts: "/hosts", Terms: "/terms", Privacy: "/privacy", PrivacyRequest: "/privacy-request" };
+  for (const [view, path] of Object.entries(same)) {
+    check(`${view}: the tab title is the very title the Worker wrote for ${path}, so first load and in-app navigation agree`, titleIn(view) !== null && titleIn(view) === titleOf((await web.get(path)).text), [titleIn(view), titleOf((await web.get(path)).text)]);
+  }
+  for (const view of ["SignIn", "Claim", "Redeem", "Admin", "Welcome", "HostDashboard", "HostEvent", "HostBilling", "HostAccount", "HostSignOut"]) {
+    check(`${view} sets one short title`, titleIn(view) !== null && titleIn(view).length <= 60, titleIn(view));
+  }
+  check("a card and an event name themselves once loaded, as the Worker does", /document\.title = `\$\{view\.value\.profile\.name\} on Lanyard`/.test(read("src/views/PublicCard.vue")) && /document\.title = `\$\{data\.event\.name\} on Lanyard`/.test(read("src/views/EventJoin.vue")));
+  check("the not-found page too", /document\.title = "Page not found \| Lanyard"/.test(read("src/views/NotFound.vue")));
+  const shell = read("src/components/AppShell.vue");
+  check("the signed-in frame titles every /app page (cards, profile, scan, people, events, settings, feedback, My card)", ["/app/cards", "/app/profile", "/app/scan", "/app/people", "/app/events", "/app/settings", "/app/feedback", '"/app"'].every((p) => shell.includes(p)) && /document\.title =/.test(shell));
+  const shared = ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/main.js", "src/router/index.js", "src/router/routes.attendee.js", "src/router/routes.host.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/App.vue"];
+  check("none of the files every public page loads was touched for this (no title code, nothing added to the budget there)", shared.every((f) => !read(f).includes("document.title")), shared.filter((f) => read(f).includes("document.title")));
+  check("no title is built from page data without being a plain string for document.title (text, never HTML)", !/document\.title\s*=\s*[^;]*innerHTML/.test(read("src/views/PublicCard.vue")));
+}
+
 console.log("\n# Nothing else on the site changed");
 {
   const seo = read("worker/seo.js").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");

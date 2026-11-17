@@ -6,6 +6,7 @@ import { useRoute } from "vue-router";
 import { homePath, me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 import UiSelect from "../components/ui/UiSelect.vue";
+document.title = "Privacy request | Lanyard";
 
 const route = useRoute();
 const KINDS = [

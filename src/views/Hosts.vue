@@ -2,6 +2,7 @@
 import { homePath } from "../lib/store";
 // Host pitch page: what hosts get, early pricing, and the way into the portal.
 import { HOST_ORIGIN } from "../lib/site";
+document.title = "Lanyard for hosts: event check-in and networking";
 const portal = `${HOST_ORIGIN}/`;
 </script>
 

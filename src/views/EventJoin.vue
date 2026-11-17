@@ -24,6 +24,7 @@ async function load() {
   try {
     const data = await Api.event(route.params.code);
     event.value = data.event;
+    document.title = `${data.event.name} on Lanyard`;
     sponsors.value = data.sponsors;
     if (data.checkedIn) {
       router.replace(`/app/events/${data.event.id}`);

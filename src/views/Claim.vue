@@ -7,6 +7,7 @@ import { me, refreshMe } from "../lib/store";
 import { registerPasskey, passkeysSupported } from "../lib/passkeys";
 import { Api } from "../lib/api";
 import EmailSetup from "../components/EmailSetup.vue";
+document.title = "Keep your account | Lanyard";
 
 const router = useRouter();
 const error = ref("");
