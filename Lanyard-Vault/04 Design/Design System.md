@@ -29,6 +29,7 @@ tags: [design]
 - Tabular figures, no monospace; labels in small caps with slight spacing.
 - Pickers: no native `<select>`, date or time inputs. Use `UiSelect`, `UiCombobox`, `UiDatePicker`, `UiTimePicker`, `UiDateTimePicker` from `src/components/ui/` (bottom sheet under 600 px, popover above). Same rules as the rest: 1px borders, no shadows, 44px targets, at most a 120 ms fade and none under `prefers-reduced-motion`. See [[F08 Custom pickers and dropdowns]] and [[D018 Hand-built pickers outside the shared Vue chunk]].
 - Waiting: grey blocks in the shape of the content (`--rule` on paper, no new colour) with one soft sweep that stops under `prefers-reduced-motion`; the region is `aria-busy` with one polite message; after about 8 seconds it says it is taking longer than usual and offers Try again; a button that sends is disabled and says "Saving…". Public pages do this with CSS only. See [[F38 Loading states]] and [[D043 Waiting states are CSS on public pages and one component elsewhere]].
+- Errors: say what happened and what to do, in plain words, with no code, status number or library English, no blame and no exclamation mark; the Worker writes them, the vague ones stay vague. See [[F39 Informative error messages]] and [[D044 Errors say what happened and what to do, and the vague ones stay vague]].
 - Performance: under 50 KB JS on public pages; profile pages under 1 s on 4G.
 
 Related: [[Brand and Logo]], [[Features]]
