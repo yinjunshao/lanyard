@@ -1,11 +1,15 @@
 <script setup>
 // Billing for hosts: balance, credit packs, invoice requests, history.
-// Card checkout comes later; until then a request creates an invoice (societies
-// usually pay through union finance with a PO number).
+// A request creates an invoice (societies usually pay through union finance with a PO number).
+// F36: when card payments are on (BILLING_ENABLED, off in production) a pack can also be paid by
+// card through Polar, after the pre-contract box and the express-start tick; credits are added only
+// when Polar's webhook confirms it, never by coming back to this page.
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
 import HostRedeem from "../components/HostRedeem.vue";
+import PayBox from "../components/PayBox.vue";
+import { api } from "../lib/api";
 
 const data = ref(null);
 const state = ref("loading");
@@ -14,10 +18,25 @@ const picked = ref(null); // { id, label, pence, quote }
 const form = ref({ email: "", po: "", note: "", quantity: 1 });
 const busy = ref(false);
 const sent = ref(null);
+const paying = ref(null); // the pack picked for Pay by card
+const payBusy = ref(false);
+const payError = ref("");
+async function payCard() {
+  payError.value = "";
+  payBusy.value = true;
+  try {
+    const { url } = await api("/api/host/billing/checkout", "POST", { product: paying.value.id, startNow: true });
+    window.location.assign(url);
+  } catch (e) {
+    payError.value = e.message;
+    payBusy.value = false;
+  }
+}
 
 // The same page serves /redeem (F20): promo codes live in HostRedeem, so no new route file is needed.
 const route = useRoute();
 const redeemMode = computed(() => route.path.startsWith("/redeem"));
+const cameBack = route.query.checkout === "done";
 onMounted(() => { if (!redeemMode.value) load(); });
 watch(redeemMode, (on) => { if (!on) load(); });
 async function load() {
@@ -113,6 +132,10 @@ async function submit() {
         </span>
       </div>
 
+      <div v-if="cameBack" class="notice" role="status">
+        Thanks. Your events are added as soon as the payment is confirmed, usually within a minute. Refresh this page to check.
+      </div>
+
       <div v-if="sent" class="notice success-text">
         Request received for {{ gbp(sent.amountPence) }}. We'll email an invoice to the billing address,
         and your credits are added once it's paid.
@@ -125,7 +148,8 @@ async function submit() {
             <strong>{{ s.label }}</strong>
             <span class="price tnum">{{ gbp(s.pence) }}</span>
             <span class="per">{{ perEvent(s) || (s.credits >= 99 ? 'Unlimited events for a term' : 'One-off') }}</span>
-            <button class="btn" style="margin-top:8px" :disabled="data.org.status !== 'approved'" @click="pick(s)">Request invoice</button>
+            <button v-if="s.card" class="btn btn-primary" style="margin-top:8px" :disabled="data.org.status !== 'approved'" @click="paying = s; picked = null; payError = ''">Pay by card</button>
+            <button class="btn" style="margin-top:8px" :disabled="data.org.status !== 'approved'" @click="pick(s); paying = null">Request invoice</button>
           </div>
         </div>
         <p v-if="data.audience === 'standard'" class="small muted">
@@ -135,9 +159,13 @@ async function submit() {
         <p class="small muted">
           <template v-if="data.audience === 'society'">Society events are capped at {{ data.cap }} check-ins.</template>
           <template v-else>Events over {{ data.cap }} check-ins use a second credit up to 1,000; bigger than that, ask for a quote.</template>
-          Card payments are coming. For now we invoice, and you can quote a purchase order number.
+          <template v-if="data.cardPayments">{{ " " }}Pay by card, or ask for an invoice and quote a purchase order number.</template>
+          <template v-else>{{ " " }}Card payments are coming soon. For now we invoice, and you can quote a purchase order number.</template>
         </p>
       </section>
+
+      <PayBox v-if="paying && data.seller" :seller="data.seller" :price="gbp(paying.pence)" :what="paying.label"
+        :busy="payBusy" :error="payError" @pay="payCard" @cancel="paying = null; payError = ''" />
 
       <section class="stack-2">
         <span class="label">Bigger plans</span>
