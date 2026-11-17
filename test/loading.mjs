@@ -116,4 +116,50 @@ check("no page or panel is left with a bare Loading line", left.length === 0, le
 const cardTpl = read("src/views/PublicCard.vue");
 check("the card page's selfie panel and header are styled in main.css, not inline", !/style="(justify-content|max-width|margin:0)/.test(cardTpl) && /\.selfie-ask img \{[^}]*max-width: 100%/.test(css) && /\.profile-top \{[^}]*justify-content: space-between/.test(css));
 
+
+console.log("\n# F38.6 Buttons that send something cannot be pressed twice");
+check("useBusy().once ignores a second press while the first waits, and always lets go", /if \(working\.value\) return;\s*working\.value = run;\s*try \{ return await fn\(\.\.\.args\); \} finally \{ working\.value = null; \}/.test(waiting));
+check("useBusy lives in Waiting.vue, so it adds no chunk name to the entry that public pages load", /export function useBusy\(\)/.test(waiting) && !walk("src").some((f) => /lib\/busy/.test(f)));
+// The pattern, checked across every view and component:
+//  1. a button or form whose handler sends something (a POST, PUT, DELETE, or a host or admin call) is disabled while it waits;
+//  2. the handler itself ignores a second call: it is wrapped in once(), starts with a guard, or sets its busy flag before its first await.
+const WRITE = /(Api\.(?!me\b|connections\b|connection\b|home\b|event\b|room\b|album\b|myEvents\b|feedbackForm\b|eventChoices\b|consentHistory\b|sessions\b|getCard\b|personalNote\b|promo\b|resolveCode\b)\w+|HostApi\.\w+|api\([^)]*"(POST|PUT|DELETE|PATCH)"|call\([^)]*"(POST|PUT|DELETE)")/;
+const BTN = /<button(?:[^>"']|"[^"]*"|'[^']*')*>/g;
+const FORM = /<form(?:[^>"']|"[^"]*"|'[^']*')*@submit(?:\.\w+)*="(\w+)[^"]*"(?:[^>"']|"[^"]*"|'[^']*')*>([\s\S]*?)<\/form>/g;
+const hasDisabled = (t) => /:disabled=|\sdisabled[\s>=]/.test(t);
+// Reads, local changes and handlers that guard themselves through a wrapper: named so a new send button is not waved through by accident.
+const NOT_SENDING = new Set(["load", "loadHosts", "loadRequests", "addTag", "claim"]);
+const problems = [];
+let senders = 0;
+for (const f of walk("src").filter((p) => p.endsWith(".vue"))) {
+  const src = read(f).replace(/\r\n/g, "\n");
+  const script = src.slice(0, src.indexOf("</script>"));
+  const tpl = src.slice(src.indexOf("<template>"));
+  const fns = new Map();
+  for (const m of script.matchAll(/(?:async function (\w+)\([^)]*\)\s*\{|const (\w+) = (once\()?async \([^)]*\) => \{?)/g)) {
+    const name = m[1] || m[2];
+    const rest = script.slice(m.index + m[0].length);
+    const end = rest.search(/\n(?:async function|function|const \w+ = (?:once\()?(?:async )?\(|onMounted|watch\()/);
+    const body = rest.slice(0, end < 0 ? rest.length : end);
+    if (/await/.test(body) && WRITE.test(body) && !NOT_SENDING.has(name)) fns.set(name, { body, once: !!m[3] });
+  }
+  const bound = []; // [handler, opening tag text(s)]
+  for (const m of tpl.matchAll(BTN)) { const h = /@click(?:\.\w+)*="(\w+)(?:\([^"]*\))?"/.exec(m[0])?.[1]; if (h && fns.has(h)) bound.push([h, m[0]]); }
+  for (const m of tpl.matchAll(FORM)) {
+    if (!fns.has(m[1])) continue;
+    for (const b of m[2].matchAll(BTN)) if (!/type="button"|@click/.test(b[0])) bound.push([m[1], b[0]]);
+  }
+  for (const [h, tag] of bound) {
+    senders++;
+    if (!hasDisabled(tag)) problems.push(`${f}: ${h} has a button that is not disabled while it waits`);
+  }
+  for (const h of new Set(bound.map((b) => b[0]))) {
+    const { body, once } = fns.get(h);
+    const beforeAwait = body.slice(0, body.indexOf("await"));
+    const guarded = once || /if \([^)]*\) return/.test(beforeAwait) || /\.value = (true|"[^"]+"|`[^`]*`|[\w.]+ \+ )/.test(beforeAwait) || /^\s*(return )?(await )?act\(/.test(body);
+    if (!guarded) problems.push(`${f}: ${h}() would run twice if called twice`);
+  }
+}
+check(`every button or form that sends something is disabled while it waits and its handler ignores a second call (${senders} checked)`, problems.length === 0 && senders > 60, problems);
+
 summary();

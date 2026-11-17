@@ -29,7 +29,7 @@ Each is one commit; `npm test` (checked in a clean worktree, because the owner's
 - [x] F38.3 Public pages, CSS only and no new module: the card (`/c/:id`), Redeem, and the event join page (which may use `Waiting`; it is not one of the eight budget pages). Budget numbers before and after.
 - [x] F38.4 Signed-in app: People, Events, an event (and its Room and Album tabs), Person, Feedback, Welcome, Settings pages, and the small text-only waits inside panels.
 - [x] F38.5 Host site and Admin: dashboard, live page (and its Feedback and Report tabs), Account, Billing, attendee list, drops, Redeem, Present, Print, Admin.
-- [ ] F38.6 Buttons that send something: audit every one, give each a short working label and a guard against a second press, and add the pattern guard to `test/loading.mjs`.
+- [x] F38.6 Buttons that send something: audit every one, give each a short working label and a guard against a second press, and add the pattern guard to `test/loading.mjs`.
 - [ ] F38.7 Look at every page slowed down (375 and 1280 px, light and dark, reduced motion), tick the acceptance checks, vault notes and D043.
 
 ## Survey (F38.1, 2026-11-17)

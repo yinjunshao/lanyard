@@ -42,14 +42,16 @@ watch(connection, (cn) => {
   remindAt.value = cn.remindAt || null;
   followedUpAt.value = cn.followedUpAt || null;
 }, { immediate: true });
+const metaBusy = ref(false);
 async function saveMeta(patch) {
-  metaMsg.value = "";
+  if (metaBusy.value) return;
+  metaMsg.value = ""; metaBusy.value = true;
   try {
     const r = await Api.connectionMeta(connection.value.id, patch);
     myTags.value = r.tags; remindAt.value = r.remindAt; followedUpAt.value = r.followedUpAt;
   } catch (e) {
     metaMsg.value = e.message;
-  }
+  } finally { metaBusy.value = false; }
 }
 const newTag = ref("");
 function addTag() {
@@ -97,17 +99,21 @@ function vcard() {
   URL.revokeObjectURL(a.href);
 }
 
+const removeBusy = ref(false);
 async function removeConnection() {
-  if (!confirm("Remove this connection? The shared selfie is deleted for both of you.")) return;
-  await Api.removeConnection(connection.value.id);
-  router.push("/app/people");
+  if (removeBusy.value || !confirm("Remove this connection? The shared selfie is deleted for both of you.")) return;
+  removeBusy.value = true;
+  try { await Api.removeConnection(connection.value.id); router.push("/app/people"); }
+  finally { removeBusy.value = false; }
 }
 const reporting = ref(false);
 const reportText = ref("");
 const reportAlsoBlock = ref(true);
 const reportMsg = ref("");
+const reportBusy = ref(false);
 async function sendReport() {
-  reportMsg.value = "";
+  if (reportBusy.value) return;
+  reportMsg.value = ""; reportBusy.value = true;
   try {
     const r = await Api.reportConnection(connection.value.id, reportText.value, reportAlsoBlock.value);
     if (r.blocked) { router.push("/app/people"); return; }
@@ -115,7 +121,7 @@ async function sendReport() {
     reporting.value = false; reportText.value = "";
   } catch (e) {
     reportMsg.value = e.message;
-  }
+  } finally { reportBusy.value = false; }
 }
 </script>
 
@@ -143,24 +149,24 @@ async function sendReport() {
       <span class="label">Follow up</span>
       <p v-if="followedUpAt" class="small" style="margin:0">
         Followed up {{ fmtDay(followedUpAt) }}.
-        <button type="button" class="link-btn" @click="saveMeta({ followedUp: false })">Undo</button>
+        <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ followedUp: false })">Undo</button>
       </p>
       <template v-else>
         <p v-if="remindAt" class="small" style="margin:0">
           Reminder {{ relativeDay(remindAt) }} ({{ fmtDay(remindAt) }}).
-          <button type="button" class="link-btn" @click="saveMeta({ remindAt: null })">Clear</button>
+          <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ remindAt: null })">Clear</button>
         </p>
         <div class="chip-row" role="group" aria-label="Remind me to follow up">
-          <button type="button" class="chip chip-toggle" @click="saveMeta({ remindAt: morningIn(1) })">Tomorrow</button>
-          <button type="button" class="chip chip-toggle" @click="saveMeta({ remindAt: morningIn(3) })">In 3 days</button>
-          <button type="button" class="chip chip-toggle" @click="saveMeta({ remindAt: morningIn(7) })">Next week</button>
+          <button type="button" class="chip chip-toggle" :disabled="metaBusy" @click="saveMeta({ remindAt: morningIn(1) })">Tomorrow</button>
+          <button type="button" class="chip chip-toggle" :disabled="metaBusy" @click="saveMeta({ remindAt: morningIn(3) })">In 3 days</button>
+          <button type="button" class="chip chip-toggle" :disabled="metaBusy" @click="saveMeta({ remindAt: morningIn(7) })">Next week</button>
           <button ref="dateBtn" type="button" class="chip chip-toggle" aria-haspopup="dialog" :aria-expanded="pickingDate ? 'true' : 'false'"
                   @click="pickDate">Pick a date</button>
           <component :is="DatePicker" v-if="pickingDate && DatePicker" bare v-model:open="pickingDate" min-today label="Remind me on" model-value=""
                         :anchor="dateBtn" @update:model-value="remindOn" />
         </div>
         <button type="button" class="btn" aria-haspopup="dialog" @click="openDraft">Draft a follow-up</button>
-        <button type="button" class="btn" @click="saveMeta({ followedUp: true })">Mark as followed up</button>
+        <button type="button" class="btn" :disabled="metaBusy" @click="saveMeta({ followedUp: true })">Mark as followed up</button>
       </template>
     </div>
 
@@ -183,7 +189,7 @@ async function sendReport() {
 
     <div class="btn-row">
       <button class="btn" @click="vcard">Save to contacts</button>
-      <button class="btn" style="color:var(--strap-deep)" @click="removeConnection">Remove</button>
+      <button class="btn" style="color:var(--strap-deep)" :disabled="removeBusy" @click="removeConnection">{{ removeBusy ? "Removing…" : "Remove" }}</button>
       <button class="btn" :aria-expanded="reporting" @click="reporting = !reporting">Report</button>
     </div>
     <form v-if="reporting" class="stack-1" @submit.prevent="sendReport">
@@ -191,7 +197,7 @@ async function sendReport() {
       <textarea id="report-text" v-model="reportText" maxlength="500" required></textarea>
       <label class="checkbox-row"><input type="checkbox" v-model="reportAlsoBlock" />
         <span class="small">Also remove this connection and block them</span></label>
-      <button class="btn btn-primary" type="submit">Send report</button>
+      <button class="btn btn-primary" type="submit" :disabled="reportBusy">{{ reportBusy ? "Sending…" : "Send report" }}</button>
     </form>
     <p v-if="reportMsg" class="small" role="status">{{ reportMsg }}</p>
     <component :is="Composer" v-if="drafting && Composer" :connection-id="connection.id" :links="p.links" :first="first"

@@ -31,7 +31,7 @@ onMounted(load);
     <ul class="small" style="margin:0;padding-left:18px">
       <li v-for="(s, i) in sessions" :key="i">{{ s.device }}, since {{ when(s.at) }}<strong v-if="s.current"> (this device)</strong></li>
     </ul>
-    <button v-if="sessions.length > 1" class="btn" :disabled="busy" @click="signOutOthers">Sign out other devices</button>
+    <button v-if="sessions.length > 1" class="btn" :disabled="busy" @click="signOutOthers">{{ busy ? "Signing out…" : "Sign out other devices" }}</button>
     <p v-if="note" class="success-text small">{{ note }}</p>
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
   </div>

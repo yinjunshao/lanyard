@@ -6,6 +6,7 @@ import UiDatePicker from "../components/ui/UiDatePicker.vue";
 import AdminAi from "../components/AdminAi.vue";
 import { HOST_ORIGIN } from "../lib/site";
 import Waiting from "../components/Waiting.vue";
+import { useBusy } from "../components/Waiting.vue";
 document.title = "Admin | Lanyard";
 
 const TOKEN_KEY = "lanyard_admin_token";
@@ -35,9 +36,11 @@ async function loadRequests() {
   try { requests.value = (await call("/api/admin/privacy-requests")).requests; } catch (e) { error.value = e.message; }
 }
 async function closeRequest(id) {
-  error.value = "";
+  if (busy.value) return;
+  error.value = ""; busy.value = true;
   try { await call(`/api/admin/privacy-requests/${id}/close`, "POST", { outcome: outcome.value[id] || "" }); await loadRequests(); }
   catch (e) { error.value = e.message; }
+  finally { busy.value = false; }
 }
 const search = ref("");
 const found = ref(null);
@@ -56,23 +59,24 @@ async function loadHosts() {
   try { hosts.value = await call(`/api/admin/hosts?q=${encodeURIComponent(hostQ.value.trim())}`); }
   catch (e) { error.value = e.message; }
 }
-async function setHostStatus(h, status) {
+const { working, once } = useBusy();
+const setHostStatus = once(async (h, status) => {
   error.value = "";
   if (status === "disabled" && !window.confirm(`Switch off ${h.email}? They are signed out everywhere and can't sign in until it's switched back on.`)) return;
   try { await call(`/api/admin/hosts/${h.id}/status`, "POST", { status }); await loadHosts(); }
   catch (e) { error.value = e.message; }
-}
-async function attach(o) {
+});
+const attach = once(async (o) => {
   error.value = "";
   try { await call(`/api/admin/orgs/${o.id}/attach`, "POST", { email: attachTo.value[o.id] || "" }); delete attachTo.value[o.id]; await loadHosts(); }
   catch (e) { error.value = e.message; }
-}
+});
 
-async function issueCode(id) {
+const issueCode = once(async (id) => {
   error.value = "";
   try { issued.value[id] = (await call(`/api/admin/users/${id}/signin-code`, "POST")).code; }
   catch (e) { error.value = e.message; }
-}
+});
 
 onMounted(() => {
   try { token.value = sessionStorage.getItem(TOKEN_KEY) || ""; } catch { /* private window */ }
@@ -108,17 +112,17 @@ const kindsOf = (p) => { try { return JSON.parse(p.org_kinds || "null") || []; }
 const editing = ref(null); // the code whose limit and end date are being changed
 const edit = ref({ maxUses: "", expiresAt: "" });
 function startEdit(p) { editing.value = p.code; edit.value = { maxUses: p.max_uses ?? "", expiresAt: p.expires_at ? new Date(p.expires_at).toISOString().slice(0, 10) : "" }; }
-async function saveEdit(p) {
+const saveEdit = once(async (p) => {
   error.value = "";
   try {
     await call(`/api/admin/promos/${p.code}/edit`, "POST", { maxUses: edit.value.maxUses, expiresAt: edit.value.expiresAt });
     editing.value = null; await loadPromos();
   } catch (e) { error.value = e.message; }
-}
+});
 async function loadPromos() {
   try { promos.value = (await call("/api/admin/promos")).promos; } catch (e) { error.value = e.message; }
 }
-async function createPromo() {
+const createPromo = once(async () => {
   error.value = "";
   try {
     const b = { ...newPromo.value };
@@ -127,12 +131,12 @@ async function createPromo() {
     newPromo.value = blankPromo();
     await loadPromos();
   } catch (e) { error.value = e.message; }
-}
-async function togglePromo(p) {
+});
+const togglePromo = once(async (p) => {
   error.value = "";
   try { await call(`/api/admin/promos/${p.code}/active`, "POST", { active: !p.active }); await loadPromos(); }
   catch (e) { error.value = e.message; }
-}
+});
 // A host code is redeemed in the host portal, a person's code on the main site.
 const redeemLink = (p) => `${p.audience === "host" ? HOST_ORIGIN : location.origin}/redeem/${p.code}`;
 
@@ -267,8 +271,8 @@ const EMAIL = { education: "university or school address", free: "webmail addres
             <template v-if="h.lastLoginAt"> · last sign-in {{ fmt(h.lastLoginAt) }}</template>
             <template v-if="h.org"> · {{ h.org.name }} ({{ h.org.role }})</template>
           </p>
-          <button v-if="h.status === 'active'" class="btn btn-danger" @click="setHostStatus(h, 'disabled')">Switch off</button>
-          <button v-else class="btn" @click="setHostStatus(h, 'active')">Switch back on</button>
+          <button v-if="h.status === 'active'" class="btn btn-danger" :disabled="!!working" @click="setHostStatus(h, 'disabled')">Switch off</button>
+          <button v-else class="btn" :disabled="!!working" @click="setHostStatus(h, 'active')">Switch back on</button>
         </div>
         <template v-if="hosts?.unclaimed.length">
           <span class="label">Organisations with no host ({{ hosts.unclaimed.length }})</span>
@@ -276,7 +280,7 @@ const EMAIL = { education: "university or school address", free: "webmail addres
             <div class="spread"><strong>{{ o.name }}</strong><span class="label">{{ TYPE[o.type] }}</span></div>
             <form class="btn-row" @submit.prevent="attach(o)">
               <input v-model="attachTo[o.id]" type="email" placeholder="Host account email" :aria-label="`Host account email for ${o.name}`" />
-              <button class="btn" style="width:auto" :disabled="!attachTo[o.id]">Attach</button>
+              <button class="btn" style="width:auto" :disabled="!!working || !attachTo[o.id]">{{ working === attach ? "Attaching…" : "Attach" }}</button>
             </form>
           </div>
         </template>
@@ -291,7 +295,7 @@ const EMAIL = { education: "university or school address", free: "webmail addres
           <p class="small muted" style="margin:0">{{ r.email }}<template v-if="r.userId"> · account {{ r.userId }}</template><template v-if="!r.acknowledged"> · acknowledgement email FAILED: reply by hand</template></p>
           <p style="margin:0;white-space:pre-wrap">{{ r.message }}</p>
           <input v-model="outcome[r.id]" type="text" maxlength="500" placeholder="Outcome (what you told them)" :aria-label="`Outcome for ${r.id}`" />
-          <button class="btn" :disabled="!outcome[r.id]" @click="closeRequest(r.id)">Close</button>
+          <button class="btn" :disabled="busy || !outcome[r.id]" @click="closeRequest(r.id)">Close</button>
         </div>
       </section>
 
@@ -316,10 +320,10 @@ const EMAIL = { education: "university or school address", free: "webmail addres
             <label class="small">Limit<input v-model="edit.maxUses" type="number" min="1" :placeholder="p.audience === 'host' ? '' : 'blank = none'" /></label>
             <div class="small"><span :id="`pe-end-${p.code}`">Ends (optional)</span>
               <UiDatePicker :id="`pe-end-in-${p.code}`" v-model="edit.expiresAt" :labelledby="`pe-end-${p.code}`" min-today clearable /></div>
-            <div class="btn-row"><button class="btn" @click="editing = null">Cancel</button><button class="btn btn-primary" @click="saveEdit(p)">Save</button></div>
+            <div class="btn-row"><button class="btn" @click="editing = null">Cancel</button><button class="btn btn-primary" :disabled="!!working" @click="saveEdit(p)">{{ working === saveEdit ? "Saving…" : "Save" }}</button></div>
           </div>
           <div v-else class="btn-row">
-            <button class="btn" @click="togglePromo(p)">{{ p.active ? "Switch off" : "Switch on" }}</button>
+            <button class="btn" :disabled="!!working" @click="togglePromo(p)">{{ p.active ? "Switch off" : "Switch on" }}</button>
             <button class="btn" @click="startEdit(p)">Change limit or end date</button>
           </div>
         </div>
@@ -348,7 +352,7 @@ const EMAIL = { education: "university or school address", free: "webmail addres
           <div class="small"><span id="np-end-l">Ends (optional)</span>
             <UiDatePicker id="np-end" v-model="newPromo.expiresAt" labelledby="np-end-l" min-today clearable /></div>
           <input v-model="newPromo.note" type="text" maxlength="200" placeholder="Where is it printed? (only you see this)" aria-label="Note" />
-          <button class="btn btn-primary" :disabled="newPromo.code.replace(/[^a-z0-9]/gi, '').length < 4 || (newPromo.audience === 'host' && !newPromo.maxUses)">Create code</button>
+          <button class="btn btn-primary" :disabled="!!working || newPromo.code.replace(/[^a-z0-9]/gi, '').length < 4 || (newPromo.audience === 'host' && !newPromo.maxUses)">{{ working === createPromo ? "Creating…" : "Create code" }}</button>
         </form>
       </section>
 
@@ -398,7 +402,7 @@ const EMAIL = { education: "university or school address", free: "webmail addres
             <template v-if="u.last_seen"> · last sign-in {{ fmt(u.last_seen) }}</template>
             <template v-if="u.recovery_email"> · {{ u.recovery_email }}{{ u.email_verified ? " (verified)" : "" }}</template>
           </p>
-          <button v-if="!issued[u.id]" class="btn" @click="issueCode(u.id)">Make a sign-in code</button>
+          <button v-if="!issued[u.id]" class="btn" :disabled="!!working" @click="issueCode(u.id)">{{ working === issueCode ? "Making…" : "Make a sign-in code" }}</button>
           <p v-else class="tnum" style="font-size:28px;font-weight:800;letter-spacing:3px;margin:0">{{ issued[u.id] }}</p>
         </div>
       </section>

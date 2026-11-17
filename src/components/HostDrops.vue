@@ -189,7 +189,7 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
               <textarea :id="'more-' + d.id" v-model="addText" rows="5" spellcheck="false" autocomplete="off" autocapitalize="off" required></textarea>
               <span class="small muted">Anything already in this drop is left out, so no item goes to two people.</span>
             </div>
-            <button type="submit" class="btn btn-primary" :disabled="!!busy">Add these</button>
+            <button type="submit" class="btn btn-primary" :disabled="!!busy">{{ busy.endsWith(":add") ? "Adding…" : "Add these" }}</button>
           </form>
           <button v-if="data.named" type="button" class="btn" :aria-expanded="!!who[d.id]" :disabled="!!busy" @click="toggleWho(d)">{{ who[d.id] ? "Hide who has it" : "Who has it" }}</button>
           <div v-if="who[d.id]" class="stack-2 who" data-who>

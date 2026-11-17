@@ -8,6 +8,7 @@ import { HostApi, hostSignOutAndReload } from "../lib/hostapi";
 import UiSelect from "../components/ui/UiSelect.vue";
 import { HELP_EMAIL } from "../lib/contact";
 import Waiting from "../components/Waiting.vue";
+import { useBusy } from "../components/Waiting.vue";
 document.title = "Account | Lanyard hosts";
 
 const router = useRouter();
@@ -46,22 +47,23 @@ const devices = ref([]);
 async function loadDevices() {
   try { devices.value = (await HostApi.sessions()).sessions; } catch { /* shown as empty */ }
 }
-async function signOutDevice(d) {
+const { working, once } = useBusy();
+const signOutDevice = once(async (d) => {
   error.value = "";
   try { await HostApi.signOutDevice(d.id); await loadDevices(); }
   catch (e) { error.value = e.message; }
-}
-async function signOutOthers() {
+});
+const signOutOthers = once(async () => {
   error.value = "";
   try { await HostApi.signOutOthers(); await loadDevices(); msg.value = "Other devices are signed out."; }
   catch (e) { error.value = e.message; }
-}
+});
 const fmtDay = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 // ----- team -----
 const invite = ref(null);
 const inviteEmail = ref("");
-async function newInvite() {
+const newInvite = once(async () => {
   error.value = "";
   try {
     invite.value = await HostApi.hostInvite(inviteEmail.value.trim());
@@ -69,23 +71,23 @@ async function newInvite() {
     team.value = await HostApi.hostTeam();
   }
   catch (e) { error.value = e.message; }
-}
-async function revoke(code) {
+});
+const revoke = once(async (code) => {
   await HostApi.hostRevokeInvite(code);
   team.value = await HostApi.hostTeam();
   invite.value = null;
-}
-async function remove(m) {
+});
+const remove = once(async (m) => {
   if (!confirm(`Remove ${m.label} from the organisation?`)) return;
   try { await HostApi.hostRemoveMember(m.id); team.value = await HostApi.hostTeam(); }
   catch (e) { error.value = e.message; }
-}
+});
 const joinCode = ref("");
-async function join() {
+const join = once(async () => {
   error.value = "";
   try { await HostApi.hostJoin(joinCode.value); router.push("/"); }
   catch (e) { error.value = e.message; }
-}
+});
 
 // ----- hand the organisation to someone / ask an admin -----
 const approvalOrg = () => ["society", "institution"].includes(me.value?.org?.type);
@@ -97,7 +99,7 @@ const TICKET_KINDS = [
   { value: "email_change", label: "Change my email address" },
   { value: "other", label: "Something else" },
 ];
-async function handOver() {
+const handOver = once(async () => {
   error.value = ""; msg.value = "";
   try {
     await HostApi.hostTransfer(handoverEmail.value);
@@ -105,12 +107,12 @@ async function handOver() {
     msg.value = "Sent. Nothing changes until they accept it in their host portal.";
     tix.value = await HostApi.hostTickets();
   } catch (e) { error.value = e.message; }
-}
-async function cancelHandover(t) {
+});
+const cancelHandover = once(async (t) => {
   await HostApi.hostCancelTransfer(t.id);
   tix.value = await HostApi.hostTickets();
-}
-async function sendTicket() {
+});
+const sendTicket = once(async () => {
   error.value = ""; msg.value = ""; sentTicket.value = false;
   try {
     const t = ticketForm.value;
@@ -119,7 +121,7 @@ async function sendTicket() {
     sentTicket.value = true;
     tix.value = await HostApi.hostTickets();
   } catch (e) { error.value = e.message; }
-}
+});
 const TICKET_LABEL = { leader_change: "Change of leader", email_change: "Change of email", other: "Request" };
 
 // ----- integrations (owner only) -----
@@ -132,30 +134,30 @@ async function loadInteg() {
   if (team.value?.role !== "owner") return;
   try { integ.value = await HostApi.hostIntegrations(); hookUrl.value = integ.value.webhookUrl || ""; } catch { /* not owner */ }
 }
-async function saveHook() {
+const saveHook = once(async () => {
   error.value = ""; integMsg.value = ""; hookSecret.value = "";
   try { hookSecret.value = (await HostApi.hostSetWebhook(hookUrl.value)).secret; await loadInteg(); }
   catch (e) { error.value = e.message; }
-}
-async function removeHook() {
+});
+const removeHook = once(async () => {
   await HostApi.hostRemoveWebhook(); hookSecret.value = ""; hookUrl.value = ""; await loadInteg();
-}
-async function testHook() {
+});
+const testHook = once(async () => {
   error.value = ""; integMsg.value = "";
   try {
     const r = await HostApi.hostTestWebhook();
     integMsg.value = r.ok ? `Test sent. Your endpoint replied ${r.status}.` : `Your endpoint didn't accept it${r.status ? ` (HTTP ${r.status})` : ""}.`;
   } catch (e) { error.value = e.message; }
-}
-async function newKey() {
+});
+const newKey = once(async () => {
   error.value = "";
   if (integ.value?.hasApiKey && !confirm("Make a new key? The old one stops working straight away.")) return;
   try { apiKey.value = (await HostApi.hostNewApiKey()).key; await loadInteg(); }
   catch (e) { error.value = e.message; }
-}
-async function removeKey() {
+});
+const removeKey = once(async () => {
   await HostApi.hostRemoveApiKey(); apiKey.value = ""; await loadInteg();
-}
+});
 const curlExample = () =>
   `curl -X POST ${integ.value?.rsvpEndpoint} \\\n  -H "Authorization: Bearer ${apiKey.value || "lyk_…"}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"eventCode":"ABC12","count":120}'`;
 
@@ -191,11 +193,11 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
           <div class="list">
             <div v-for="d in devices" :key="d.id" class="list-row spread">
               <span>{{ d.device }}<span class="small muted" style="display:block">Since {{ fmtDay(d.at) }}{{ d.current ? " · This device" : "" }}</span></span>
-              <button v-if="!d.current" class="btn" style="width:auto" type="button" @click="signOutDevice(d)">Sign out</button>
+              <button v-if="!d.current" class="btn" style="width:auto" type="button" :disabled="!!working" @click="signOutDevice(d)">{{ working === signOutDevice ? "Signing out…" : "Sign out" }}</button>
             </div>
           </div>
         </div>
-        <button v-if="devices.length > 1" class="btn" type="button" @click="signOutOthers">Sign out all other devices</button>
+        <button v-if="devices.length > 1" class="btn" type="button" :disabled="!!working" @click="signOutOthers">{{ working === signOutOthers ? "Signing out…" : "Sign out all other devices" }}</button>
         <a :href="HostApi.exportUrl" class="small" style="text-decoration:underline" download>Download my host account data</a>
       </section>
 
@@ -226,7 +228,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
           <form class="row" @submit.prevent="handOver">
             <label for="hand-email" class="visually-hidden">Their host account email</label>
             <input id="hand-email" v-model="handoverEmail" type="email" inputmode="email" placeholder="colleague@company.com" style="flex:1" />
-            <button class="btn" style="width:auto" type="submit" :disabled="!handoverEmail.trim()">Send</button>
+            <button class="btn" style="width:auto" type="submit" :disabled="!!working || !handoverEmail.trim()">{{ working === handOver ? "Sending…" : "Send" }}</button>
           </form>
         </template>
 
@@ -242,14 +244,14 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
                    :aria-label="ticketForm.kind === 'leader_change' ? 'New leader email' : 'New email'" />
             <textarea v-model="ticketForm.message" maxlength="1000" aria-label="Why"
                       placeholder="Why the change is needed, e.g. the committee changed after elections."></textarea>
-            <button class="btn btn-primary" type="submit">Open a ticket</button>
+            <button class="btn btn-primary" type="submit" :disabled="!!working">{{ working === sendTicket ? "Sending…" : "Open a ticket" }}</button>
           </form>
           <p v-if="sentTicket" class="success-text small" role="status">Ticket opened. We'll review it and the status shows below.</p>
         </template>
 
         <div v-for="o in tix.outgoing" :key="o.id" class="notice small stack">
           <span>Waiting for <strong>{{ o.toEmail }}</strong> to accept. Sent {{ fmtDate(o.at) }}.</span>
-          <button class="btn" type="button" @click="cancelHandover(o)">Cancel</button>
+          <button class="btn" type="button" :disabled="!!working" @click="cancelHandover(o)">{{ working === cancelHandover ? "Cancelling…" : "Cancel" }}</button>
         </div>
         <div v-if="tix.tickets.length" class="stack">
           <span class="label">Your tickets</span>
@@ -273,14 +275,14 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
           <div v-for="m in team?.members || []" :key="m.id" class="list-row spread">
             <span><strong>{{ m.label }}</strong>{{ m.you ? " (you)" : "" }}
               <span class="small muted" style="display:block">{{ m.role === "owner" ? "Owner" : "Staff" }}</span></span>
-            <button v-if="team.role === 'owner' && m.role !== 'owner'" class="btn" style="width:auto" @click="remove(m)">Remove</button>
+            <button v-if="team.role === 'owner' && m.role !== 'owner'" class="btn" style="width:auto" :disabled="!!working" @click="remove(m)">{{ working === remove ? "Removing…" : "Remove" }}</button>
           </div>
         </div>
         <form v-if="team?.role === 'owner'" class="stack" @submit.prevent="newInvite">
           <label for="invite-email" class="small">Invite a colleague by the email they sign in to the host portal with</label>
           <div class="row">
             <input id="invite-email" v-model="inviteEmail" type="email" inputmode="email" placeholder="colleague@company.com" style="flex:1" />
-            <button class="btn" style="width:auto" type="submit">Invite</button>
+            <button class="btn" style="width:auto" type="submit" :disabled="!!working">{{ working === newInvite ? "Inviting…" : "Invite" }}</button>
           </div>
           <span class="small muted">Leave it empty for a code anyone you give it to can use.</span>
         </form>
@@ -292,7 +294,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
         </div>
         <div v-for="i in team?.invites || []" :key="i.code" class="spread small muted">
           <span>Open invite <span class="tnum">{{ i.code.slice(0, 4) }}-{{ i.code.slice(4) }}</span><span v-if="i.email"> for {{ i.email }}</span> · expires {{ fmtDate(i.expiresAt) }}</span>
-          <button class="btn" style="width:auto" @click="revoke(i.code)">Cancel</button>
+          <button class="btn" style="width:auto" :disabled="!!working" @click="revoke(i.code)">{{ working === revoke ? "Cancelling…" : "Cancel" }}</button>
         </div>
       </section>
 
@@ -312,7 +314,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
           <form class="row" @submit.prevent="saveHook">
             <label for="hook-url" class="visually-hidden">Webhook address</label>
             <input id="hook-url" v-model="hookUrl" type="url" inputmode="url" placeholder="https://hooks.zapier.com/…" style="flex:1" />
-            <button class="btn" style="width:auto" type="submit">{{ integ.hasWebhook ? "Update" : "Save" }}</button>
+            <button class="btn" style="width:auto" type="submit" :disabled="!!working">{{ working === saveHook ? "Saving…" : integ.hasWebhook ? "Update" : "Save" }}</button>
           </form>
           <div v-if="hookSecret" class="notice small stack">
             <span>Signing secret. Shown once, so copy it into your Zap or server now:</span>
@@ -320,8 +322,8 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
             <button class="btn" type="button" @click="copy(hookSecret)">Copy secret</button>
           </div>
           <div v-if="integ.hasWebhook" class="btn-row">
-            <button class="btn" type="button" @click="testHook">Send a test</button>
-            <button class="btn btn-danger" type="button" @click="removeHook">Remove</button>
+            <button class="btn" type="button" :disabled="!!working" @click="testHook">{{ working === testHook ? "Sending…" : "Send a test" }}</button>
+            <button class="btn btn-danger" type="button" :disabled="!!working" @click="removeHook">{{ working === removeHook ? "Removing…" : "Remove" }}</button>
           </div>
           <p v-if="integMsg" class="small" role="status">{{ integMsg }}</p>
         </div>
@@ -339,8 +341,8 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
           </div>
           <pre v-if="integ.hasApiKey || apiKey" class="small code-block">{{ curlExample() }}</pre>
           <div class="btn-row">
-            <button class="btn" type="button" @click="newKey">{{ integ.hasApiKey ? "Replace key" : "Create API key" }}</button>
-            <button v-if="integ.hasApiKey" class="btn btn-danger" type="button" @click="removeKey">Revoke</button>
+            <button class="btn" type="button" :disabled="!!working" @click="newKey">{{ integ.hasApiKey ? "Replace key" : "Create API key" }}</button>
+            <button v-if="integ.hasApiKey" class="btn btn-danger" type="button" :disabled="!!working" @click="removeKey">{{ working === removeKey ? "Revoking…" : "Revoke" }}</button>
           </div>
         </div>
       </section>
@@ -351,7 +353,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
         <form class="stack" @submit.prevent="join">
           <input v-model="joinCode" aria-label="Invite code" placeholder="ABCD-EFGH" autocapitalize="characters" maxlength="12"
                  style="font-size:20px;letter-spacing:3px;text-transform:uppercase;text-align:center" />
-          <button class="btn" :disabled="joinCode.replace(/[^a-z0-9]/gi, '').length < 8">Join team</button>
+          <button class="btn" :disabled="!!working || joinCode.replace(/[^a-z0-9]/gi, '').length < 8">{{ working === join ? "Joining…" : "Join team" }}</button>
         </form>
       </section>
 

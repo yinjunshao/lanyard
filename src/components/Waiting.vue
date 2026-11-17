@@ -1,3 +1,24 @@
+<script>
+// One press at a time (F38.6). `once(fn)` returns fn wrapped so that a second press while it is still waiting does
+// nothing. `working` is the wrapped function that is running (or null): every button of the page can disable
+// itself with !!working, and the one that was pressed can say "Saving…" with working === thatFunction.
+// It lives here, not in its own file, so it adds no new chunk name to the entry that every public page loads.
+// Signed-in, host and admin pages only.
+import { shallowRef } from "vue";
+export function useBusy() {
+  const working = shallowRef(null);
+  const once = (fn) => {
+    const run = async (...args) => {
+      if (working.value) return;
+      working.value = run;
+      try { return await fn(...args); } finally { working.value = null; }
+    };
+    return run;
+  };
+  return { working, once };
+}
+</script>
+
 <script setup>
 // F38: what a signed-in, host or admin page shows while its content loads. Grey blocks in the shape of
 // the content (the .sk classes in main.css, no motion under prefers-reduced-motion), one polite message

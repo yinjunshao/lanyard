@@ -12,6 +12,7 @@ import { relativeDay } from "../lib/time";
 import { subtitleParts, withSource } from "../lib/profile";
 import InstallGuide, { offerInstall } from "../components/InstallGuide.vue";
 import { dismissInstall } from "../lib/install";
+import { useBusy } from "../components/Waiting.vue";
 
 const router = useRouter();
 
@@ -61,10 +62,11 @@ watch(quick, (n) => {
   const ev = home.value.feedback[0];
   if (n && ev) router.push({ path: `/app/feedback/${ev.eventId}`, query: { overall: n } });
 });
-async function doneFollowup(f) {
+const { working, once } = useBusy();
+const doneFollowup = once(async (f) => {
   home.value.followups = home.value.followups.filter((x) => x !== f);
   try { await Api.connectionMeta(f.connectionId, { followedUp: true }); } catch { /* shows again next time */ }
-}
+});
 
 const selectedId = ref(me.cards[0]?.cardId || null);
 const cardOptions = computed(() => me.cards.map((c) => ({ value: c.cardId, label: `${c.name} · ${c.code}` })));
@@ -115,10 +117,10 @@ async function attachNote() {
     noteBusy.value = false;
   }
 }
-async function removeNote() {
+const removeNote = once(async () => {
   await Api.clearPersonalNote(card.value.cardId);
   await loadPersonal();
-}
+});
 const fmtAt = (t) => new Date(t).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const copied = ref(false);
 const bright = ref(false);
@@ -224,7 +226,7 @@ async function share() {
           It's built into the QR above. The next person who connects gets it,
           then the QR goes back to normal.
         </p>
-        <button class="btn" @click="removeNote">Remove note</button>
+        <button class="btn" :disabled="!!working" @click="removeNote">{{ working === removeNote ? "Removing…" : "Remove note" }}</button>
       </template>
       <template v-else>
         <p class="small muted">
@@ -266,7 +268,7 @@ async function share() {
               <span class="small muted" style="display:block">Reminder {{ relativeDay(f.remindAt) }}</span>
             </span>
           </router-link>
-          <button type="button" class="btn" style="width:auto" :aria-label="`Mark ${f.name} as followed up`" @click="doneFollowup(f)">Done</button>
+          <button type="button" class="btn" style="width:auto" :aria-label="`Mark ${f.name} as followed up`" :disabled="!!working" @click="doneFollowup(f)">{{ working === doneFollowup ? "Saving…" : "Done" }}</button>
         </div>
       </div>
     </section>

@@ -7,6 +7,7 @@ import CardForm from "../components/CardForm.vue";
 import CardPreview from "../components/CardPreview.vue";
 import CardCode from "../components/CardCode.vue";
 import { cardOf, profileOf } from "../lib/cardpreview";
+import { useBusy } from "../components/Waiting.vue";
 
 const blank = () => ({ name: "", theme: "default", note: "", headline: "", about: "", tagsText: "", visibleLinks: [], strapColor: "" });
 const creating = ref(false);
@@ -83,7 +84,8 @@ function startEdit(card) {
   };
 }
 
-async function saveEdit() {
+const { working, once } = useBusy();
+const saveEdit = once(async () => {
   const { strapColor, tagsText, ...rest } = editForm.value;
   // Custom colours are a Plus feature; free accounts never send the field.
   const body = { ...rest, tags: tagList(tagsText) };
@@ -96,12 +98,13 @@ async function saveEdit() {
   } catch (e) {
     error.value = e.message;
   }
-}
+});
 
 async function remove(card) {
-  if (!confirm(`Delete the "${card.name}" card?`)) return;
-  await Api.deleteCard(card.cardId);
-  await refreshMe();
+  if (busy.value || !confirm(`Delete the "${card.name}" card?`)) return;
+  busy.value = true;
+  try { await Api.deleteCard(card.cardId); await refreshMe(); }
+  finally { busy.value = false; }
 }
 </script>
 
@@ -129,7 +132,7 @@ async function remove(card) {
       <CardPreview v-if="previewProfile" :profile="previewProfile" :card="newPreview" :url="`${origin}/c/preview-only`" />
       <CardForm v-model="form" />
       <p v-if="error" class="error-text">{{ error }}</p>
-      <button class="btn btn-primary" :disabled="busy" @click="createCard">Create card</button>
+      <button class="btn btn-primary" :disabled="busy" @click="createCard">{{ busy ? "Creating…" : "Create card" }}</button>
     </div>
 
     <div class="list">
@@ -140,7 +143,7 @@ async function remove(card) {
           <CardCode :card="c" />
           <p v-if="error" class="error-text">{{ error }}</p>
           <div class="btn-row">
-            <button class="btn btn-primary" @click="saveEdit">Save</button>
+            <button class="btn btn-primary" :disabled="!!working" @click="saveEdit">{{ working === saveEdit ? "Saving…" : "Save" }}</button>
             <button class="btn" @click="closeEdit">Cancel</button>
           </div>
         </template>
@@ -153,7 +156,7 @@ async function remove(card) {
           <div class="btn-row">
             <router-link class="btn" :to="`/c/${c.cardId}`" target="_blank">View</router-link>
             <button class="btn" @click="startEdit(c)">Edit</button>
-            <button class="btn" :disabled="c.theme === 'default' && me.cards.length === 1"
+            <button class="btn" :disabled="busy || (c.theme === 'default' && me.cards.length === 1)"
                     style="color:var(--strap-deep)" @click="remove(c)">Delete</button>
           </div>
         </template>

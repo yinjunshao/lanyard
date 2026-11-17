@@ -20,6 +20,7 @@ import HostDrops from "../components/HostDrops.vue";
 import { THEME_OPTIONS, detailsBody, eventFromBody } from "../lib/eventform";
 import { defaultEnd } from "../lib/dates";
 import { cleanWhy, whyProblem } from "../lib/collects";
+import { useBusy } from "../components/Waiting.vue";
 
 const route = useRoute();
 const id = computed(() => route.params.id);
@@ -149,7 +150,8 @@ const previewEvent = computed(() => {
   const e = eventFromBody(detailsBody(d.value), live.value?.event?.questions || [], live.value?.event?.collect?.organiser || organiser.value);
   return { ...e, name: e.name || "Your event name" };
 });
-async function saveDetails() {
+const { working, once } = useBusy();
+const saveDetails = once(async () => {
   detailsMsg.value = ""; detailsErr.value = "";
   if (Object.keys(collectErrors.value).length) { detailsErr.value = collectErrors.value.collectWhy; return; }
   try {
@@ -160,7 +162,7 @@ async function saveDetails() {
   } catch (e) {
     detailsErr.value = e.message;
   }
-}
+});
 const dupName = ref("");
 const dupBusy = ref(false);
 async function duplicate() {
@@ -190,7 +192,7 @@ async function loadFeedback() {
     fbErr.value = e.message;
   }
 }
-async function saveFeedback() {
+const saveFeedback = once(async () => {
   fbMsg.value = ""; fbErr.value = "";
   try {
     await HostApi.hostSaveFeedback(id.value, { questions: fbQuestions.value });
@@ -199,7 +201,7 @@ async function saveFeedback() {
   } catch (e) {
     fbErr.value = e.message;
   }
-}
+});
 async function setFeedbackOn(on) {
   fbErr.value = "";
   try { await HostApi.hostSaveFeedback(id.value, { on }); await loadFeedback(); }
@@ -317,7 +319,7 @@ async function copyFeedbackLink() {
         <div class="field"><label for="d-other">Good to know</label><input id="d-other" v-model="d.other" type="text" maxlength="200" placeholder="Quiet room in 106" /></div>
         <p v-if="detailsErr" class="error-text" role="alert">{{ detailsErr }}</p>
         <p v-if="detailsMsg" class="success-text" role="status">{{ detailsMsg }}</p>
-        <button class="btn btn-primary" type="submit">Save details</button>
+        <button class="btn btn-primary" type="submit" :disabled="!!working">{{ working === saveDetails ? "Saving…" : "Save details" }}</button>
 
         <div class="stack dup">
           <span class="label">Run it again</span>
@@ -325,7 +327,7 @@ async function copyFeedbackLink() {
           <div class="row">
             <label for="dup-name" class="visually-hidden">Name for the copy</label>
             <input id="dup-name" v-model="dupName" type="text" maxlength="120" :placeholder="`${live.event.name} (next)`" style="flex:1" />
-            <button type="button" class="btn" style="width:auto" :disabled="dupBusy" @click="duplicate">Duplicate</button>
+            <button type="button" class="btn" style="width:auto" :disabled="dupBusy" @click="duplicate">{{ dupBusy ? "Duplicating…" : "Duplicate" }}</button>
           </div>
         </div>
       </form>
@@ -356,7 +358,7 @@ async function copyFeedbackLink() {
               <FeedbackEditor v-model="fbQuestions" :locked="fb.locked" :max="fb.maxQuestions" />
               <p v-if="fbErr" class="error-text" role="alert">{{ fbErr }}</p>
               <p v-if="fbMsg" class="success-text" role="status">{{ fbMsg }}</p>
-              <button v-if="!fb.locked" class="btn btn-primary" @click="saveFeedback">Save questions</button>
+              <button v-if="!fb.locked" class="btn btn-primary" :disabled="!!working" @click="saveFeedback">{{ working === saveFeedback ? "Saving…" : "Save questions" }}</button>
               <div class="stack">
                 <span class="label">Share the form</span>
                 <p class="small muted" style="margin:0">Paste this into your Luma blast, group chat or slides. Only people who checked in can answer.</p>

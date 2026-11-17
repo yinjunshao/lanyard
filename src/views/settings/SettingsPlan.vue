@@ -9,6 +9,7 @@ import { me, refreshMe } from "../../lib/store";
 import { Api, api } from "../../lib/api";
 import AiAllowances from "./AiAllowances.vue";
 import PayBox from "../../components/PayBox.vue";
+import { useBusy } from "../../components/Waiting.vue";
 
 const error = ref("");
 const gbp = (pence) => `£${(pence / 100).toFixed(pence % 100 ? 2 : 0)}`;
@@ -50,7 +51,8 @@ async function pay() {
     busy.value = false;
   }
 }
-async function manage() {
+const { working, once } = useBusy();
+const manage = once(async () => {
   error.value = "";
   try {
     const { url } = await api("/api/billing/portal", "POST", {});
@@ -58,7 +60,7 @@ async function manage() {
   } catch (e) {
     error.value = e.message;
   }
-}
+});
 </script>
 
 <template>
@@ -95,14 +97,14 @@ async function manage() {
         <template v-else>
           <p class="small" style="margin:0"><strong>Paid plans are coming soon.</strong></p>
           <button v-if="!me.plan.onWaitlist" class="btn btn-primary" :disabled="joining" @click="joinWaitlist">
-            Tell me when Plus opens
+            {{ joining ? "Joining…" : "Tell me when Plus opens" }}
           </button>
           <p v-else class="success-text small">You're on the list. We'll email if you've added a recovery email, otherwise you'll see it here first.</p>
         </template>
       </template>
       <template v-else>
         <p class="small muted">Thanks for backing Lanyard. You have {{ me.plan.cards }} cards, custom colours and your own card codes.</p>
-        <button v-if="plans?.cardPayments" class="btn" style="align-self:flex-start" @click="manage">Manage or cancel</button>
+        <button v-if="plans?.cardPayments" class="btn" style="align-self:flex-start" :disabled="!!working" @click="manage">{{ working === manage ? "Opening…" : "Manage or cancel" }}</button>
       </template>
     </section>
     <AiAllowances />

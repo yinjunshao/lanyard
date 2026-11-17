@@ -7,17 +7,19 @@ import ConsentHistory from "../../components/ConsentHistory.vue";
 import AiSearchSetting from "./AiSearchSetting.vue";
 import AttendanceSetting from "./AttendanceSetting.vue";
 import Icon from "../../components/Icon.vue";
+import { useBusy } from "../../components/Waiting.vue";
 
 const router = useRouter();
 const error = ref("");
-async function erase() {
+const { working, once } = useBusy();
+const erase = once(async () => {
   if (!confirm("Delete your account and all connections, selfies and notes? This cannot be undone.")) return;
   error.value = "";
   try {
     await Api.deleteAccount();
     router.push("/");
   } catch (e) { error.value = e.message; }
-}
+});
 </script>
 
 <template>
@@ -42,7 +44,7 @@ async function erase() {
         Removes your profile, cards, private notes and connections. Shared
         selfies are deleted for everyone. This is permanent.
       </p>
-      <button class="btn" style="color:var(--strap-deep)" @click="erase">Delete everything</button>
+      <button class="btn" style="color:var(--strap-deep)" :disabled="!!working" @click="erase">{{ working === erase ? "Deleting…" : "Delete everything" }}</button>
     </details>
 
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>

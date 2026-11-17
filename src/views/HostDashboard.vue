@@ -17,6 +17,7 @@ import { collectBody, createBody, eventFromBody } from "../lib/eventform";
 import { UiCombobox } from "../components/ui/UiSelect.vue";
 import { blankForm, copyFacts, firstBadStep, formFromDraft, serverErrorField, stepFromQuery, submitPlan } from "../lib/eventsteps";
 import { clearDraft, loadDraft, saveDraft } from "../lib/eventdraft";
+import { useBusy } from "../components/Waiting.vue";
 document.title = "Your events | Lanyard hosts";
 
 // loading | email | code (signed out) | details | terms | org (setup) | ready
@@ -147,16 +148,17 @@ async function createOrg() {
     busy.value = false;
   }
 }
-async function acceptTransfer(t) {
+const { working, once } = useBusy();
+const acceptTransfer = once(async (t) => {
   error.value = "";
   try { await HostApi.hostAcceptTransfer(t.id); await load(); }
   catch (e) { error.value = e.message; }
-}
-async function declineTransfer(t) {
+});
+const declineTransfer = once(async (t) => {
   error.value = "";
   try { await HostApi.hostDeclineTransfer(t.id); await load(); }
   catch (e) { error.value = e.message; }
-}
+});
 
 const canCreate = computed(() => org.value?.status === "approved");
 const freeNow = computed(() => org.value?.type === "society" && limits.value.freeLeftThisWeek > 0);
@@ -256,8 +258,8 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
           <span><strong>{{ t.orgName }}</strong> has been handed to you<span v-if="t.fromName"> by {{ t.fromName }}</span>.
             Accepting makes you its owner and sends its invoices to {{ account?.email }}.</span>
           <div class="btn-row">
-            <button class="btn btn-primary" @click="acceptTransfer(t)">Accept</button>
-            <button class="btn" @click="declineTransfer(t)">Decline</button>
+            <button class="btn btn-primary" :disabled="!!working" @click="acceptTransfer(t)">{{ working === acceptTransfer ? "Accepting…" : "Accept" }}</button>
+            <button class="btn" :disabled="!!working" @click="declineTransfer(t)">{{ working === declineTransfer ? "Declining…" : "Decline" }}</button>
           </div>
         </div>
       </section>
