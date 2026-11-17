@@ -7,6 +7,7 @@ import { useRouter } from "vue-router";
 import { HostApi, hostSignOutAndReload } from "../lib/hostapi";
 import UiSelect from "../components/ui/UiSelect.vue";
 import { HELP_EMAIL } from "../lib/contact";
+import Waiting from "../components/Waiting.vue";
 document.title = "Account | Lanyard hosts";
 
 const router = useRouter();
@@ -19,6 +20,7 @@ const team = ref(null); // /api/host/team
 const tix = ref({ tickets: [], outgoing: [] }); // /api/host/tickets
 
 async function load() {
+  loading.value = true; error.value = "";
   try {
     me.value = await HostApi.hostMe();
     if (me.value.step !== "ready" && me.value.step !== "org") { needsAccount.value = true; return; }
@@ -172,7 +174,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
       <p v-if="me?.org" class="sub">{{ me.org.name }}</p>
     </div>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <Waiting v-if="loading" shape="panel" :rows="3" label="Loading your account" :retry="load" />
 
     <section v-else-if="needsAccount" class="panel stack-2">
       <h2>Finish your host account first</h2>

@@ -643,7 +643,10 @@ button.list-row { font: inherit; }
 
 /* ---------- Profile page (what a scan opens) ---------- */
 .profile-page { display: flex; flex-direction: column; gap: 16px; }
-.profile-top { display: flex; align-items: center; height: 40px; }
+.profile-top { display: flex; align-items: center; justify-content: space-between; height: 40px; }
+/* The selfie someone took with you, waiting for your answer (these were inline styles in PublicCard, which is held to the page budget). */
+.selfie-ask img { max-width: 100%; border-radius: 8px; }
+.selfie-ask p { margin: 0; }
 .profile {
   background: var(--paper-raised);
   border: var(--border-ink);
@@ -910,6 +913,8 @@ button.list-row { font: inherit; }
 /* Waiting.vue's own note, shown by its timer. */
 .sk-note { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 12px 0 0; }
 .sk-note .btn { width: auto; }
+/* The same 8 second note for pages with their own colours (Present, Print): a link that appears by itself. */
+.sk-late { display: block; margin-top: 8px; text-decoration: underline; visibility: hidden; animation: sk-in 1ms 8s forwards; }
 /* The QR square waits for the QR library (a second download after first paint). */
 .badge-qr canvas:not([width]) { background: var(--rule); border-radius: 2px; animation: sk-pulse 1.8s ease-in-out infinite; }
 /* The start-up splash, while /api/me is slow. */

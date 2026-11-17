@@ -7,6 +7,7 @@ import { useRoute, useRouter } from "vue-router";
 import { HostApi } from "../lib/hostapi";
 import { MAIN_ORIGIN } from "../lib/site";
 import { cleanHostCode, savePendingHostCode, clearPendingHostCode } from "../lib/hostredeem";
+import Waiting from "./Waiting.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -88,7 +89,7 @@ function submitTyped() {
         <a :href="MAIN_ORIGIN + '/redeem'" style="text-decoration:underline">the main site</a>, not here.</p>
     </form>
 
-    <p v-else-if="loading" class="muted">Checking the code…</p>
+    <Waiting v-else-if="loading" :rows="3" title label="Checking the code" :retry="load" />
 
     <!-- Not signed in, or setup not finished -->
     <div v-else-if="failure === 'signedout'" class="stack-2" role="status">

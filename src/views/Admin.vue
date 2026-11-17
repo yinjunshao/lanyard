@@ -5,6 +5,7 @@ import { onMounted, ref } from "vue";
 import UiDatePicker from "../components/ui/UiDatePicker.vue";
 import AdminAi from "../components/AdminAi.vue";
 import { HOST_ORIGIN } from "../lib/site";
+import Waiting from "../components/Waiting.vue";
 document.title = "Admin | Lanyard";
 
 const TOKEN_KEY = "lanyard_admin_token";
@@ -194,6 +195,7 @@ const EMAIL = { education: "university or school address", free: "webmail addres
         <button class="btn" style="width:auto" @click="signOut">Sign out</button>
       </div>
       <p v-if="error" class="error-text" role="alert">{{ error }}</p>
+      <Waiting v-if="!queue && !error" shape="panel" :rows="2" label="Loading the queue" :retry="load" />
 
       <section class="stack-2">
         <span class="label">Applications ({{ queue?.applications.length || 0 }})</span>

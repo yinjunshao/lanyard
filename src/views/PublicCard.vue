@@ -87,7 +87,7 @@ const removeSelfie = () => { if (confirm("Delete this selfie for both of you? Th
 <template>
   <div class="strap-rail"></div>
   <main class="app-col profile-page">
-    <header class="profile-top" style="justify-content:space-between">
+    <header class="profile-top">
       <router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
       <router-link v-if="connection" to="/app/people" class="topbar-link">‹ People</router-link>
     </header>
@@ -123,10 +123,10 @@ const removeSelfie = () => { if (confirm("Delete this selfie for both of you? Th
           <figcaption class="label">You met on {{ metOn }}</figcaption>
         </figure>
         <p v-else-if="connection && !connection.selfieRequest" class="profile-met label">Connected · {{ metOn }}</p>
-        <div v-if="connection?.selfieStatus === 'request'" class="panel stack" role="status">
+        <div v-if="connection?.selfieStatus === 'request'" class="panel stack selfie-ask" role="status">
           <strong>{{ first }} took a selfie with you</strong>
-          <img :src="connection.selfieRequest" :alt="`Selfie of you and ${first}`" style="max-width:100%;border-radius:8px" />
-          <p class="small muted" style="margin:0">It is only kept if you accept. If you don't answer it is deleted after 7 days.</p>
+          <img :src="connection.selfieRequest" :alt="`Selfie of you and ${first}`" />
+          <p class="small muted">It is only kept if you accept. If you don't answer it is deleted after 7 days.</p>
           <div class="btn-row">
             <button class="btn btn-primary" :disabled="selfieBusy" @click="acceptSelfie">Keep it</button>
             <button class="btn" :disabled="selfieBusy" @click="removeSelfie">Delete it</button>

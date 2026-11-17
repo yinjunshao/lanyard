@@ -6,6 +6,7 @@ import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
 import { joinUrl as joinLink, feedbackUrl as feedbackLink } from "../lib/checkinlink";
 import { drawQR } from "../lib/qr";
+import Waiting from "../components/Waiting.vue";
 import FeedbackEditor from "../components/FeedbackEditor.vue";
 import FeedbackResults from "../components/FeedbackResults.vue";
 import FeedbackSummary from "../components/FeedbackSummary.vue";
@@ -36,18 +37,21 @@ const joinUrl = () => (live.value ? joinLink(live.value.event.code) : "");
 const feedbackUrl = () => (live.value ? feedbackLink(live.value.event.code) : "");
 const signedOut = ref(false);
 
-onMounted(async () => {
+onMounted(load);
+async function load() {
+  error.value = ""; signedOut.value = false;
   try {
     live.value = await HostApi.hostLive(id.value);
     fillDetails();
     await nextTick(); // the canvas is drawn into the page once `live` has rendered it
     await renderQr();
+    clearInterval(timer);
     timer = setInterval(refresh, 5000);
   } catch (e) {
     if (e.code === "signed_out" || e.code === "details_required" || e.code === "terms_required") signedOut.value = true;
     else error.value = e.message;
   }
-});
+}
 onBeforeUnmount(() => clearInterval(timer));
 
 async function refresh() {
@@ -212,6 +216,7 @@ async function copyFeedbackLink() {
 
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     <div v-if="signedOut" class="notice">Sign in to the host portal to see this event. <router-link to="/" style="text-decoration:underline">Go to the host portal</router-link></div>
+    <Waiting v-if="!live && !error && !signedOut" stats shape="panel" :rows="1" title label="Loading this event" :retry="load" />
     <template v-if="live">
       <div>
         <span class="label tnum">Check-in code {{ live.event.code }}</span>
@@ -328,7 +333,7 @@ async function copyFeedbackLink() {
 
       <!-- Feedback -->
       <div v-if="tab === 'feedback'" class="stack-3" role="tabpanel">
-        <p v-if="!fb && !fbErr" class="muted">Loading…</p>
+        <Waiting v-if="!fb && !fbErr" :rows="3" label="Loading the feedback form" :retry="loadFeedback" />
         <template v-if="fb">
           <div v-if="fb.results.responses > 0" class="panel stack-2">
             <FeedbackSummary :event-id="id" />
@@ -372,7 +377,7 @@ async function copyFeedbackLink() {
 
       <!-- Report -->
       <div v-if="tab === 'report'" class="panel stack-3" role="tabpanel">
-        <p v-if="reportLoading && !report" class="muted">Building report…</p>
+        <Waiting v-if="reportLoading && !report" shape="panel" :rows="2" label="Building the report" :retry="loadReport" />
         <template v-if="report">
           <div class="spread">
             <h2>Post-event report</h2>

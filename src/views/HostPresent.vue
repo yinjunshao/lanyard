@@ -94,6 +94,7 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
     <p v-if="problem === 'signin'" class="present-note">Sign in to the host portal to present this event. <router-link to="/">Go to the host portal</router-link></p>
     <p v-else-if="problem === 'missing'" class="present-note">This event was not found. <router-link to="/">Go to the host portal</router-link></p>
     <p v-else-if="problem" class="present-note" role="alert">Could not load this event. <router-link to="/">Go to the host portal</router-link></p>
+    <p v-else-if="!ev" class="present-note" role="status" aria-busy="true">Opening the event… <a class="sk-late" href="">Taking longer than usual. Try again</a></p>
     <div v-if="ev" ref="bar" class="present-controls" :class="{ shown: controls }" role="toolbar" aria-label="Present controls">
       <button v-if="canFullscreen" type="button" class="present-btn" @click="toggleFullscreen">{{ fullscreen ? "Exit fullscreen" : "Fullscreen" }}</button>
       <button type="button" class="present-btn" :aria-pressed="dark" @click="setDark(!dark)">{{ dark ? "Light" : "Dark" }}</button>

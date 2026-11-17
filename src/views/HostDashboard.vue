@@ -10,6 +10,7 @@ import { MAIN_ORIGIN } from "../lib/site";
 import { useRoute, useRouter } from "vue-router";
 import { pendingHostCode, clearPendingHostCode } from "../lib/hostredeem";
 import HostSetup from "../components/HostSetup.vue";
+import Waiting from "../components/Waiting.vue";
 import EventCreate from "../components/EventCreate.vue";
 import EventPreview from "../components/EventPreview.vue";
 import { collectBody, createBody, eventFromBody } from "../lib/eventform";
@@ -242,7 +243,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       </p>
     </div>
 
-    <p v-if="view === 'loading'" class="muted">Loading…</p>
+    <Waiting v-if="view === 'loading'" shape="panel" :rows="2" title label="Loading your events" :retry="load" />
     <p v-else-if="view === 'error'" class="error-text" role="alert">{{ error }} <button type="button" class="link-btn" @click="load">Try again</button></p>
 
     <HostSetup v-else-if="SETUP.includes(view)" :view="view" :account="account" @go="(v) => (view = v)" @reload="load" />

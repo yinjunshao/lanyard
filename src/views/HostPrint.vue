@@ -48,6 +48,7 @@ const when = computed(() => (ev.value?.startsAt
     <p v-if="problem === 'signin'" class="poster-msg no-print">Sign in to the host portal to print this poster. <router-link to="/">Go to the host portal</router-link></p>
     <p v-else-if="problem === 'missing'" class="poster-msg no-print">This event was not found. <router-link to="/">Go to the host portal</router-link></p>
     <p v-else-if="problem" class="poster-msg no-print" role="alert">Could not load this event. <router-link to="/">Go to the host portal</router-link></p>
+    <p v-else-if="!ev" class="poster-msg no-print" role="status" aria-busy="true">Getting the poster ready… <a class="sk-late" href="">Taking longer than usual. Try again</a></p>
     <div v-if="ev" class="poster-sheet">
       <div class="poster" :style="{ '--event-strap': strap }">
         <div class="poster-head">

@@ -9,6 +9,7 @@ import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
 import HostRedeem from "../components/HostRedeem.vue";
 import { api } from "../lib/api";
+import Waiting from "../components/Waiting.vue";
 document.title = "Billing | Lanyard hosts";
 
 const data = ref(null);
@@ -101,7 +102,7 @@ async function submit() {
       <p v-if="data" class="sub">{{ data.org.name }}</p>
     </div>
 
-    <p v-if="state === 'loading'" class="muted">Loading…</p>
+    <Waiting v-if="state === 'loading'" shape="panel" :rows="3" label="Loading billing" :retry="load" />
     <div v-else-if="state === 'account'" class="notice">
       Finish setting up in the host portal first. <router-link to="/" style="text-decoration:underline">Go to the host portal</router-link>
     </div>

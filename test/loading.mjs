@@ -91,4 +91,29 @@ const SHARED = ["src/main.js", "src/App.vue", "src/lib/api.js", "src/lib/store.j
 check("the shared entry files do not import Waiting", SHARED.every((f) => !/Waiting/.test(read(f))), SHARED.filter((f) => /Waiting/.test(read(f))));
 check("Waiting is imported only from views and components, never from lib or the router", walk("src").filter((f) => /\bWaiting\.vue"/.test(read(f)) && !/^src\/(views|components)\//.test(f)).length === 0);
 
+
+console.log("\n# F38.5 Host site and Admin");
+for (const p of ["views/HostDashboard", "views/HostAccount", "views/HostBilling", "components/HostAttendees", "components/HostDrops", "components/HostRedeem", "components/FeedbackSummary", "views/Admin"]) usesWaiting(p);
+const live = usesWaiting("views/HostLive", 3);
+check("the live page shows its shape while it loads (it showed nothing at all before)", /<Waiting v-if="!live && !error && !signedOut" stats shape="panel"/.test(live));
+check("the live page's Try again starts the page's load again, and does not stack a second poll", /async function load\(\) \{[^}]*signedOut\.value = false;/.test(live) && /clearInterval\(timer\);\s*timer = setInterval\(refresh, 5000\)/.test(live) && /onMounted\(load\)/.test(live));
+check("the Feedback and Report tabs wait in the same way", /<Waiting v-if="!fb && !fbErr"/.test(live) && /<Waiting v-if="reportLoading && !report"/.test(live));
+for (const [p, text] of [["HostPresent", "Opening the event"], ["HostPrint", "Getting the poster ready"]]) {
+  const src = read(`src/views/${p}.vue`);
+  check(`${p} says it is opening, as a polite status, while the event loads`, new RegExp(`<p v-else-if="!ev" class="[^"]*" role="status" aria-busy="true">${text}…`).test(src));
+  check(`${p} offers Try again after 8 seconds with CSS alone`, /<a class="sk-late" href="">Taking longer than usual\. Try again<\/a>/.test(src) && /\.sk-late \{[^}]*visibility: hidden[^}]*animation: sk-in 1ms 8s forwards/.test(waitingCss));
+}
+check("Admin waits while the queue has not arrived, and stops waiting on an error", /<Waiting v-if="!queue && !error"/.test(read("src/views/Admin.vue")));
+check("HostDrops waits again when it loads again (Try again, or after a change)", /async function load\(\) \{\s*loading\.value = true;/.test(read("src/components/HostDrops.vue")));
+// Nothing that waits on the network is left as a bare "Loading…" line. Two are deliberate: Connect.vue is not
+// routed anywhere (F28 notes it), and CopiedFacts is a one-line status inside the create form.
+const BARE = /(<p|<span)[^>]*>\s*(Loading|Opening|Checking the code|Building|Reading its)[^<]*(…|\.\.\.)\s*<\/(p|span)>/;
+const left = walk("src").filter((f) => f.endsWith(".vue") && BARE.test(read(f)) && !/Connect\.vue$|CopiedFacts\.vue$|HostPresent\.vue$/.test(f));
+check("no page or panel is left with a bare Loading line", left.length === 0, left);
+
+// The card page had a few inline styles; they moved to main.css (global CSS is not counted in the JS
+// budget) to pay for the skeleton's markup. Keep it that way: each inline style is bytes of script.
+const cardTpl = read("src/views/PublicCard.vue");
+check("the card page's selfie panel and header are styled in main.css, not inline", !/style="(justify-content|max-width|margin:0)/.test(cardTpl) && /\.selfie-ask img \{[^}]*max-width: 100%/.test(css) && /\.profile-top \{[^}]*justify-content: space-between/.test(css));
+
 summary();

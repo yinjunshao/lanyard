@@ -7,6 +7,7 @@
 import { computed, onMounted, ref } from "vue";
 import { api } from "../lib/api";
 import UiDateTimePicker from "./ui/UiDateTimePicker.vue";
+import Waiting from "./Waiting.vue";
 
 const props = defineProps({ eventId: { type: String, required: true } });
 const base = computed(() => `/api/host/events/${encodeURIComponent(props.eventId)}/drops`);
@@ -28,6 +29,7 @@ const confirm = ref(""); // "<drop id>:<action>" waiting for a second tap
 const pinShown = ref(null); // { title, pin }
 
 async function load() {
+  loading.value = true;
   try { data.value = await api(base.value); error.value = ""; }
   catch (e) { error.value = e.message; }
   finally { loading.value = false; }
@@ -144,7 +146,7 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
       <p v-if="data && !data.ready" class="notice" role="alert">Drops are switched off on this server, because it has no key to keep them safe with. Nothing can be saved until whoever runs Lanyard sets it up.</p>
     </div>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <Waiting v-if="loading" shape="panel" :rows="2" label="Loading your drops" :retry="load" />
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     <p v-if="notice" class="success-text" role="status">{{ notice }}</p>
 

@@ -5,6 +5,7 @@
 // Host pages only: nothing public or shared imports this file.
 import { computed, onMounted, ref } from "vue";
 import { HostApi } from "../lib/hostapi";
+import Waiting from "./Waiting.vue";
 
 const props = defineProps({ eventId: { type: String, required: true } });
 const d = ref(null);
@@ -65,7 +66,7 @@ async function copy() {
   <section class="fs stack-2" aria-labelledby="fs-h">
     <h2 id="fs-h" class="fs-h">Summary of written answers</h2>
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
-    <p v-if="!d && !error" class="small muted">Loading…</p>
+    <Waiting v-if="!d && !error" :rows="3" label="Loading the summary" :retry="load" />
 
     <template v-if="d">
       <!-- Not enough answers: nothing is written, and nothing is sent anywhere -->

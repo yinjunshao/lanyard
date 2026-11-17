@@ -6,6 +6,7 @@
 import { onMounted, ref, watch } from "vue";
 import { HostApi } from "../lib/hostapi";
 import { fmtDateTime } from "../lib/time";
+import Waiting from "./Waiting.vue";
 
 const props = defineProps({ eventId: { type: String, required: true }, checkins: { type: Number, default: 0 } });
 const list = ref(null);
@@ -33,7 +34,7 @@ watch(() => props.checkins, load);
       Look after these names: use them only for the reason you gave, and delete any copy you download once you are done.
     </p>
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
-    <p v-else-if="!list" class="muted">Loading…</p>
+    <Waiting v-else-if="!list" shape="list" :rows="3" label="Loading the list" :retry="load" />
     <template v-else>
       <p v-if="!list.attendees.length" class="empty small">Nobody is on the list yet. People appear here when they check in with the first tick left on.</p>
       <ul v-else class="list att-list">

@@ -89,7 +89,7 @@ function submitTyped() {
 <template>
   <div class="strap-rail"></div>
   <main class="app-col stack-3 redeem">
-    <header class="profile-top" style="justify-content:space-between">
+    <header class="profile-top">
       <router-link :to="homePath()" class="wordmark">lanyard<b>.</b></router-link>
       <router-link v-if="me.profile" to="/app" class="topbar-link">My card</router-link>
     </header>
