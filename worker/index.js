@@ -47,6 +47,7 @@ import { peopleSearchApp } from "./ai/peopleSearch.js";
 import { whoToMeetApp } from "./ai/whoToMeet.js";
 import { forgetSearchReplies } from "./ai/optout.js";
 import { billingApp, exportBillingOrders } from "./billing/routes.js";
+import { servePage } from "./seo.js";
 
 const app = new Hono();
 
@@ -1340,7 +1341,8 @@ app.get("/host/*", toHostSite);
 
 /* ------------------------------- SPA fallback ----------------------------- */
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
-app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
+// F37: the static files and the app shell, with the tags of the page written in (worker/seo.js).
+app.all("*", (c) => servePage(c));
 
 export default {
   fetch: app.fetch,
