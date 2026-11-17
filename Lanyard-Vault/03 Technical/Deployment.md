@@ -34,6 +34,15 @@ AI (F21) is **off** in `wrangler.production.toml` (`AI_ENABLED = "0"`). Vars: `A
 ## Go-live checklist (from `wrangler.toml`)
 Drops (F32): `wrangler secret put DROP_KEY` (a long random value, at least 16 characters; without it hosts see "Drops are switched off" and nothing is stored; changing it later makes stored items unreadable) and migration 0029 (additive) with `npm run db:remote`. See [[Security]]. F34 adds migration 0030 (one nullable column, additive): run `npm run db:remote` before the deploy, as for 0029.
 
+Card payments (F36, [[D041 Polar as merchant of record behind one provider module]]): migration 0031 is additive and safe to apply before the code (`npm run db:remote`, in order after 0018 to 0030). Billing stays **off** until the F27 blockers are cleared (legal entity, address, ICO, a lawyer's review): `BILLING_ENABLED` is not set anywhere, and the owner steps are, in order:
+1. A Polar account for the business, **sandbox first** (sandbox.polar.sh is a separate account), then live. The account owner is who gets the payouts and passes the ID checks.
+2. Products in Polar priced as the code: Plus monthly £1.49 and yearly £11.99 (subscriptions), and each self-serve host pack in `HOST_SKUS` (one-off). Customer Portal on, with cancellation allowed. Check in the sandbox whether prices show with VAT added or included, and make the Plan page say the same.
+3. A webhook endpoint `https://lanyd.fyi/api/webhooks/polar` (main site, not host.) with the events `order.paid`, `order.refunded`, `subscription.created`, `subscription.active`, `subscription.updated`, `subscription.canceled`, `subscription.uncanceled`, `subscription.revoked`. Make a new secret (Polar secrets from 8 September 2026 are plain Standard Webhooks; an older one will not verify).
+4. `wrangler secret put POLAR_ACCESS_TOKEN` and `wrangler secret put POLAR_WEBHOOK_SECRET` (secrets only, never `[vars]`).
+5. Vars in `wrangler.production.toml`: `POLAR_PRODUCTS` (JSON of our product id to Polar's product id, for example `{"plus_month":"…","plus_year":"…","standard_1":"…"}`), `SELLER_NAME` and `SELLER_ADDRESS` (the legal name and full geographic address shown before Pay; checkout is refused until both are set), and `POLAR_SERVER = "sandbox"` while testing against the sandbox.
+6. Try it on a local or staging copy against the sandbox: subscribe, cancel in the portal, a pack paid and refunded, a webhook replayed from Polar's dashboard. Confirm the event field names (`checkout_id`, `product_id`, `subtotal_amount`, `current_period_end`) match what `worker/billing/polar.js` reads.
+7. Only after the owner signs off: `BILLING_ENABLED = "1"` on the live site, with the live token, secret and product ids.
+
 Create D1 and paste id; create R2 bucket; apply migrations remotely; set origins and RP_ID; custom domain; `wrangler secret put ADMIN_TOKEN` (opens `/admin`).
 
 ## Gotchas
