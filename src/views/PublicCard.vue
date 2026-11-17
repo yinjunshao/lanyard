@@ -65,7 +65,6 @@ const metOn = computed(() =>
     ? new Date(connection.value.metAt).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
     : ""
 );
-const host = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 
 // The "Your connection" panel is its own chunk, fetched once the card says you are connected.
 // A plain dynamic import: defineAsyncComponent would add its code to the Vue chunk every public page loads.
@@ -93,7 +92,7 @@ const removeSelfie = () => { if (confirm("Delete this selfie for both of you? Th
       <router-link v-if="connection" to="/app/people" class="topbar-link">‹ People</router-link>
     </header>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <div v-if="loading" class="sk-wrap sk-profile" aria-busy="true"><b class="visually-hidden" role="status">Loading card…</b><a class="sk-slow" href="">Try again</a></div>
     <div v-else-if="error" class="empty stack">
       <span class="label">Card not found</span>
       <p>This card doesn't exist, or its owner has made it private.</p>

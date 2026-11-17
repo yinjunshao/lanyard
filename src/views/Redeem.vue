@@ -108,7 +108,7 @@ function submitTyped() {
       </form>
     </template>
 
-    <p v-else-if="loading" class="muted">Checking the code…</p>
+    <div v-else-if="loading" class="sk-wrap" aria-busy="true"><b class="visually-hidden" role="status">Checking the code…</b><span class="sk sk-title"></span><span class="sk sk-line"></span><span class="sk sk-line s"></span><span class="sk sk-box"></span><a class="sk-slow" href="">Try again</a></div>
 
     <div v-else-if="!promo" class="stack-2">
       <h1>Hmm, that didn't work</h1>

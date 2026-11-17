@@ -880,29 +880,33 @@ button.list-row { font: inherit; }
 .sk-line.s { width: 55%; }
 .sk-title { height: 28px; width: 50%; margin: 6px 0 12px; }
 .sk-photo { width: 50px; height: 50px; flex: none; }
-.sk-box { height: 48px; border-radius: var(--radius); }
+.sk-box { height: 48px; margin-top: 16px; border-radius: var(--radius); }
+.sk-tall { height: 110px; margin-top: 16px; border-radius: var(--radius); }
 .sk-stat { height: 62px; border-radius: var(--radius); }
 .sk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space); }
 .sk-panel { min-height: 96px; }
 /* The public card, drawn by one element so the page script stays small: strap, photo, name, headline. */
 .sk-profile {
   --c: var(--rule);
-  height: 340px;
+  height: 400px;
   border: var(--border-ink); border-radius: 8px; background-color: var(--paper-raised); box-shadow: var(--shadow-2);
   background-repeat: no-repeat;
   background-image:
     linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)),
+    linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)),
     linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c));
-  background-position: 0 0, 20px 72px, 124px 84px, 124px 118px, 20px 192px, 20px 222px;
-  background-size: 100% 52px, 88px 88px, calc(100% - 144px) 24px, calc(60% - 80px) 16px, calc(100% - 40px) 16px, calc(70% - 40px) 16px;
+  background-position: 0 0, 20px 72px, 124px 84px, 124px 118px, 20px 192px, 20px 222px, 20px 282px, 112px 282px, 204px 282px;
+  background-size: 100% 52px, 88px 88px, calc(100% - 144px) 24px, calc(60% - 80px) 16px, calc(100% - 40px) 16px, calc(70% - 40px) 16px, 80px 28px, 84px 28px, 64px 28px;
 }
 /* A note that appears 8 seconds after the page starts, with no script: hidden, then shown by a timed animation. */
 .sk-slow {
-  position: absolute; left: 12px; right: 12px; bottom: 16px; z-index: 1; margin: 0;
+  position: relative; z-index: 1; margin: 12px 0 0;
   padding: 10px 12px; border: var(--border); border-radius: var(--radius); background: var(--paper-raised);
   font-size: 14px; text-align: center; visibility: hidden; animation: sk-in 1ms 8s forwards;
 }
-.sk-slow a { text-decoration: underline; font-weight: 700; }
+.sk-profile .sk-slow { position: absolute; left: 12px; right: 12px; bottom: 16px; margin: 0; }
+.sk-slow { display: block; color: var(--ink); font-weight: 700; text-decoration: underline; }
+.sk-slow::before { content: "Taking longer than usual."; display: inline-block; margin-right: 0.4em; color: var(--graphite); font-weight: 400; text-decoration: none; }
 /* Waiting.vue's own note, shown by its timer. */
 .sk-note { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 12px 0 0; }
 .sk-note .btn { width: auto; }

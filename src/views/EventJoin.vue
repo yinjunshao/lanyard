@@ -75,7 +75,7 @@ async function checkIn() {
 
 <template>
   <main class="app-col stack-3">
-    <p v-if="state === 'loading'" class="muted">Opening event…</p>
+    <div v-if="state === 'loading'" class="sk-wrap" aria-busy="true"><b class="visually-hidden" role="status">Opening event…</b><span class="sk sk-title"></span><span class="sk sk-line"></span><span class="sk sk-line s"></span><span class="sk sk-tall"></span><span class="sk sk-box"></span><a class="sk-slow" href="">Try again</a></div>
 
     <EventPage v-else-if="state === 'checkin' && event" :event="event" :sponsors="sponsors" :form="form"
                :show-name="!me.profile" :needs-agree="needsAgree()" :error="error" :busy="busy" @checkin="checkIn" />
