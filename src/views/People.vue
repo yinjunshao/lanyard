@@ -5,6 +5,7 @@ import { me } from "../lib/store";
 import { buildIndex, search, suggest, terms } from "../lib/search";
 import Icon from "../components/Icon.vue";
 import Avatar from "../components/Avatar.vue";
+import Waiting from "../components/Waiting.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import { relativeDay as relDay } from "../lib/time";
 import { connectedShort, subtitleOf } from "../lib/profile";
@@ -26,7 +27,8 @@ const loadError = ref("");
 // Set when the person chose "Search instead for…" on a corrected query.
 const exact = ref(false);
 
-onMounted(async () => {
+async function load() {
+  loading.value = true; loadError.value = "";
   try {
     const data = await Api.connections();
     rows.value = data.connections;
@@ -35,7 +37,8 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+onMounted(load);
 
 watch(query, () => { exact.value = false; });
 
@@ -130,7 +133,7 @@ const fmt = (t) =>
       <span class="muted">Search instead for&nbsp;</span><button type="button" class="link-btn" @click="searchInstead">{{ query.trim() }}</button>
     </p>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <Waiting v-if="loading" shape="list" :rows="5" label="Loading your connections" :retry="load" />
     <div v-else-if="loadError" class="empty stack" role="alert">
       <span class="label">Couldn't load your connections</span>
       <p>{{ loadError }}</p>

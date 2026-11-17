@@ -60,4 +60,35 @@ for (const [name, text] of [["PublicCard", "Loading card"], ["Redeem", "Checking
 check("the card skeleton is one element drawn by CSS (strap, photo, name, headline)", /class="sk-wrap sk-profile"/.test(read("src/views/PublicCard.vue")) && /\.sk-profile \{[^}]*linear-gradient/.test(waitingCss));
 check("the bare Loading words are gone from the public pages", !PUBLIC.some((n) => />(Loading…|Opening event…|Checking the code…)<\/p>/.test(read(`src/views/${n}.vue`))));
 
+
+console.log("\n# F38.4 Signed-in app");
+const SIGNED_IN = ["views/People", "views/Events", "views/EventDetail", "views/Person", "views/Feedback", "views/Welcome", "views/Settings", "components/FollowupComposer"];
+// Every page or panel that waits uses Waiting, and Try again calls a function that exists in that file.
+function usesWaiting(path, minCount = 1) {
+  const src = read(`src/${path}.vue`);
+  const tags = [...src.matchAll(/<Waiting\b[^>]*>/g)].map((m) => m[0]);
+  const name = path.split("/").pop();
+  check(`${name} imports Waiting and uses it ${minCount > 1 ? `(${minCount} places)` : ""}`, /^import Waiting from "(\.\.\/components\/|\.\/)Waiting\.vue";/m.test(src) && tags.length >= minCount, tags.length);
+  check(`${name}: every Waiting says what it is loading (a label)`, tags.length > 0 && tags.every((t) => /label="[^"]{6,}"/.test(t)));
+  for (const t of tags) {
+    const fn = /:retry="(\w+)"/.exec(t)?.[1];
+    if (fn) check(`${name}: Try again calls ${fn}, which is declared`, new RegExp(String.raw`function ${fn}\b|const ${fn} =`).test(src));
+  }
+  check(`${name}: no bare Loading text left`, !/>\s*(Loading|Opening)[^<]*…<\/p>/.test(src));
+  return src;
+}
+for (const p of SIGNED_IN) usesWaiting(p, p.endsWith("EventDetail") ? 3 : 1);
+const ev = read("src/views/EventDetail.vue");
+check("the Room and Album tabs wait with rows, not with 'No one else yet'", /<Waiting v-if="roomWait"[^>]*\/>\s*<div v-else-if="!room\.length"/.test(ev) && /<Waiting v-if="albumWait"[^>]*\/>\s*<div v-else-if="!album\.length"/.test(ev));
+check("the Room and Album flags are cleared in a finally, so a failed request cannot leave them waiting", /finally \{ roomWait\.value = false; \}/.test(ev) && /finally \{ albumWait\.value = false; \}/.test(ev));
+const settings = read("src/views/Settings.vue");
+check("Settings shows panels while a page's code loads, only for a real page (not the list)", /<Waiting v-else-if="!isIndex" shape="panel"/.test(settings));
+check("Settings Try again loads the page's code again", /:retry="\(\) => loadPage\(key\)"/.test(settings) && /async function loadPage\(k\)/.test(settings));
+// Only signed-in, host and admin files import Waiting; the shared entry files and every public page stay clear (D043).
+import { readdirSync, statSync } from "node:fs";
+const walk = (d) => readdirSync(new URL("../" + d, import.meta.url)).flatMap((f) => (statSync(new URL("../" + d + "/" + f, import.meta.url)).isDirectory() ? walk(d + "/" + f) : [d + "/" + f]));
+const SHARED = ["src/main.js", "src/App.vue", "src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", ...walk("src/router")];
+check("the shared entry files do not import Waiting", SHARED.every((f) => !/Waiting/.test(read(f))), SHARED.filter((f) => /Waiting/.test(read(f))));
+check("Waiting is imported only from views and components, never from lib or the router", walk("src").filter((f) => /\bWaiting\.vue"/.test(read(f)) && !/^src\/(views|components)\//.test(f)).length === 0);
+
 summary();

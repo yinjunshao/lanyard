@@ -4,18 +4,21 @@
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";
+import Waiting from "../components/Waiting.vue";
 
 const route = useRoute();
 const router = useRouter();
 const failed = ref(false);
-onMounted(async () => {
+async function load() {
+  failed.value = false;
   try {
     const d = await Api.connection(route.params.id);
     if (d.cardId) return router.replace(`/c/${d.cardId}`);
   } catch { /* shown below */ }
   // Don't bounce silently back to the list: say what happened.
   failed.value = true;
-});
+}
+onMounted(load);
 </script>
 
 <template>
@@ -24,5 +27,5 @@ onMounted(async () => {
     <p>It may have been removed. Try again from People.</p>
     <router-link to="/app/people" class="btn" style="margin-top:8px">Back to People</router-link>
   </div>
-  <p v-else class="muted" role="status">Opening…</p>
+  <Waiting v-else :rows="2" label="Opening this connection" :retry="load" />
 </template>

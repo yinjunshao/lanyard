@@ -13,6 +13,7 @@ import StepFor from "../components/welcome/StepFor.vue";
 import StepLinks from "../components/welcome/StepLinks.vue";
 import StepSave from "../components/welcome/StepSave.vue";
 import StepDone from "../components/welcome/StepDone.vue";
+import Waiting from "../components/Waiting.vue";
 document.title = "Set up your card | Lanyard";
 
 const route = useRoute();
@@ -135,7 +136,7 @@ async function next() {
 <template>
   <div class="strap-rail"></div>
   <main class="app-col welcome">
-    <p v-if="!ready" class="muted" role="status">Loading…</p>
+    <Waiting v-if="!ready" shape="form" :rows="2" title label="Getting your card ready" />
     <template v-else>
       <header class="welcome-top">
         <button type="button" class="link-btn welcome-nav" @click="back">‹ {{ stepNo === 1 ? "Leave" : "Back" }}</button>

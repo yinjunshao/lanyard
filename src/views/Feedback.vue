@@ -6,6 +6,7 @@ import { useRoute } from "vue-router";
 import { Api } from "../lib/api";
 import RatingInput from "../components/RatingInput.vue";
 import { fmtDateTime } from "../lib/time";
+import Waiting from "../components/Waiting.vue";
 
 const route = useRoute();
 const form = ref(null);
@@ -15,7 +16,8 @@ const error = ref("");
 const busy = ref(false);
 const sent = ref(false);
 
-onMounted(async () => {
+async function load() {
+  loading.value = true; error.value = "";
   try {
     let id = route.params.eventId;
     if (!id && route.params.code) id = (await Api.event(route.params.code)).event.id;
@@ -28,7 +30,8 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+onMounted(load);
 
 const status = computed(() => form.value?.status);
 function toggle(qid, opt) {
@@ -53,7 +56,7 @@ async function submit() {
 
 <template>
   <div class="stack-3">
-    <p v-if="loading" class="muted">Loading…</p>
+    <Waiting v-if="loading" shape="form" :rows="3" title label="Loading the feedback form" :retry="load" />
 
     <div v-else-if="error === 'signed_out'" class="empty stack">
       <span class="label">Open this where you checked in</span>

@@ -4,13 +4,15 @@ import { computed, onMounted, ref } from "vue";
 import { Api } from "../lib/api";
 import { setLive, useEventClock } from "../lib/eventlive";
 import { connectionsText, dateOf, statusText, timeOfDay } from "../lib/eventtext";
+import Waiting from "../components/Waiting.vue";
 
 const events = ref([]);
 const loading = ref(true);
 const loadError = ref("");
 const { setServerNow, statusOf } = useEventClock();
 
-onMounted(async () => {
+async function load() {
+  loading.value = true; loadError.value = "";
   try {
     const data = await Api.myEvents();
     setServerNow(data.now);
@@ -21,7 +23,8 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+onMounted(load);
 
 const rows = computed(() => events.value.map((e) => ({ e, status: statusOf(e) })));
 // Ongoing first, then the ones that start later (soonest first); past events newest attended first.
@@ -38,7 +41,7 @@ const past = computed(() => rows.value.filter((r) => r.status === "ended").sort(
       <h1>Events</h1>
     </div>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <Waiting v-if="loading" shape="list" :rows="4" label="Loading your events" :retry="load" />
     <div v-else-if="loadError" class="empty stack" role="alert">
       <span class="label">Couldn't load your events</span>
       <p>{{ loadError }}</p>

@@ -13,6 +13,7 @@ import Icon from "../components/Icon.vue";
 import { SETTINGS_ICONS } from "./settings/icons";
 import { getThemePref } from "../lib/theme";
 import { settingsRedirect } from "../router/settingsRedirect";
+import Waiting from "../components/Waiting.vue";
 
 const PAGES = {
   account: { title: "Account", load: () => import("./settings/SettingsAccount.vue") },
@@ -38,11 +39,11 @@ watch(() => route.params.page, (p) => { if (p && !Object.hasOwn(PAGES, p)) route
 // The open page's component is kept outside Vue's reactivity; `loaded` says when to redraw.
 const components = {};
 const loaded = ref(0);
-watch(key, async (k) => {
+async function loadPage(k) {
   if (!k || components[k]) return;
-  components[k] = (await PAGES[k].load()).default;
-  loaded.value++;
-}, { immediate: true });
+  try { components[k] = (await PAGES[k].load()).default; loaded.value++; } catch { /* the page keeps waiting and offers Try again */ }
+}
+watch(key, loadPage, { immediate: true });
 const Page = computed(() => (loaded.value, components[key.value] || null));
 
 // The Appearance page announces a change, so the summary here stays right on wide screens.
@@ -97,6 +98,7 @@ async function logout() {
         <h2 class="settings-title">{{ PAGES[key].title }}</h2>
       </template>
       <component :is="Page" v-if="Page" />
+      <Waiting v-else-if="!isIndex" shape="panel" :rows="2" label="Loading this page" :retry="() => loadPage(key)" />
       <p v-else-if="isIndex" class="muted settings-pick">Choose a setting from the list.</p>
     </section>
   </div>

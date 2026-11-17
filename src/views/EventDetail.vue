@@ -11,6 +11,7 @@ import EventDrops from "../components/EventDrops.vue";
 import EventAttendanceChoices from "../components/EventAttendanceChoices.vue";
 import EventPresence from "../components/EventPresence.vue";
 import Icon from "../components/Icon.vue";
+import Waiting from "../components/Waiting.vue";
 import UiSheet from "../components/ui/UiSheet.vue";
 import { connectedShort, subtitleOf } from "../lib/profile";
 import { setLive, useEventClock } from "../lib/eventlive";
@@ -22,6 +23,8 @@ const eventId = computed(() => route.params.id);
 const tab = ref("room");
 const room = ref([]);
 const album = ref([]);
+const roomWait = ref(false);
+const albumWait = ref(false);
 const loading = ref(true);
 const error = ref("");
 const gone = ref(false);
@@ -53,10 +56,14 @@ async function load(id) {
 }
 
 async function loadRoom() {
+  roomWait.value = true;
   try { room.value = (await Api.room(eventId.value)).people || []; } catch { /* the Room tab says nobody yet */ }
+  finally { roomWait.value = false; }
 }
 async function loadAlbum() {
+  albumWait.value = true;
   try { album.value = (await Api.album(eventId.value)).photos || []; } catch { /* the Album tab says none yet */ }
+  finally { albumWait.value = false; }
 }
 function switchTab(t) {
   tab.value = t;
@@ -94,7 +101,7 @@ const choicesTrigger = ref(null);
       <h1 v-else-if="!loading" class="hub-title">Event</h1>
     </div>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <Waiting v-if="loading" stats shape="list" :rows="3" label="Loading this event" :retry="() => load(eventId)" />
     <div v-else-if="gone" class="empty stack">
       <span class="label">Not available</span>
       <p>This event isn't in your list, or it has been removed.</p>
@@ -160,7 +167,8 @@ const choicesTrigger = ref(null);
       </div>
 
       <template v-if="tab === 'room'">
-        <div v-if="!room.length" class="empty">
+        <Waiting v-if="roomWait" shape="list" :rows="3" label="Loading the room" :retry="loadRoom" />
+        <div v-else-if="!room.length" class="empty">
           <span class="label">No one else yet</span>
           <p>Checked-in people with public cards show up here.</p>
         </div>
@@ -187,7 +195,8 @@ const choicesTrigger = ref(null);
       </template>
 
       <template v-else-if="tab === 'album'">
-        <div v-if="!album.length" class="empty">
+        <Waiting v-if="albumWait" shape="list" :rows="2" label="Loading the album" :retry="loadAlbum" />
+        <div v-else-if="!album.length" class="empty">
           <span class="label">No selfies yet</span>
           <p>Connection selfies from this event appear here automatically.</p>
         </div>

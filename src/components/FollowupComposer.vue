@@ -10,6 +10,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { api } from "../lib/api";
 import Icon from "./Icon.vue";
+import Waiting from "./Waiting.vue";
 import { CHANNELS, TONES, GOALS, templateDraft } from "../lib/followupTemplates";
 
 const props = defineProps({
@@ -69,8 +70,9 @@ const toggled = (list, item, max) => (list.includes(item) ? list.filter((x) => x
 const toggleTalk = (item) => { talk.value = toggled(talk.value, item, maxTalk.value); };
 const toggleOffer = (item) => { offer.value = toggled(offer.value, item, maxOffer.value); };
 
-onMounted(async () => {
-  document.addEventListener("keydown", onKey);
+onMounted(() => { document.addEventListener("keydown", onKey); load(); });
+async function load() {
+  loading.value = true; loadError.value = "";
   try {
     opts.value = await api(`/api/ai/followup/${encodeURIComponent(props.connectionId)}`);
     allowance.value = opts.value.allowance;
@@ -84,7 +86,7 @@ onMounted(async () => {
     await nextTick();
     root.value?.querySelector("button, textarea, input")?.focus({ preventScroll: true });
   }
-});
+}
 const opener = typeof document !== "undefined" ? document.activeElement : null;
 onBeforeUnmount(() => { document.removeEventListener("keydown", onKey); opener?.focus?.({ preventScroll: true }); });
 
@@ -186,7 +188,7 @@ function markDone() { marked.value = true; emit("followed-up"); tally("marked");
           <button class="icon-btn" type="button" aria-label="Close" @click="emit('close')"><Icon name="close" :size="20" /></button>
         </div>
 
-        <p v-if="loading" class="muted" role="status">Loading…</p>
+        <Waiting v-if="loading" :rows="3" label="Loading" :retry="load" />
         <div v-else-if="loadError" class="stack" role="alert">
           <p class="error-text">{{ loadError }}</p>
           <button type="button" class="btn" @click="emit('close')">Close</button>
