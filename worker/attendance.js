@@ -44,7 +44,7 @@ export function collectFields(c) {
   if (c === undefined) return null;
   const off = { collect_attendance: 0, collect_items: "[]", collect_why: "" };
   if (c === null || c === false) return off;
-  if (typeof c !== "object" || Array.isArray(c)) throw new HttpError(400, "Those collection settings are not understood.");
+  if (typeof c !== "object" || Array.isArray(c)) throw new HttpError(400, "Those settings couldn't be read. Reload the page and try again.");
   if (c.attendance !== true) return off;
   const asked = c.items === undefined ? [] : c.items;
   if (!Array.isArray(asked) || asked.some((k) => typeof k !== "string" || !EXTRA_KEYS.includes(k))) {

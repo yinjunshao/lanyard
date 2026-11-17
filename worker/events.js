@@ -32,7 +32,7 @@ async function eventByCode(c) {
 eventsApp.get("/api/e/:code", async (c) => {
   const db = c.env.DB;
   const ev = await eventByCode(c);
-  if (!ev) return c.json({ error: "event not found" }, 404);
+  if (!ev) return c.json({ error: "We couldn't find an event with that code. Check it with the organiser and try again." }, 404);
 
   const me = c.get("user");
   const checkin = me
@@ -73,7 +73,7 @@ eventsApp.post("/api/e/:code/checkin", async (c) => {
   const me = requireUser(c);
   const db = c.env.DB;
   const ev = await eventByCode(c);
-  if (!ev) return c.json({ error: "event not found" }, 404);
+  if (!ev) return c.json({ error: "We couldn't find an event with that code. Check it with the organiser and try again." }, 404);
 
   // Student societies are held to a hard check-in limit per event. People who
   // are already checked in can still update their details.
@@ -99,7 +99,7 @@ eventsApp.post("/api/e/:code/checkin", async (c) => {
   let profile = await one(db, "SELECT name FROM profiles WHERE user_id = ?", me.id);
   if (!profile) {
     const name = String(body.name || "").trim();
-    if (!name) return c.json({ error: "name required to check in" }, 400);
+    if (!name) return c.json({ error: "Add your name to check in." }, 400);
     await run(
       db,
       `INSERT INTO profiles (user_id, name, uni, course, headline, about, links, tags, projects, is_public, updated_at)
@@ -168,11 +168,11 @@ eventsApp.get("/api/e/:id/room", async (c) => {
   const me = requireUser(c);
   const db = c.env.DB;
   const ev = await one(db, "SELECT * FROM events WHERE id = ?", c.req.param("id"));
-  if (!ev) return c.json({ error: "event not found" }, 404);
+  if (!ev) return c.json({ error: "We couldn't find that event. Reload the page and try again." }, 404);
   if (!ev.directory_on) return c.json({ event: { name: ev.name }, people: [] });
 
   const mine = await one(db, "SELECT created_at FROM checkins WHERE event_id = ? AND user_id = ?", ev.id, me.id);
-  if (!mine) return c.json({ error: "check in to see the room" }, 403);
+  if (!mine) return c.json({ error: "Check in to this event to see who else is here." }, 403);
 
   const blocked = await blockedSet(db, me.id); // both directions
 
@@ -215,9 +215,9 @@ eventsApp.get("/api/e/:id/album", async (c) => {
   const me = requireUser(c);
   const db = c.env.DB;
   const ev = await one(db, "SELECT id FROM events WHERE id = ?", c.req.param("id"));
-  if (!ev) return c.json({ error: "event not found" }, 404);
+  if (!ev) return c.json({ error: "We couldn't find that event. Reload the page and try again." }, 404);
   const mine = await one(db, "SELECT 1 FROM checkins WHERE event_id = ? AND user_id = ?", ev.id, me.id);
-  if (!mine) return c.json({ error: "check in to see the album" }, 403);
+  if (!mine) return c.json({ error: "Check in to this event to see its album." }, 403);
 
   const conns = await all(
     db,

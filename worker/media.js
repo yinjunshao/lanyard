@@ -20,7 +20,7 @@ function parseDataUrl(s, maxBytes = MAX_BYTES) {
   const m = /^data:image\/(webp|jpeg|png);base64,([A-Za-z0-9+/=]+)$/.exec(String(s || ""));
   if (!m) return null;
   // Rough size check before decoding, so a huge string isn't decoded at all.
-  if (m[2].length * 0.75 > maxBytes + 3) throw new HttpError(413, "That photo is too large.");
+  if (m[2].length * 0.75 > maxBytes + 3) throw new HttpError(413, "That photo is too large. Choose a smaller one.");
   let bytes;
   try { bytes = Uint8Array.from(atob(m[2]), (ch) => ch.charCodeAt(0)); } catch { return null; }
   const real = sniff(bytes);
@@ -95,8 +95,8 @@ export function stripMetadata(b, ext) {
 // strip: remove metadata first (face photos). maxBytes: a lower ceiling than the default.
 export async function putImage(env, dataUrl, prefix = "u", { strip = false, maxBytes = MAX_BYTES } = {}) {
   const parsed = parseDataUrl(dataUrl, maxBytes);
-  if (!parsed) throw new HttpError(400, "That file isn't a supported image (WebP, JPEG or PNG).");
-  if (parsed.bytes.byteLength > maxBytes) throw new HttpError(413, "That photo is too large.");
+  if (!parsed) throw new HttpError(400, "That file isn't a supported image. Choose a WebP, JPEG or PNG photo.");
+  if (parsed.bytes.byteLength > maxBytes) throw new HttpError(413, "That photo is too large. Choose a smaller one.");
   const bytes = strip ? stripMetadata(parsed.bytes, parsed.ext) : parsed.bytes;
   const key = `${prefix}/${newId()}${newId()}.${parsed.ext}`;
   await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: parsed.type } });

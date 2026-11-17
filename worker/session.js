@@ -124,6 +124,6 @@ export const sessionMiddleware = (envName = "DB", { guests = true } = {}) => asy
 /** The signed-in (or guest) user, or a 401. */
 export function requireUser(c) {
   const u = c.get("user");
-  if (!u) throw new HttpError(401, "Please sign in or make a card first.", "no_session");
+  if (!u) throw new HttpError(401, "You're signed out. Sign in, or make a card, to carry on.", "no_session");
   return u;
 }

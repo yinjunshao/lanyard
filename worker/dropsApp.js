@@ -20,7 +20,7 @@ const noStore = { "cache-control": "no-store" };
 async function myEvent(c) {
   const me = requireUser(c);
   const ev = await one(c.env.DB, "SELECT * FROM events WHERE id = ?", c.req.param("id"));
-  if (!ev) throw new HttpError(404, "event not found");
+  if (!ev) throw new HttpError(404, "We couldn't find that event. Reload the page and try again.");
   const here = await one(c.env.DB, "SELECT created_at FROM checkins WHERE event_id = ? AND user_id = ?", ev.id, me.id);
   if (!here) throw new HttpError(403, "Check in to this event to see its drops.", "not_checked_in");
   return { me, ev };

@@ -188,7 +188,7 @@ export function summarize(questions, responses) {
 
 async function loadForUser(db, eventId, userId) {
   const ev = await one(db, "SELECT * FROM events WHERE id = ?", eventId);
-  if (!ev) throw new HttpError(404, "event not found");
+  if (!ev) throw new HttpError(404, "We couldn't find that event. Reload the page and try again.");
   const [checkin, done] = await Promise.all([
     one(db, "SELECT created_at FROM checkins WHERE event_id = ? AND user_id = ?", ev.id, userId),
     one(db, "SELECT 1 AS x FROM feedback_done WHERE event_id = ? AND user_id = ?", ev.id, userId),

@@ -96,7 +96,7 @@ export async function addStart(c, db, rawEmail) {
   if (taken) throw new HttpError(409, "That email already has a Lanyard account. Sign in with it instead.", "email_taken");
   await sendLimited(c, db, email);
   try { await issue(c, db, email, "verify", user.id); }
-  catch (e) { console.error(e); throw new HttpError(502, "We couldn't send that email. Try again in a moment."); }
+  catch (e) { console.error(e); throw Object.assign(new HttpError(502, "We couldn't send that email. Try again in a moment."), { expose: true }); }
   return c.json({ ok: true });
 }
 
@@ -107,7 +107,7 @@ export async function addConfirm(c, db, rawEmail, rawCode, marketing) {
   if (!(await takeTry(db, keys))) throw new HttpError(429, "Too many wrong tries. Wait a few minutes and try again.", "throttled");
   const code = String(rawCode || "").replace(/\s/g, "");
   if (!/^\d{6}$/.test(code) || !(await checkCode(db, email, "verify", user.id, code))) {
-    throw new HttpError(400, "That code isn't right or has expired.");
+    throw new HttpError(400, "That code isn't right or has expired. Ask for a new one.");
   }
   await giveBack(db, keys);
   try {

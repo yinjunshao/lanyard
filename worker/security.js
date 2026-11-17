@@ -71,7 +71,7 @@ export async function sameOriginWrites(c, next) {
     const origin = c.req.header("origin");
     const site = c.req.header("sec-fetch-site");
     if (origin ? !allowedOrigins(c).has(origin) : site === "cross-site") {
-      throw new HttpError(403, "Cross-site request blocked.", "bad_origin");
+      throw new HttpError(403, "That didn't come from Lanyard's own page, so it was stopped. Reload the page and try again.", "bad_origin");
     }
   }
   await next();

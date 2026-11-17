@@ -61,7 +61,7 @@ app.use("*", securityHeaders);
 app.use("/api/*", async (c, next) => {
   const hostRoute = c.req.path.startsWith("/api/host/");
   if (isHostSite(c) && !hostRoute && c.req.path !== "/api/health") {
-    return c.json({ error: "Not available on the host portal.", code: "wrong_site" }, 401);
+    return c.json({ error: "That isn't part of the host site. Use the main Lanyard site for it.", code: "wrong_site" }, 401);
   }
   return hostRoute ? next() : sameOriginWrites(c, next);
 });
@@ -78,7 +78,7 @@ app.onError((err, c) => {
   const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
   if (status >= 500 && !err?.quiet) console.error(err);
   // `expose`: a 5xx whose message is written for the person and holds nothing private (F32: drops need DROP_KEY).
-  const body = { error: status >= 500 && !err?.expose ? "Something went wrong on our side. Try again in a moment." : err.message };
+  const body = { error: status >= 500 && !err?.expose ? "Something went wrong on our side. Try again in a minute." : err.message };
   if (err?.code) body.code = err.code;
   return c.json(body, status);
 });
@@ -253,14 +253,14 @@ async function photoAllowed(c, u, dataUrl) {
 app.post("/api/profile", async (c) => {
   const u = requireUser(c);
   const body = await c.req.json().catch(() => ({}));
-  if (!body.name || !body.name.trim()) return c.json({ error: "name required" }, 400);
-  if (!validMode(body)) return c.json({ error: "mode must be student or career" }, 400);
+  if (!body.name || !body.name.trim()) return c.json({ error: "Add your name to make your card." }, 400);
+  if (!validMode(body)) return c.json({ error: "Choose a mode for your card: student or career." }, 400);
   const pick = readInstitution(body);
   if (pick.error) return c.json({ error: pick.error }, 400);
 
   const db = c.env.DB;
   const existing = await one(db, "SELECT user_id FROM profiles WHERE user_id = ?", u.id);
-  if (existing) return c.json({ error: "profile exists; use PUT" }, 409);
+  if (existing) return c.json({ error: "You already have a card. Reload the page to see it." }, 409);
   // Creating a profile is signing up: it needs the Terms / Privacy Policy and the 18+ confirmation.
   if (body.acceptTerms !== true || body.over18 !== true) {
     return c.json({ error: "Please confirm you're 18 or over and agree to the Terms and Privacy Policy.", code: "terms_required" }, 400);
@@ -325,9 +325,9 @@ app.put("/api/onboarding", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   if ((await bump(c.env.DB, `onb:${u.id}`, HOUR)) > 200) return c.json({ error: "Too many steps in an hour. Try again soon.", code: "throttled" }, 429);
   if (body.done !== true && !(Number.isInteger(body.step) && body.step >= 1 && body.step <= 6)) {
-    return c.json({ error: "step must be a whole number from 1 to 6, or done: true" }, 400);
+    return c.json({ error: "That step isn't recognised. Reload the page and try again." }, 400);
   }
-  if (!(await one(c.env.DB, "SELECT 1 AS x FROM profiles WHERE user_id = ?", u.id))) return c.json({ error: "create profile first" }, 404);
+  if (!(await one(c.env.DB, "SELECT 1 AS x FROM profiles WHERE user_id = ?", u.id))) return c.json({ error: "Make your card first, then try again." }, 404);
   const place = await moveTo(c.env.DB, u.id, body.done === true ? null : body.step);
   return c.json({ ok: true, step: place ? place.step : null, inOnboarding: !!place });
 });
@@ -336,9 +336,9 @@ app.put("/api/profile", async (c) => {
   const u = requireUser(c);
   const db = c.env.DB;
   const current = await one(db, "SELECT * FROM profiles WHERE user_id = ?", u.id);
-  if (!current) return c.json({ error: "create profile first" }, 404);
+  if (!current) return c.json({ error: "Make your card first, then try again." }, 404);
   const body = await c.req.json().catch(() => ({}));
-  if (!validMode(body)) return c.json({ error: "mode must be student or career" }, 400);
+  if (!validMode(body)) return c.json({ error: "Choose a mode for your card: student or career." }, 400);
   const pick = readInstitution(body);
   if (pick.error) return c.json({ error: pick.error }, 400);
 
@@ -576,7 +576,7 @@ app.post("/api/cards", async (c) => {
 app.put("/api/cards/:id", async (c) => {
   const u = requireUser(c);
   const card = await one(c.env.DB, "SELECT * FROM cards WHERE id = ? AND user_id = ?", c.req.param("id"), u.id);
-  if (!card) return c.json({ error: "not found" }, 404);
+  if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
   const b = await c.req.json().catch(() => ({}));
   const fields = {};
   for (const k of ["name", "note"]) {
@@ -584,14 +584,14 @@ app.put("/api/cards/:id", async (c) => {
   }
   // The same four themes as a new card (F35.7); before, an edit saved any text here.
   if (b.theme !== undefined) {
-    if (!CARD_THEMES.includes(b.theme)) return c.json({ error: "theme must be default, formal, night or host" }, 400);
+    if (!CARD_THEMES.includes(b.theme)) return c.json({ error: "Choose one of the card themes." }, 400);
     fields.theme = b.theme;
   }
   // Custom strap colour is a Plus personalisation. "" / null clears it.
   const strap = b.strap_color ?? b.strapColor;
   if (strap !== undefined) {
     if (strap === "" || strap === null) fields.strap_color = null;
-    else if (!/^#[0-9a-fA-F]{6}$/.test(String(strap))) return c.json({ error: "colour must look like #D9502B" }, 400);
+    else if (!/^#[0-9a-fA-F]{6}$/.test(String(strap))) return c.json({ error: "Use a colour like #D9502B: a # then six letters or numbers." }, 400);
     else {
       const plan = planOf(await one(c.env.DB, "SELECT plan, plan_until FROM users WHERE id = ?", u.id));
       if (!plan.customStrap) return c.json({ error: "Custom colours are part of Lanyard Plus.", code: "plan_limit" }, 402);
@@ -613,8 +613,8 @@ app.put("/api/cards/:id", async (c) => {
 app.delete("/api/cards/:id", async (c) => {
   const u = requireUser(c);
   const card = await one(c.env.DB, "SELECT * FROM cards WHERE id = ? AND user_id = ?", c.req.param("id"), u.id);
-  if (!card) return c.json({ error: "not found" }, 404);
-  if (card.is_default) return c.json({ error: "can't delete your default card" }, 400);
+  if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
+  if (card.is_default) return c.json({ error: "Your default card can't be deleted. Delete a different card, or edit this one." }, 400);
   await run(c.env.DB, "DELETE FROM cards WHERE id = ?", card.id);
   return c.json({ ok: true });
 });
@@ -628,9 +628,9 @@ app.get("/api/c/:cardId", async (c) => {
   const db = c.env.DB;
   const me = c.get("user"); // null for a first-time visitor
   const card = await one(db, "SELECT * FROM cards WHERE id = ?", c.req.param("cardId"));
-  if (!card) return c.json({ error: "not found" }, 404);
+  if (!card) return c.json({ error: "We couldn't find that card. The link may be wrong, or the card may have been removed." }, 404);
   const isOwner = !!me && card.user_id === me.id;
-  if (me && !isOwner && (await isBlocked(db, me.id, card.user_id))) return c.json({ error: "not found" }, 404);
+  if (me && !isOwner && (await isBlocked(db, me.id, card.user_id))) return c.json({ error: "We couldn't find that card. The link may be wrong, or the card may have been removed." }, 404);
   const cn = me && !isOwner ? await findConnection(db, me.id, card.user_id) : null;
   const shared = !!cn && card.id === (await sharedCardId(db, cn, card.user_id));
   const profile = await one(db, "SELECT * FROM profiles WHERE user_id = ?", card.user_id);
@@ -644,7 +644,7 @@ app.get("/api/c/:cardId", async (c) => {
   // Their other cards stay viewable to a connection on a private profile, but
   // only as identity and "come to me for".
   if (!view && cn) view = await cardView(db, card, { limited: true, profile });
-  if (!view) return c.json({ error: "not found" }, 404);
+  if (!view) return c.json({ error: "We couldn't find that card. The link may be wrong, or the card may have been removed." }, 404);
 
   const token = c.req.query("n");
   const hint = /^[0-9a-f]{10}$/.test(c.req.query("event") || "") ? c.req.query("event") : null;
@@ -756,10 +756,10 @@ async function ownCard(c) {
 // that hasn't been picked up yet.
 app.post("/api/cards/:id/personal-note", async (c) => {
   const card = await ownCard(c);
-  if (!card) return c.json({ error: "not found" }, 404);
+  if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
   const body = await c.req.json().catch(() => ({}));
   const text = String(body.text || "").trim().slice(0, NOTE_MAX);
-  if (!text) return c.json({ error: "write a note first" }, 400);
+  if (!text) return c.json({ error: "Write a note first, then save it." }, 400);
   const token = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, "0")).join("");
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM card_notes WHERE card_id = ? AND redeemed_at IS NULL").bind(card.id),
@@ -772,7 +772,7 @@ app.post("/api/cards/:id/personal-note", async (c) => {
 // What's waiting on the QR, and who last picked one up.
 app.get("/api/cards/:id/personal-note", async (c) => {
   const card = await ownCard(c);
-  if (!card) return c.json({ error: "not found" }, 404);
+  if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
   const db = c.env.DB;
   const active = await one(
     db,
@@ -794,7 +794,7 @@ app.get("/api/cards/:id/personal-note", async (c) => {
 
 app.delete("/api/cards/:id/personal-note", async (c) => {
   const card = await ownCard(c);
-  if (!card) return c.json({ error: "not found" }, 404);
+  if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
   await run(c.env.DB, "DELETE FROM card_notes WHERE card_id = ? AND redeemed_at IS NULL", card.id);
   return c.json({ ok: true });
 });
@@ -825,7 +825,7 @@ app.get("/api/code/:code", async (c) => {
 // shouldn't. The old one stops working at once. Free for everyone, a few a day.
 app.post("/api/cards/:id/rotate-code", async (c) => {
   const card = await ownCard(c);
-  if (!card) return c.json({ error: "not found" }, 404);
+  if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
   const db = c.env.DB;
   if ((await bump(db, `code:replace:${card.user_id}`, DAY)) > 3) {
     return c.json({ error: "You've replaced your code a few times today. Try again tomorrow.", code: "throttled" }, 429);
@@ -838,7 +838,7 @@ app.post("/api/cards/:id/rotate-code", async (c) => {
 // Plus: choose your own code (4 to 8 letters or numbers), once a week.
 app.post("/api/cards/:id/custom-code", async (c) => {
   const card = await ownCard(c);
-  if (!card) return c.json({ error: "not found" }, 404);
+  if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
   const db = c.env.DB;
   const plan = planOf(await one(db, "SELECT plan, plan_until FROM users WHERE id = ?", card.user_id));
   if (plan.tier !== "plus") {
@@ -926,9 +926,9 @@ app.post("/api/connect", async (c) => {
     return c.json({ error: "That's a lot of connections in an hour. Take a breather and try again soon.", code: "throttled" }, 429);
   }
   const card = await one(db, "SELECT * FROM cards WHERE id = ?", String(body.cardId || ""));
-  if (!card) return c.json({ error: "card not found" }, 404);
+  if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
   const peerId = card.user_id;
-  if (peerId === me.id) return c.json({ error: "that's your own card" }, 400);
+  if (peerId === me.id) return c.json({ error: "That's your own card, so there is nothing to connect." }, 400);
   if (await isBlocked(db, me.id, peerId)) return c.json({ error: "You can't connect with this person." }, 403);
 
   // Guests must at least have a name. If they have no profile, make a stub one
@@ -936,7 +936,7 @@ app.post("/api/connect", async (c) => {
   let myProfile = await one(db, "SELECT * FROM profiles WHERE user_id = ?", me.id);
   if (!myProfile) {
     const name = String(body.name || "").trim();
-    if (!name) return c.json({ error: "name required" }, 400);
+    if (!name) return c.json({ error: "Add your name to connect." }, 400);
     await run(
       db,
       `INSERT INTO profiles (user_id, name, uni, course, headline, about, links, tags, projects, is_public, updated_at, onboarding_step)
@@ -965,7 +965,7 @@ app.post("/api/connect", async (c) => {
   // other person still has to accept it in the app (consent_b); until they do
   // it stays "pending", is only a request for them, and is deleted after 7 days.
   if (body.selfieDataUrl) {
-    if (!body.consent) return c.json({ error: "consent required for selfie" }, 400);
+    if (!body.consent) return c.json({ error: "Tick the box to agree to the photo being shared, or leave the photo out." }, 400);
     selfieKey = await putImage(c.env, body.selfieDataUrl, "selfie");
   }
 
@@ -1103,7 +1103,7 @@ app.get("/api/connections/:id", async (c) => {
   const db = c.env.DB;
   const cn = await one(db, "SELECT * FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)",
     c.req.param("id"), me.id, me.id);
-  if (!cn) return c.json({ error: "not found" }, 404);
+  if (!cn) return c.json({ error: "We couldn't find that connection. It may have been removed." }, 404);
   const peerId = cn.user_a === me.id ? cn.user_b : cn.user_a;
   const p = await one(db, "SELECT * FROM profiles WHERE user_id = ?", peerId);
   const note = await one(db, "SELECT text FROM notes WHERE user_id = ? AND connection_id = ?", me.id, cn.id);
@@ -1150,7 +1150,7 @@ app.put("/api/connections/:id/note", async (c) => {
   const { text } = await c.req.json().catch(() => ({}));
   const cn = await one(c.env.DB, "SELECT id FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)",
     c.req.param("id"), me.id, me.id);
-  if (!cn) return c.json({ error: "not found" }, 404);
+  if (!cn) return c.json({ error: "We couldn't find that connection. It may have been removed." }, 404);
   await run(c.env.DB,
     `INSERT INTO notes (user_id, connection_id, text, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id, connection_id) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at`,
@@ -1164,7 +1164,7 @@ app.put("/api/connections/:id/meta", async (c) => {
   const db = c.env.DB;
   const cn = await one(db, "SELECT id FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)",
     c.req.param("id"), me.id, me.id);
-  if (!cn) return c.json({ error: "not found" }, 404);
+  if (!cn) return c.json({ error: "We couldn't find that connection. It may have been removed." }, 404);
   const b = await c.req.json().catch(() => ({}));
   const cur = (await one(db, "SELECT remind_at, followed_up_at, tags FROM notes WHERE user_id = ? AND connection_id = ?", me.id, cn.id)) || {};
   let remindAt = cur.remind_at ?? null;
@@ -1218,7 +1218,7 @@ app.delete("/api/connections/:id", async (c) => {
   const db = c.env.DB;
   const cn = await one(db, "SELECT * FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)",
     c.req.param("id"), me.id, me.id);
-  if (!cn) return c.json({ error: "not found" }, 404);
+  if (!cn) return c.json({ error: "We couldn't find that connection. It may have been removed." }, 404);
   if (cn.selfie_key) await deleteImage(c.env, cn.selfie_key);
   await run(db, "DELETE FROM connections WHERE id = ?", cn.id); // cascades notes/messages
   return c.json({ ok: true });
@@ -1230,7 +1230,7 @@ app.post("/api/connections/:id/selfie/accept", async (c) => {
   const me = requireUser(c);
   const db = c.env.DB;
   const cn = await one(db, "SELECT * FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)", c.req.param("id"), me.id, me.id);
-  if (!cn || !cn.selfie_key) return c.json({ error: "not found" }, 404);
+  if (!cn || !cn.selfie_key) return c.json({ error: "We couldn't find that connection. It may have been removed." }, 404);
   if (cn.selfie_by === me.id) return c.json({ error: "The other person has to accept this one." }, 400);
   await db.batch([
     db.prepare("UPDATE connections SET consent_b = 1, consent_b_at = ? WHERE id = ?").bind(now(), cn.id),
@@ -1245,7 +1245,7 @@ app.post("/api/connections/:id/selfie/remove", async (c) => {
   const me = requireUser(c);
   const db = c.env.DB;
   const cn = await one(db, "SELECT * FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)", c.req.param("id"), me.id, me.id);
-  if (!cn || !cn.selfie_key) return c.json({ error: "not found" }, 404);
+  if (!cn || !cn.selfie_key) return c.json({ error: "We couldn't find that connection. It may have been removed." }, 404);
   await deleteImage(c.env, cn.selfie_key);
   await db.batch([
     db.prepare("UPDATE connections SET selfie_key = NULL, selfie_by = NULL, selfie_at = NULL, consent_a = 0, consent_b = 0, consent_b_at = NULL WHERE id = ?").bind(cn.id),
@@ -1260,7 +1260,7 @@ app.get("/media/:key{.+}", async (c) => {
   // Keys are prefix/hex.ext — block traversal.
   const key = c.req.param("key");
   if (!/^(avatar|selfie|project|event|presence)\/[a-z0-9]+\.(webp|jpg|jpeg|png)$/.test(key)) {
-    return c.json({ error: "bad key" }, 400);
+    return c.json({ error: "That photo link isn't valid." }, 400);
   }
   // A shared selfie is only ever served to the two people in that connection.
   const isPrivate = key.startsWith("selfie/");
@@ -1268,14 +1268,14 @@ app.get("/media/:key{.+}", async (c) => {
     const me = c.get("user");
     const ok = me && (await one(c.env.DB,
       "SELECT 1 AS x FROM connections WHERE selfie_key = ? AND (user_a = ? OR user_b = ?)", key, me.id, me.id));
-    if (!ok) return c.json({ error: "not found" }, 404);
+    if (!ok) return c.json({ error: "We couldn't find that photo. It may have been removed." }, 404);
   }
   // An event-presence selfie (F17) is only ever served to someone allowed to see that person in
   // the list (see canViewPresenceSelfie), and is never cached, so withdrawing it works at once.
   const isPresence = key.startsWith("presence/");
-  if (isPresence && !(await canViewPresenceSelfie(c.env.DB, c.get("user")?.id, key))) return c.json({ error: "not found" }, 404);
+  if (isPresence && !(await canViewPresenceSelfie(c.env.DB, c.get("user")?.id, key))) return c.json({ error: "We couldn't find that photo. It may have been removed." }, 404);
   const res = await getImage(c.env, key, { isPrivate: isPrivate || isPresence, noStore: isPresence });
-  return res || c.json({ error: "not found" }, 404);
+  return res || c.json({ error: "We couldn't find that photo. It may have been removed." }, 404);
 });
 
 /* -------------------------------- health --------------------------------- */
@@ -1289,12 +1289,12 @@ app.post("/api/connections/:id/report", async (c) => {
   const u = requireUser(c);
   const db = c.env.DB;
   const cn = await one(db, "SELECT * FROM connections WHERE id = ? AND (user_a = ? OR user_b = ?)", c.req.param("id"), u.id, u.id);
-  if (!cn) return c.json({ error: "not found" }, 404);
+  if (!cn) return c.json({ error: "We couldn't find that connection. It may have been removed." }, 404);
   const body = await c.req.json().catch(() => ({}));
   if ((await bump(db, `day:report:${u.id}`, DAY)) > 20) return c.json({ error: "You've sent a lot of reports today. Email us if it's urgent." }, 429);
   const target = cn.user_a === u.id ? cn.user_b : cn.user_a;
   const reason = String(body.reason || "").slice(0, 500);
-  if (!body.block && !reason.trim()) return c.json({ error: "Tell us what happened" }, 400);
+  if (!body.block && !reason.trim()) return c.json({ error: "Tell us what happened, in a sentence or two." }, 400);
   if (reason.trim()) {
     await run(db, "INSERT INTO reports (id, reporter_id, target_id, reason, created_at) VALUES (?, ?, ?, ?, ?)",
       newId(), u.id, target, reason, now());
@@ -1340,7 +1340,7 @@ app.get("/host", toHostSite);
 app.get("/host/*", toHostSite);
 
 /* ------------------------------- SPA fallback ----------------------------- */
-app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
+app.all("/api/*", (c) => c.json({ error: "We couldn't find that. Reload the page and try again." }, 404));
 // F37: the static files and the app shell, with the tags of the page written in (worker/seo.js).
 app.all("*", (c) => servePage(c));
 
