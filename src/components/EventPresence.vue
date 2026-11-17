@@ -3,6 +3,7 @@
 // is on. Off until you turn it on. What you show, who sees it and when it is deleted are said in
 // the card itself. A person in the list is a photo, a first name and last initial, their line and a
 // reason; there is no card or link to open, because you meet them in the room and scan their badge.
+import { explain } from "../lib/errors";
 import { computed, onMounted, ref, watch } from "vue";
 import { api } from "../lib/api";
 import { fileToDataUrl } from "../lib/photo";
@@ -91,7 +92,7 @@ async function takeSelfie(e) {
     const dataUrl = await fileToDataUrl(file, 720, 0.8);
     // Choosing a photo here is the consent to it being shown, as the text beside the button says.
     await change({ consent: true, selfieDataUrl: dataUrl }, "Photo saved.");
-  } catch (err) { error.value = err.message || "That photo couldn't be read."; busy.value = false; }
+  } catch (err) { error.value = explain(err, "That photo couldn't be read. Try another."); busy.value = false; }
 }
 const removeSelfie = () => change({ selfieDataUrl: null }, "Photo deleted.");
 const saveIntro = () => change({ intro: intro.value });

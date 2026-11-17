@@ -138,6 +138,7 @@ const fmt = (t) =>
       <span class="label">Couldn't load your connections</span>
       <p>{{ loadError }}</p>
       <p class="small muted">Your connections are safe. This is a loading problem, not missing data.</p>
+      <button type="button" class="btn" @click="load">Try again</button>
     </div>
     <div v-else-if="!rows.length" class="empty stack">
       <span class="label">No connections yet</span>

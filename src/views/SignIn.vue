@@ -39,7 +39,7 @@ async function withPasskey() {
   } catch (e) {
     error.value = e?.name === "NotAllowedError" || /unknown passkey/.test(e?.message || "")
       ? "No passkey found for Lanyard here. Use your email instead."
-      : e?.message || "Passkey sign-in failed.";
+      : e?.status ? e.message : "Passkey sign-in failed. Use your email instead.";
   } finally { busy.value = ""; }
 }
 

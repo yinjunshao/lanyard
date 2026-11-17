@@ -93,7 +93,7 @@ async function saveMore(d) {
 async function download(d) {
   await act(d, "download", async () => {
     const res = await fetch(`${base.value}/${d.id}/unused`, { method: "POST", credentials: "same-origin" });
-    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Couldn't download them."); }
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Couldn't download them. Try again."); }
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement("a");
     a.href = url; a.download = `${d.title.replace(/[^A-Za-z0-9 _-]/g, "").trim().replace(/\s+/g, "-") || "drop"}-unused.txt`;

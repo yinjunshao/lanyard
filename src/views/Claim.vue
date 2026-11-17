@@ -6,7 +6,7 @@ import { useRouter } from "vue-router";
 import { me, refreshMe } from "../lib/store";
 import { registerPasskey, passkeysSupported } from "../lib/passkeys";
 import { Api } from "../lib/api";
-import "../lib/errors"; // F39: plain words for a failed request
+import { explain } from "../lib/errors"; // F39: plain words for a failed request
 import EmailSetup from "../components/EmailSetup.vue";
 document.title = "Keep your account | Lanyard";
 
@@ -27,7 +27,7 @@ async function passkey() {
     await refreshMe();
     await makeKey();
   } catch (e) {
-    error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled. You can try again, or use a recovery key instead." : e?.message || "Passkey setup failed.";
+    error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled. You can try again, or use a recovery key instead." : explain(e, "Passkey setup failed. Try again, or use another way to sign in.");
   } finally { busy.value = false; }
 }
 async function makeKey() {

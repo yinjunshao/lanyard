@@ -90,8 +90,6 @@ function removeLink(i) {
 // of the raw "Request failed (###)" the generic fetch wrapper throws.
 function saveErrorMessage(e) {
   if (e.status === 413) return "That photo is too large even after compressing. Try a smaller or simpler image.";
-  if (e.status === 401) return "Your session has expired. Reload the page and try again.";
-  if (e.status >= 500) return "The server hit a problem saving this (not your edits — try again in a moment).";
   return e.message;
 }
 

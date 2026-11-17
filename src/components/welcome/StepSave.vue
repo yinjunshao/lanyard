@@ -2,6 +2,7 @@
 // Step 5: save the card. A verified email (by code) is what gets someone back in on
 // a new phone; a passkey on top is one-tap sign-in. Email is the way in that is
 // becoming compulsory, so it is the main thing here and the passkey is an extra.
+import { explain } from "../../lib/errors";
 import { computed, ref } from "vue";
 import { me, refreshMe } from "../../lib/store";
 import { pendingCode } from "../../lib/redeem";
@@ -16,7 +17,7 @@ const error = ref("");
 async function addPasskey() {
   error.value = ""; busy.value = true;
   try { await registerPasskey(); await refreshMe(); }
-  catch (e) { error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled. You can add one later in Settings." : e?.message || "Passkey setup failed."; }
+  catch (e) { error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled. You can add one later in Settings." : explain(e, "Passkey setup failed. Try again, or use another way to sign in."); }
   finally { busy.value = false; }
 }
 

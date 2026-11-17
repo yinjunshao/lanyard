@@ -5,6 +5,7 @@
 //  2. no verified email: add one, right here (we're moving to email being
 //     required, so "Later" only snoozes it for a few days);
 //  3. no passkey: it's the fastest way to sign in next time.
+import { explain } from "../lib/errors";
 import { computed, ref, shallowRef } from "vue";
 import { me } from "../lib/store";
 import { Api } from "../lib/api";
@@ -57,7 +58,7 @@ async function openEmail() {
 async function addPasskey() {
   error.value = ""; busy.value = true;
   try { await (await import("../lib/passkeys")).registerPasskey(); dismiss("passkey"); location.reload(); }
-  catch (e) { error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled." : e?.message || "Passkey setup failed."; }
+  catch (e) { error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled." : explain(e, "Passkey setup failed. Try again, or use another way to sign in."); }
   finally { busy.value = false; }
 }
 </script>

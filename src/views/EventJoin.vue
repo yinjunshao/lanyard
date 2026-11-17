@@ -40,7 +40,7 @@ async function load() {
     }
     state.value = "checkin";
   } catch (e) {
-    error.value = e.message === "event not found" ? "That event code doesn't exist." : e.message;
+    error.value = e.message;
     state.value = "error";
   }
 }

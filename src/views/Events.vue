@@ -45,6 +45,7 @@ const past = computed(() => rows.value.filter((r) => r.status === "ended").sort(
     <div v-else-if="loadError" class="empty stack" role="alert">
       <span class="label">Couldn't load your events</span>
       <p>{{ loadError }}</p>
+      <button type="button" class="btn" @click="load">Try again</button>
     </div>
     <div v-else-if="!events.length" class="empty stack">
       <span class="label">No events yet</span>

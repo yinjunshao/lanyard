@@ -1,5 +1,6 @@
 <script setup>
 // Sign-in and devices: every way back into the account. Later features add their rows below.
+import { explain } from "../../lib/errors";
 import { ref } from "vue";
 import { me, refreshMe } from "../../lib/store";
 import { registerPasskey, passkeysSupported } from "../../lib/passkeys";
@@ -14,7 +15,7 @@ async function addPasskey() {
     await registerPasskey();
     await refreshMe();
   } catch (e) {
-    error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled." : e?.message || "Passkey setup failed.";
+    error.value = e?.name === "NotAllowedError" ? "Passkey setup was cancelled." : explain(e, "Passkey setup failed. Try again, or use another way to sign in.");
   }
 }
 </script>
