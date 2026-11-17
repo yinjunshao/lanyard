@@ -25,7 +25,7 @@ needs: []
 ## Tasks
 Each is one commit; `npm test` (checked in a clean worktree, because the owner's uncommitted AI work breaks `test/ai.mjs` in the tree) and `npm run build` pass before it. No migration and no Worker change.
 - [x] F38.1 Survey every page and panel that waits (the table below) and turn the plan into these tasks.
-- [ ] F38.2 One skeleton style in `src/styles/main.css` (CSS only, the sweep stops under `prefers-reduced-motion`), `src/components/Waiting.vue` for signed-in and host pages (`aria-busy`, one polite message, the 8 second "taking longer than usual" note with Try again), a grey placeholder for the QR square, a slow note on the start-up splash, and the first `test/loading.mjs` guards.
+- [x] F38.2 One skeleton style in `src/styles/main.css` (CSS only, the sweep stops under `prefers-reduced-motion`), `src/components/Waiting.vue` for signed-in and host pages (`aria-busy`, one polite message, the 8 second "taking longer than usual" note with Try again), a grey placeholder for the QR square, a slow note on the start-up splash, and the first `test/loading.mjs` guards.
 - [ ] F38.3 Public pages, CSS only and no new module: the card (`/c/:id`), Redeem, and the event join page (which may use `Waiting`; it is not one of the eight budget pages). Budget numbers before and after.
 - [ ] F38.4 Signed-in app: People, Events, an event (and its Room and Album tabs), Person, Feedback, Welcome, Settings pages, and the small text-only waits inside panels.
 - [ ] F38.5 Host site and Admin: dashboard, live page (and its Feedback and Report tabs), Account, Billing, attendee list, drops, Redeem, Present, Print, Admin.

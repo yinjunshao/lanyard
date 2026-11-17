@@ -854,3 +854,66 @@ button.list-row { font: inherit; }
 .funnel .num { text-align: right; }
 /* The finished badge on the last welcome step: a little smaller on a short screen so the page does not scroll. */
 @media (max-height: 899px) { .done-badge { zoom: 0.78; } }
+
+/* ---------- Waiting (F38): skeletons, CSS only ----------
+   Grey blocks in the shape of what is coming, in the paper-and-ink tokens, so every theme follows.
+   One soft band sweeps across the whole waiting region (one animation, not one per block); it stops
+   under reduced motion. A wrapper (.sk-wrap) is aria-busy, its blocks are aria-hidden, and one
+   visually-hidden role="status" line says what is loading. Public pages use only these classes and no
+   JavaScript (the budget); signed-in and host pages use components/Waiting.vue, which adds the timer. */
+.sk-wrap { position: relative; overflow: hidden; }
+.sk-wrap::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 7%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: sk-sweep 1.8s ease-in-out infinite;
+}
+@keyframes sk-sweep { to { transform: translateX(100%); } }
+@keyframes sk-pulse { 50% { opacity: 0.55; } }
+@keyframes sk-in { to { visibility: visible; } }
+@media (prefers-reduced-motion: reduce) {
+  .sk-wrap::after { animation: none; display: none; }
+  .badge-qr canvas:not([width]) { animation: none; }
+}
+.sk { display: block; background: var(--rule); border-radius: 4px; }
+.sk-line { height: 14px; margin: 7px 0; }
+.sk-line.s { width: 55%; }
+.sk-title { height: 28px; width: 50%; margin: 6px 0 12px; }
+.sk-photo { width: 50px; height: 50px; flex: none; }
+.sk-box { height: 48px; border-radius: var(--radius); }
+.sk-stat { height: 62px; border-radius: var(--radius); }
+.sk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space); }
+.sk-panel { min-height: 96px; }
+/* The public card, drawn by one element so the page script stays small: strap, photo, name, headline. */
+.sk-profile {
+  --c: var(--rule);
+  height: 340px;
+  border: var(--border-ink); border-radius: 8px; background-color: var(--paper-raised); box-shadow: var(--shadow-2);
+  background-repeat: no-repeat;
+  background-image:
+    linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)),
+    linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c));
+  background-position: 0 0, 20px 72px, 124px 84px, 124px 118px, 20px 192px, 20px 222px;
+  background-size: 100% 52px, 88px 88px, calc(100% - 144px) 24px, calc(60% - 80px) 16px, calc(100% - 40px) 16px, calc(70% - 40px) 16px;
+}
+/* A note that appears 8 seconds after the page starts, with no script: hidden, then shown by a timed animation. */
+.sk-slow {
+  position: absolute; left: 12px; right: 12px; bottom: 16px; z-index: 1; margin: 0;
+  padding: 10px 12px; border: var(--border); border-radius: var(--radius); background: var(--paper-raised);
+  font-size: 14px; text-align: center; visibility: hidden; animation: sk-in 1ms 8s forwards;
+}
+.sk-slow a { text-decoration: underline; font-weight: 700; }
+/* Waiting.vue's own note, shown by its timer. */
+.sk-note { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 12px 0 0; }
+.sk-note .btn { width: auto; }
+/* The QR square waits for the QR library (a second download after first paint). */
+.badge-qr canvas:not([width]) { background: var(--rule); border-radius: 2px; animation: sk-pulse 1.8s ease-in-out infinite; }
+/* The start-up splash, while /api/me is slow. */
+.boot-splash { position: relative; }
+.boot-splash::after {
+  content: "Taking longer than usual. Reload the page to try again.";
+  position: absolute; left: 16px; right: 16px; bottom: 15vh; text-align: center;
+  font-size: 15px; font-weight: 400; letter-spacing: 0; color: var(--graphite);
+  visibility: hidden; animation: sk-in 1ms 8s forwards;
+}
+.sk-body > * + * { margin-top: 16px; }
