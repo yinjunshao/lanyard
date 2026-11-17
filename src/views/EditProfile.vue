@@ -86,8 +86,7 @@ function removeLink(i) {
   f.value.links.splice(i, 1);
   if (!f.value.links.length) f.value.links.push({ label: "", url: "" });
 }
-// A friendlier message for the failures someone actually hits here, instead
-// of the raw "Request failed (###)" the generic fetch wrapper throws.
+// A friendlier message for the one failure that needs its own words here (the rest come from api()).
 function saveErrorMessage(e) {
   if (e.status === 413) return "That photo is too large even after compressing. Try a smaller or simpler image.";
   return e.message;

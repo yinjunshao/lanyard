@@ -114,7 +114,7 @@ export function validateAnswers(questions, input) {
     if (v === undefined || v === null || v === "") continue;
     if (q.type === "rating") {
       // A star rating is a whole number from 1 to 5; anything else is refused, not dropped (F35.7).
-      if (!(Number.isInteger(v) && v >= 1 && v <= 5)) throw new HttpError(400, `Ratings are 1 to 5 stars: ${q.label}`, "bad_rating");
+      if (!(Number.isInteger(v) && v >= 1 && v <= 5)) throw new HttpError(400, `Give a rating from 1 to 5 stars for "${q.label}".`, "bad_rating");
       closed[q.id] = v;
     } else if (q.type === "single") {
       if (q.options.includes(v)) closed[q.id] = v;
@@ -128,7 +128,7 @@ export function validateAnswers(questions, input) {
   }
   for (const q of questions) {
     if (q.required && closed[q.id] === undefined) {
-      throw new HttpError(400, `Please answer: ${q.label}`, "answer_required");
+      throw new HttpError(400, `Please answer "${q.label}".`, "answer_required");
     }
   }
   return { closed, text };
@@ -214,7 +214,7 @@ feedbackApp.post("/api/e/:id/feedback", async (c) => {
   const db = c.env.DB;
   const { ev, checkin, done } = await loadForUser(db, c.req.param("id"), me.id);
   const st = status(ev, checkin, done);
-  if (st === "done") return c.json({ error: "You've already given feedback for this event. Thank you!", code: "done" }, 409);
+  if (st === "done") return c.json({ error: "You've already given feedback for this event. Thank you.", code: "done" }, 409);
   if (st !== "open") {
     const msg = { off: "This event isn't collecting feedback.", not_checked_in: "Only people who checked in can give feedback.",
       not_open: "Feedback opens when the event ends.", closed: "Feedback for this event has closed." }[st];
@@ -230,7 +230,7 @@ feedbackApp.post("/api/e/:id/feedback", async (c) => {
         .bind(newId() + newId(), ev.id, JSON.stringify(answers), day),
     ]);
   } catch {
-    return c.json({ error: "You've already given feedback for this event. Thank you!", code: "done" }, 409);
+    return c.json({ error: "You've already given feedback for this event. Thank you.", code: "done" }, 409);
   }
   return c.json({ ok: true });
 });

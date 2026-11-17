@@ -164,11 +164,11 @@ presenceApp.post("/api/e/:id/presence/:presenceId/report", async (c) => {
   if (st.why) return refuse(c, st.why);
   if (!st.mine) return c.json({ error: "Turn on 'Show me to people here' first.", code: "presence_off" }, 403);
   const seen = (await presenceCandidates(db, st.ev.id, me.id)).find((p) => p.id === c.req.param("presenceId"));
-  if (!seen) return c.json({ error: "not found" }, 404);
+  if (!seen) return c.json({ error: "We couldn't find that person. Reload the page and try again." }, 404);
   const b = await c.req.json().catch(() => ({}));
   if ((await bump(db, `day:report:${me.id}`, DAY)) > 20) return c.json({ error: "You've sent a lot of reports today. Email us if it's urgent." }, 429);
   const reason = String(b.reason || "").slice(0, 500);
-  if (!b.block && !reason.trim()) return c.json({ error: "Tell us what happened" }, 400);
+  if (!b.block && !reason.trim()) return c.json({ error: "Tell us what happened, in a sentence or two." }, 400);
   if (reason.trim()) {
     await run(db, "INSERT INTO reports (id, reporter_id, target_id, reason, created_at) VALUES (?, ?, ?, ?, ?)", newId(), me.id, seen.user_id, reason, now());
   }

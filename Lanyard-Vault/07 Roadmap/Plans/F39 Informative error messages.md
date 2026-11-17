@@ -28,7 +28,7 @@ Each is one commit; `npm test` (checked in a clean worktree, because the owner's
 - [x] F39.3 Worker words, host and admin side: `hosts.js`, `host-auth.js`, `admin.js`, `dropsHost.js`, `dropsNamed.js`, `dropsReplace.js`, and the front end's `serverErrorField`, which matched the old words.
 - [x] F39.4 One place that turns a failed request into words: `src/lib/api.js` gets a built-in "No connection" fallback and a hook; `src/lib/errors.js` (signed-in, host and admin pages only) tells offline, timeout, 401, 403, 404, 409, 413, 429 (with the wait when the server gives one), 5xx and a labelled 503 apart. Budget numbers before and after.
 - [x] F39.5 Pages: a Sign in link when a session is lost, library English and raw fallbacks removed (passkeys, Admin, EditProfile, downloads), Try again on page-level errors, field errors next to their field.
-- [ ] F39.6 `test/errors.mjs` wired before `test/budget.mjs`.
+- [x] F39.6 `test/errors.mjs` wired before `test/budget.mjs`.
 - [ ] F39.7 Look at it in a browser (offline, wrong code, rate limit, not found, signed out, a field error; 375 px light and dark, one at 1280 px), tick the acceptance checks, vault notes and D044.
 
 ## Survey (F39.1, 2026-11-17)
