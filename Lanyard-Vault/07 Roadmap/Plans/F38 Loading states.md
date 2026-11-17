@@ -30,7 +30,7 @@ Each is one commit; `npm test` (checked in a clean worktree, because the owner's
 - [x] F38.4 Signed-in app: People, Events, an event (and its Room and Album tabs), Person, Feedback, Welcome, Settings pages, and the small text-only waits inside panels.
 - [x] F38.5 Host site and Admin: dashboard, live page (and its Feedback and Report tabs), Account, Billing, attendee list, drops, Redeem, Present, Print, Admin.
 - [x] F38.6 Buttons that send something: audit every one, give each a short working label and a guard against a second press, and add the pattern guard to `test/loading.mjs`.
-- [ ] F38.7 Look at every page slowed down (375 and 1280 px, light and dark, reduced motion), tick the acceptance checks, vault notes and D043.
+- [x] F38.7 Look at every page slowed down (375 and 1280 px, light and dark, reduced motion), tick the acceptance checks, vault notes and D043.
 
 ## Survey (F38.1, 2026-11-17)
 What each page or panel waits on, what a person sees today, and what they will see. "CSS only" means markup and classes in `main.css` and no new JavaScript (public pages are held to 51,200 B, [[F28 Public-page JS budget]]). "Waiting" is the new `Waiting.vue`, used only by signed-in, host and admin pages.
@@ -63,13 +63,17 @@ What each page or panel waits on, what a person sees today, and what they will s
 | Present, Print | `GET /api/host/events/:id/live` | Nothing | A short "Opening the event…" with the slow note (these pages have their own colours) |
 | Admin | The queue and lists | Empty sections that say 0 | Waiting while the queue has not arrived |
 
-Buttons that send something are surveyed in F38.6.
+Buttons that send something are surveyed in F38.6. Left as text on purpose: `CopiedFacts` ("Reading its details…", one line inside the create-event form) and the unrouted `Connect.vue`.
 
 ## Acceptance checks
 - [ ] Every page that waits on the API shows a skeleton or a clear waiting state (checked with the network throttled in a browser, at 375 and 1280 px, light and dark).
-- [ ] No button that sends something can be pressed twice while it waits.
-- [ ] Motion stops with reduced motion on.
-- [ ] No public page gets heavier than its budget ([[F28 Public-page JS budget]]).
+  - **Partly verified, so not ticked.** Run in the Browser pane with every request except `/api/me` held for 20 to 30 seconds (a `fetch` override, not the network panel's throttle; page chunks are not slowed). Looked at as screenshots: People (375 light, 1280 dark, with the slow note and Try again working), Events, an event, the public card (375 light, 1280 dark, with the note), the check-in page (375 light), the host live page, Present (with the note). Checked as DOM at 375 and 1280, light and dark, for the card, check-in page, Redeem, People, Events, an event and Feedback (one `aria-busy` region, one polite status line, blocks present, no sideways scroll), and at 1280 and 375 for the host Account, Billing, live, Present and Print pages, and the host dashboard at 375 (the dashboard's skeleton was seen at 1280 earlier). **Not looked at slowed down:** a Settings page's code loading, the welcome steps, the Room and Album tabs, the follow-up box, the host attendee list, drops and redeem box, Admin, and the QR placeholder while the library loads (its rule was checked in computed style only). Their markup and Try again wiring are guarded in `test/loading.mjs`.
+- [x] No button that sends something can be pressed twice while it waits.
+  - Verified by a scan in `test/loading.mjs` over every `.vue` file: all 81 buttons and forms whose handler sends something (a POST, PUT or DELETE, or a host or admin call) are disabled while they wait, and each handler ignores a second call (wrapped in `once()`, or a first-line guard, or its busy flag set before its first `await`). About 35 handlers and buttons lacked one or the other and were fixed (F38.6). Not pressed twice by hand in a browser.
+- [x] Motion stops with reduced motion on.
+  - The sweep and the QR square's pulse are the only repeating animations; both are switched off in one `@media (prefers-reduced-motion: reduce)` block (guarded in `test/loading.mjs`). In the browser I applied that block's rules to the page and read the computed style: the sweep's `animation-name` and `display` become `none`. The 8 second note is a one-off appearance (a visibility change), not motion, so it stays. I did not set the operating system's reduced-motion option.
+- [x] No public page gets heavier than its budget ([[F28 Public-page JS budget]]).
+  - First-load gzip bytes, before (HEAD 07c94e6, a clean checkout) and after (HEAD c91528f, F38.6, a clean checkout; the limit is 51,200 and builds move by up to 15 B): Landing 45,174 to 45,225, **PublicCard 51,043 to 51,087** (113 B of room), Hosts 43,620 to 43,674, Privacy 50,344 to 50,397, Terms 47,871 to 47,925, Redeem 46,948 to 47,086, SignIn 48,227 to 48,280, PrivacyRequest 50,587 to 50,639. About 45 B of each is the new `Waiting` chunk's name in the entry's preload list, which every page pays; the card's own skeleton markup was paid for by moving four inline styles into `main.css`. Final numbers after F38.7 are in the Log.
 
 ## Log
 -

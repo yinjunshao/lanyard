@@ -886,7 +886,7 @@ button.list-row { font: inherit; }
 .sk-box { height: 48px; margin-top: 16px; border-radius: var(--radius); }
 .sk-tall { height: 110px; margin-top: 16px; border-radius: var(--radius); }
 .sk-stat { height: 62px; border-radius: var(--radius); }
-.sk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space); }
+.sk-stats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--space); }
 .sk-panel { min-height: 96px; }
 /* The public card, drawn by one element so the page script stays small: strap, photo, name, headline. */
 .sk-profile {
