@@ -16,6 +16,8 @@ From `src/router/index.js`. All views are code-split so public pages stay light 
 | `/terms`, `/privacy` | Legal |
 | `/claim`, `/signin` | Account claim and sign-in |
 
+**Search, link previews and tab titles (F37, [[D042 A shared card link shows what the card already shows, and is never indexed]]).** Only `/`, `/hosts`, `/terms` and `/privacy` may be indexed (they are in the sitemap). A link to `/c/:cardId` previews the person's name, headline and photo exactly as the card page shows them, `/e/:code` previews the event name and host; both send `noindex` and a made-up, deleted or ended one gets the generic Lanyard preview. Each page also sets its own browser-tab title ("Terms of service | Lanyard", "Ada Lovelace on Lanyard"; signed-in pages "People | Lanyard" and so on, set in `AppShell.vue`).
+
 ## Attendee app (`/app`, bottom tabs: My Card, Scan, People, Events)
 `/app`, `/app/cards`, `/app/profile`, `/app/scan`, `/app/people`, `/app/people/:id`, `/app/events`, `/app/events/:id`, `/app/settings`, `/app/feedback/:eventId`
 

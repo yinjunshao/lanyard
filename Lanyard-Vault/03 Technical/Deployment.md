@@ -45,6 +45,11 @@ Card payments (F36, [[D041 Polar as merchant of record behind one provider modul
 
 Create D1 and paste id; create R2 bucket; apply migrations remotely; set origins and RP_ID; custom domain; `wrangler secret put ADMIN_TOKEN` (opens `/admin`).
 
+## Search and link previews (F37)
+- No migration, no new secret, no new setting. The Worker builds absolute links from the **first entry of `APP_ORIGIN`**: keep `https://lanyd.fyi` first in `wrangler.production.toml` (a `host.*` entry is skipped; with none usable it falls back to `https://lanyd.fyi`).
+- `public/og-image.png` (1200 x 630, about 10 KB) is made by `node scripts/make-og-image.mjs` (needs `sharp`, which wrangler already brings into `node_modules`). Commit the new PNG if it changes; chat apps keep the old picture by address, so a changed picture needs a new file name.
+- After the deploy, owner checks (a local run proves the tags, only the real apps prove the previews): paste `https://lanyd.fyi/`, `/hosts`, a real card link and a real event link into the LinkedIn Post Inspector (https://www.linkedin.com/post-inspector/) and opengraph.xyz, the Facebook Sharing Debugger, and send them to yourself on WhatsApp and Slack; each should show the right title and picture. Then Search Console: add `lanyd.fyi`, submit `/sitemap.xml`, and "inspect" a card link to see "noindex" reported. Cards and events must not appear in search.
+
 ## Gotchas
 - Wrangler pinned to 4.20.5 (4.151.0 had broken OAuth scope on Windows).
 - `RP_ID` must be the full hostname on workers.dev (public suffix).
