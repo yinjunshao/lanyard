@@ -105,7 +105,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F36** [[F36 Payment provider and billing pages]] · P1 · M · Needs: F35 + owner decision (provider). Research and plan only; taking money stays blocked on the legal identity (F27). (done 2026-11-17, last commit 63881f5)
 - [x] **F37** [[F37 SEO and link previews]] · P1 · M · Needs: owner decision (what a shared card link shows) (done 2026-11-17, last commit 8f27d70)
 - [ ] **F38** [[F38 Loading states]] · P2 · M · Needs: none (in progress: Claude subagent, 2026-11-17; all tasks built, last commit 4f1de62; waiting on one acceptance check that needs a slowed-network look at a few pages, see its Log)
-- [ ] **F39** [[F39 Informative error messages]] · P2 · M · Needs: F38
+- [ ] **F39** [[F39 Informative error messages]] · P2 · M · Needs: F38 (in progress: Claude subagent, 2026-11-17; built on F38 as it stands, with F38's last browser check still open)
 
 ## Dependency map
 ```mermaid
