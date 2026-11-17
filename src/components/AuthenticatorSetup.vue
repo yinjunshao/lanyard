@@ -3,7 +3,7 @@
 // backup that needs no email. Sign-in uses the account ID plus the 6-digit code.
 import { nextTick, ref } from "vue";
 import { me, refreshMe } from "../lib/store";
-import { Api } from "../lib/api";
+import { api } from "../lib/api";
 import { drawQR } from "../lib/qr";
 
 const setup = ref(null); // { accountId, secret, uri }
@@ -15,7 +15,7 @@ const error = ref("");
 async function start() {
   error.value = ""; busy.value = true;
   try {
-    setup.value = await Api.totpSetup();
+    setup.value = await api("/api/auth/totp/setup", "POST");
     await nextTick();
     if (canvas.value) await drawQR(canvas.value, setup.value.uri, 360);
   } catch (e) { error.value = e.message; }
@@ -24,7 +24,7 @@ async function start() {
 async function confirm() {
   error.value = ""; busy.value = true;
   try {
-    await Api.totpConfirm(code.value);
+    await api("/api/auth/totp/confirm", "POST", { code: code.value });
     setup.value = null; code.value = "";
     await refreshMe();
   } catch (e) { error.value = e.message; }
@@ -33,7 +33,7 @@ async function confirm() {
 async function turnOff() {
   if (!window.confirm("Turn off authenticator sign-in? Your authenticator entry will stop working.")) return;
   error.value = ""; busy.value = true;
-  try { await Api.totpDisable(); await refreshMe(); }
+  try { await api("/api/auth/totp", "DELETE"); await refreshMe(); }
   catch (e) { error.value = e.message; }
   finally { busy.value = false; }
 }

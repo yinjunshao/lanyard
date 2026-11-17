@@ -6,6 +6,7 @@ import { useRouter } from "vue-router";
 import { me, refreshMe } from "../lib/store";
 import { registerPasskey, passkeysSupported } from "../lib/passkeys";
 import { Api } from "../lib/api";
+import "../lib/errors"; // F39: plain words for a failed request
 import EmailSetup from "../components/EmailSetup.vue";
 document.title = "Keep your account | Lanyard";
 

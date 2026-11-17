@@ -6,6 +6,7 @@ import { useRoute } from "vue-router";
 import { homePath, me } from "../lib/store";
 import Icon from "./Icon.vue";
 import AccountBanner from "./AccountBanner.vue";
+import { SessionLost } from "../lib/errors"; // F39: also sets plain words for failed requests
 import TermsGate from "./TermsGate.vue";
 import { live, refreshLive } from "../lib/eventlive";
 
@@ -52,6 +53,7 @@ watch(
   </header>
 
   <main class="app-col">
+    <SessionLost />
     <AccountBanner />
     <router-view />
   </main>

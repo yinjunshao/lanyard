@@ -5,6 +5,7 @@ import { onMounted, ref } from "vue";
 import UiDatePicker from "../components/ui/UiDatePicker.vue";
 import AdminAi from "../components/AdminAi.vue";
 import { HOST_ORIGIN } from "../lib/site";
+import { fix } from "../lib/errors"; // F39: plain words for a failed request
 import Waiting from "../components/Waiting.vue";
 import { useBusy } from "../components/Waiting.vue";
 document.title = "Admin | Lanyard";
@@ -84,13 +85,17 @@ onMounted(() => {
 });
 
 async function call(path, method = "GET", body) {
-  const res = await fetch(path, {
-    method,
-    headers: { authorization: `Bearer ${token.value}`, ...(body ? { "content-type": "application/json" } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(json.error || `Request failed (${res.status})`), { status: res.status });
+  let res, json = {};
+  try {
+    res = await fetch(path, {
+      method,
+      headers: { authorization: `Bearer ${token.value}`, ...(body ? { "content-type": "application/json" } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout?.(9e4),
+    });
+    json = await res.json().catch(() => ({}));
+  } catch (e) { res = { status: 0 }; json = { code: "offline", e }; }
+  if (!res.ok) throw fix(Object.assign(new Error(json.error || ""), { status: res.status, code: json.code || null }), json, res);
   return json;
 }
 

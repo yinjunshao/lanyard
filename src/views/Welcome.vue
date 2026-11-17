@@ -7,6 +7,7 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ensureMe, me, homePath } from "../lib/store";
 import { api } from "../lib/api";
+import "../lib/errors"; // F39: plain words for a failed request
 import StepYou from "../components/welcome/StepYou.vue";
 import StepMode from "../components/welcome/StepMode.vue";
 import StepFor from "../components/welcome/StepFor.vue";

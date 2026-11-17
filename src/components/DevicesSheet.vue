@@ -4,7 +4,7 @@
 // shows its details and "Sign out this device". The footer signs out all the others.
 // UiSheet must stay the last child of the root element (it moves itself to <body>).
 import { computed, nextTick, onMounted, ref } from "vue";
-import { Api } from "../lib/api";
+import { Api, api } from "../lib/api";
 import Icon from "./Icon.vue";
 import UiSheet from "./ui/UiSheet.vue";
 
@@ -37,7 +37,7 @@ function close() { open.value = false; selectedId.value = null; }
 async function signOutOne(s) {
   error.value = ""; note.value = ""; busy.value = true;
   try {
-    await Api.signOutDevice(s.id);
+    await api(`/api/auth/sessions/${encodeURIComponent(s.id)}`, "DELETE");
     note.value = `Signed out ${s.device}.`;
     selectedId.value = null;
     await load();

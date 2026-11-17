@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";
+import "../lib/errors"; // F39: plain words for a failed request
 import { me } from "../lib/store";
 import EventPage from "../components/EventPage.vue";
 

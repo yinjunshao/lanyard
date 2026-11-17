@@ -1,7 +1,7 @@
 <script setup>
 // What you've agreed to and withdrawn, with dates, plus the way to ask us anything.
 import { onMounted, ref } from "vue";
-import { Api } from "../lib/api";
+import { api } from "../lib/api";
 
 const rows = ref([]);
 const NAMES = {
@@ -26,7 +26,7 @@ const verb = (a, scope) => (scope === "account" ? "Deleted" : a === "granted" ? 
 const when = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 onMounted(async () => {
-  try { rows.value = (await Api.consentHistory()).history; } catch { /* not signed in */ }
+  try { rows.value = (await api("/api/account/consents")).history; } catch { /* not signed in */ }
 });
 </script>
 

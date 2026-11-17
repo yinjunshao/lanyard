@@ -2,7 +2,7 @@
 // Your directory and sponsor choices for one event, shown in a sheet on the event hub (F15).
 // Changing your mind is as easy as ticking.
 import { onMounted, ref } from "vue";
-import { Api } from "../lib/api";
+import { api } from "../lib/api";
 
 const props = defineProps({ eventId: { type: String, required: true } });
 const choices = ref(null);
@@ -10,13 +10,13 @@ const error = ref("");
 const saved = ref("");
 
 onMounted(async () => {
-  try { choices.value = await Api.eventChoices(props.eventId); } catch { /* nothing to show */ }
+  try { choices.value = await api(`/api/e/${props.eventId}/choices`); } catch { /* nothing to show */ }
 });
 
 async function save() {
   error.value = ""; saved.value = "";
   try {
-    await Api.setEventChoices(props.eventId, {
+    await api(`/api/e/${props.eventId}/choices`, "PUT", {
       directory: choices.value.directory,
       sponsors: choices.value.sponsors.filter((s) => s.optedIn).map((s) => s.id),
     });

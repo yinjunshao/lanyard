@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Api } from "../lib/api";
+import { api } from "../lib/api"; // the card calls are written here, not in Api: that object is in every public page (F39)
 import { me, refreshMe } from "../lib/store";
 import CardForm from "../components/CardForm.vue";
 import CardPreview from "../components/CardPreview.vue";
@@ -58,7 +58,7 @@ async function createCard() {
   busy.value = true;
   try {
     const { tagsText, strapColor, ...rest } = form.value;
-    await Api.createCard({ ...rest, tags: tagList(tagsText) });
+    await api("/api/cards", "POST", { ...rest, tags: tagList(tagsText) });
     creating.value = false;
     form.value = blank();
     await refreshMe();
@@ -91,7 +91,7 @@ const saveEdit = once(async () => {
   const body = { ...rest, tags: tagList(tagsText) };
   if (me.plan.customStrap) body.strap_color = strapColor || "";
   try {
-    await Api.updateCard(editingId.value, body);
+    await api(`/api/cards/${editingId.value}`, "PUT", body);
     closeEdit();
     error.value = "";
     await refreshMe();
@@ -103,7 +103,7 @@ const saveEdit = once(async () => {
 async function remove(card) {
   if (busy.value || !confirm(`Delete the "${card.name}" card?`)) return;
   busy.value = true;
-  try { await Api.deleteCard(card.cardId); await refreshMe(); }
+  try { await api(`/api/cards/${card.cardId}`, "DELETE"); await refreshMe(); }
   finally { busy.value = false; }
 }
 </script>

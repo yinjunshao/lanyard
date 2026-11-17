@@ -3,7 +3,7 @@
 // It lives in the card editor in My cards and acts on the card it is given (F33).
 import { computed, ref } from "vue";
 import { me, refreshMe } from "../lib/store";
-import { Api } from "../lib/api";
+import { api } from "../lib/api";
 
 const props = defineProps({ card: { type: Object, required: true } });
 
@@ -22,7 +22,7 @@ async function newCode() {
   }
   rotating.value = true;
   try {
-    await Api.rotateCode(props.card.cardId);
+    await api(`/api/cards/${props.card.cardId}/rotate-code`, "POST");
     await refreshMe();
   } catch (e) {
     codeMsg.value = e.message;
@@ -40,7 +40,7 @@ async function saveCustom() {
   codeMsg.value = "";
   customBusy.value = true;
   try {
-    await Api.customCode(props.card.cardId, customDraft.value);
+    await api(`/api/cards/${props.card.cardId}/custom-code`, "POST", { code: customDraft.value });
     await refreshMe();
     customOpen.value = false;
     customDraft.value = "";

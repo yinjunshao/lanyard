@@ -10,6 +10,7 @@ import { HostApi } from "../lib/hostapi";
 import HostRedeem from "../components/HostRedeem.vue";
 import { api } from "../lib/api";
 import Waiting from "../components/Waiting.vue";
+import { SessionLost } from "../lib/errors";
 document.title = "Billing | Lanyard hosts";
 
 const data = ref(null);
@@ -96,6 +97,7 @@ async function submit() {
 <template>
   <HostRedeem v-if="redeemMode" />
   <div v-else class="wide-col stack-3" style="max-width:760px">
+    <SessionLost />
     <div class="page-head">
       <router-link to="/" class="small muted">‹ Host portal</router-link>
       <h1 style="margin-top:8px">Billing</h1>

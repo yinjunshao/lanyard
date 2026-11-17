@@ -2,6 +2,7 @@
 // app (and every public page) never loads it. Same-origin fetch on the host
 // site; auth is the host-only HTTP-only cookie.
 import { api } from "./api";
+import "./errors"; // F39: plain words for a failed request (sets api.fix)
 import { clearAllDrafts } from "./eventdraft";
 
 export const HostApi = {

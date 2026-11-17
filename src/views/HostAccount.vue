@@ -8,6 +8,7 @@ import { HostApi, hostSignOutAndReload } from "../lib/hostapi";
 import UiSelect from "../components/ui/UiSelect.vue";
 import { HELP_EMAIL } from "../lib/contact";
 import Waiting from "../components/Waiting.vue";
+import { SessionLost } from "../lib/errors";
 import { useBusy } from "../components/Waiting.vue";
 document.title = "Account | Lanyard hosts";
 
@@ -170,6 +171,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
 
 <template>
   <div class="wide-col stack-3" style="max-width:760px">
+    <SessionLost />
     <div class="page-head">
       <router-link to="/" class="small muted">‹ Host portal</router-link>
       <h1 style="margin-top:8px">Account and team</h1>

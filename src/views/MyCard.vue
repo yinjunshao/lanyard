@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { me } from "../lib/store";
-import { Api } from "../lib/api";
+import { api } from "../lib/api";
 import Badge from "../components/Badge.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import Avatar from "../components/Avatar.vue";
@@ -56,7 +56,7 @@ function snoozeFinish() {
 
 // Things waiting for you: feedback for events you went to, people to follow up.
 const home = ref({ followups: [], feedback: [] });
-Api.home().then((h) => { home.value = h; }).catch(() => {});
+api("/api/home").then((h) => { home.value = h; }).catch(() => {});
 const quick = ref(null);
 watch(quick, (n) => {
   const ev = home.value.feedback[0];
@@ -94,7 +94,7 @@ const linkUrl = computed(() => (url.value ? withSource(url.value, "l") : ""));
 let timer = null;
 async function loadPersonal() {
   if (!card.value) return;
-  try { personal.value = await Api.personalNote(card.value.cardId); } catch { /* offline */ }
+  try { personal.value = await api(`/api/cards/${card.value.cardId}/personal-note`); } catch { /* offline */ }
   // While a note is waiting, watch for it being picked up so the QR resets
   // itself to a plain one the moment someone has scanned it.
   clearTimeout(timer);
@@ -108,7 +108,7 @@ async function attachNote() {
   if (!draft.value.trim()) return;
   noteBusy.value = true;
   try {
-    await Api.setPersonalNote(card.value.cardId, draft.value.trim());
+    await api(`/api/cards/${card.value.cardId}/personal-note`, "POST", { text: draft.value.trim() });
     draft.value = "";
     await loadPersonal();
   } catch (e) {
@@ -118,7 +118,7 @@ async function attachNote() {
   }
 }
 const removeNote = once(async () => {
-  await Api.clearPersonalNote(card.value.cardId);
+  await api(`/api/cards/${card.value.cardId}/personal-note`, "DELETE");
   await loadPersonal();
 });
 const fmtAt = (t) => new Date(t).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
