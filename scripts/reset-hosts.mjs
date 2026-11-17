@@ -10,6 +10,8 @@
 // loses its event label (event_id is set to NULL first; it has no foreign key).
 // Keeps: billing_requests (6 years, 0006/0018: the organisation's name stays on
 // the row) and consent_log (proof of what was agreed). Writes an admin_audit row.
+// F36 card orders (billing_orders, billing_subscriptions, billing_events, migration 0031) are kept too
+// (6 years): none is in WIPED, and their organisation and host ids become NULL as the rows they named go.
 //
 // F20 host promo codes: the claims (host_promo_claims, migration 0025) are wiped with the organisations
 // and host accounts they belong to, as the credits they led to are. The codes themselves

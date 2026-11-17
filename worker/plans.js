@@ -10,6 +10,15 @@ export const USER_PLANS = {
 
 export const PLUS_PRICE = { monthlyPence: 149, yearlyPence: 1199 };
 
+// What Plus includes, as the Plan page lists it (F36.3). A proposal until the owner confirms it
+// (F27.1); change it here only. The AI allowances are listed from AI_LIMITS below.
+export const PLUS_INCLUDES = [
+  { title: `Up to ${USER_PLANS.plus.cards} cards`, detail: `one for each room you walk into (Free: ${USER_PLANS.free.cards})` },
+  { title: "Custom strap colours", detail: "on every card" },
+  { title: "Choose your own card code", detail: "like your name, and change it once a week" },
+  { title: "Bigger AI allowances", detail: "for follow-up drafts and people search, listed below" },
+];
+
 export function planOf(userRow) {
   const active = userRow?.plan === "plus" && (!userRow.plan_until || userRow.plan_until > now());
   const tier = active ? "plus" : "free";

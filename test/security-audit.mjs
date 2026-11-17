@@ -2,12 +2,12 @@
 // (Lanyard-Vault/03 Technical/Security Audit 2026-11-15.md). One section per gap that was
 // fixed, each with the attack tried for real against the Worker, plus proofs for rows that
 // were already safe but had no test of their own. Concurrent attacks use Promise.all, with
-// every query given a turn of the event loop (withLatency below) as on the real Worker.
+// every query given a turn of the event loop (withLatency in harness.mjs) as on the real Worker.
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { makeEnv, check, summary, becomeHost, PNG } from "./harness.mjs";
+import { makeEnv, check, summary, becomeHost, PNG, withLatency } from "./harness.mjs";
 
-const SECRETS = { ADMIN_TOKEN: "adm-audit-token", TOTP_KEY: "audit-totp-key-0123456789", DROP_KEY: "audit-drop-key-0123456789abcdef", RESEND_ACCOUNTS_KEY: "re_auditAccounts_0123456789", RESEND_DECISIONS_KEY: "re_auditDecisions_0123456789", CLAUDE_API_KEY: "sk-ant-audit-0123456789" };
+const SECRETS = { ADMIN_TOKEN: "adm-audit-token", TOTP_KEY: "audit-totp-key-0123456789", DROP_KEY: "audit-drop-key-0123456789abcdef", RESEND_ACCOUNTS_KEY: "re_auditAccounts_0123456789", RESEND_DECISIONS_KEY: "re_auditDecisions_0123456789", CLAUDE_API_KEY: "sk-ant-audit-0123456789", POLAR_ACCESS_TOKEN: "polar_oat_audit0123456789", POLAR_WEBHOOK_SECRET: "whsec_YXVkaXQtd2ViaG9vay1zZWNyZXQtMDEyMzQ1Njc4OQ==" };
 const T = await makeEnv({ ...SECRETS });
 const { q, q1, env } = T;
 // Every response any client in this file gets is kept, to search for secrets at the end (row 16).
@@ -21,28 +21,6 @@ const client = (opts) => {
   return c;
 };
 
-// Real D1 answers every query over the network, so two requests interleave at every query.
-// The in-memory database answers at once, so a request that has read its body runs to the end
-// before the next one moves, which would hide check-then-write races. Give every single query
-// one turn of the event loop; a batch stays one transaction that runs alone, as in D1.
-function withLatency(db) {
-  const tick = () => new Promise((r) => setImmediate(r));
-  return {
-    ...db,
-    prepare(sql) {
-      const inner = db.prepare(sql);
-      const s = {
-        inner,
-        bind(...p) { inner.bind(...p); return s; },
-        async first() { await tick(); return inner.first(); },
-        async all() { await tick(); return inner.all(); },
-        async run() { await tick(); return inner.run(); },
-      };
-      return s;
-    },
-    batch: (stmts) => db.batch(stmts.map((s) => s.inner || s)),
-  };
-}
 env.DB = withLatency(env.DB);
 const ADMIN = { authorization: "Bearer " + SECRETS.ADMIN_TOKEN };
 const admin = client({ ip: "198.51.100.250" });
@@ -455,7 +433,11 @@ console.log("\n# Row 8: nothing outside can mark anything paid (F35.8)");
   const r2 = await client({ ip: freshIp() }).post("/api/integrations/rsvp", { eventCode: "ABCDE", count: 5 }, { authorization: "Bearer lyk_" + "0".repeat(48) });
   check("the only inbound API needs an organisation's real key (none: 401, made up: 401)", r1.status === 401 && r2.status === 401);
   const routes = readdirSync("worker").filter((f) => f.endsWith(".js")).map((f) => readFileSync(join("worker", f), "utf8")).join("\n");
-  check("no route takes a payment provider's webhook yet (no stripe, checkout or paid webhook route)", !/\.(post|put)\("\/api\/[^"]*(stripe|webhook\/pay|checkout|payment)/i.test(routes));
+  // F36: the one payment webhook is /api/webhooks/polar (test/billing.mjs proves its signature check);
+  // billing is off here, as in production, so a fake "payment succeeded" gets a 503 and changes nothing.
+  check("payment routes exist only in worker/billing/ and the host pack checkout (no stripe route, no other checkout or paid route)", !/\.(post|put)\("\/api\/[^"]*(stripe|webhook\/pay|checkout|payment)/i.test(routes.replace('hostApp.post("/api/host/billing/checkout"', "")) && !/\.(post|put)\("\/api\/[^"]*stripe/i.test(readFileSync("worker/billing/routes.js", "utf8")));
+  const fake = await client({ ip: freshIp(), origin: null }).post("/api/webhooks/polar", JSON.stringify({ type: "order.paid", data: { status: "paid", amount: 99999 } }), { "webhook-id": "msg_fake", "webhook-timestamp": String(Math.floor(Date.now() / 1000)), "webhook-signature": "v1,ZmFrZQ==" });
+  check("a fake \"payment succeeded\" to the payment webhook with billing off: 503 and nothing stored", fake.status === 503 && q1("SELECT COUNT(*) n FROM billing_events").n === 0);
 }
 
 console.log("\n# Row 12: uploads that are not photos (F35.8)");
@@ -523,13 +505,13 @@ console.log("\n# Rows 4 and 16: no secret in the pages, the config or any respon
 {
   const files = (dir) => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? files(join(dir, f)) : [join(dir, f)]));
   const srcText = files("src").filter((f) => /\.(js|vue|json)$/.test(f)).map((f) => [f, readFileSync(f, "utf8")]);
-  const names = /\b(ADMIN_TOKEN|TOTP_KEY|DROP_KEY|UNSUB_SECRET|RESEND_[A-Z_]*KEY|CLAUDE_API_KEY)\b|sk-ant-|re_[A-Za-z0-9]{8,}_|whsec_[0-9a-f]{8}|lyk_[0-9a-f]{8}/;
+  const names = /\b(ADMIN_TOKEN|TOTP_KEY|DROP_KEY|UNSUB_SECRET|RESEND_[A-Z_]*KEY|CLAUDE_API_KEY|POLAR_ACCESS_TOKEN|POLAR_WEBHOOK_SECRET)\b|sk-ant-|re_[A-Za-z0-9]{8,}_|whsec_[0-9a-f]{8}|lyk_[0-9a-f]{8}/;
   const inSrc = srcText.filter(([f, t]) => names.test(t.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""))).map(([f]) => f);
   check("no file the browser loads (src/) uses a secret's name or holds a key-shaped string, outside comments", inSrc.length === 0, inSrc);
   const tomls = ["wrangler.toml", "wrangler.production.toml"].map((f) => [f, readFileSync(f, "utf8")]);
   const varsBad = tomls.filter(([, t]) => {
     const vars = (t.split(/^\[vars\]/m)[1] || "").split(/^\[/m)[0].split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
-    return /\b(ADMIN_TOKEN|TOTP_KEY|DROP_KEY|UNSUB_SECRET|RESEND_[A-Z_]*KEY|CLAUDE_API_KEY)\s*=/.test(vars) || /sk-ant-|re_[A-Za-z0-9]{8,}_|whsec_|lyk_/.test(vars);
+    return /\b(ADMIN_TOKEN|TOTP_KEY|DROP_KEY|UNSUB_SECRET|RESEND_[A-Z_]*KEY|CLAUDE_API_KEY|POLAR_ACCESS_TOKEN|POLAR_WEBHOOK_SECRET)\s*=/.test(vars) || /sk-ant-|re_[A-Za-z0-9]{8,}_|whsec_|lyk_/.test(vars);
   }).map(([f]) => f);
   check("neither wrangler*.toml puts a secret in [vars] (they are Worker secrets only)", varsBad.length === 0, varsBad);
   check(".dev.vars and .env files are ignored by git", /^\.dev\.vars$/m.test(readFileSync(".gitignore", "utf8")) && /^\.env$/m.test(readFileSync(".gitignore", "utf8")));
@@ -544,7 +526,7 @@ console.log("\n# Rows 4 and 16: no secret in the pages, the config or any respon
   check("the admin AI page reports the key as set or not, and holds no key", ai.status === 200 && !ai.text.includes(SECRETS.CLAUDE_API_KEY));
   const all = responses.join("\n");
   const found = Object.entries(SECRETS).filter(([k, v]) => k !== "ADMIN_TOKEN" && all.includes(v)).map(([k]) => k);
-  check(`none of ${responses.length} responses in this file holds TOTP_KEY, DROP_KEY, either Resend key or the AI key`, found.length === 0, found);
+  check(`none of ${responses.length} responses in this file holds TOTP_KEY, DROP_KEY, either Resend key, the AI key or either Polar secret`, found.length === 0, found);
   check("…and none holds ADMIN_TOKEN", !all.includes(SECRETS.ADMIN_TOKEN));
 }
 

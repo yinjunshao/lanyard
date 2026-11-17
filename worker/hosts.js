@@ -26,6 +26,8 @@ import { collectFields, collectOf, hostAttendees, attendeesCsv, attendeesFileNam
 import { registerHostPromo, releaseHeldClaims, heldClaims, exportHostClaims } from "./host-promo.js";
 import { registerDropsHost } from "./dropsHost.js";
 import { exportHostDrops } from "./dropsKeep.js";
+import { billingOn, productFor, checkoutReady } from "./billing/provider.js";
+import { offResponse, checkoutBody, startCheckout, billingInfo, exportBillingOrders } from "./billing/routes.js";
 import { hostGuard, hostOrigin, requireHost, setupStep, startSignIn, verifySignIn, endHostSession, listHostSessions, signOutHostDevice, signOutOtherHosts } from "./host-auth.js";
 
 export const hostApp = new Hono();
@@ -102,7 +104,7 @@ hostApp.get("/api/host/account/export", async (c) => {
   const me = c.get("host");
   const db = c.env.DB;
   const q = (sql, ...a) => all(db, sql, ...a);
-  const [orgs, tickets, transfers, billing, consents, sessions, promoClaims, attendeeLists, drops] = await Promise.all([
+  const [orgs, tickets, transfers, billing, consents, sessions, promoClaims, attendeeLists, drops, cardOrders] = await Promise.all([
     q(`SELECT o.id, o.name, o.org_type, o.university, o.institution_id, m.role FROM host_org_members m JOIN orgs o ON o.id = m.org_id WHERE m.host_account_id = ?`, me.id),
     q("SELECT kind, new_email, message, status, admin_note, created_at, resolved_at FROM host_org_tickets WHERE host_account_id = ?", me.id),
     q("SELECT org_id, to_email, status, created_at, resolved_at FROM host_org_transfers WHERE from_host_id = ? OR to_host_id = ?", me.id, me.id),
@@ -112,6 +114,7 @@ hostApp.get("/api/host/account/export", async (c) => {
     exportHostClaims(db, me.id), // F20: promo codes claimed, and the credits they gave
     exportAttendeeLists(db, me.id), // F31: the lists of who checked in that this host's organisations keep (events with the list on only)
     exportHostDrops(db, me.id), // F32: their drops and counts, never an item
+    exportBillingOrders(db, "host", me.id), // F36: card orders this host started
   ]);
   return c.json({
     exportedAt: now(),
@@ -122,6 +125,7 @@ hostApp.get("/api/host/account/export", async (c) => {
     },
     organisations: orgs, tickets, transfers, billingRequests: billing, promoCodes: promoClaims, consentHistory: consents, devices: sessions,
     ...(attendeeLists.length ? { attendeeLists } : {}),
+    ...(cardOrders.length ? { cardOrders } : {}), // F36: only for a host who started a card payment
     ...(drops ? { drops } : {}),
     ai: await exportAi(db, "host", me.id), // F21
   });
@@ -772,7 +776,7 @@ hostApp.get("/api/host/billing", async (c) => {
     })),
     skus: Object.entries(HOST_SKUS)
       .filter(([, v]) => v.audience === audience)
-      .map(([id, v]) => ({ id, label: v.label, credits: v.credits, days: v.days, pence: v.pence })),
+      .map(([id, v]) => ({ id, label: v.label, credits: v.credits, days: v.days, pence: v.pence, card: !!productFor(id) && checkoutReady(c.env, id) })),
     quotes: Object.entries(HOST_SKUS)
       .filter(([, v]) => v.audience === "quote")
       .map(([id, v]) => ({ id, label: v.label })),
@@ -782,7 +786,26 @@ hostApp.get("/api/host/billing", async (c) => {
       status: r.status, po: r.po_number, at: r.created_at,
     })),
     cap: checkinCapFor(org.org_type),
+    ...billingInfo(c.env), // F36: whether Pay by card is offered, and who sells it
   });
+});
+
+// F36: pay for a pack by card through the provider (off unless BILLING_ENABLED = "1"). The browser
+// sends our pack id and the express-start tick; the price and the provider's product come from
+// our own table, and the credits are added only by the provider's verified webhook.
+hostApp.post("/api/host/billing/checkout", async (c) => {
+  if (!billingOn(c.env)) return offResponse(c);
+  const me = requireHost(c);
+  const db = c.env.DB;
+  const org = await requireOrg(db, me.id);
+  assertApproved(org);
+  const b = await c.req.json().catch(() => ({}));
+  const product = checkoutBody(b && typeof b === "object" ? b : {}, "credits");
+  if (product.audience !== skuAudience(org.org_type)) return c.json({ error: "That isn't something you can buy here.", code: "unknown_product" }, 400);
+  if (!checkoutReady(c.env, product.id)) return offResponse(c);
+  if ((await bump(db, `bill:co:org:${org.id}`, 60 * 60 * 1000)) > 10) throw new HttpError(429, "That's a lot of tries. Wait a little and try again.", "throttled");
+  return startCheckout(c, product, { orgId: org.id, orgName: org.name, hostAccountId: me.id, externalId: `o_${org.id}`, email: org.billing_email || me.email },
+    `${new URL(c.req.url).origin}/billing?checkout=done`);
 });
 
 hostApp.post("/api/host/billing/request", async (c) => {

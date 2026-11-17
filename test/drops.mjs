@@ -1056,7 +1056,7 @@ console.log("\n# F34.1 Migration 0030 is additive, and the code is where it shou
 {
   const sql = readMigration("0030_drop_replaced.sql");
   const code = sql.replace(/--.*$/gm, "");
-  check("0030 is the newest migration, 0029 is untouched, and it only adds one nullable column", migrationFiles().at(-1) === "0030_drop_replaced.sql" && migrationFiles().includes("0029_drops.sql") && /^\s*ALTER TABLE drop_gives ADD COLUMN replaced_at INTEGER;\s*$/.test(code) && !/\b(DROP|UPDATE|DELETE|INSERT)\b/i.test(code));
+  check("0030 comes after 0029 (0031 now follows it: F36), 0029 is untouched, and it only adds one nullable column", migrationFiles().indexOf("0030_drop_replaced.sql") === migrationFiles().indexOf("0029_drops.sql") + 1 && migrationFiles().includes("0029_drops.sql") && /^\s*ALTER TABLE drop_gives ADD COLUMN replaced_at INTEGER;\s*$/.test(code) && !/\b(DROP|UPDATE|DELETE|INSERT)\b/i.test(code));
   const db = makeDb({ before: "0030_drop_replaced.sql" });
   db.raw.exec("INSERT INTO users (id, created_at, is_guest) VALUES ('u1', 1, 0)");
   const cols = () => db.raw.prepare("PRAGMA table_info(drop_gives)").all().map((c) => c.name);

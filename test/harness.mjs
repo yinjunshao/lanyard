@@ -117,6 +117,29 @@ export async function makeEnv(extra = {}) {
   return { env, client, q, q1, flush: () => Promise.all(waits.splice(0)) };
 }
 
+// F35 (moved here for F36): Real D1 answers every query over the network, so two requests interleave at every query.
+// The in-memory database answers at once, so a request that has read its body runs to the end
+// before the next one moves, which would hide check-then-write races. Give every single query
+// one turn of the event loop; a batch stays one transaction that runs alone, as in D1.
+export function withLatency(db) {
+  const tick = () => new Promise((r) => setImmediate(r));
+  return {
+    ...db,
+    prepare(sql) {
+      const inner = db.prepare(sql);
+      const s = {
+        inner,
+        bind(...p) { inner.bind(...p); return s; },
+        async first() { await tick(); return inner.first(); },
+        async all() { await tick(); return inner.all(); },
+        async run() { await tick(); return inner.run(); },
+      };
+      return s;
+    },
+    batch: (stmts) => db.batch(stmts.map((s) => s.inner || s)),
+  };
+}
+
 // Tiny assertion runner.
 let passed = 0, failed = 0;
 export function check(name, cond, info) {

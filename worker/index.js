@@ -46,6 +46,7 @@ import { followupApp } from "./ai/followup.js";
 import { peopleSearchApp } from "./ai/peopleSearch.js";
 import { whoToMeetApp } from "./ai/whoToMeet.js";
 import { forgetSearchReplies } from "./ai/optout.js";
+import { billingApp, exportBillingOrders } from "./billing/routes.js";
 
 const app = new Hono();
 
@@ -67,7 +68,9 @@ const withSession = sessionMiddleware("DB");
 // Drop routes (F32) never mint a guest: a person must already be signed in and checked in.
 const withSessionNoGuest = sessionMiddleware("DB", { guests: false });
 const isDropRoute = (path) => /^\/api\/e\/[^/]+\/drops(\/|$)/.test(path);
-app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/privacy-request" ? next() : (isDropRoute(c.req.path) ? withSessionNoGuest : withSession)(c, next)));
+// F36: card payments never mint a guest (signed out is a 401), and the provider's webhooks get no session at all.
+const noGuest = (path) => isDropRoute(path) || path.startsWith("/api/billing/");
+app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/webhooks/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/privacy-request" ? next() : (noGuest(c.req.path) ? withSessionNoGuest : withSession)(c, next)));
 app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
 
 app.onError((err, c) => {
@@ -475,11 +478,13 @@ app.get("/api/account/export", async (c) => {
   const namedAttendance = await exportNamedAttendance(db, u.id); // F31: only for a person who was ever offered a list
   const drops = await exportDrops(c.env, u.id); // F32: what organisers gave this person (opened, theirs only)
   const ai = await exportAi(db, "user", u.id); // F21
+  const billingOrders = await exportBillingOrders(db, "user", u.id); // F36: card orders (none until billing is on)
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
     exportedAt: now(),
     note: "Image links need you to be signed in to open them. Passkey keys, recovery keys and session tokens are not included for security.",
     consentHistory, billingRequests, privacyRequests,
+    ...(billingOrders.length ? { billingOrders } : {}), // only for someone who started a card payment
     user: { id: u.id, isGuest: !!u.is_guest, plan: u.plan || "free", recoveryEmail: u.recovery_email || null,
             emailVerified: !!u.email_verified, newsEmails: !!u.marketing_optin, eventReminders: u.notify_events !== 0,
             authenticatorApp: !!u.has_totp, passkey: !!u.has_passkey, recoveryKeySet: !!u.has_recovery,
@@ -1319,6 +1324,7 @@ app.route("/", promoApp);
 app.route("/", unsubApp);
 app.route("/", privacyApp);
 app.route("/", integrationsApp);
+app.route("/", billingApp);
 
 /* ------------------- old host portal addresses (F10) -------------------- */
 // The portal moved to its own site with its pages at the root:
