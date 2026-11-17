@@ -20,7 +20,7 @@ export function registerDropsHost(app, hostEvent) {
     const me = c.get("host");
     const ev = await hostEvent(c, me);
     const d = await one(c.env.DB, "SELECT * FROM drops WHERE id = ? AND event_id = ?", c.req.param("did"), ev.id);
-    if (!d) throw new HttpError(404, "not found");
+    if (!d) throw new HttpError(404, "We couldn't find that drop. Reload the page and try again.");
     return { me, ev, d };
   }
   const limited = async (c, key, max, what) => {

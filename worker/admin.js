@@ -29,7 +29,7 @@ adminApp.use("/api/admin/*", async (c, next) => {
   for (let i = 0; i < a.length && i < b.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   if (diff !== 0) {
     await bump(db, key, HOUR);
-    return c.json({ error: "Wrong admin token." }, 401);
+    return c.json({ error: "That token isn't right. Check it and try again." }, 401);
   }
   // Every admin action is logged: what was done and from where (search words are
   // kept, since looking someone up is itself access to personal data).
@@ -81,7 +81,7 @@ adminApp.post("/api/admin/orgs/:id/review", async (c) => {
   const db = c.env.DB;
   const b = await c.req.json().catch(() => ({}));
   const decision = b.decision === "approve" ? "approved" : b.decision === "reject" ? "rejected" : null;
-  if (!decision) return c.json({ error: "decision must be approve or reject" }, 400);
+  if (!decision) return c.json({ error: "Choose approve or reject." }, 400);
   const note = String(b.note || "").trim().slice(0, 300);
   if (decision === "rejected" && !note) return c.json({ error: "Give a short reason so the applicant knows why." }, 400);
   // Approving also issues any promo-code credits held for this organisation (F20), in the same
@@ -129,7 +129,7 @@ adminApp.post("/api/admin/tickets/:id/resolve", async (c) => {
     await done("rejected");
     return c.json({ ok: true });
   }
-  if (b.decision !== "approve") return c.json({ error: "decision must be approve or reject" }, 400);
+  if (b.decision !== "approve") return c.json({ error: "Choose approve or reject." }, 400);
 
   if (t.kind === "leader_change") {
     const target = await one(db, "SELECT * FROM host_accounts WHERE email = ? AND status = 'active'", normEmail(t.new_email));
@@ -196,7 +196,7 @@ adminApp.get("/api/admin/hosts", async (c) => {
 adminApp.post("/api/admin/hosts/:id/status", async (c) => {
   const db = c.env.DB;
   const b = await c.req.json().catch(() => ({}));
-  if (!["active", "disabled"].includes(b.status)) return c.json({ error: "status must be active or disabled" }, 400);
+  if (!["active", "disabled"].includes(b.status)) return c.json({ error: "Choose active or disabled." }, 400);
   const r = await run(db, "UPDATE host_accounts SET status = ? WHERE id = ?", b.status, c.req.param("id"));
   if (!r.meta?.changes) return c.json({ error: "No such host account." }, 404);
   if (b.status === "disabled") await run(db, "DELETE FROM host_sessions WHERE host_account_id = ?", c.req.param("id"));

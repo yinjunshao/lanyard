@@ -43,7 +43,7 @@ const WHY = {
  * moment ago) or the drop's own state (stopped, not started, finished).
  */
 export async function replaceGive(db, ev, drop, giveId, hostId, ts = Date.now()) {
-  const nope = () => new HttpError(404, "not found");
+  const nope = () => new HttpError(404, "We couldn't find that. Reload the page and try again.");
   if (drop.kind === "voucher") throw new HttpError(400, "A voucher has no item to replace.", "not_an_item");
   if (!isList(drop) || !isExclusive(drop)) throw new HttpError(400, "Everyone has the same one from this drop, so there is nothing to replace. Withdraw it instead.", "not_replaceable");
   if (typeof giveId !== "string" || !/^[0-9a-f]{20}$/.test(giveId)) throw nope();

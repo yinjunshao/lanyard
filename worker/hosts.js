@@ -310,10 +310,10 @@ hostApp.post("/api/host/org", async (c) => {
   const me = c.get("host");
   const org = await requireOrg(c.env.DB, me.id);
   const m = await one(c.env.DB, "SELECT role FROM host_org_members WHERE org_id = ? AND host_account_id = ?", org.id, me.id);
-  if (m?.role !== "owner") return c.json({ error: "Only the owner can change this." }, 403);
+  if (m?.role !== "owner") return c.json({ error: "Only the owner can change this. Ask them to do it." }, 403);
   const b = await c.req.json().catch(() => ({}));
   const email = normEmail(b.billingEmail);
-  if (email && !validEmail(email)) return c.json({ error: "that email doesn't look right" }, 400);
+  if (email && !validEmail(email)) return c.json({ error: "That email doesn't look right. Check it and try again." }, 400);
   const open = org.org_type === "company";
   const name = open && String(b.name || "").trim() ? String(b.name).trim().slice(0, 100) : org.name;
   await run(c.env.DB, "UPDATE orgs SET name = ?, billing_email = COALESCE(NULLIF(?, ''), billing_email) WHERE id = ?", name, email, org.id);
@@ -399,7 +399,7 @@ hostApp.post("/api/host/events", async (c) => {
   const org = await requireOrg(db, me.id);
   const b = await c.req.json().catch(() => ({}));
   const fields = eventFields(b);
-  if (!fields.name) return c.json({ error: "event name required" }, 400);
+  if (!fields.name) return c.json({ error: "Add a name for the event." }, 400);
   const { id, code } = await insertEvent(db, org, fields, checkinQuestions(b.questions));
   return c.json({ ok: true, id, code }, 201);
 });
@@ -411,7 +411,7 @@ async function hostEvent(c, me, id = c.req.param("id")) {
     `SELECT e.* FROM events e JOIN host_org_members m ON m.org_id = e.org_id WHERE e.id = ? AND m.host_account_id = ?`,
     id, me.id
   );
-  if (!ev) throw new HttpError(404, "not found");
+  if (!ev) throw new HttpError(404, "We couldn't find that event. Reload the page and try again.");
   return ev;
 }
 
@@ -425,7 +425,7 @@ hostApp.put("/api/host/events/:id", async (c) => {
   const b = await c.req.json().catch(() => ({}));
   delete b.feedbackQuestions; // edited through /feedback, which enforces the lock
   const f = eventFields(b, { partial: true });
-  if ("name" in f && !f.name) return c.json({ error: "event name required" }, 400);
+  if ("name" in f && !f.name) return c.json({ error: "Add a name for the event." }, 400);
   const start = "starts_at" in f ? f.starts_at : ev.starts_at;
   const end = "ends_at" in f ? f.ends_at : ev.ends_at;
   if (start && end && end <= start) return c.json({ error: "The end time must be after the start." }, 400);
@@ -735,7 +735,7 @@ hostApp.post("/api/host/events/:id/rotate-code", async (c) => {
      WHERE e.id = ? AND m.host_account_id = ?`,
     c.req.param("id"), me.id
   );
-  if (!ev) return c.json({ error: "not found" }, 404);
+  if (!ev) return c.json({ error: "We couldn't find that event. Reload the page and try again." }, 404);
   const code = await uniqueCode(db, "events", 5);
   await run(db, "UPDATE events SET code = ? WHERE id = ?", code, ev.id);
   return c.json({ ok: true, code });
@@ -817,16 +817,16 @@ hostApp.post("/api/host/billing/request", async (c) => {
   const sku = HOST_SKUS[b.sku];
   const audience = skuAudience(org.org_type);
   if (!sku || (sku.audience !== audience && sku.audience !== "quote")) {
-    return c.json({ error: "that option isn't available for your organisation" }, 400);
+    return c.json({ error: "That option isn't available for your organisation. Choose another." }, 400);
   }
   if (sku.audience === "quote" && !String(b.note || "").trim()) {
-    return c.json({ error: "tell us a little about your organisation and events so we can quote" }, 400);
+    return c.json({ error: "Tell us a little about your organisation and events so we can send a quote." }, 400);
   }
   // A whole number from 1 to 20, or left out for 1. Anything else is refused, never bent into range (F35.7).
   const quantity = b.quantity === undefined ? 1 : b.quantity;
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) return c.json({ error: "Quantity must be a whole number from 1 to 20.", code: "bad_quantity" }, 400);
   const email = String(b.email || org.billing_email || "").trim().slice(0, 120);
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: "add a billing email so we can send the invoice" }, 400);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: "Add a billing email so we can send the invoice." }, 400);
   const open = await one(db, "SELECT COUNT(*) AS n FROM billing_requests WHERE org_id = ? AND status = 'open'", org.id);
   if ((open?.n || 0) >= 5) return c.json({ error: "You already have open requests. We'll be in touch." }, 429);
   const id = newId();
@@ -893,7 +893,7 @@ hostApp.get("/api/host/team", async (c) => {
 hostApp.post("/api/host/team/invite", async (c) => {
   const { error, me, org, role } = await ownerOrg(c);
   if (error) return error;
-  if (role !== "owner") return c.json({ error: "Only the owner can invite people." }, 403);
+  if (role !== "owner") return c.json({ error: "Only the owner can invite people. Ask them to do it." }, 403);
   const db = c.env.DB;
   const open = await one(db, "SELECT COUNT(*) AS n FROM host_org_invites WHERE org_id = ? AND expires_at > ?", org.id, now());
   if ((open?.n || 0) >= 5) return c.json({ error: "You already have 5 open invites. Wait for one to expire or be used." }, 429);
@@ -921,7 +921,7 @@ hostApp.post("/api/host/team/invite", async (c) => {
 hostApp.delete("/api/host/team/invite/:code", async (c) => {
   const { error, org, role } = await ownerOrg(c);
   if (error) return error;
-  if (role !== "owner") return c.json({ error: "Only the owner can do that." }, 403);
+  if (role !== "owner") return c.json({ error: "Only the owner can do that. Ask them to do it." }, 403);
   await run(c.env.DB, "DELETE FROM host_org_invites WHERE code = ? AND org_id = ?", normaliseInvite(c.req.param("code")), org.id);
   return c.json({ ok: true });
 });
@@ -970,9 +970,9 @@ hostApp.delete("/api/host/team/:memberId", async (c) => {
   const { error, me, org, role } = await ownerOrg(c);
   if (error) return error;
   const target = c.req.param("memberId");
-  if (role !== "owner" && target !== me.id) return c.json({ error: "Only the owner can remove people." }, 403);
+  if (role !== "owner" && target !== me.id) return c.json({ error: "Only the owner can remove people. Ask them to do it." }, 403);
   const m = await one(c.env.DB, "SELECT role FROM host_org_members WHERE org_id = ? AND host_account_id = ?", org.id, target);
-  if (!m) return c.json({ error: "not found" }, 404);
+  if (!m) return c.json({ error: "We couldn't find that person. Reload the page and try again." }, 404);
   if (m.role === "owner") return c.json({ error: "The owner can't be removed." }, 400);
   await run(c.env.DB, "DELETE FROM host_org_members WHERE org_id = ? AND host_account_id = ?", org.id, target);
   return c.json({ ok: true });
@@ -990,7 +990,7 @@ const TICKET_KINDS = ["leader_change", "email_change", "other"];
 async function ownerOfOrg(c) {
   const { error, me, org, role } = await ownerOrg(c);
   if (error) return { error };
-  if (role !== "owner") return { error: c.json({ error: "Only the owner can do that." }, 403) };
+  if (role !== "owner") return { error: c.json({ error: "Only the owner can do that. Ask them to do it." }, 403) };
   return { me, org };
 }
 
@@ -1108,7 +1108,7 @@ hostApp.post("/api/host/tickets", async (c) => {
 async function ownerOnly(c) {
   const { error, org, role } = await ownerOrg(c);
   if (error) return { error };
-  if (role !== "owner") return { error: c.json({ error: "Only the organisation owner can manage integrations." }, 403) };
+  if (role !== "owner") return { error: c.json({ error: "Only the organisation owner can manage integrations. Ask them to do it." }, 403) };
   return { org };
 }
 

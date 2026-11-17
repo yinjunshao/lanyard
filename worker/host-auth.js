@@ -52,7 +52,7 @@ export const validHostEmail = (e) => e.length <= 120 && /^[^@\s]+@[^@\s]+\.[^@\s
  */
 export async function hostGuard(c, next) {
   if (!isHostSite(c)) {
-    return c.json({ error: "The host portal has its own address.", code: "wrong_site" }, 403);
+    return c.json({ error: "Host accounts sign in on the host site, not here. Open the host site and try again.", code: "wrong_site" }, 403);
   }
   const own = new URL(c.req.url).origin;
   const origin = c.req.header("origin");
@@ -63,7 +63,7 @@ export async function hostGuard(c, next) {
   if ((origin && origin !== own)
       || (site && site !== "same-origin" && !(site === "none" && !write))
       || (write && !origin)) {
-    return c.json({ error: "Cross-site request blocked.", code: "bad_origin" }, 403);
+    return c.json({ error: "That didn't come from Lanyard's own page, so it was stopped. Reload the page and try again.", code: "bad_origin" }, 403);
   }
   await loadHost(c);
   await next();

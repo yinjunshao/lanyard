@@ -59,7 +59,7 @@ export async function namedPeople(db, ev, drop) {
  * case is the same 404, so it says nothing about who holds what. Returns once, whether or not it was already withdrawn.
  */
 export async function revokeGive(db, ev, drop, giveId, hostId, ts = Date.now()) {
-  const nope = () => new HttpError(404, "not found");
+  const nope = () => new HttpError(404, "We couldn't find that. Reload the page and try again.");
   if (drop.kind === "voucher") throw new HttpError(400, "A voucher has no item to withdraw.", "not_an_item");
   if (typeof giveId !== "string" || !/^[0-9a-f]{20}$/.test(giveId)) throw nope();
   const g = await one(db, "SELECT id, user_id, item_id, exclusive, revoked_at FROM drop_gives WHERE id = ? AND drop_id = ?", giveId, drop.id);

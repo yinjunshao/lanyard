@@ -90,7 +90,7 @@ export function firstBadStep(upTo, f) {
 export function serverErrorField(message) {
   const m = String(message || "");
   if (/end time/i.test(m)) return { step: 1, field: "endsAt" };
-  if (/name/i.test(m) && /required/i.test(m)) return { step: 1, field: "name" };
+  if (/add a name for the event/i.test(m)) return { step: 1, field: "name" };
   return null;
 }
 

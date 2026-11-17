@@ -129,7 +129,7 @@ console.log("\n# F30.2 Checks per step (a convenience; the server stays the sour
   check("firstBadStep: step 1 is bad without a name; none before step 1; all good gives 0", firstBadStep(4, blank()) === 1 && firstBadStep(1, blank()) === 0 && firstBadStep(5, blank({ name: "ok" })) === 0
     && firstBadStep(5, blank({ name: "ok", rsvpCount: "x" })) === 3);
   check("a server refusal is sent back to the step of its field", JSON.stringify(serverErrorField("The end time must be after the start.")) === JSON.stringify({ step: 1, field: "endsAt" })
-    && JSON.stringify(serverErrorField("event name required")) === JSON.stringify({ step: 1, field: "name" }) && serverErrorField("No event credits left. Buy more from Billing.") === null && serverErrorField("") === null);
+    && JSON.stringify(serverErrorField("Add a name for the event.")) === JSON.stringify({ step: 1, field: "name" }) && serverErrorField("No event credits left. Buy more from Billing.") === null && serverErrorField("") === null);
   // …and those are the words the real server uses.
   const noName = await host.post("/api/host/events", { ...createBody(blank({ name: "  " })) });
   const badEnd = await host.post("/api/host/events", createBody(blank({ name: "x", startsAt: 2000, endsAt: 1000 })));
