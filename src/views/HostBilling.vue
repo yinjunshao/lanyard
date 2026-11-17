@@ -4,11 +4,10 @@
 // F36: when card payments are on (BILLING_ENABLED, off in production) a pack can also be paid by
 // card through Polar, after the pre-contract box and the express-start tick; credits are added only
 // when Polar's webhook confirms it, never by coming back to this page.
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute } from "vue-router";
 import { HostApi } from "../lib/hostapi";
 import HostRedeem from "../components/HostRedeem.vue";
-import PayBox from "../components/PayBox.vue";
 import { api } from "../lib/api";
 
 const data = ref(null);
@@ -19,6 +18,15 @@ const form = ref({ email: "", po: "", note: "", quantity: 1 });
 const busy = ref(false);
 const sent = ref(null);
 const paying = ref(null); // the pack picked for Pay by card
+// The box is loaded when Pay by card is pressed: a static import would add its chunk name to the
+// host route table in the entry, which every public page loads (D024).
+const PayBox = shallowRef(null);
+async function openPay(s) {
+  paying.value = s;
+  picked.value = null;
+  payError.value = "";
+  if (!PayBox.value) PayBox.value = (await import("../components/PayBox.vue")).default;
+}
 const payBusy = ref(false);
 const payError = ref("");
 async function payCard() {
@@ -148,7 +156,7 @@ async function submit() {
             <strong>{{ s.label }}</strong>
             <span class="price tnum">{{ gbp(s.pence) }}</span>
             <span class="per">{{ perEvent(s) || (s.credits >= 99 ? 'Unlimited events for a term' : 'One-off') }}</span>
-            <button v-if="s.card" class="btn btn-primary" style="margin-top:8px" :disabled="data.org.status !== 'approved'" @click="paying = s; picked = null; payError = ''">Pay by card</button>
+            <button v-if="s.card" class="btn btn-primary" style="margin-top:8px" :disabled="data.org.status !== 'approved'" @click="openPay(s)">Pay by card</button>
             <button class="btn" style="margin-top:8px" :disabled="data.org.status !== 'approved'" @click="pick(s); paying = null">Request invoice</button>
           </div>
         </div>
@@ -164,7 +172,7 @@ async function submit() {
         </p>
       </section>
 
-      <PayBox v-if="paying && data.seller" :seller="data.seller" :price="gbp(paying.pence)" :what="paying.label"
+      <component :is="PayBox" v-if="paying && data.seller && PayBox" :seller="data.seller" :price="gbp(paying.pence)" :what="paying.label"
         :busy="payBusy" :error="payError" @pay="payCard" @cancel="paying = null; payError = ''" />
 
       <section class="stack-2">
