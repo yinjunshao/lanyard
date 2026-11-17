@@ -4,7 +4,7 @@ id: F37
 priority: P1
 phase: 7
 size: M
-status: Not started
+status: In progress
 needs: []
 ---
 # F37 SEO and link previews
@@ -20,11 +20,16 @@ needs: []
 - Public pages: `/` (Landing), `/hosts`, `/terms`, `/privacy`, `/privacy-request`, `/c/:cardId` (a person's card), `/e/:code` (event join). Everything under `/app`, `/admin`, `/signin`, `/claim`, `/redeem` and the host site is private.
 
 ## Plan
-1. Research note `Lanyard-Vault/02 Business/SEO research 2026-11-15.md`: keywords people search for (digital business card, event networking app, contact exchange at events, careers fair app) and what Blinq and others rank for; what link previews need on WhatsApp, iMessage, LinkedIn, Slack, X and Discord (og:title, og:description, og:image 1200x630, twitter:card); how to serve per-page tags from a Worker to bots without slowing the app.
-2. Site-wide tags in `index.html`: Open Graph and Twitter tags, a canonical link, and a 1200x630 preview image in `public/`.
-3. Per-page tags written by the Worker into the HTML (HTMLRewriter) for the public pages, so a link shows the right title and text even to bots that do not run JavaScript; the Vue app sets `document.title` per page for people.
-4. `robots.txt` (allow the marketing pages; disallow `/app`, `/admin`, `/api`, `/claim`, `/redeem`, `/signin` and the host site) and `sitemap.xml` with the marketing pages only.
-5. A person's card and an event page follow the owner's decision below. Without a decision, they are `noindex` and their preview says only "A Lanyard card" / the event name.
+- [x] Research note: [[SEO research 2026-11-15]] (keywords, what rivals put in their tags, what each chat app and search engine reads, how to serve tags from the Worker, the privacy options for cards). Written 2026-11-15 before this plan was worked.
+- [x] The owner's two decisions are below (cards: name, headline and photo, never indexed; events: name and host, never indexed).
+
+## Tasks
+Each is one commit; `npm test` and `npm run build` pass before it. Nothing here needs a migration, a new secret or a deploy setting.
+- [x] F37.1 Site-wide tags in `index.html` straight after the charset (title, description, canonical, `og:*`, `twitter:card` = `summary_large_image`) and `public/og-image.png` (1200 x 630, paper, ink, the strap colour, the wordmark; under 300 KB), made by `scripts/make-og-image.mjs`.
+- [ ] F37.2 `worker/seo.js`: the Worker rewrites the title, description, canonical and og and twitter tags per public route with `HTMLRewriter` (`/`, `/hosts`, `/terms`, `/privacy`, `/privacy-request`, `/e/:code`, `/c/:cardId`), absolute links from the first `APP_ORIGIN`, every value escaped and capped, one indexed read at most, the plain page on any error. A card shows only what the public card shows; an unknown, deleted or made-up id and an unknown or ended event give the generic tags.
+- [ ] F37.3 `X-Robots-Tag: noindex` everywhere except the marketing pages, `robots.txt` and `sitemap.xml` from the Worker on the main site, and a host site that disallows everything. `/c/` and `/e/` stay out of `Disallow` so a crawler can read the `noindex`.
+- [ ] F37.4 The Vue app sets `document.title` per page for people, without making any public page bigger ([[F28 Public-page JS budget]]).
+- [ ] F37.5 `test/seo.mjs` (wired before `test/budget.mjs`) for every line of the bar; vault notes ([[Architecture]], [[API Surface]], [[Deployment]], [[Security]], [[Codebase Map]], [[Testing]], [[Screens and Routes]]) and [[D042 A shared card link shows what the card already shows, and is never indexed]].
 
 ## Owner decisions
 - [x] What a shared card link (`/c/...`) shows in a preview, and whether search engines may index cards: answered 2026-11-15, "Name headline and photo, but no index by google." Card pages are `noindex` and left out of the sitemap; the preview shows the name, headline and photo **as that card shows them** (a hidden field or a card without a photo shows nothing extra; the image is the same one the public card already serves, never a private selfie). A card that has been retired, deleted or blocked shows the generic preview.
