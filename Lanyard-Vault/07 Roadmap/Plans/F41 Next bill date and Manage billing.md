@@ -33,16 +33,17 @@ needs: [F36]
 
 ## Tasks
 - [x] F41.1 Worker: `mine` on `GET /api/billing/plans`, with tests in `test/billing.mjs`: signed out has no `mine`; free user; renewing subscriber; cancelled at period end; promo-only Plus (`managed` false); user A never sees user B's subscription; works with billing off.
-- [ ] F41.2 SettingsPlan: the "Your plan" block and the Manage billing button rules; browser check at 375 and 1280 px, light and dark, by seeding local rows; vault notes ([[API Surface]], [[Screens and Routes]], [[Host Portal and Billing]] if touched).
+- [x] F41.2 SettingsPlan: the "Your plan" block and the Manage billing button rules; browser check at 375 and 1280 px, light and dark, by seeding local rows; vault notes ([[API Surface]], [[Screens and Routes]], [[Host Portal and Billing]] if touched).
 
 ## Acceptance checks
 - [ ] A local user with an active, renewing subscription whose period ends 2026-12-12 sees "Next bill on 12 December 2026" and a Manage billing button, with `BILLING_ENABLED` unset.
 - [ ] The same user with `cancel_at_period_end = 1` sees "Plus ends on 12 December 2026" and no "Next bill".
 - [ ] A promo-code Plus user sees "Plus until ..., from a code." and no Manage billing button.
 - [ ] A free user sees neither line nor the button.
-- [ ] `npm test` passes.
+- [x] `npm test` passes. Exit 0 in a clean worktree with its own `npm ci` (billing 114 checks, 15 of them new). PrivacyRequest 51,095 to 51,097 B, PublicCard 48,778 to 48,780 B (hash names only; SettingsPlan is a signed-in page).
 
 ## Log
--
+- 2026-11-18 (Claude subagent): F41.1 (cfde13d) adds `mine` to `GET /api/billing/plans`; F41.2 rewrites the Plan block in `SettingsPlan.vue` (the "Next bill", "Plus ends" and "Plus until ..., from a code." lines, and Manage billing whenever `mine.managed`, with the hint). No migration, no change to the webhook, checkout, portal route or `worker/index.js`. The portal still answers 503 while `BILLING_ENABLED` is unset, so a paid member sees F39's wording if it is switched off; the button shows anyway, as the plan asks.
+- **Not done: the four browser acceptance checks.** The Worker side is tested (15 new checks in `test/billing.mjs`: signed out has no `mine` and no guest, free, renewing, cancelled at period end, promo-only, no end date, refunded, open order, ended Plus, user B's rows never in user A's answer, billing unset). The page itself was not looked at in a browser, because seeding the local D1 would apply the owner's untracked migrations 0033 and 0034 to their local database and run their uncommitted worker. Owner step: `npm run db:local`, `npx wrangler dev --port 8787`, `npx vite --port 5173`, seed rows with `wrangler d1 execute lanyard_db --local` for each state, and look at 375 and 1280 px, light and dark. Feature left In progress.
 
 Related: [[F27 Lanyard Plus and billing]] · [[F36 Payment provider and billing pages]] · back to [[00 Master To-Do]]

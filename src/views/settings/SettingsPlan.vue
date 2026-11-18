@@ -24,6 +24,21 @@ const month = computed(() => plans.value?.products.find((p) => p.id === "plus_mo
 const year = computed(() => plans.value?.products.find((p) => p.id === "plus_year"));
 const priceOf = (p) => `${gbp(p.pence)} a ${p.interval}`;
 
+// F41: when the next bill is, or when Plus ends (from /api/billing/plans `mine`; dates in the person's own time).
+const mine = computed(() => plans.value?.mine || null);
+const dateOf = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+const billLine = computed(() => {
+  const m = mine.value;
+  if (!m || m.tier !== "plus" || !m.until) return "";
+  const date = dateOf(m.until);
+  if (m.renews) {
+    const pr = m.interval === "year" ? year.value : m.interval === "month" ? month.value : null;
+    return `Next bill on ${date}${pr ? `, ${priceOf(pr)}` : ""}`;
+  }
+  if (m.cancelAtPeriodEnd) return `Plus ends on ${date}. You won't be charged again.`;
+  return `Plus until ${date}, from a code.`;
+});
+
 onMounted(async () => {
   try { plans.value = await api("/api/billing/plans"); } catch { /* the page still shows the plan */ }
   if (back) await refreshMe().catch(() => {});
@@ -104,7 +119,11 @@ const manage = once(async () => {
       </template>
       <template v-else>
         <p class="small muted">Thanks for backing Lanyard. You have {{ me.plan.cards }} cards, custom colours and your own card codes.</p>
-        <button v-if="plans?.cardPayments" class="btn" style="align-self:flex-start" :disabled="!!working" @click="manage">{{ working === manage ? "Opening…" : "Manage or cancel" }}</button>
+      </template>
+      <p v-if="billLine" class="small" style="margin:0"><strong>{{ billLine }}</strong></p>
+      <template v-if="mine?.managed">
+        <button class="btn" style="align-self:flex-start" :disabled="!!working" @click="manage">{{ working === manage ? "Opening…" : "Manage billing" }}</button>
+        <p class="small muted" style="margin:0">Change your card, see invoices or cancel on Polar's secure page.</p>
       </template>
     </section>
     <AiAllowances />
