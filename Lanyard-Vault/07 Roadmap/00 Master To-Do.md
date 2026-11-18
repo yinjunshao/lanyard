@@ -107,9 +107,15 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F38** [[F38 Loading states]] · P2 · M · Needs: none (in progress: Claude subagent, 2026-11-17; all tasks built, last commit 4f1de62; waiting on one acceptance check that needs a slowed-network look at a few pages, see its Log)
 - [ ] **F39** [[F39 Informative error messages]] · P2 · M · Needs: F38 (in progress: Claude subagent, 2026-11-17; all tasks built, last commit fe1790d; waiting on one acceptance check, a timeout seen in a browser, see its Log; built on F38 as it stands, with F38's last browser check still open)
 
+### Phase 8: owner requests (2026-11-18)
+- [ ] **F40** [[F40 Motion for sheets panels and tabs]] · P1 · L · Needs: F38 (built on F38 as it stands, with its last browser check still open)
+- [ ] **F41** [[F41 Next bill date and Manage billing]] · P1 · S · Needs: F36
+
 ## Dependency map
 ```mermaid
 graph LR
+  F38 --> F40
+  F36 --> F41
   F07 --> F10
   F08 --> F09
   F08 --> F12
