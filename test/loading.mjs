@@ -324,4 +324,41 @@ check("the exit wait is at least the slowest exit and at most 300 ms", Number(/E
   check("no public page imports the sheet motion or swipe code statically", PUBLIC.every((n) => !/sheetMotion|sheetSwipe/.test(read(`src/views/${n}.vue`))) && ["src/main.js", "src/App.vue", "src/lib/store.js", "src/lib/api.js"].every((f) => !/sheetMotion|sheetSwipe/.test(read(f))));
 }
 
+console.log("\n# F40.4 Event preview panel, check-in dialog, Lightbox, photo cropper, Terms pop-up");
+const lbSrc = read("src/components/Lightbox.vue").replace(/\r\n/g, "\n");
+const lbCss = styleOf("src/components/Lightbox.vue");
+{
+  const { lightbox, openPhoto, closePhoto } = await import("../src/lib/lightbox.js");
+  openPhoto("a.png", "First");
+  const opened = lightbox.open === true && lightbox.src === "a.png";
+  closePhoto();
+  check("the Lightbox: closing hides it but keeps the photo for the fade, and opening another replaces it", opened && lightbox.open === false && lightbox.src === "a.png" && (openPhoto("b.png", "Second"), lightbox.src === "b.png" && lightbox.open === true));
+  openPhoto(null);
+  check("openPhoto with nothing to show changes nothing", lightbox.src === "b.png");
+  closePhoto();
+}
+check("the Lightbox stays in the page (no v-if on the overlay), and its .open class is what shows it", !/class="lb"[^>]*v-if|v-if="[^"]*"\s+class="lb"/.test(lbSrc) && /class="lb" :class="\{ open: lightbox\.open \}"/.test(lbSrc));
+check("a closed Lightbox is invisible, takes no clicks and is out of the tab and reading order (visibility), and only after the fade", /\.lb \{[^}]*opacity: 0; visibility: hidden; pointer-events: none;[^}]*transition: opacity var\(--dur-out\) var\(--ease-in\), visibility 0s linear var\(--dur-out\)/.test(lbCss) && /\.lb\.open \{[^}]*opacity: 1; visibility: visible; pointer-events: auto;[^}]*transition: opacity var\(--dur\) var\(--ease-out\), visibility 0s/.test(lbCss));
+check("the page behind scrolls again only after the fade, and a photo opened again in that time keeps the lock", /clearTimeout\(unlock\)/.test(lbSrc) && /setTimeout\(\(\) => \{ document\.body\.style\.overflow = ""; \}, 160\)/.test(lbSrc) && 160 >= ms(token("dur-out")) && 160 <= 300);
+check("Lightbox has no keyframes of its own left (its old lb-in is replaced by the transition and the tokens)", !/@keyframes lb-in|animation:/.test(lbCss));
+
+const cropSrc = read("src/components/PhotoCropper.vue").replace(/\r\n/g, "\n");
+const cropCss = styleOf("src/components/PhotoCropper.vue");
+check("the photo cropper fades out before it goes: Cancel, Escape and Use photo all go through close(), none emits directly", /useSheetExit\(emit, null, "cancel"\)/.test(cropSrc) && /close\("done", url\)/.test(cropSrc) && /e\.key === "Escape"\) close\(\)/.test(cropSrc) && !/emit\(["'](cancel|done)["']/.test(cropSrc) && /class="crop-backdrop" :class="\{ 'is-leaving': leaving \}"/.test(cropSrc));
+check("the cropper's dim and box fade and drop in, and out faster, and a leaving cropper takes no clicks", /\.crop-backdrop::before \{[^}]*animation: m-fade var\(--dur\)/.test(cropCss) && /\.crop-sheet \{[^}]*animation: m-pop-in var\(--dur\)/.test(cropCss) && /\.crop-backdrop\.is-leaving \.crop-sheet \{ animation: m-pop-out var\(--dur-out\)/.test(cropCss) && /\.crop-backdrop\.is-leaving \{ pointer-events: none; \}/.test(cropCss) && !/\.crop-backdrop \{[^}]*background:/.test(cropCss));
+const tgCss = styleOf("src/components/TermsGate.vue");
+check("the Terms pop-up fades in and drops in, with no exit (it cannot be dismissed)", /\.tg-backdrop::before \{[^}]*animation: m-fade var\(--dur\)/.test(tgCss) && /\.tg-sheet \{[^}]*animation: m-pop-in var\(--dur\)/.test(tgCss) && !/is-leaving/.test(read("src/components/TermsGate.vue")) && !/\.tg-backdrop \{[^}]*background:/.test(tgCss));
+
+const pvSrc = read("src/components/EventPreview.vue").replace(/\r\n/g, "\n");
+const pvScript = pvSrc.slice(0, pvSrc.indexOf("</script>"));
+const pvCss = styleOf("src/components/EventPreview.vue");
+check("the preview panel waits for its exit: hide() marks it leaving, then hides it and gives focus back to the Preview button", /function hide\(\) \{\s*if \(!open\.value \|\| leaving\.value\) return;\s*leaving\.value = true;\s*leaveTimer = setTimeout\(\(\) => \{\s*open\.value = leaving\.value = false;\s*nextTick\(\(\) => opener\?\.focus\?\.\(\)\);/.test(pvScript) && Number(/\}, (\d+)\);\n\}/.exec(pvScript)?.[1]) <= 300);
+check("the preview panel slides in from the right and out again (below 1000 px), and takes no clicks while leaving", /\.pv-side\.open \{[^}]*animation: m-side-in var\(--dur-sheet\) var\(--ease-in|\.pv-side\.open \{[^}]*animation: m-side-in var\(--dur-sheet\) var\(--ease-out\)/.test(pvCss) && /\.pv-side\.open\.is-leaving \{ pointer-events: none; animation: m-side-out var\(--dur-sheet-out\) var\(--ease-in\) forwards; \}/.test(pvCss) && /'is-leaving': leaving/.test(pvSrc));
+check("opening the preview again mid-exit keeps one panel, and widening the window clears the timer", /clearTimeout\(leaveTimer\);\s*leaving\.value = false;/.test(pvScript) && /onWide = \(e\) => \{ if \(e\.matches\) \{ clearTimeout\(leaveTimer\)/.test(pvScript) && /clearTimeout\(timer\); clearTimeout\(leaveTimer\)/.test(pvScript));
+
+const dialogCss = css.slice(css.indexOf("/* A native <dialog>"), css.indexOf("/* ---------- Waiting (F38)"));
+const pageSrc = read("src/components/EventPage.vue").replace(/\r\n/g, "\n");
+check("the check-in dialog drops in and fades out with CSS alone: transitions on opacity and transform, display and overlay allowed to be discrete, a starting style, and its dim fades too", /\.collect-dialog, \.collect-dialog::backdrop \{\s*opacity: 0;\s*transition: opacity var\(--dur-out\) var\(--ease-in\), transform var\(--dur-out\) var\(--ease-in\),\s*overlay var\(--dur-out\) allow-discrete, display var\(--dur-out\) allow-discrete;/.test(dialogCss) && /\.collect-dialog\[open\], \.collect-dialog\[open\]::backdrop \{\s*opacity: 1;/.test(dialogCss) && /@starting-style \{[^}]*\.collect-dialog\[open\]\s*\{[^}]*opacity: 0/.test(dialogCss) && /\.collect-dialog\[open\]::backdrop \{ opacity: 0; \}/.test(dialogCss));
+check("the check-in page gained no script for it (still showModal() and close() on a native dialog, no timer)", /info\.value\?\.showModal\?\.\(\)/.test(pageSrc) && /info\.value\?\.close\?\.\(\)/.test(pageSrc) && !/setTimeout|animationend|transitionend/.test(pageSrc));
+
 summary();

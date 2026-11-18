@@ -12,7 +12,8 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 // A little longer than the longest exit (--dur-sheet-out, 200 ms); the CSS decides how fast it really goes.
 export const EXIT_MS = 220;
 
-// emit: the component's emit; root: a ref to the panel (the .sheet or .crop-sheet element). close() emits
+// emit: the component's emit; root: a ref to the panel to swipe down (the .sheet element; null for a dialog that
+// does not swipe, like the photo cropper). close() emits
 // `event` ("close") when the exit is over; close("done", value) emits another one, with its argument.
 export function useSheetExit(emit, root, event = "close") {
   const leaving = ref(false);

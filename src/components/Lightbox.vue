@@ -5,12 +5,18 @@ import { lightbox, closePhoto } from "../lib/lightbox";
 function onKey(e) { if (e.key === "Escape") closePhoto(); }
 onMounted(() => window.addEventListener("keydown", onKey));
 onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
-watch(() => lightbox.src, (v) => { document.body.style.overflow = v ? "hidden" : ""; });
+// F40: it stays in the page and fades out (CSS), so the page behind scrolls again only when that is over.
+let unlock = 0;
+watch(() => lightbox.open, (v) => {
+  clearTimeout(unlock);
+  if (v) document.body.style.overflow = "hidden";
+  else unlock = setTimeout(() => { document.body.style.overflow = ""; }, 160);
+});
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="lightbox.src" class="lb" role="dialog" aria-modal="true" :aria-label="lightbox.alt || 'Photo'" @click="closePhoto">
+    <div class="lb" :class="{ open: lightbox.open }" role="dialog" aria-modal="true" :aria-label="lightbox.alt || 'Photo'" @click="closePhoto">
       <img :src="lightbox.src" :alt="lightbox.alt" @click.stop />
       <button class="lb-close" type="button" aria-label="Close photo" @click.stop="closePhoto">×</button>
       <p v-if="lightbox.alt" class="lb-cap">{{ lightbox.alt }}</p>
@@ -25,7 +31,14 @@ watch(() => lightbox.src, (v) => { document.body.style.overflow = v ? "hidden" :
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   background: rgba(20, 19, 17, 0.88);
   padding: 24px;
-  animation: lb-in 0.14s ease-out;
+  /* Closed it is invisible, takes no clicks and is out of the tab order and the reading order (visibility), and
+     becomes so only when the fade has finished. F40, tokens in main.css. */
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--dur-out) var(--ease-in), visibility 0s linear var(--dur-out);
+}
+.lb.open {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transition: opacity var(--dur) var(--ease-out), visibility 0s;
 }
 .lb img {
   max-width: min(92vw, 720px); max-height: 78vh;
@@ -40,6 +53,4 @@ watch(() => lightbox.src, (v) => { document.body.style.overflow = v ? "hidden" :
   font-size: 28px; line-height: 1; cursor: pointer;
 }
 .lb-cap { color: #f4f1ea; font-weight: 700; margin: 0; }
-@keyframes lb-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .lb { animation: none; } }
 </style>

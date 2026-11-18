@@ -2,12 +2,15 @@
 // Reposition and zoom a picked photo inside a square frame, then export the
 // framed square. Drag to move, pinch / wheel / slider to zoom.
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { useSheetExit } from "../lib/sheetMotion";
 
 const props = defineProps({
   file: { type: [File, Blob], required: true },
   outSize: { type: Number, default: 800 },
 });
 const emit = defineEmits(["done", "cancel"]);
+// F40: it fades out before it is taken out of the page (D045). close() is Cancel; close("done", url) is Use photo.
+const { leaving, close } = useSheetExit(emit, null, "cancel");
 
 const VP = Math.min(320, Math.max(220, window.innerWidth - 64)); // frame size in px
 const img = ref(null);
@@ -43,7 +46,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey);
 });
 function onKey(e) {
-  if (e.key === "Escape") emit("cancel");
+  if (e.key === "Escape") close();
 }
 
 // --- pointer handling: one pointer drags, two pointers pinch ---
@@ -96,13 +99,13 @@ function confirm() {
   ctx.drawImage(img.value, sx, sy, sz, sz, 0, 0, out, out);
   let url = canvas.toDataURL("image/webp", 0.85);
   if (!url.startsWith("data:image/webp")) url = canvas.toDataURL("image/jpeg", 0.85);
-  emit("done", url);
+  close("done", url);
 }
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="crop-backdrop" role="dialog" aria-modal="true" aria-label="Crop photo">
+    <div class="crop-backdrop" :class="{ 'is-leaving': leaving }" role="dialog" aria-modal="true" aria-label="Crop photo">
       <div class="crop-sheet">
         <h2>Adjust your photo</h2>
         <p v-if="failed" class="error-text">Couldn't read that image. Try a JPG or PNG.</p>
@@ -121,7 +124,7 @@ function confirm() {
           />
         </template>
         <div class="crop-actions">
-          <button class="btn" type="button" @click="emit('cancel')">Cancel</button>
+          <button class="btn" type="button" @click="close()">Cancel</button>
           <button class="btn btn-primary" type="button" :disabled="failed || !src" @click="confirm">Use photo</button>
         </div>
       </div>
@@ -133,9 +136,19 @@ function confirm() {
 .crop-backdrop {
   position: fixed; inset: 0; z-index: 210;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(20, 19, 17, 0.7); padding: 16px;
+  padding: 16px;
 }
+/* The dim is its own layer so it can fade while the dialog drops (F40; the keyframes are in main.css). */
+.crop-backdrop::before {
+  content: ""; position: absolute; inset: 0;
+  background: rgba(20, 19, 17, 0.7);
+  animation: m-fade var(--dur) var(--ease-out);
+}
+.crop-backdrop.is-leaving { pointer-events: none; }
+.crop-backdrop.is-leaving::before { animation: m-fade-out var(--dur-out) var(--ease-in) forwards; }
+.crop-backdrop.is-leaving .crop-sheet { animation: m-pop-out var(--dur-out) var(--ease-in) forwards; }
 .crop-sheet {
+  position: relative; animation: m-pop-in var(--dur) var(--ease-out);
   width: 100%; max-width: 400px;
   background: var(--paper-raised, #fffdf8); color: var(--ink, #1b1a17);
   border: var(--border-ink, 1.5px solid #1b1a17); border-radius: 8px;

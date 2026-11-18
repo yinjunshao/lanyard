@@ -36,22 +36,31 @@ const form = reactive({ name: "", answers: {}, sponsorConsent: {}, directoryCons
 const THEMES = [["default", "Default"], ["formal", "Formal"], ["night", "Night"]];
 
 // Below 1000 px the panel is full screen while `open`.
+// F40: it slides in from the right and back out, so closing waits for the exit (`leaving`) before it hides it.
 const open = ref(false);
+const leaving = ref(false);
+let leaveTimer = 0;
 const panel = ref(null);
 const closeBtn = ref(null);
 let opener = null, wide = null;
-const onWide = (e) => { if (e.matches) open.value = false; };
+const onWide = (e) => { if (e.matches) { clearTimeout(leaveTimer); open.value = leaving.value = false; } };
 onMounted(() => { wide = window.matchMedia("(min-width: 1000px)"); wide.addEventListener("change", onWide); });
-onBeforeUnmount(() => { clearTimeout(timer); wide?.removeEventListener("change", onWide); });
+onBeforeUnmount(() => { clearTimeout(timer); clearTimeout(leaveTimer); wide?.removeEventListener("change", onWide); });
 async function show() {
-  opener = document.activeElement;
+  clearTimeout(leaveTimer);
+  leaving.value = false;
+  if (!open.value) opener = document.activeElement;
   open.value = true;
   await nextTick();
   closeBtn.value?.focus();
 }
 function hide() {
-  open.value = false;
-  nextTick(() => opener?.focus?.());
+  if (!open.value || leaving.value) return;
+  leaving.value = true;
+  leaveTimer = setTimeout(() => {
+    open.value = leaving.value = false;
+    nextTick(() => opener?.focus?.()); // focus goes back to the Preview button once the panel has gone
+  }, 220);
 }
 function onKey(e) {
   if (!open.value) return;
@@ -76,7 +85,7 @@ function onKey(e) {
       <slot />
     </div>
 
-    <aside v-if="!off" ref="panel" class="pv-side" :class="{ open }" :role="open ? 'dialog' : null" :aria-modal="open ? 'true' : null"
+    <aside v-if="!off" ref="panel" class="pv-side" :class="{ open, 'is-leaving': leaving }" :role="open ? 'dialog' : null" :aria-modal="open ? 'true' : null"
            aria-label="Preview of the check-in page" @keydown="onKey">
       <div class="pv-bar">
         <span class="label">Preview</span>
@@ -137,7 +146,8 @@ function onKey(e) {
 
 @media (max-width: 999px) {
   .pv-side { display: none; }
-  .pv-side.open { display: flex; flex-direction: column; position: fixed; inset: 0; z-index: 200; background: var(--paper); }
+  .pv-side.open { display: flex; flex-direction: column; position: fixed; inset: 0; z-index: 200; background: var(--paper); animation: m-side-in var(--dur-sheet) var(--ease-out); }
+  .pv-side.open.is-leaving { pointer-events: none; animation: m-side-out var(--dur-sheet-out) var(--ease-in) forwards; }
   .pv-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: var(--border); }
   .pv-close { width: auto; }
   .pv-body { flex: 1; overflow: auto; padding: 16px; }

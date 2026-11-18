@@ -920,6 +920,26 @@ button.list-row { font: inherit; }
   }
 }
 
+/* A native <dialog> (the list of what the organisers collect, on the check-in page): CSS alone drops it in and fades
+   it out, and its dim with it, with no script on that public page. A browser that cannot animate display and overlay
+   (allow-discrete) just shows and hides it, as before. The exit uses the shorter token. */
+.collect-dialog, .collect-dialog::backdrop {
+  opacity: 0;
+  transition: opacity var(--dur-out) var(--ease-in), transform var(--dur-out) var(--ease-in),
+    overlay var(--dur-out) allow-discrete, display var(--dur-out) allow-discrete;
+}
+.collect-dialog { transform: translateY(var(--shift)) scale(0.98); }
+.collect-dialog[open], .collect-dialog[open]::backdrop {
+  opacity: 1;
+  transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out),
+    overlay var(--dur) allow-discrete, display var(--dur) allow-discrete;
+}
+.collect-dialog[open] { transform: none; }
+@starting-style {
+  .collect-dialog[open] { opacity: 0; transform: translateY(var(--shift)) scale(0.98); }
+  .collect-dialog[open]::backdrop { opacity: 0; }
+}
+
 /* ---------- Waiting (F38): skeletons, CSS only ----------
    Grey blocks in the shape of what is coming, in the paper-and-ink tokens, so every theme follows.
    One soft band sweeps across the whole waiting region (one animation, not one per block); it stops

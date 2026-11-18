@@ -45,9 +45,16 @@ async function accept() {
 <style>
 .tg-backdrop {
   position: fixed; inset: 0; z-index: 220; display: flex; align-items: flex-end; justify-content: center;
-  background: rgba(20, 19, 17, 0.6); padding: 16px;
+  padding: 16px;
+}
+/* It fades in and is never dismissed, so there is no exit (F40). The dim is its own layer so the box can drop in beside it. */
+.tg-backdrop::before {
+  content: ""; position: absolute; inset: 0;
+  background: rgba(20, 19, 17, 0.6);
+  animation: m-fade var(--dur) var(--ease-out);
 }
 .tg-sheet {
+  position: relative; animation: m-pop-in var(--dur) var(--ease-out);
   width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 14px;
   background: var(--paper-raised, #fffdf8); color: var(--ink, #1b1a17);
   border: var(--border-ink, 1.5px solid #1b1a17); border-radius: 8px; padding: 20px;
