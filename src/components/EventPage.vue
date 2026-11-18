@@ -14,7 +14,7 @@
 //            attendance on. The words come from the Worker (src/lib/collects.js) and are shown as text.
 //   showName ask for a name (a guest with no card yet)
 //   needsAgree ask for the 18+ and Terms tick (first-timers)
-import { watch } from "vue";
+import { computed, ref, watch } from "vue";
 const INFO_LABELS = { access: "Access", dress: "Dress code", food: "Food and drink", other: "Good to know" };
 const branded = (e) => (e.theme && e.theme !== "default") || !!e.strapColor;
 const fmtDate = (t) =>
@@ -41,8 +41,19 @@ watch(() => props.event.collects, (c) => {
 }, { immediate: true });
 const noEmail = (k) => k === "email" && props.form.hasEmail === false; // no verified email: nothing to share
 const isOn = (k) => !!props.form.collect?.[k] && (k === "attendance" || (!!props.form.collect.attendance && !noEmail(k)));
-const locked = (k) => (k !== "attendance" && !props.form.collect?.attendance) || noEmail(k);
-function tick(k, on) { props.form.collect = { ...props.form.collect, [k]: on }; }
+// One tick covers everything the host asks for (the owner's request, F40): on shares every item, off shares nothing.
+function tickAll(on) {
+  props.form.collect = Object.fromEntries((props.event.collects?.items || []).map((i) => [i.key, on && !noEmail(i.key)]));
+}
+const shareWhat = computed(() => {
+  const keys = (props.event.collects?.items || []).map((i) => i.key);
+  const extra = [keys.includes("email") && "email", keys.includes("card") && "card"].filter(Boolean);
+  return extra.length ? `my name, check-in time, ${extra.join(" and ")}` : "my name and check-in time";
+});
+// The full list opens in a native dialog: no extra code on this public page.
+const info = ref(null);
+const infoOpen = () => info.value?.showModal?.();
+const infoClose = () => info.value?.close?.();
 // What the page says about hosts depends on whether this event keeps a list.
 const hostsLine = (e) => (e.collects ? "The organisers see only what you leave ticked below, and never who you connect with." : "Hosts see aggregate numbers only — never who connected with whom.");
 const totalsLine = (e) => (e.collects ? "The organisers never see who you connect with." : "The organiser only sees anonymous totals, never who you connect with.");
@@ -114,17 +125,34 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
     </div>
 
     <section v-if="event.collects && form.collect" class="panel stack-2" aria-labelledby="collects-h" data-collects>
-      <h2 id="collects-h" class="label">This event collects</h2>
-      <p class="small" style="margin:0"><strong>{{ event.collects.organiser }}</strong> asks for this.
-        <span class="muted">Why:</span> {{ event.collects.why }}</p>
-      <p class="small muted" style="margin:0">Everything is ticked to start with. Untick anything you don't want to share. You can still check in.</p>
-      <label v-for="it in event.collects.items" :key="it.key" class="checkbox-row collect-row" :class="{ locked: locked(it.key) }">
-        <input type="checkbox" :checked="isOn(it.key)" :disabled="locked(it.key)" :data-item="it.key" @change="tick(it.key, $event.target.checked)" />
-        <span class="small">{{ it.label }}
-          <span v-if="noEmail(it.key)" class="muted" style="display:block">You have no verified email on your account, so there is nothing to share.</span></span>
-      </label>
-      <p class="small muted" style="margin:0">You can change your mind later, on this event's page or in Settings. See the
-        <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.</p>
+      <h2 id="collects-h" class="label">This event collects details</h2>
+      <!-- One tick for everything the host asks for; the button beside it opens exactly what that is. -->
+      <div class="collect-row">
+        <label class="checkbox-row collect-tick">
+          <input type="checkbox" :checked="isOn('attendance')" data-item="all" @change="tickAll($event.target.checked)" />
+          <span class="small">I agree to share {{ shareWhat }} with <strong>{{ event.collects.organiser }}</strong>.</span>
+        </label>
+        <button type="button" class="collect-info" aria-haspopup="dialog" :aria-label="`What ${event.collects.organiser} collects`" @click="infoOpen">
+          <span aria-hidden="true">i</span>
+        </button>
+      </div>
+      <p class="small muted" style="margin:0">Optional: untick it and you can still check in. Change your mind any time on this event's page.</p>
+
+      <dialog ref="info" class="collect-dialog" aria-labelledby="collect-d-h" @click.self="infoClose" data-collect-info>
+        <div class="collect-d-body">
+          <div class="collect-d-head">
+            <h3 id="collect-d-h">What {{ event.collects.organiser }} collects</h3>
+            <button type="button" class="icon-btn collect-d-x" aria-label="Close" @click="infoClose">×</button>
+          </div>
+          <ul class="collect-d-list">
+            <li v-for="it in event.collects.items" :key="it.key" :data-item="it.key">{{ it.label }}<span v-if="noEmail(it.key)" class="muted" style="display:block">You have no verified email on your account, so none is shared.</span></li>
+          </ul>
+          <p class="small" style="margin:0"><span class="muted">Why:</span> {{ event.collects.why }}</p>
+          <p class="small muted" style="margin:0">Organisers never see who you connect with. Lanyard deletes the list 12 months after the event. See the
+            <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.</p>
+          <button type="button" class="btn btn-primary" @click="infoClose">Got it</button>
+        </div>
+      </dialog>
     </section>
 
     <label v-if="needsAgree" class="checkbox-row">
@@ -152,9 +180,29 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
 </template>
 
 <style scoped>
-.collect-row { width: 100%; min-height: 48px; align-items: center; padding: 10px 12px; border: var(--border); border-radius: var(--radius); background: var(--paper-raised); cursor: pointer; }
-.collect-row.locked { cursor: default; opacity: .7; }
-.collect-row input[type="checkbox"] { margin-top: 0; }
+.collect-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 52px; padding: 6px 6px 6px 12px; border: var(--border); border-radius: var(--radius); background: var(--paper-raised); }
+.collect-tick { flex: 1; min-width: 0; align-items: center; cursor: pointer; padding: 6px 0; }
+.collect-tick input[type="checkbox"] { margin-top: 0; }
+.collect-info {
+  flex: none; width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer;
+  background: none; border: 0; color: var(--ink); padding: 0;
+}
+.collect-info span {
+  width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid currentColor; display: grid; place-items: center;
+  font: italic 700 14px/1 Georgia, serif;
+}
+.collect-info:focus-visible { outline: 2.5px solid var(--strap); outline-offset: -2px; border-radius: var(--radius); }
+.collect-dialog {
+  position: fixed; inset: 0; margin: auto; height: fit-content;
+  width: min(440px, calc(100% - 32px)); max-height: 85dvh; padding: 0; border: var(--border-ink); border-radius: 14px;
+  background: var(--paper); color: var(--ink); box-shadow: var(--shadow-2);
+}
+.collect-dialog::backdrop { background: rgba(20, 19, 17, 0.55); }
+.collect-d-body { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px 22px; }
+.collect-d-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.collect-d-head h3 { margin: 6px 0 0; font-size: 20px; line-height: 1.25; }
+.collect-d-x { flex: none; width: 44px; height: 44px; margin: -4px -10px 0 0; font-size: 28px; line-height: 1; background: none; border: 0; color: var(--ink); cursor: pointer; }
+.collect-d-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
 .event-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
 .event-info dt { padding-top: 2px; }
 .event-info dd { margin: 0; }

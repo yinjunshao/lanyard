@@ -34,22 +34,23 @@ async function save(change) {
   } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
 }
-const setAttendance = (on) => save({ attendance: on });
-const setItem = (key, on) => save({ [key]: on });
+// One tick for all of it (F40), the same as the check-in page: on shares every item, off takes you off the list.
+const setAll = (on) => save({ attendance: on, ...Object.fromEntries(st.value.items.map((i) => [i.key, on])) });
 </script>
 
 <template>
   <section v-if="st" class="stack-2 att-choices" :aria-label="title || 'The organisers\' list'">
     <h3 v-if="title" class="label" style="margin:0">{{ title }}</h3>
-    <p class="small" style="margin:0"><strong>{{ st.organiser }}</strong> keeps a list of who checked in. <span class="muted">Why:</span> {{ st.why }}</p>
+    <span v-if="!title" class="label" style="margin:0">The organisers' list</span>
     <label class="checkbox-row att-row">
-      <input type="checkbox" :checked="st.attendance" :disabled="busy" data-item="attendance" @change="setAttendance($event.target.checked)" />
-      <span class="small">{{ st.label }}</span>
+      <input type="checkbox" :checked="st.attendance" :disabled="busy" data-item="attendance" @change="setAll($event.target.checked)" />
+      <span class="small">I agree to share what this event collects with <strong>{{ st.organiser }}</strong>.</span>
     </label>
-    <label v-for="i in st.items" :key="i.key" class="checkbox-row att-row" :class="{ locked: !st.attendance }">
-      <input type="checkbox" :checked="st.attendance && i.on" :disabled="busy || !st.attendance" :data-item="i.key" @change="setItem(i.key, $event.target.checked)" />
-      <span class="small">{{ i.label }}</span>
-    </label>
+    <ul class="small att-items">
+      <li>{{ st.label }}</li>
+      <li v-for="i in st.items" :key="i.key" :data-item="i.key">{{ i.label }}</li>
+    </ul>
+    <p class="small" style="margin:0"><span class="muted">Why:</span> {{ st.why }}</p>
     <p v-if="saved" class="success-text small" role="status">{{ saved }}</p>
     <p v-if="error" class="error-text small" role="alert">{{ error }}</p>
     <p class="small muted" style="margin:0">Unticking takes effect at once. Details already given to the organisers are theirs to look after: see the <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.</p>
@@ -58,6 +59,6 @@ const setItem = (key, on) => save({ [key]: on });
 
 <style scoped>
 .att-row { width: 100%; min-height: 48px; align-items: center; padding: 10px 12px; border: var(--border); border-radius: var(--radius); background: var(--paper-raised); cursor: pointer; }
-.att-row.locked { cursor: default; opacity: .7; }
+.att-items { margin: 0; padding-left: 20px; display: grid; gap: 4px; color: var(--graphite); }
 .att-row input[type="checkbox"] { margin-top: 0; }
 </style>

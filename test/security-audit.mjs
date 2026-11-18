@@ -7,7 +7,7 @@ import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { makeEnv, check, summary, becomeHost, PNG, withLatency } from "./harness.mjs";
 
-const SECRETS = { ADMIN_TOKEN: "adm-audit-token", TOTP_KEY: "audit-totp-key-0123456789", DROP_KEY: "audit-drop-key-0123456789abcdef", RESEND_ACCOUNTS_KEY: "re_auditAccounts_0123456789", RESEND_DECISIONS_KEY: "re_auditDecisions_0123456789", CLAUDE_API_KEY: "sk-ant-audit-0123456789", POLAR_ACCESS_TOKEN: "polar_oat_audit0123456789", POLAR_WEBHOOK_SECRET: "whsec_YXVkaXQtd2ViaG9vay1zZWNyZXQtMDEyMzQ1Njc4OQ==" };
+const SECRETS = { ADMIN_TOKEN: "adm-audit-token", TOTP_KEY: "audit-totp-key-0123456789", DROP_KEY: "audit-drop-key-0123456789abcdef", RESEND_ACCOUNTS_KEY: "re_auditAccounts_0123456789", RESEND_DECISIONS_KEY: "re_auditDecisions_0123456789", OPENROUTER_API_KEY: "sk-ant-audit-0123456789", POLAR_ACCESS_TOKEN: "polar_oat_audit0123456789", POLAR_WEBHOOK_SECRET: "whsec_YXVkaXQtd2ViaG9vay1zZWNyZXQtMDEyMzQ1Njc4OQ==" };
 const T = await makeEnv({ ...SECRETS });
 const { q, q1, env } = T;
 // Every response any client in this file gets is kept, to search for secrets at the end (row 16).
@@ -505,13 +505,13 @@ console.log("\n# Rows 4 and 16: no secret in the pages, the config or any respon
 {
   const files = (dir) => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? files(join(dir, f)) : [join(dir, f)]));
   const srcText = files("src").filter((f) => /\.(js|vue|json)$/.test(f)).map((f) => [f, readFileSync(f, "utf8")]);
-  const names = /\b(ADMIN_TOKEN|TOTP_KEY|DROP_KEY|UNSUB_SECRET|RESEND_[A-Z_]*KEY|CLAUDE_API_KEY|POLAR_ACCESS_TOKEN|POLAR_WEBHOOK_SECRET)\b|sk-ant-|re_[A-Za-z0-9]{8,}_|whsec_[0-9a-f]{8}|lyk_[0-9a-f]{8}/;
+  const names = /\b(ADMIN_TOKEN|TOTP_KEY|DROP_KEY|UNSUB_SECRET|RESEND_[A-Z_]*KEY|OPENROUTER_API_KEY|POLAR_ACCESS_TOKEN|POLAR_WEBHOOK_SECRET)\b|sk-ant-|re_[A-Za-z0-9]{8,}_|whsec_[0-9a-f]{8}|lyk_[0-9a-f]{8}/;
   const inSrc = srcText.filter(([f, t]) => names.test(t.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""))).map(([f]) => f);
   check("no file the browser loads (src/) uses a secret's name or holds a key-shaped string, outside comments", inSrc.length === 0, inSrc);
   const tomls = ["wrangler.toml", "wrangler.production.toml"].map((f) => [f, readFileSync(f, "utf8")]);
   const varsBad = tomls.filter(([, t]) => {
     const vars = (t.split(/^\[vars\]/m)[1] || "").split(/^\[/m)[0].split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
-    return /\b(ADMIN_TOKEN|TOTP_KEY|DROP_KEY|UNSUB_SECRET|RESEND_[A-Z_]*KEY|CLAUDE_API_KEY|POLAR_ACCESS_TOKEN|POLAR_WEBHOOK_SECRET)\s*=/.test(vars) || /sk-ant-|re_[A-Za-z0-9]{8,}_|whsec_|lyk_/.test(vars);
+    return /\b(ADMIN_TOKEN|TOTP_KEY|DROP_KEY|UNSUB_SECRET|RESEND_[A-Z_]*KEY|OPENROUTER_API_KEY|POLAR_ACCESS_TOKEN|POLAR_WEBHOOK_SECRET)\s*=/.test(vars) || /sk-ant-|re_[A-Za-z0-9]{8,}_|whsec_|lyk_/.test(vars);
   }).map(([f]) => f);
   check("neither wrangler*.toml puts a secret in [vars] (they are Worker secrets only)", varsBad.length === 0, varsBad);
   check(".dev.vars and .env files are ignored by git", /^\.dev\.vars$/m.test(readFileSync(".gitignore", "utf8")) && /^\.env$/m.test(readFileSync(".gitignore", "utf8")));
@@ -523,7 +523,7 @@ console.log("\n# Rows 4 and 16: no secret in the pages, the config or any respon
   }
   // The admin AI page says whether a key is set, never the key.
   const ai = await client({ ip: "203.0.113.160" }).get("/api/admin/ai", ADMIN);
-  check("the admin AI page reports the key as set or not, and holds no key", ai.status === 200 && !ai.text.includes(SECRETS.CLAUDE_API_KEY));
+  check("the admin AI page reports the key as set or not, and holds no key", ai.status === 200 && !ai.text.includes(SECRETS.OPENROUTER_API_KEY));
   const all = responses.join("\n");
   const found = Object.entries(SECRETS).filter(([k, v]) => k !== "ADMIN_TOKEN" && all.includes(v)).map(([k]) => k);
   check(`none of ${responses.length} responses in this file holds TOTP_KEY, DROP_KEY, either Resend key, the AI key or either Polar secret`, found.length === 0, found);

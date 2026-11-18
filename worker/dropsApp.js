@@ -10,6 +10,7 @@ import { bump, HOUR } from "./ratelimit.js";
 import { openItem } from "./dropcrypto.js";
 import { openness, revealItem } from "./drops.js";
 import { useVoucher } from "./vouchers.js";
+import { codeFor, voucherQr } from "./voucherScan.js";
 
 export const dropsApp = new Hono();
 
@@ -76,8 +77,8 @@ dropsApp.get("/api/e/:id/drops", async (c) => {
   return c.json({
     now: Date.now(),
     event: { id: ev.id, name: ev.name },
-    // What the voucher screen shows beside the use count: the person's own first name and photo.
-    me: { firstName: String(p?.name || "").trim().split(/\s+/)[0] || "", photo: p?.photo_key ? `/media/${p.photo_key}` : null },
+    // What the voucher screen shows beside the QR code: the person's own name and photo.
+    me: { name: String(p?.name || "").trim(), firstName: String(p?.name || "").trim().split(/\s+/)[0] || "", photo: p?.photo_key ? `/media/${p.photo_key}` : null },
     drops: await listForPerson(db, ev, me.id),
   }, 200, noStore);
 });
@@ -93,6 +94,17 @@ dropsApp.post("/api/e/:id/drops/:did/reveal", async (c) => {
   }
   const r = await revealItem(c.env, d, me.id);
   return c.json({ ok: true, id: d.id, title: d.title, value: r.value, givenAt: r.givenAt, replacedAt: r.replacedAt }, 200, noStore);
+});
+
+// F40: "Show voucher": this person's code for the voucher (made the first time), as digits and as what the QR holds.
+// Staff scan it with the scanner link the host sent them. Only the person's own code, never anyone else's.
+dropsApp.post("/api/e/:id/drops/:did/code", async (c) => {
+  const { me, ev } = await myEvent(c);
+  const d = await dropIn(c, ev);
+  if (d.kind !== "voucher") throw new HttpError(400, "This isn't a voucher.", "not_a_voucher");
+  if (d.purged_at) throw new HttpError(410, "This voucher has been cleared away.", "gone");
+  const code = await codeFor(c.env.DB, d, me.id);
+  return c.json({ code, qr: voucherQr(d.id, code) }, 200, noStore);
 });
 
 // A voucher is marked as used by staff, with the PIN the host gave them (worker/vouchers.js, D039). The request

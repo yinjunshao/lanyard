@@ -20,6 +20,9 @@ const props = defineProps({
   focus: { type: String, default: "" },         // selector to focus first when trapping
   fit: { type: Boolean, default: false },       // popover: at least as wide as the anchor
   closeButton: { type: Boolean, default: true },// show a Close button in the phone sheet
+  // From 600 px, a centred dialog over a dimmed page (with the same title and Close as the phone sheet)
+  // instead of a popover under the anchor. For content that is read, not picked from: a voucher, choices.
+  modal: { type: Boolean, default: false },
 });
 const emit = defineEmits(["close"]);
 // The content is drawn by calling the slot function directly. A compiled <slot> pulls
@@ -39,7 +42,9 @@ function watchPhone() {
 watchPhone();
 
 const isSheet = computed(() => phone.value);
-const trapping = computed(() => isSheet.value || props.trap);
+const isModal = computed(() => props.modal && !isSheet.value);
+const framed = computed(() => isSheet.value || isModal.value); // has its own title row and backdrop
+const trapping = computed(() => framed.value || props.trap);
 
 const panel = ref(null);
 const portal = ref(null);
@@ -65,7 +70,7 @@ function setBehind(on) {
 function place() {
   const a = props.anchor;
   const p = panel.value;
-  if (isSheet.value || !a || !p) { pos.value = {}; return; }
+  if (framed.value || !a || !p) { pos.value = {}; return; }
   const r = a.getBoundingClientRect();
   const vw = document.documentElement.clientWidth;
   const vh = window.innerHeight;
@@ -110,7 +115,7 @@ function onDocKey(e) {
   emit("close");
 }
 function onDocPointer(e) {
-  if (isSheet.value || stack[stack.length - 1] !== token) return;
+  if (framed.value || stack[stack.length - 1] !== token) return;
   const t = e.target;
   if (panel.value?.contains(t) || props.anchor?.contains?.(t)) return;
   emit("close");
@@ -164,17 +169,17 @@ defineExpose({ place, panel });
        any container. Vue's own Teleport is not used: it would add to the shared Vue
        chunk that public pages load. Put this as the last child of its parent. -->
   <div ref="portal" class="ui-portal">
-    <div v-if="open" class="ui-layer" :class="{ 'is-sheet': isSheet }"
-         @pointerdown.self="isSheet && emit('close')">
+    <div v-if="open" class="ui-layer" :class="{ 'is-sheet': isSheet, 'is-modal': isModal }"
+         @pointerdown.self="framed && emit('close')">
       <div ref="panel" class="ui-panel" tabindex="-1"
-           :class="{ 'is-fit': fit }"
+           :class="{ 'is-fit': fit && !modal, 'is-roomy': modal }"
            :role="dialog && trapping ? 'dialog' : undefined"
            :aria-modal="dialog && trapping ? 'true' : undefined"
            :aria-label="dialog && trapping ? label || undefined : undefined"
            :style="pos"
            @keydown="onKeydownPanel">
-        <template v-if="isSheet">
-          <div class="ui-handle" aria-hidden="true"></div>
+        <template v-if="framed">
+          <div v-if="isSheet" class="ui-handle" aria-hidden="true"></div>
           <div v-if="label || closeButton" class="ui-sheet-head">
             <span class="label" aria-hidden="true">{{ label }}</span>
             <button v-if="closeButton" type="button" class="icon-btn ui-close" aria-label="Close" @click="emit('close')">
@@ -220,6 +225,24 @@ defineExpose({ place, panel });
   padding: 10px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   animation: ui-rise 120ms linear;
 }
+/* The centred dialog (modal, from 600 px): dims the page like the sheet, the panel sits in the middle. */
+.ui-layer.is-modal {
+  pointer-events: auto;
+  background: rgba(20, 19, 17, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 16px;
+  animation: ui-fade 120ms linear;
+}
+.is-modal .ui-panel {
+  position: relative;
+  width: 100%; max-width: 460px;
+  max-height: 88vh; max-height: 88dvh;
+  border-radius: 14px;
+  padding: 14px 24px 24px;
+  box-shadow: var(--shadow-2);
+  animation: ui-rise 120ms linear;
+}
+.is-sheet .ui-panel.is-roomy { padding-left: 20px; padding-right: 20px; }
 .ui-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--rule); margin: 0 auto 10px; }
 .ui-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: 8px; }
 .ui-close { width: 44px; height: 44px; }
@@ -227,7 +250,7 @@ defineExpose({ place, panel });
 @keyframes ui-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ui-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .ui-layer.is-sheet, .ui-panel, .is-sheet .ui-panel { animation: none; }
+  .ui-layer.is-sheet, .ui-layer.is-modal, .ui-panel, .is-sheet .ui-panel, .is-modal .ui-panel { animation: none; }
 }
 
 /* The trigger every picker shares: it looks like the form's text inputs. */

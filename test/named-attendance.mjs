@@ -275,14 +275,15 @@ let html;
 {
   html = await render({ event: { ...baseEvent, collects: wordings }, form: pform() });
   const inputs = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].map((m) => m[0]);
-  const rows = [...html.matchAll(/<label[^>]*collect-row[^>]*>/g)];
+  const rows = [...html.matchAll(/class="[^"]*collect-row[^"]*"/g)];
   check("the heading, the organiser's name, the why line and a Privacy Policy link are on the page", html.includes("This event collects") && html.includes("<strong") && html.includes("Quad Events") && html.includes(WHY) && /<a href="\/privacy"[^>]*>Privacy Policy<\/a>/.test(html));
-  check("there is one row for each item, in order, each with its exact label", rows.length === 3 && wordings.items.every((i) => html.includes(i.label)) && html.indexOf(wordings.items[0].label) < html.indexOf(wordings.items[1].label) && html.indexOf(wordings.items[1].label) < html.indexOf(wordings.items[2].label));
-  check("every item is pre-ticked (owner's decision, D038), none is disabled, and each can be unticked", inputs.length === 3 && inputs.every((i) => /checked/.test(i) && !/disabled/.test(i)), inputs);
+  // F40 (owner's request): one tick covers everything the host asks for; the info button opens exactly what that is.
+  check("there is one tick for all of it, and the details list every item in order, each with its exact label", rows.length === 1 && inputs.length === 1 && wordings.items.every((i) => html.includes(i.label)) && html.indexOf(wordings.items[0].label) < html.indexOf(wordings.items[1].label) && html.indexOf(wordings.items[1].label) < html.indexOf(wordings.items[2].label));
+  check("the one tick starts ticked (owner's decision, D038), is not disabled, and says it agrees to share with the organiser", /checked/.test(inputs[0]) && !/disabled/.test(inputs[0]) && /I agree to share/.test(html), inputs);
   const src = readFileSync(new URL("../src/components/EventPage.vue", import.meta.url), "utf8");
-  check("each row is the full width and at least 44 px tall (a rule in the page's own styles)", /\.collect-row\s*\{[^}]*width:\s*100%/.test(src) && /\.collect-row\s*\{[^}]*min-height:\s*(4[4-9]|[5-9]\d)px/.test(src));
-  check("nothing is hidden behind a 'more' control: the rows are in the page, not in a details or dialog", !/<details|aria-hidden="true"|display:\s*none/.test(html.slice(html.indexOf("This event collects"), html.indexOf("Privacy Policy"))));
-  check("the page says it is all ticked and can be unticked, and that you can still check in", /ticked to start with/.test(html) && /Untick anything/.test(html) && /still check in/.test(html));
+  check("the row is the full width and at least 44 px tall (a rule in the page's own styles)", /\.collect-row\s*\{[^}]*width:\s*100%/.test(src) && /\.collect-row\s*\{[^}]*min-height:\s*(4[4-9]|[5-9]\d)px/.test(src));
+  check("an info button beside the tick opens a dialog that lists what is collected and why", /aria-haspopup="dialog"/.test(html) && /<dialog[^>]*data-collect-info/.test(html) && /showModal/.test(src));
+  check("the page says the tick is optional and that you can still check in", /untick it/.test(html) && /still check in/.test(html));
   check("the old sentence that says hosts see only totals is not on a page that keeps a list", !html.includes("anonymous totals") && !html.includes("aggregate numbers only") && html.includes("never who you connect with"));
   check("the check-in button is still there", html.includes(">Check in<"));
   // Text, never HTML.
@@ -291,10 +292,11 @@ let html;
   check("the organiser's name and the why line are escaped: shown as text, never as HTML", !h2.includes("<img src=x") && !h2.includes("<script>alert") && h2.includes("&lt;img src=x onerror=alert(1)&gt;") && h2.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
   check("the page source has no v-html", !/v-html/.test(src) && !/innerHTML/.test(src));
   const u = await render({ event: { ...baseEvent, collects: wordings }, form: pform({ collect: { attendance: false, email: true, card: true } }) });
-  const tag = (html, k) => html.match(new RegExp(`<input[^>]*data-item="${k}"[^>]*>`))[0].replace(/data-item="w+"/, "");
-  check("with attendance unticked the other two show unticked and locked (they only ever appear on the list)", !/checked/.test(tag(u, "attendance")) && ["email", "card"].every((k) => !/checked/.test(tag(u, k)) && /disabled/.test(tag(u, k))));
+  const tag = (html) => html.match(/<input[^>]*data-item="all"[^>]*>/)[0];
+  check("with attendance unticked the one tick shows unticked", !/checked/.test(tag(u)));
   const ne = await render({ event: { ...baseEvent, collects: wordings }, form: pform({ hasEmail: false }) });
-  check("a person with no verified email sees the email row unticked and locked, with the reason; the others stay ticked", /no verified email/.test(ne) && !/checked/.test(tag(ne, "email")) && /disabled/.test(tag(ne, "email")) && /checked/.test(tag(ne, "attendance")) && /checked/.test(tag(ne, "card")));
+  check("a person with no verified email is told in the details that no email is shared; the tick stays on", /no verified email/.test(ne) && /checked/.test(tag(ne)));
+  check("ticking shares every item (email only with a verified one), unticking shares none", /function tickAll\(on\)/.test(src) && /on && !noEmail\(i\.key\)/.test(src));
   const sp = await render({ event: { ...baseEvent, collects: wordings }, sponsors: [{ id: "s1", name: "Acme", perk: "Pens" }], form: pform({ sponsorConsent: {} }) });
   check("sponsor ticks stay unticked: sponsors are still never pre-ticked", /Never pre-ticked/.test(sp) && ![...sp.matchAll(/<input[^>]*>/g)].some((m) => !/data-item/.test(m[0]) && /checked/.test(m[0].replace(/aria-checked/, ""))));
 }
@@ -533,7 +535,7 @@ console.log("\n# F31.5 Unticking later takes a person off the host's list on the
   check("her consent history (Settings) shows the changes, newest first", cons.some((c) => c.scope === `event_attendance:${kid}` && c.action === "withdrawn"));
   const src = (f) => read(f);
   check("the event hub offers the list's choices only for an event that keeps one, and Settings shows the block", /v-if="event\.namedAttendance"/.test(src("src/views/EventDetail.vue")) && /<AttendanceSetting\s*\/>/.test(src("src/views/settings/SettingsPrivacy.vue")));
-  check("the choices are rows at least 44 px tall, ticked or not as the server says, each saved at once", /\.att-row\s*\{[^}]*min-height:\s*(4[4-9]|[5-9]\d)px/.test(src("src/components/EventAttendanceChoices.vue")) && /@change="setAttendance/.test(src("src/components/EventAttendanceChoices.vue")));
+  check("the choices are rows at least 44 px tall, ticked or not as the server says, each saved at once", /\.att-row\s*\{[^}]*min-height:\s*(4[4-9]|[5-9]\d)px/.test(src("src/components/EventAttendanceChoices.vue")) && /@change="setAll/.test(src("src/components/EventAttendanceChoices.vue")));
   const cv = src("src/components/ConsentHistory.vue");
   check("Settings words the new records: the list, the email and the card, and a refusal reads as declined", /event_attendance:/.test(cv) && /event_share_email:/.test(cv) && /event_share_card:/.test(cv) && /refused/.test(cv));
   check("no shared file knows about any of it (api.js, store.js, profile.js, Icon, Badge, CardView, the entry, either router table)", ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/App.vue", "src/router/index.js", "src/router/routes.attendee.js", "src/router/routes.host.js"].every((f) => !/attendance|collects|HostAttendees|EventCollects|named attendance/i.test(src(f))));

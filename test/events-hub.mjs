@@ -228,4 +228,27 @@ console.log("\n# Sheet content flag from the API");
   check("a named sponsor makes it true", (await B.c.get(`/api/my/events/${quiet.id}`)).json.event.hasChoices === true);
 }
 
+
+console.log("\n# Leaving an event");
+{
+  const ev = await mkEvent({ name: "Leave me", startsAt: Date.now() - H, endsAt: Date.now() + H, directoryOn: true });
+  const L1 = await signup("Lee Leave", "10.15.2.1"), L2 = await signup("Lou Stay", "10.15.2.2");
+  await checkIn(L1, ev, { directoryConsent: true });
+  await checkIn(L2, ev, { directoryConsent: true });
+  const cn = await connect(L1, L2, { eventId: ev.id, via: "qr" });
+  env.DB.raw.prepare("INSERT INTO event_presence (id, event_id, user_id, selfie_key, intro, looking_for, created_at, updated_at) VALUES ('pl1', ?, ?, NULL, 'hi', '', ?, ?)").run(ev.id, L1.id, Date.now(), Date.now());
+  const before = (await host.get(`/api/host/events/${ev.id}/live`)).json;
+  const other = await L2.c.del(`/api/my/events/${past.id}`);
+  check("you cannot leave an event you never checked in to", other.status === 404, other.status);
+  const r = await L1.c.del(`/api/my/events/${ev.id}`);
+  check("leaving answers ok", r.status === 200 && r.json.ok, r.text);
+  check("the check-in and presence are gone", !q1("SELECT 1 x FROM checkins WHERE event_id = ? AND user_id = ?", ev.id, L1.id) && !q1("SELECT 1 x FROM event_presence WHERE event_id = ? AND user_id = ?", ev.id, L1.id));
+  check("every consent for this event is withdrawn and logged", !q1("SELECT 1 x FROM consents WHERE user_id = ? AND granted = 1 AND scope LIKE ?", L1.id, `%:${ev.id}`) && !!q1("SELECT 1 x FROM consent_log WHERE user_id = ? AND action = 'withdrawn' AND scope = ?", L1.id, `event_directory:${ev.id}`));
+  check("the connection stays but no longer counts for the event", q1("SELECT event_id FROM connections WHERE id = ?", cn)?.event_id === null);
+  const after = (await host.get(`/api/host/events/${ev.id}/live`)).json;
+  check("the host's figures drop by one check-in and one connection", after.checkins === before.checkins - 1 && after.connections === before.connections - 1, { before, after });
+  check("it is off my events list and the hub is 404", !(await L1.c.get("/api/my/events")).json.events.some((e) => e.id === ev.id) && (await L1.c.get(`/api/my/events/${ev.id}`)).status === 404);
+  check("the other person is still checked in", !!q1("SELECT 1 x FROM checkins WHERE event_id = ? AND user_id = ?", ev.id, L2.id));
+}
+
 summary();

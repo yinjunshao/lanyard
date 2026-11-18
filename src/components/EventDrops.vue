@@ -3,9 +3,11 @@
 // event. Everything here is the signed-in person's own: the list shows titles and where each stands, and a key
 // is fetched only when they press Show, then cleared when they press Hide, leave the page or switch away.
 // Nothing is kept in storage, and nothing is drawn as HTML. A voucher opens as a sheet with the event, the
-// title, the person's first name and photo and a live clock; staff mark it used there (F32.4).
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+// title, the person's name and photo, a QR code and the same code as 6 digits; staff scan it with the scanner link
+// the host sent them (F40), and the sheet updates when they do.
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { api } from "../lib/api";
+import { drawQR } from "../lib/qr";
 import Avatar from "./Avatar.vue";
 import UiSheet from "./ui/UiSheet.vue";
 
@@ -69,33 +71,29 @@ const any = computed(() => (data.value?.drops || []).length > 0);
 /* ----------------------------------- the voucher screen ----------------------------------- */
 const open = ref(null); // the voucher on screen
 const trigger = ref(null);
-const nowMs = ref(Date.now());
+const pass = ref(null); // { code, qr } for the voucher on screen
+const passError = ref("");
+const qrCanvas = ref(null);
+const justUsed = ref(false);
 let tick = null;
 const current = computed(() => vouchers.value.find((v) => v.id === open.value) || null);
-function openVoucher(v, ev) {
-  open.value = v.id; trigger.value = ev.currentTarget; nowMs.value = Date.now();
-  clearInterval(tick); tick = setInterval(() => { nowMs.value = Date.now(); }, 1000);
-}
-function closeVoucher() { open.value = null; clearInterval(tick); staffOpen.value = false; pin.value = ""; staffError.value = ""; marked.value = ""; }
-// Staff mark a use by typing the PIN the host gave them, here, on the holder's own phone. The PIN is masked as it is
-// typed, never stored, and cleared after every try.
-const staffOpen = ref(false);
-const pin = ref("");
-const staffError = ref("");
-const marked = ref("");
-async function mark() {
-  if (busy.value || !current.value) return;
-  busy.value = "pin"; staffError.value = ""; marked.value = "";
-  const v = current.value;
+async function openVoucher(v, ev) {
+  open.value = v.id; trigger.value = ev.currentTarget; pass.value = null; passError.value = ""; justUsed.value = false;
   try {
-    await api(`${base.value}/${encodeURIComponent(v.id)}/use`, "POST", { pin: pin.value });
-    marked.value = "Marked as used.";
-    staffOpen.value = false;
-  } catch (e) { staffError.value = e.message; }
-  finally { pin.value = ""; busy.value = ""; await load(); }
+    pass.value = await api(`${base.value}/${encodeURIComponent(v.id)}/code`, "POST");
+    await nextTick();
+    if (qrCanvas.value) await drawQR(qrCanvas.value, pass.value.qr, 480);
+  } catch (e) { passError.value = e.message; }
+  // While it is on screen, look every few seconds, so a scan shows here as "Used" at once.
+  clearInterval(tick);
+  tick = setInterval(async () => {
+    const before = current.value?.voucher.used || 0;
+    await load();
+    if ((current.value?.voucher.used || 0) > before) justUsed.value = true;
+  }, 4000);
 }
-const hms = computed(() => new Date(nowMs.value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-const today = computed(() => new Date(nowMs.value).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }));
+function closeVoucher() { open.value = null; pass.value = null; clearInterval(tick); }
+const spaced = (c) => (c ? `${c.slice(0, 3)} ${c.slice(3)}` : "");
 const voucherLine = (v) => (v.state === "used" ? `Used${v.voucher.usedAt.length ? " " + clock(v.voucher.usedAt.at(-1)) : ""}` : v.state === "ready" ? `${v.voucher.left} of ${v.voucher.perPerson} left` : note(v));
 </script>
 
@@ -136,34 +134,33 @@ const voucherLine = (v) => (v.state === "used" ? `Used${v.voucher.usedAt.length 
       </div>
     </div>
 
-    <UiSheet :open="!!current" :anchor="trigger" :label="current ? current.title : 'Voucher'" fit @close="closeVoucher">
-      <div v-if="current" class="voucher stack-2" data-voucher>
-        <span class="label">{{ data.event.name }}</span>
-        <h3 class="voucher-title">{{ current.title }}</h3>
-        <div class="voucher-who">
-          <Avatar class="avatar voucher-photo" :src="data.me.photo" :alt="data.me.firstName || 'You'" />
-          <strong class="voucher-name">{{ data.me.firstName || "You" }}</strong>
+    <UiSheet :open="!!current" :anchor="trigger" :label="data.event.name" modal @close="closeVoucher">
+      <div v-if="current" class="voucher" data-voucher>
+        <div class="voucher-head">
+          <span class="label">Voucher</span>
+          <h3 class="voucher-title">{{ current.title }}</h3>
+          <p v-if="current.note" class="small muted voucher-note">{{ current.note }}</p>
         </div>
-        <div class="voucher-clock tnum" role="timer" aria-label="The time now" data-clock>{{ hms }}</div>
-        <span class="small muted">{{ today }}</span>
-        <p class="voucher-left tnum" :class="{ gone: current.state === 'used' }">{{ voucherLine(current) }}</p>
-        <p v-if="current.voucher.usedAt.length" class="small muted tnum" style="margin:0">
+        <div class="voucher-who">
+          <Avatar class="avatar voucher-photo" :src="data.me.photo" :alt="data.me.name || 'You'" />
+          <strong class="voucher-name">{{ data.me.name || "You" }}</strong>
+        </div>
+        <div class="voucher-pass" :class="{ spent: current.state !== 'ready' }">
+          <canvas v-show="pass" ref="qrCanvas" class="voucher-qr" role="img" :aria-label="`QR code for ${current.title}`" data-qr></canvas>
+          <div v-if="!pass && !passError" class="voucher-qr sk" aria-hidden="true"></div>
+          <p v-if="passError" class="error-text small" role="alert" style="margin:0">{{ passError }}</p>
+          <span v-if="current.state !== 'ready'" class="voucher-stamp">{{ current.state === "used" ? "Used" : "Not open" }}</span>
+        </div>
+        <div v-if="pass" class="voucher-code">
+          <span class="label">Or tell staff this code</span>
+          <span class="voucher-digits tnum" data-code>{{ spaced(pass.code) }}</span>
+        </div>
+        <p class="voucher-left tnum" :class="{ gone: current.state === 'used' }" role="status">{{ justUsed && current.state !== 'used' ? "Scanned. " : "" }}{{ voucherLine(current) }}</p>
+        <p v-if="current.voucher.usedAt.length" class="small muted tnum voucher-fine">
           Used: <span v-for="(t, i) in current.voucher.usedAt" :key="i">{{ i ? ", " : "" }}{{ clock(t) }}</span>
         </p>
-        <p v-if="current.validUntil" class="small muted" style="margin:0">Valid until {{ clock(current.validUntil) }}.</p>
-        <p class="small muted" style="margin:0">Show this screen to the staff. The clock is live, so a screenshot won't work.</p>
-        <p v-if="marked" class="success-text" role="status">{{ marked }}</p>
-        <div v-if="current.state === 'ready'" class="staff stack-2">
-          <button v-if="!staffOpen" type="button" class="btn" @click="staffOpen = true">Staff: mark as used</button>
-          <form v-else class="stack-2" @submit.prevent="mark">
-            <div class="field" style="margin:0">
-              <label for="staff-pin">Staff PIN</label>
-              <input id="staff-pin" v-model="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" autocapitalize="off" spellcheck="false" required />
-            </div>
-            <button type="submit" class="btn btn-primary" :disabled="busy === 'pin' || pin.length !== 6">Mark as used</button>
-          </form>
-          <p v-if="staffError" class="error-text small" role="alert" style="margin:0">{{ staffError }}</p>
-        </div>
+        <p v-if="current.validUntil" class="small muted voucher-fine">Valid until {{ clock(current.validUntil) }}.</p>
+        <p class="small muted voucher-fine">Show this to the staff. They scan the code to mark it used.</p>
       </div>
     </UiSheet>
   </section>
@@ -180,13 +177,27 @@ const voucherLine = (v) => (v.state === "used" ? `Used${v.voucher.usedAt.length 
   padding: 12px; border: var(--border-ink); border-radius: var(--radius); background: var(--paper-raised);
   overflow-wrap: anywhere; word-break: break-all; user-select: all;
 }
-.voucher { text-align: center; align-items: center; padding: 4px 0 8px; }
-.voucher-title { margin: 0; font-size: 26px; overflow-wrap: anywhere; }
-.voucher-who { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.voucher-photo { width: 96px; height: 96px; }
-.voucher-name { font-size: 24px; }
-.voucher-clock { font-size: 44px; font-weight: 800; letter-spacing: .02em; line-height: 1; }
-.voucher-left { margin: 0; font-size: 20px; font-weight: 700; }
-.staff { width: 100%; text-align: left; }
-.voucher-left.gone { color: var(--graphite); text-decoration: line-through; }
+.voucher { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; padding: 4px 0 8px; }
+.voucher-head { display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; }
+.voucher-title { margin: 0; font-size: 26px; line-height: 1.15; overflow-wrap: anywhere; }
+.voucher-note { margin: 0; }
+.voucher-who { display: flex; align-items: center; justify-content: center; gap: 12px; max-width: 100%; }
+.voucher-photo { width: 56px; height: 56px; flex: none; }
+.voucher-name { font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; text-align: left; }
+.voucher-pass {
+  position: relative; padding: 16px; background: #fff; border: var(--border-ink); border-radius: 12px;
+  box-shadow: var(--shadow-2); line-height: 0;
+}
+.voucher-qr { display: block; width: min(220px, 60vw); height: min(220px, 60vw); aspect-ratio: 1; image-rendering: pixelated; }
+.voucher-pass.spent .voucher-qr { opacity: .18; }
+.voucher-stamp {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-8deg);
+  font-size: 30px; font-weight: 800; line-height: 1; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--strap-deep); border: 3px solid currentColor; border-radius: 8px; padding: 8px 14px; background: #fff;
+}
+.voucher-code { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.voucher-digits { font-size: 32px; font-weight: 800; letter-spacing: .14em; line-height: 1.1; }
+.voucher-left { margin: 0; font-size: 18px; font-weight: 700; }
+.voucher-left.gone { color: var(--graphite); }
+.voucher-fine { margin: 0; max-width: 34ch; }
 </style>

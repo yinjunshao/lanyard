@@ -306,7 +306,8 @@ async function copyFeedbackLink() {
           </div>
         </div>
         <div class="field"><label for="d-perks">Perks (one per line)</label>
-          <textarea id="d-perks" v-model="d.perksText" placeholder="Free coffee&#10;Raffle entry"></textarea></div>
+          <textarea id="d-perks" v-model="d.perksText" placeholder="Free coffee (Show this at the bar before 11am)&#10;Raffle entry" aria-describedby="d-perks-h"></textarea>
+          <span id="d-perks-h" class="small muted">Put details in brackets and attendees get a button for the perk that opens them.</span></div>
         <label class="checkbox-row">
           <input type="checkbox" v-model="d.directoryOn" />
           <span class="small">Show the live attendee room to checked-in people</span>

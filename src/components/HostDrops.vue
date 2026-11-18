@@ -16,7 +16,7 @@ const KINDS = [
   { key: "one_each", label: "One each from a list", help: "Paste API keys, codes or links. Each person gets the next unused one, and no item goes to two people." },
   { key: "random", label: "Random from a list", help: "Paste a list. Each person gets one at random." },
   { key: "same", label: "Same for everyone", help: "One text for everyone, such as a Wi-Fi password." },
-  { key: "voucher", label: "Voucher", help: "A food or drink voucher. Staff mark it as used with a PIN." },
+  { key: "voucher", label: "Voucher", help: "Lunch, a drink or any one-off perk. Each person gets a QR code; staff scan it with a link you send them." },
 ];
 const kindLabel = (k) => KINDS.find((x) => x.key === k)?.label || k;
 
@@ -26,7 +26,8 @@ const error = ref("");
 const busy = ref("");
 const notice = ref("");
 const confirm = ref(""); // "<drop id>:<action>" waiting for a second tap
-const pinShown = ref(null); // { title, pin }
+const linkShown = ref(null); // { dropId, title, url, from, until }: a new scanner link, shown once
+const copiedLink = ref(false);
 
 async function load() {
   loading.value = true;
@@ -56,7 +57,6 @@ async function make() {
     form.value = blank(); // the pasted text leaves the page here
     opening.value = false;
     notice.value = listKind.value || f.kind === "same" ? `${title} is on. ${r.loaded} loaded${r.duplicates ? `, ${r.duplicates} repeated line${r.duplicates === 1 ? "" : "s"} left out` : ""}.` : `${title} is on.`;
-    if (r.pin) pinShown.value = { title, pin: r.pin };
     await load();
   } catch (e) { error.value = e.message; }
   finally { busy.value = ""; }
@@ -80,7 +80,30 @@ function twice(d, what, fn) {
   return act(d, what, fn);
 }
 const delUnused = (d) => twice(d, "unused", async () => { const r = await api(`${base.value}/${d.id}/unused`, "DELETE"); notice.value = `${r.deleted} unused item${r.deleted === 1 ? "" : "s"} deleted.`; });
-const newPin = (d) => twice(d, "pin", async () => { const r = await api(`${base.value}/${d.id}/pin`, "POST"); pinShown.value = { title: d.title, pin: r.pin }; });
+// F40: the scanner link for a voucher. A new one replaces the old one, so when one is out already it asks twice.
+async function makeLink(d) {
+  if (busy.value) return;
+  const fn = async () => {
+    const r = await api(`${base.value}/${d.id}/scanner`, "POST");
+    linkShown.value = { dropId: d.id, title: d.title, url: r.url, from: r.from, until: r.until };
+    copiedLink.value = false;
+  };
+  return d.scanner ? twice(d, "link", fn) : act(d, "link", fn);
+}
+const stopLink = (d) => twice(d, "stoplink", async () => {
+  await api(`${base.value}/${d.id}/scanner`, "DELETE");
+  if (linkShown.value?.dropId === d.id) linkShown.value = null;
+  notice.value = `The scanner link for ${d.title} is stopped. Anyone who opens it now sees "Scanner closed".`;
+});
+async function copyLink() {
+  try { await navigator.clipboard.writeText(linkShown.value.url); copiedLink.value = true; } catch { copiedLink.value = false; }
+}
+async function shareLink() {
+  try { await navigator.share({ title: `Scanner: ${linkShown.value.title}`, url: linkShown.value.url }); } catch { /* closed, or not supported */ }
+}
+const canShare = typeof navigator !== "undefined" && !!navigator.share;
+const windowText = (w) => (w.from || w.until ? `Works${w.from ? ` from ${when(w.from)}` : ""}${w.until ? ` until ${when(w.until)}` : ""}.` : "Works while the voucher is on.");
+const pct = (n, of) => (of ? Math.min(100, Math.round((n / of) * 100)) : 0);
 const delDrop = (d) => twice(d, "drop", () => api(`${base.value}/${d.id}`, "DELETE"));
 async function saveMore(d) {
   await act(d, "add", async () => {
@@ -126,7 +149,7 @@ const withdraw = (d, p) => twice(d, "w" + p.giveId, async () => {
 /* ---------------------------------- words for a drop ---------------------------------- */
 const counts = (d) => {
   if (d.purged) return d.kind === "voucher" ? `Cleared away. ${d.used} used in all.` : `Cleared away. ${d.loaded} were loaded and ${d.given} given.`;
-  if (d.kind === "voucher") return `${d.used} of ${d.entitled} used${d.people ? `, by ${d.people} ${d.people === 1 ? "person" : "people"}` : ""}`;
+  if (d.kind === "voucher") return `${d.people} of ${d.checkedIn} scanned`;
   if (d.kind === "same") return `${d.given} ${d.given === 1 ? "person has" : "people have"} it`;
   return `${d.loaded} loaded, ${d.given} given${d.kind === "one_each" || !d.reuse ? `, ${d.unused} left` : ""}${d.revoked ? `, ${d.revoked} withdrawn` : ""}${d.replaced ? `, ${d.replaced} replaced` : ""}`;
 };
@@ -150,12 +173,6 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     <p v-if="notice" class="success-text" role="status">{{ notice }}</p>
 
-    <div v-if="pinShown" class="panel stack-2 pin-box" role="status">
-      <span class="label">Staff PIN for {{ pinShown.title }}</span>
-      <div class="pin tnum" aria-label="Staff PIN">{{ pinShown.pin }}</div>
-      <p class="small" style="margin:0">Give this to the staff who hand out the voucher. They type it on the person's phone to mark a use. <strong>It is shown once</strong> and Lanyard keeps only a scrambled copy.</p>
-      <button type="button" class="btn" @click="pinShown = null">I have noted it</button>
-    </div>
 
     <div v-if="data" class="stack-3">
       <article v-for="d in data.drops" :key="d.id" class="panel stack-2 drop" :data-drop="d.id">
@@ -167,6 +184,37 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
           <span class="status-pill" :class="d.state">{{ stateText(d) }}</span>
         </div>
         <p class="drop-counts tnum">{{ counts(d) }}</p>
+        <div v-if="d.kind === 'voucher' && !d.purged" class="stack-2" data-vstats>
+          <div class="v-bar" role="img" :aria-label="`${pct(d.people, d.checkedIn)}% scanned, ${pct(d.opened, d.checkedIn)}% opened`">
+            <span class="v-opened" :style="{ width: pct(d.opened, d.checkedIn) + '%' }"></span>
+            <span class="v-scanned" :style="{ width: pct(d.people, d.checkedIn) + '%' }"></span>
+          </div>
+          <dl class="v-figs tnum">
+            <div><dt>Checked in</dt><dd>{{ d.checkedIn }}</dd></div>
+            <div><dt>Opened it</dt><dd>{{ d.opened }}</dd></div>
+            <div><dt>Scanned</dt><dd>{{ d.people }}</dd></div>
+            <div><dt>Not yet</dt><dd>{{ Math.max(0, d.checkedIn - d.people) }}</dd></div>
+          </dl>
+          <p v-if="d.perPerson > 1" class="small muted" style="margin:0">{{ d.used }} of {{ d.entitled }} uses taken.</p>
+
+          <div v-if="linkShown?.dropId === d.id" class="panel stack-2 link-box" role="status" data-scanlink>
+            <span class="label">Scanner link for {{ d.title }}</span>
+            <input class="link-url" :value="linkShown.url" readonly aria-label="Scanner link" @focus="$event.target.select()" />
+            <div class="btn-row wrap">
+              <button type="button" class="btn btn-primary" @click="copyLink">{{ copiedLink ? "Copied" : "Copy link" }}</button>
+              <button v-if="canShare" type="button" class="btn" @click="shareLink">Share</button>
+              <a class="btn" :href="linkShown.url" target="_blank" rel="noopener">Open scanner</a>
+            </div>
+            <p class="small" style="margin:0">Send this to the staff handing out {{ d.title }}. They open it on a phone and scan each person's QR code. No account needed. {{ windowText(linkShown) }}
+              <strong>It is shown once.</strong> If you lose it, make a new one: the old one stops working.</p>
+            <button type="button" class="btn" @click="linkShown = null">Done</button>
+          </div>
+          <p v-else-if="d.scanner" class="small muted" style="margin:0">
+            <template v-if="d.scanner.expired">The scanner link has expired.</template>
+            <template v-else>A scanner link is out (made {{ when(d.scanner.since) }}). {{ windowText(d.scanner) }}</template>
+          </p>
+          <p v-else class="small muted" style="margin:0">No scanner link yet. Make one and send it to your staff.</p>
+        </div>
         <p v-if="d.note" class="small muted" style="margin:0">{{ d.note }}</p>
         <p v-if="d.validFrom || d.validUntil" class="small muted" style="margin:0">
           <template v-if="d.validFrom">From {{ when(d.validFrom) }}. </template><template v-if="d.validUntil">Until {{ when(d.validUntil) }}.</template>
@@ -179,8 +227,11 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
             <button v-else type="button" class="btn" :disabled="!!busy" @click="setStatus(d, 'on')">Start again</button>
             <button v-if="isList(d)" type="button" class="btn" :disabled="!!busy" @click="adding = adding === d.id ? '' : d.id; addText = ''">Add more</button>
             <button v-if="isList(d)" type="button" class="btn" :disabled="!!busy || d.unused === 0" @click="download(d)">Download unused</button>
-            <button v-if="d.kind === 'voucher'" type="button" class="btn" :disabled="!!busy" @click="newPin(d)">
-              {{ confirm === d.id + ':pin' ? "Tap again: the old PIN stops working" : "New staff PIN" }}
+            <button v-if="d.kind === 'voucher'" type="button" class="btn" :class="{ 'btn-primary': !d.scanner }" :disabled="!!busy" @click="makeLink(d)">
+              {{ confirm === d.id + ':link' ? "Tap again: the old link stops working" : d.scanner ? "New scanner link" : "Make scanner link" }}
+            </button>
+            <button v-if="d.kind === 'voucher' && d.scanner" type="button" class="btn" :disabled="!!busy" @click="stopLink(d)">
+              {{ confirm === d.id + ':stoplink' ? "Tap again to stop it" : "Stop scanner link" }}
             </button>
           </div>
           <form v-if="adding === d.id" class="stack-2" @submit.prevent="saveMore(d)">
@@ -262,7 +313,7 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
         <div v-if="form.kind === 'voucher'" class="field">
           <label for="drop-uses">Uses for each person</label>
           <input id="drop-uses" v-model="form.perPerson" type="number" min="1" max="10" inputmode="numeric" required />
-          <span class="small muted">For example 1 lunch. Staff mark each use with a PIN you will be shown once.</span>
+          <span class="small muted">For example 1 lunch. Each person's voucher shows a QR code and a 6-digit code. Once it is made, press Make scanner link and send that to your staff.</span>
         </div>
         <div class="field"><label id="drop-from-l">Starts (optional)</label><UiDateTimePicker id="drop-from" v-model="form.validFrom" labelledby="drop-from-l" clearable /></div>
         <div class="field"><label id="drop-until-l">Ends (optional)</label><UiDateTimePicker id="drop-until" v-model="form.validUntil" labelledby="drop-until-l" clearable :min="form.validFrom" /></div>
@@ -284,8 +335,17 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
 .kinds { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
 .kinds legend { padding: 0; margin-bottom: 8px; }
 .status-pill.stopped, .status-pill.closed { color: var(--graphite); }
-.pin { font-size: 40px; font-weight: 800; letter-spacing: .25em; }
-.pin-box { border-color: var(--strap); }
+.link-box { border-color: var(--strap); }
+.link-url { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; }
+.v-bar { position: relative; height: 10px; border-radius: 5px; background: var(--rule); overflow: hidden; }
+.v-bar span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; }
+.v-opened { background: color-mix(in srgb, var(--strap) 35%, var(--rule)); }
+.v-scanned { background: var(--strap); }
+.v-figs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0; }
+.v-figs > div { min-width: 0; }
+.v-figs dt { font-size: 12.5px; color: var(--graphite); }
+.v-figs dd { margin: 0; font-size: 20px; font-weight: 700; }
+@media (max-width: 420px) { .v-figs { grid-template-columns: repeat(2, 1fr); } }
 .who-list { list-style: none; padding: 0; margin: 0; }
 .who-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .who-actions { display: flex; gap: 8px; flex-wrap: wrap; }

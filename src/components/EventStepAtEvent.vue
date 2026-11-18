@@ -15,8 +15,9 @@ defineProps({
   <div class="stack-2">
   <div v-if="!form.from" class="stack-2">
     <div class="field"><label for="ev-perks">Perks — one per line</label>
-      <textarea id="ev-perks" v-model="form.perksText" placeholder="Free coffee&#10;Raffle entry"
-                :aria-invalid="errors.perksText ? 'true' : null" :aria-describedby="errors.perksText ? 'ev-perks-e' : null"></textarea>
+      <textarea id="ev-perks" v-model="form.perksText" placeholder="Free coffee (Show this at the bar before 11am)&#10;Raffle entry"
+                :aria-invalid="errors.perksText ? 'true' : null" :aria-describedby="errors.perksText ? 'ev-perks-e' : 'ev-perks-h'"></textarea>
+      <span id="ev-perks-h" class="small muted">Put details in brackets and attendees get a button for the perk that opens them: Free lunch (Collect it from the foyer at 1pm).</span>
       <span v-if="errors.perksText" id="ev-perks-e" class="error-text" role="alert">{{ errors.perksText }}</span></div>
     <div class="field"><label for="ev-access">Access info for attendees (optional)</label>
       <input id="ev-access" v-model="form.access" type="text" maxlength="200" placeholder="Step-free entrance at the side door" /></div>

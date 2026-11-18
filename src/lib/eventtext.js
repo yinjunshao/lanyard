@@ -16,3 +16,12 @@ export function statusText(status, ev) {
   }
   return STATUS_LABEL[status] || "";
 }
+
+// A perk the host typed as "Free coffee (Show this at the bar before 11am)": the words before the brackets are the
+// button, the words inside them open when it is pressed. With no brackets (or nothing before them) it is just a line.
+export function perkParts(text) {
+  const t = String(text || "").trim();
+  const m = /^(.*?)\s*\(([^]*)\)\s*$/.exec(t);
+  if (!m || !m[1].trim() || !m[2].trim()) return { label: t, detail: "" };
+  return { label: m[1].trim(), detail: m[2].trim() };
+}

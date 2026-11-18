@@ -42,7 +42,7 @@ const leak = client({ ip: "10.50.1.2", site: "host" });
 leak.jar.set("lanyard_session", A.jar.get("lanyard_session")); // a browser would never send it here; the server must ignore it anyway
 const not401 = [];
 for (const r of ROUTES) {
-  if (OPEN.has(r.path)) continue;
+  if (OPEN.has(r.path) || r.path.startsWith("/api/host/scan/")) continue; // F40: the scanner link's token is its key (test/voucher-scan.mjs)
   const res = await send(leak, r);
   if (res.status !== 401) not401.push(`${r.method} ${r.path} ${res.status}`);
 }

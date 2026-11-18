@@ -13,6 +13,8 @@ import { createDrop, KINDS } from "./drops.js";
 import { namedPeople, revokeGive } from "./dropsNamed.js";
 import { replaceGive } from "./dropsReplace.js";
 import { addItems, auditStmt, deleteUnused, listForHost, resetPin, unusedList, updateDrop } from "./dropsManage.js";
+import { hostOrigin } from "./host-auth.js";
+import { newScanner, scanOnce, scannerFor, scannerView, scanWindow, stopScanner } from "./voucherScan.js";
 
 export function registerDropsHost(app, hostEvent) {
   // One of the host's own events (or 404) and one of its drops (or 404).
@@ -113,6 +115,37 @@ export function registerDropsHost(app, hostEvent) {
     const pin = await resetPin(c.env, d);
     await audit(c, ev, d, me, "reset_pin", 0);
     return c.json({ ok: true, pin }, 200, { "cache-control": "no-store" });
+  });
+
+  // F40: a scanner link for a voucher, to send to staff. A new one replaces the old one at once; the link is in
+  // this reply only (Lanyard keeps a hash of it).
+  app.post("/api/host/events/:id/drops/:did/scanner", async (c) => {
+    const { me, ev, d } = await dropOf(c);
+    await limited(c, `drop:scanner:${me.id}`, 30, "new scanner links");
+    const token = await newScanner(c.env.DB, d, me.id);
+    await audit(c, ev, d, me, "scanner_link", 0);
+    const last = (await one(c.env.DB, "SELECT MAX(created_at) AS t FROM checkins WHERE event_id = ?", ev.id))?.t || 0;
+    const win = scanWindow(d, ev, Math.max(Date.now(), last));
+    return c.json({ ok: true, url: `${hostOrigin(c.env, c)}/scan/${token}`, from: win.from, until: win.until }, 200, { "cache-control": "no-store" });
+  });
+  app.delete("/api/host/events/:id/drops/:did/scanner", async (c) => {
+    const { me, ev, d } = await dropOf(c);
+    await stopScanner(c.env.DB, d);
+    await audit(c, ev, d, me, "scanner_stop", 0);
+    return c.json({ ok: true });
+  });
+
+  // The scanner page itself (host site, no account: hosts.js lets /api/host/scan/* through on the token alone).
+  app.get("/api/host/scan/:token", async (c) => {
+    const s = await scannerFor(c.env.DB, c.req.param("token"));
+    return c.json(await scannerView(c.env.DB, s), 200, { "cache-control": "no-store", "referrer-policy": "no-referrer" });
+  });
+  app.post("/api/host/scan/:token", async (c) => {
+    const s = await scannerFor(c.env.DB, c.req.param("token"));
+    if ((await bump(c.env.DB, `vscan:all:${s.drop.id}`, HOUR)) > 3000) throw new HttpError(429, "Too many scans. Wait a few minutes.", "throttled");
+    const b = await c.req.json().catch(() => ({}));
+    const r = await scanOnce(c.env.DB, s, b?.code);
+    return c.json(r.body, r.status, { "cache-control": "no-store" });
   });
 
   app.delete("/api/host/events/:id/drops/:did/unused", async (c) => {

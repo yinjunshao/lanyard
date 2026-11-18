@@ -44,7 +44,6 @@ export const IP_PER_HOUR = 30;
 const MAX_TOKENS_CAP = 1500;
 const MAX_BODY_CHARS = 200_000;
 const MAX_CACHED_CHARS = 30_000;
-const ANTHROPIC_VERSION = "2023-06-01";
 
 const fallback = (reason, feature, extra = {}) => ({ fallback: true, reason, message: friendly(reason, feature), ...extra });
 
@@ -208,12 +207,12 @@ async function run(env, opts) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), cfg.timeoutMs);
     try {
-      const res = await fetch(`${cfg.gatewayUrl}/v1/messages`, {
+      const res = await fetch(`${cfg.gatewayUrl}/chat/completions`, {
         method: "POST",
         redirect: "error", // a redirect could carry the key somewhere else
         signal: ctl.signal,
-        headers: { "x-api-key": env.CLAUDE_API_KEY, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json" },
-        body: JSON.stringify({ model: cfg.model, max_tokens: maxTokens, system: systemText, messages: [{ role: "user", content: userText }] }),
+        headers: { authorization: `Bearer ${env.OPENROUTER_API_KEY}`, "content-type": "application/json" },
+        body: JSON.stringify({ model: cfg.model, max_tokens: maxTokens, messages: [{ role: "system", content: systemText }, { role: "user", content: userText }] }),
       });
       if (!res.ok) {
         console.error(`ai ${feature}: the model answered ${res.status}`);
@@ -229,8 +228,8 @@ async function run(env, opts) {
 
   // 9. Count what it cost. Tokens come from the reply; if they are missing the worst case is charged.
   const tokens = (v, worstCase) => (Number.isFinite(v) && v >= 0 ? Math.round(v) : worstCase);
-  const inTok = tokens(body?.usage?.input_tokens, Math.ceil((systemText.length + userText.length) / 3));
-  const outTok = tokens(body?.usage?.output_tokens, maxTokens);
+  const inTok = tokens(body?.usage?.prompt_tokens, Math.ceil((systemText.length + userText.length) / 3));
+  const outTok = tokens(body?.usage?.completion_tokens, maxTokens);
   const cost = costMicros(env, inTok, outTok);
   await addUsage(db, who, day, feature, scope, { input_tokens: inTok, output_tokens: outTok, cost_micros: cost });
   await addDaily(db, day, { cost_micros: cost, calls: 1 });
@@ -238,9 +237,9 @@ async function run(env, opts) {
   await checkBudgetAlerts(env, cfg, db, after, ts).catch(() => {});
 
   // 10. Check the reply: strict JSON that fits the schema, or it is thrown away.
-  const stopped = body?.stop_reason;
-  const text = body?.content?.[0]?.text;
-  const parsed = stopped === "max_tokens" ? { ok: false } : parseModelJson(text);
+  const stopped = body?.choices?.[0]?.finish_reason;
+  const text = body?.choices?.[0]?.message?.content;
+  const parsed = stopped === "length" ? { ok: false } : parseModelJson(text);
   const checked = parsed.ok ? validate(schema, parsed.value, { allowFrom: [systemText, userText, ...allowFrom.map(String)] }) : { ok: false };
   let final = checked.ok ? checked.value : null;
   if (checked.ok && typeof opts.refine === "function") {

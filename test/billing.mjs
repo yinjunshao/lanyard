@@ -81,7 +81,7 @@ console.log("\n# Migration 0031 is additive, and the host reset keeps its record
 {
   const sql = readMigration("0031_billing.sql");
   const code = sql.replace(/--.*$/gm, "");
-  check("0031 is the next migration after 0030", migrationFiles().at(-1) === "0031_billing.sql" && migrationFiles().includes("0030_drop_replaced.sql"));
+  check("0031 is the next migration after 0030", migrationFiles().indexOf("0031_billing.sql") === migrationFiles().indexOf("0030_drop_replaced.sql") + 1 && migrationFiles().includes("0030_drop_replaced.sql"));
   check("it only creates three tables and their indexes: no ALTER, DROP, UPDATE, INSERT or DELETE", !/\b(ALTER|DROP|UPDATE|INSERT|DELETE)\b/i.test(code.replace(/ON DELETE SET NULL/g, "")) && (code.match(/CREATE TABLE/g) || []).length === 3);
   check("no billing row can cascade away: every reference is ON DELETE SET NULL", !/CASCADE/i.test(code) && (code.match(/REFERENCES/g) || []).length === (code.match(/ON DELETE SET NULL/g) || []).length);
   check("billing_events.webhook_id is UNIQUE", /webhook_id\s+TEXT NOT NULL UNIQUE/.test(code));

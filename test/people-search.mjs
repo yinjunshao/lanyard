@@ -4,7 +4,7 @@
 // ranks cannot be tested here. The attack strings are in test/ai-injection.mjs.
 // Run: node test/people-search.mjs
 import { readFileSync, readdirSync } from "node:fs";
-import { makeEnv, check, summary } from "./harness.mjs";
+import { makeEnv, check, summary, reqBody } from "./harness.mjs";
 import { setSetting } from "../worker/ai/store.js";
 import { eraseUser } from "../worker/purge.js";
 import { gatherPeople, narrow, buildRecord, verifyMatches, whereQuoted, reasonIsGrounded, looksLikeInstruction } from "../worker/ai/peopleSearch.js";
@@ -19,12 +19,12 @@ const KEY = "sk-test-not-a-real-key-0123456789";
 const model = { calls: [], reply: null, status: 200 };
 globalThis.fetch = async (url, init = {}) => {
   if (!String(url).startsWith("https://gateway.test/")) throw new Error(`unexpected network call to ${url}`);
-  const body = JSON.parse(init.body);
+  const body = reqBody(init.body);
   model.calls.push(body);
   if (model.status !== 200) return new Response("{}", { status: model.status });
   const out = typeof model.reply === "function" ? model.reply(body) : model.reply ?? { matches: [] };
   const text = typeof out === "string" ? out : JSON.stringify(out);
-  return new Response(JSON.stringify({ content: [{ type: "text", text }], usage: { input_tokens: 900, output_tokens: 80 }, stop_reason: "end_turn" }), { status: 200 });
+  return new Response(JSON.stringify({ choices: [{ message: { content: text }, finish_reason: "stop" }], usage: { prompt_tokens: 900, completion_tokens: 80 } }), { status: 200 });
 };
 const realNow = Date.now.bind(Date);
 let skew = 0;
@@ -34,7 +34,7 @@ const H = 3600e3;
 const shown = (body) => JSON.parse(/<data>\n([\s\S]*)\n<\/data>/.exec(body.messages[0].content)[1]);
 const lastCall = () => model.calls.at(-1);
 
-const T = await makeEnv({ AI_ENABLED: "1", AI_GATEWAY_URL: "https://gateway.test/v1/a/b/anthropic", CLAUDE_API_KEY: KEY, AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" });
+const T = await makeEnv({ AI_ENABLED: "1", AI_GATEWAY_URL: "https://gateway.test/v1/a/b/anthropic", OPENROUTER_API_KEY: KEY, AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" });
 const { client, q, q1, env } = T;
 await setSetting(env.DB, "rollout", "everyone");
 
@@ -439,7 +439,7 @@ console.log("\n# What is kept, who sees it, and the files");
   check("the asker's own data download includes the kept search replies (the asker's own data) and nothing of anybody's ids", exp.status === 200 && Array.isArray(exp.json.ai?.replies), Object.keys(exp.json.ai || {}));
   check("the download holds opaque ids and checked quotes, not user ids or emails", !JSON.stringify(exp.json.ai.replies).includes(B.id) && !/@secret|@evil/.test(JSON.stringify(exp.json.ai.replies)));
   const rows = q("SELECT feature, COUNT(*) n FROM ai_cache GROUP BY feature").filter((r) => r.feature === "people_search");
-  check("a search keeps only a checked reply in the existing 7-day cache (no new table)", rows.length <= 1 && readdirSync(new URL("../migrations", import.meta.url)).filter((f) => f.endsWith(".sql") && f > "0027_feedback_summaries.sql").every((f) => ["0028_named_attendance.sql", "0029_drops.sql", "0030_drop_replaced.sql", "0031_billing.sql"].includes(f) && !/ai_w+/.test(readFileSync(new URL("../migrations/" + f, import.meta.url), "utf8"))));
+  check("a search keeps only a checked reply in the existing 7-day cache (no new table)", rows.length <= 1 && readdirSync(new URL("../migrations", import.meta.url)).filter((f) => f.endsWith(".sql") && f > "0027_feedback_summaries.sql").every((f) => ["0028_named_attendance.sql", "0029_drops.sql", "0030_drop_replaced.sql", "0031_billing.sql", "0032_voucher_scan.sql"].includes(f) && !/ai_w+/.test(readFileSync(new URL("../migrations/" + f, import.meta.url), "utf8"))));
   const host = client({ ip: "10.24.251.1", site: "host" });
   check("the host site has no such route", (await host.post("/api/ai/people-search", { query: "climate" })).status >= 400 && (await host.get("/api/ai/people-search")).status >= 400);
   const ps = read("worker/ai/peopleSearch.js");

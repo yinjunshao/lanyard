@@ -54,6 +54,14 @@ export async function useVoucher(env, drop, userId, pin, ts = Date.now()) {
     throw new HttpError(403, "That PIN isn't right.", "bad_pin");
   }
 
+  return recordUse(db, drop, userId, ts);
+}
+
+/**
+ * Writes one use of `drop` for `userId`, if the drop is open and they have a use left. Shared by the staff PIN
+ * (above) and the scanner link (voucherScan.js). Throws already_used, stopped, not_yet, closed, gone or conflict.
+ */
+export async function recordUse(db, drop, userId, ts = Date.now()) {
   let changed = 0;
   try {
     changed = (await run(db, USE_SQL, drop.id, userId, ts)).meta?.changes || 0;

@@ -38,6 +38,8 @@ export async function purgeDrops(db, ts = Date.now()) {
       db.prepare("DELETE FROM drop_gives WHERE drop_id = ?").bind(r.id),
       db.prepare("DELETE FROM drop_items WHERE drop_id = ?").bind(r.id),
       db.prepare("DELETE FROM voucher_uses WHERE drop_id = ?").bind(r.id),
+      db.prepare("DELETE FROM voucher_codes WHERE drop_id = ?").bind(r.id),
+      db.prepare("DELETE FROM voucher_scanners WHERE drop_id = ?").bind(r.id),
     ]);
   }
   return due.length;

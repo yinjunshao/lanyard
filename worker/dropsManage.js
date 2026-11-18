@@ -4,17 +4,23 @@
 import { all, newId, one, run } from "./db.js";
 import { HttpError } from "./session.js";
 import { openItem, pinMac, dropsReady, unavailable } from "./dropcrypto.js";
+import { scanWindow } from "./voucherScan.js";
 import { MAX_ITEMS, cleanNote, cleanTitle, insertItems, isList, itemRows, newPin, openness, readItems, readWindow, sealAll } from "./drops.js";
 
 /** A drop as a host sees it: its settings and counts. Never an item, a name or the PIN. */
-function hostJson(r, checkins, ts) {
+function hostJson(r, checkins, ts, ev, lastIn) {
   const base = {
     id: r.id, kind: r.kind, title: r.title, note: r.note, status: r.status, reuse: !!r.reuse,
     perPerson: r.kind === "voucher" ? r.per_person : null, validFrom: r.valid_from || null, validUntil: r.valid_until || null,
     createdAt: r.created_at, purged: !!r.purged_at, state: openness(r, ts),
   };
   if (r.purged_at) return { ...base, loaded: r.final_loaded || 0, given: r.final_given || 0, used: r.final_used || 0 };
-  if (r.kind === "voucher") return { ...base, used: r.used, people: r.people, entitled: checkins * r.per_person };
+  if (r.kind === "voucher") {
+    // F40: how many opened theirs (and so have a QR code), and whether a scanner link is out, and when it works.
+    const win = scanWindow(r, ev, Math.max(r.scanner_at || 0, lastIn || 0));
+    return { ...base, used: r.used, people: r.people, entitled: checkins * r.per_person, checkedIn: checkins, opened: r.opened,
+      scanner: r.scanner_at ? { since: r.scanner_at, from: win.from, until: win.until, expired: !!(win.until && ts > win.until) } : null };
+  }
   return { ...base, loaded: r.loaded, given: r.given, unused: r.unused, revoked: r.revoked, replaced: r.replaced };
 }
 
@@ -30,12 +36,15 @@ export async function listForHost(db, ev, ts = Date.now()) {
             (SELECT COUNT(*) FROM drop_gives g WHERE g.drop_id = d.id AND g.replaced_at IS NOT NULL) AS replaced,
             (SELECT COUNT(*) FROM drop_items i WHERE i.drop_id = d.id AND i.cipher != '' AND NOT EXISTS (SELECT 1 FROM drop_gives g WHERE g.item_id = i.id)) AS unused,
             (SELECT COUNT(*) FROM voucher_uses u WHERE u.drop_id = d.id) AS used,
-            (SELECT COUNT(DISTINCT u.user_id) FROM voucher_uses u WHERE u.drop_id = d.id) AS people
+            (SELECT COUNT(DISTINCT u.user_id) FROM voucher_uses u WHERE u.drop_id = d.id) AS people,
+            (SELECT COUNT(*) FROM (SELECT user_id FROM voucher_codes WHERE drop_id = d.id UNION SELECT user_id FROM voucher_uses WHERE drop_id = d.id) o
+               JOIN checkins ch ON ch.event_id = d.event_id AND ch.user_id = o.user_id) AS opened,
+            (SELECT s.created_at FROM voucher_scanners s WHERE s.drop_id = d.id) AS scanner_at
      FROM drops d WHERE d.event_id = ? ORDER BY d.created_at, d.id`,
     ev.id
   );
-  const checkins = (await one(db, "SELECT COUNT(*) AS n FROM checkins WHERE event_id = ?", ev.id))?.n || 0;
-  return rows.map((r) => hostJson(r, checkins, ts));
+  const ci = await one(db, "SELECT COUNT(*) AS n, MAX(created_at) AS last FROM checkins WHERE event_id = ?", ev.id);
+  return rows.map((r) => hostJson(r, ci?.n || 0, ts, ev, ci?.last || 0));
 }
 
 /** A line in the host's audit trail (no values, no names). */

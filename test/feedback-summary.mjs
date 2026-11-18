@@ -2,7 +2,7 @@
 // Sections are added task by task (F23.1 redaction and checks, F23.2 route and cron, F23.3 the screen, F23.4 email).
 // The attack strings are also in test/ai-injection.mjs. Run: node test/feedback-summary.mjs
 import { readFileSync, readdirSync } from "node:fs";
-import { check, summary } from "./harness.mjs";
+import { check, summary, reqBody } from "./harness.mjs";
 import { redactAnswer, nameMatcher, nameWords, NAME_TOKEN, CONTACT_TOKEN, hasToken } from "../worker/ai/redact.js";
 import { cleanText, CAPS } from "../worker/ai/sanitize.js";
 import { exactQuotes } from "../worker/ai/validate.js";
@@ -146,13 +146,13 @@ function goodReply(d) {
 }
 globalThis.fetch = async (url, init = {}) => {
   if (!String(url).startsWith("https://gateway.test/")) throw new Error(`unexpected network call to ${url}`);
-  const body = JSON.parse(init.body);
+  const body = reqBody(init.body);
   model.calls.push(body);
   if (model.status !== 200) return new Response("{}", { status: model.status });
   const d = shown(body);
   const out = typeof model.mode === "function" ? model.mode(d, body) : goodReply(d);
   const text = typeof out === "string" ? out : JSON.stringify(out);
-  return new Response(JSON.stringify({ content: [{ type: "text", text }], usage: { input_tokens: 900, output_tokens: 300 }, stop_reason: "end_turn" }), { status: 200 });
+  return new Response(JSON.stringify({ choices: [{ message: { content: text }, finish_reason: "stop" }], usage: { prompt_tokens: 900, completion_tokens: 300 } }), { status: 200 });
 };
 const realNow = Date.now.bind(Date);
 let skew = 0;
@@ -161,7 +161,7 @@ const advance = (ms) => { skew += ms; };
 const H = 3600e3, DAY = 24 * H;
 const reset = () => { model.calls.length = 0; model.mode = "good"; model.status = 200; advance(10 * 1000); };
 
-const T = await makeEnv({ AI_ENABLED: "1", AI_GATEWAY_URL: "https://gateway.test/v1/a/b/anthropic", CLAUDE_API_KEY: KEY, AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" });
+const T = await makeEnv({ AI_ENABLED: "1", AI_GATEWAY_URL: "https://gateway.test/v1/a/b/anthropic", OPENROUTER_API_KEY: KEY, AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" });
 const { client, q, q1, env } = T;
 const raw = env.DB.raw;
 await setSetting(env.DB, "rollout", "everyone");

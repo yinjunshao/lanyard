@@ -17,6 +17,7 @@ import { putImage, getImage, deleteImage } from "./media.js";
 import { eraseUser, purgeExpired } from "./purge.js";
 import { eventsApp } from "./events.js";
 import { myEventsApp } from "./myevents.js";
+import { leaveEventApp } from "./leaveEvent.js";
 import { hostApp } from "./hosts.js";
 import { adminApp } from "./admin.js";
 import { promoApp } from "./promo.js";
@@ -1311,6 +1312,7 @@ app.post("/api/connections/:id/report", async (c) => {
 /* ------------------------------- Events ---------------------------------- */
 app.route("/", eventsApp);
 app.route("/", myEventsApp);
+app.route("/", leaveEventApp);
 app.route("/", presenceApp);
 app.route("/", attendanceApp);
 app.route("/", dropsApp);

@@ -43,13 +43,13 @@ RP_ID = "lanyard-v2.musea-moderation.workers.dev"
 # OFF until the owner turns it on, after the steps in "F21 AI foundation" (Owner steps). Even then
 # nobody can use it until the owner-only allow-list on /admin lists them. AI_STUB must never be set here
 # (the Worker refuses it on a non-local origin as well, and test/ai.mjs checks this file).
-AI_ENABLED = "0"
-AI_MODEL = "claude-haiku-5-5"
+AI_ENABLED = "1"
+AI_MODEL = "google/gemini-2.5-flash-lite"
 AI_DAILY_BUDGET_USD = "2"
 AI_MONTHLY_BUDGET_USD = "30"
 # Owner to add once the AI Gateway exists, and once the prices are checked against Anthropic's pricing:
-# AI_GATEWAY_URL = "https://gateway.ai.cloudflare.com/v1/<account>/<gateway>/anthropic"
+# AI_GATEWAY_URL = "https://openrouter.ai/api/v1"   # the default; only set it to use a gateway in front
 # AI_PRICE_INPUT_PER_MTOK_USD = "..."
 # AI_PRICE_OUTPUT_PER_MTOK_USD = "..."
 # AI_ALERT_EMAIL = "..."
-# The key is a secret, not a var:  wrangler secret put CLAUDE_API_KEY
+# The key is a secret, not a var:  wrangler secret put OPENROUTER_API_KEY

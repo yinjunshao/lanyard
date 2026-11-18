@@ -15,7 +15,7 @@ import Waiting from "../components/Waiting.vue";
 import UiSheet from "../components/ui/UiSheet.vue";
 import { connectedShort, subtitleOf } from "../lib/profile";
 import { setLive, useEventClock } from "../lib/eventlive";
-import { connectionsText, dateOf, statusText, timeOfDay } from "../lib/eventtext";
+import { connectionsText, dateOf, perkParts, statusText, timeOfDay } from "../lib/eventtext";
 
 const route = useRoute();
 const router = useRouter();
@@ -83,8 +83,30 @@ function back() {
 }
 const backLabel = () => (window.history.state?.back === "/app/events" ? "Back to Events" : "Back to My card");
 
+// Leave: off the event and out of the organisers' figures and lists. Connections made here stay.
+const leaving = ref(false);
+async function leave() {
+  if (!confirm("Leave this event? You're taken off the attendee list and out of the organisers' figures, and your room spot, choices and codes from this event are removed. People you met stay connected.")) return;
+  leaving.value = true; error.value = "";
+  try {
+    await api(`/api/my/events/${encodeURIComponent(eventId.value)}`, "DELETE");
+    setLive([], Date.now());
+    router.replace("/app/events");
+  } catch (e) {
+    error.value = e.message || "Couldn't leave this event.";
+  } finally {
+    leaving.value = false;
+  }
+}
+
 const choicesOpen = ref(false);
 const choicesTrigger = ref(null);
+
+// Perks: "Free coffee (Show this at the bar)" is a button that opens what is in the brackets.
+const perks = computed(() => (event.value?.perks || []).map(perkParts).filter((p) => p.label));
+const perkOpen = ref(null);
+const perkTrigger = ref(null);
+function openPerk(p, e) { perkTrigger.value = e.currentTarget; perkOpen.value = p; }
 </script>
 
 <template>
@@ -213,8 +235,14 @@ const choicesTrigger = ref(null);
           <span class="label">No perks listed</span>
           <p>Any host perks, such as drinks, raffles, slides or job links, show here.</p>
         </div>
-        <ul v-else class="list" style="list-style:none;padding:0">
-          <li v-for="(perk, i) in event.perks" :key="i" class="list-row">{{ perk }}</li>
+        <ul v-else class="list perk-list" data-perks>
+          <li v-for="(perk, i) in perks" :key="i">
+            <button v-if="perk.detail" type="button" class="list-row spread perk-btn" aria-haspopup="dialog" @click="openPerk(perk, $event)">
+              <strong>{{ perk.label }}</strong>
+              <span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
+            </button>
+            <span v-else class="list-row">{{ perk.label }}</span>
+          </li>
         </ul>
       </template>
 
@@ -225,10 +253,20 @@ const choicesTrigger = ref(null);
           <span class="muted" style="display:inline-flex"><Icon name="chevron" :size="18" /></span>
         </button>
       </div>
+
+      <button type="button" class="btn btn-danger" :disabled="leaving" @click="leave">{{ leaving ? "Leaving…" : "Leave this event" }}</button>
     </template>
 
-    <UiSheet v-if="event?.hasChoices" :open="choicesOpen" :anchor="choicesTrigger" label="Your choices at this event" fit @close="choicesOpen = false">
-      <div v-if="choicesOpen" class="stack-3">
+    <UiSheet :open="!!perkOpen" :anchor="perkTrigger" :label="event?.name || 'Perk'" modal @close="perkOpen = null">
+      <div v-if="perkOpen" class="perk-sheet" data-perk>
+        <span class="label">Perk</span>
+        <h3>{{ perkOpen.label }}</h3>
+        <p>{{ perkOpen.detail }}</p>
+      </div>
+    </UiSheet>
+
+    <UiSheet v-if="event?.hasChoices" :open="choicesOpen" :anchor="choicesTrigger" label="Your choices at this event" modal @close="choicesOpen = false">
+      <div v-if="choicesOpen" class="stack-3 choices-sheet">
         <EventChoices :event-id="eventId" />
         <EventAttendanceChoices v-if="event.namedAttendance" :event-id="eventId" />
       </div>
@@ -264,6 +302,12 @@ const choicesTrigger = ref(null);
 .stat-sub { display: block; font-size: 12.5px; font-weight: 400; margin-top: 2px; }
 
 .list button.list-row { border: 0; color: inherit; }
+.perk-list { list-style: none; padding: 0; margin: 0; }
+.perk-btn { width: 100%; font: inherit; text-align: left; background: none; cursor: pointer; }
+.perk-btn strong { overflow-wrap: anywhere; }
+.perk-sheet { display: flex; flex-direction: column; gap: 6px; padding-bottom: 4px; }
+.perk-sheet h3 { margin: 0; font-size: 24px; line-height: 1.2; overflow-wrap: anywhere; }
+.perk-sheet p { margin: 4px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
 .album-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

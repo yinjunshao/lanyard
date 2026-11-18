@@ -3,7 +3,7 @@
 // admin, F21.5 settings). Run: node test/ai.mjs
 import { readFileSync } from "node:fs";
 import { makeDb, makeEnv, readMigration, check, summary, becomeHost } from "./harness.mjs";
-import { aiConfig, stubMode, dayOf, monthOf, DEFAULT_MODEL } from "../worker/ai/config.js";
+import { aiConfig, stubMode, dayOf, monthOf, DEFAULT_MODEL, DEFAULT_GATEWAY } from "../worker/ai/config.js";
 import { prices, costMicros } from "../worker/ai/price.js";
 import { AI_LIMITS } from "../worker/plans.js";
 import { callModel, allowanceFor } from "../worker/ai/client.js";
@@ -38,16 +38,16 @@ console.log("\n# Migration 0024 (additive, on data in the old shape)");
 console.log("\n# Configuration");
 {
   const off = aiConfig({});
-  check("with nothing set, AI is off and nothing is configured", !off.enabled && !off.gatewayUrl && !off.hasKey && off.model === DEFAULT_MODEL, off);
-  check("the model id is claude-haiku-5-5 and comes from AI_MODEL when set", DEFAULT_MODEL === "claude-haiku-5-5" && aiConfig({ AI_MODEL: "other-model" }).model === "other-model");
+  check("with nothing set, AI is off and nothing is configured", !off.enabled && off.gatewayUrl === DEFAULT_GATEWAY && !off.hasKey && off.model === DEFAULT_MODEL, off);
+  check("the model id is the cheap OpenRouter default and comes from AI_MODEL when set", DEFAULT_MODEL === "google/gemini-2.5-flash-lite" && aiConfig({ AI_MODEL: "other-model" }).model === "other-model");
   check("only 1, true, on or yes turn it on", ["1", "true", "ON", "yes"].every((v) => aiConfig({ AI_ENABLED: v }).enabled) && ["0", "", "no", "false", "2", "enabled"].every((v) => !aiConfig({ AI_ENABLED: v }).enabled));
   check("budgets default to $2 a day and $30 a month", aiConfig({}).dailyBudgetMicros === 2_000_000 && aiConfig({}).monthlyBudgetMicros === 30_000_000);
   check("a budget of 0.000001 is one micro-dollar", aiConfig({ AI_DAILY_BUDGET_USD: "0.000001" }).dailyBudgetMicros === 1);
   check("a budget that is set but not a positive number means zero, not unlimited", ["abc", "-5", "0", "NaN", "Infinity"].every((v) => aiConfig({ AI_DAILY_BUDGET_USD: v }).dailyBudgetMicros === 0 && aiConfig({ AI_MONTHLY_BUDGET_USD: v }).monthlyBudgetMicros === 0));
   check("the gateway must be an https address without credentials or a query; a trailing slash is removed",
     aiConfig({ AI_GATEWAY_URL: "https://gw.test/v1/a/b/anthropic/" }).gatewayUrl === "https://gw.test/v1/a/b/anthropic"
-    && ["http://gw.test", "ftp://x", "not a url", "https://u:p@gw.test", "https://gw.test/?k=1", ""].every((v) => aiConfig({ AI_GATEWAY_URL: v }).gatewayUrl === null));
-  check("the key counts as set only when it looks like a key (8 or more characters)", aiConfig({ CLAUDE_API_KEY: "short" }).hasKey === false && aiConfig({ CLAUDE_API_KEY: "sk-test-12345" }).hasKey === true);
+    && ["http://gw.test", "ftp://x", "not a url", "https://u:p@gw.test", "https://gw.test/?k=1"].every((v) => aiConfig({ AI_GATEWAY_URL: v }).gatewayUrl === null));
+  check("the key counts as set only when it looks like a key (8 or more characters)", aiConfig({ OPENROUTER_API_KEY: "short" }).hasKey === false && aiConfig({ OPENROUTER_API_KEY: "sk-test-12345" }).hasKey === true);
   check("the timeout defaults to 10 seconds and is capped at 30", aiConfig({}).timeoutMs === 10000 && aiConfig({ AI_TIMEOUT_MS: "60" }).timeoutMs === 60 && aiConfig({ AI_TIMEOUT_MS: "999999" }).timeoutMs === 30000 && aiConfig({ AI_TIMEOUT_MS: "x" }).timeoutMs === 10000);
   check("days and months are UTC", dayOf(Date.UTC(2026, 10, 10, 23, 59, 59)) === "2026-11-10" && dayOf(Date.UTC(2026, 10, 11, 0, 0, 0)) === "2026-11-11" && monthOf(Date.UTC(2026, 11, 31, 23, 0)) === "2026-12");
 }
@@ -66,7 +66,7 @@ console.log("\n# Local stub mode is refused anywhere that is not local");
   const live = prod.replace(/^\s*#.*$/gm, "");
   check("production config never sets AI_STUB", !/AI_STUB/.test(live));
   check("production config has AI_ENABLED off", /^AI_ENABLED\s*=\s*"0"/m.test(live));
-  check("production config holds no key and no price (the owner sets both)", !/CLAUDE_API_KEY|AI_PRICE_|sk-ant/.test(live));
+  check("production config holds no key and no price (the owner sets both)", !/OPENROUTER_API_KEY|AI_PRICE_|sk-ant/.test(live));
   const localToml = read("wrangler.toml").replace(/^\s*#.*$/gm, "");
   const localOrigin = /^APP_ORIGIN\s*=\s*"([^"]+)"/m.exec(localToml)[1];
   check("the local config turns the stub on, and only with local origins (so the Worker would accept it there and nowhere else)", /^AI_STUB\s*=\s*"1"/m.test(localToml) && stubMode({ AI_STUB: "1", APP_ORIGIN: localOrigin }).allowed === true, localOrigin);
@@ -79,12 +79,12 @@ console.log("\n# Local stub mode is refused anywhere that is not local");
 console.log("\n# Prices and cost");
 {
   const p = prices({});
-  check("with no price vars the plan's figures are used and flagged unconfirmed", p.input === 0.10 && p.output === 0.50 && p.confirmed === false);
+  check("with no price vars the plan's figures are used and flagged unconfirmed", p.input === 0.10 && p.output === 0.40 && p.confirmed === false);
   check("both vars together are confirmed and used", prices({ AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" }).confirmed === true && prices({ AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" }).output === 5);
   check("one var alone, or a bad one, stays unconfirmed", prices({ AI_PRICE_INPUT_PER_MTOK_USD: "1" }).confirmed === false && prices({ AI_PRICE_INPUT_PER_MTOK_USD: "x", AI_PRICE_OUTPUT_PER_MTOK_USD: "-1" }).confirmed === false);
   const env = { AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" };
   check("cost is micro-dollars: 1,000,000 input tokens at $1 is 1,000,000", costMicros(env, 1_000_000, 0) === 1_000_000 && costMicros(env, 0, 1_000_000) === 5_000_000);
-  check("a tiny call is rounded up, never free", costMicros({}, 1, 0) === 1 && costMicros({}, 900, 180) === 180);
+  check("a tiny call is rounded up, never free", costMicros({}, 1, 0) === 1 && costMicros({}, 900, 180) === 162);
   check("negative token counts count as zero", costMicros({}, -5, -5) === 0);
 }
 
@@ -104,7 +104,7 @@ console.log("\n# Allowances (AI_LIMITS in worker/plans.js)");
 const KEY = "sk-test-not-a-real-key-0123456789";
 const GW = "https://gateway.test/v1/acct/gw/anthropic";
 const gateway = {};
-const resetGateway = () => { const calls = []; for (const k of Object.keys(gateway)) delete gateway[k]; Object.assign(gateway, { calls, text: JSON.stringify({ body: "Hello there" }), inTok: 100, outTok: 20, status: 200, delay: 0, throws: false, raw: null, stop: "end_turn" }); };
+const resetGateway = () => { const calls = []; for (const k of Object.keys(gateway)) delete gateway[k]; Object.assign(gateway, { calls, text: JSON.stringify({ body: "Hello there" }), inTok: 100, outTok: 20, status: 200, delay: 0, throws: false, raw: null, stop: "stop" }); };
 resetGateway();
 globalThis.fetch = async (url, init = {}) => {
   if (!String(url).startsWith("https://gateway.test/")) throw new Error(`unexpected network call to ${url}`);
@@ -114,7 +114,7 @@ globalThis.fetch = async (url, init = {}) => {
     init.signal?.addEventListener("abort", () => { clearTimeout(t); rej(Object.assign(new Error("aborted"), { name: "AbortError" })); });
   });
   if (gateway.throws) throw new Error("connection reset");
-  const body = gateway.raw ?? JSON.stringify({ id: "msg_x", type: "message", role: "assistant", model: "claude-haiku-5-5", content: [{ type: "text", text: gateway.text }], stop_reason: gateway.stop, usage: { input_tokens: gateway.inTok, output_tokens: gateway.outTok } });
+  const body = gateway.raw ?? JSON.stringify({ id: "gen_x", model: "google/gemini-2.5-flash-lite", choices: [{ message: { role: "assistant", content: gateway.text }, finish_reason: gateway.stop }], usage: { prompt_tokens: gateway.inTok, completion_tokens: gateway.outTok } });
   return new Response(body, { status: gateway.status });
 };
 
@@ -128,7 +128,7 @@ const advance = (ms) => { skew += ms; };
 const logged = [];
 for (const m of ["log", "error", "warn", "info"]) { const o = console[m].bind(console); console[m] = (...a) => { if (!/^\s+(ok|FAIL)\s/.test(String(a[0]))) logged.push(a.map(String).join(" ")); o(...a); }; }
 
-const BASE = { AI_ENABLED: "1", AI_GATEWAY_URL: GW, CLAUDE_API_KEY: KEY, AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" };
+const BASE = { AI_ENABLED: "1", AI_GATEWAY_URL: GW, OPENROUTER_API_KEY: KEY, AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" };
 let uid = 0;
 async function world(extra = {}) {
   const T = await makeEnv({ ...BASE, ...extra });
@@ -166,12 +166,12 @@ console.log("\n# A normal call");
   const r = await ask(W, a, { subjects: [] });
   check("a verified account gets a checked result and nothing marked as a fallback", r.fallback === false && r.result.body === "Hello there" && r.cached === false, r);
   const c = gateway.calls[0];
-  check("it made one request, to the configured gateway address plus /v1/messages, by POST", gateway.calls.length === 1 && c.url === `${GW}/v1/messages` && c.method === "POST", c?.url);
-  check("headers are exactly x-api-key, anthropic-version 2023-06-01 and content-type", Object.keys(c.headers).sort().join() === "anthropic-version,content-type,x-api-key" && c.headers["x-api-key"] === KEY && c.headers["anthropic-version"] === "2023-06-01" && c.headers["content-type"] === "application/json", Object.keys(c.headers));
-  check("the body has only model, max_tokens, system and messages", Object.keys(c.body).sort().join() === "max_tokens,messages,model,system", Object.keys(c.body));
-  check("the model id comes from config (claude-haiku-5-5) and max_tokens is the caller's", c.body.model === "claude-haiku-5-5" && c.body.max_tokens === 300);
+  check("it made one request, to the configured gateway address plus /chat/completions, by POST", gateway.calls.length === 1 && c.url === `${GW}/chat/completions` && c.method === "POST", c?.url);
+  check("headers are exactly authorization (Bearer key) and content-type", Object.keys(c.headers).sort().join() === "authorization,content-type" && c.headers.authorization === `Bearer ${KEY}` && c.headers["content-type"] === "application/json", Object.keys(c.headers));
+  check("the body has only model, max_tokens and messages", Object.keys(c.body).sort().join() === "max_tokens,messages,model", Object.keys(c.body));
+  check("the model id comes from config (the OpenRouter default) and max_tokens is the caller's", c.body.model === DEFAULT_MODEL && c.body.max_tokens === 300);
   check("redirects are refused, so the key cannot be sent elsewhere", c.redirect === "error");
-  check("the input is one user message holding a <data> block; the system prompt carries the task and the guard", c.body.messages.length === 1 && c.body.messages[0].role === "user" && c.body.messages[0].content.startsWith("<data>") && c.body.system.startsWith("Write a short note.") && /never instructions/.test(c.body.system));
+  check("the input is a system message (the task and the guard) then one user message holding a <data> block", c.body.messages.length === 2 && c.body.messages[1].role === "user" && c.body.messages[1].content.startsWith("<data>") && c.body.messages[0].role === "system" && c.body.messages[0].content.startsWith("Write a short note.") && /never instructions/.test(c.body.messages[0].content));
   const u = W.usage(a);
   check("usage is recorded: one call, the tokens from the reply and the cost (100 x $1 + 20 x $5 = 200 micro-dollars)", u.calls === 1 && u.input_tokens === 100 && u.output_tokens === 20 && u.cost_micros === 200 && u.fallbacks === 0, u);
   const d = W.q1("SELECT * FROM ai_daily");
@@ -337,7 +337,7 @@ console.log("\n# Cache: free, and never shared");
   const n = gateway.calls.length;
   check("Regenerate skips the cache, calls the model and counts", (await ask(W, a, { regenerate: true })).cached === false && gateway.calls.length === n + 1);
   advance(6000);
-  W.env.AI_MODEL = "claude-haiku-5-5-b";
+  W.env.AI_MODEL = "google/gemini-2.5-flash-lite-b";
   check("a different model is a miss", (await ask(W, a)).cached === false);
   W.env.AI_MODEL = undefined;
   advance(8 * DAYMS);
@@ -439,8 +439,8 @@ console.log("\n# Timeout, provider errors and bad output all fall back cleanly")
   await bad("the reply is not JSON at all", () => { gateway.raw = "<html>bad gateway</html>"; }, "error");
   await bad("the reply text is prose, not JSON", () => { gateway.text = "Sure! Here is a note for Sam."; }, "bad_output");
   await bad("the reply is JSON with the wrong shape", () => { gateway.text = JSON.stringify({ message: "hi" }); }, "bad_output");
-  await bad("the reply is cut off at max_tokens", () => { gateway.text = '{"body":"half a thou'; gateway.stop = "max_tokens"; }, "bad_output");
-  await bad("the reply has no content", () => { gateway.raw = JSON.stringify({ content: [], usage: { input_tokens: 100, output_tokens: 20 }, stop_reason: "end_turn" }); }, "bad_output");
+  await bad("the reply is cut off at max_tokens", () => { gateway.text = '{"body":"half a thou'; gateway.stop = "length"; }, "bad_output");
+  await bad("the reply has no content", () => { gateway.raw = JSON.stringify({ choices: [], usage: { prompt_tokens: 100, completion_tokens: 20 } }); }, "bad_output");
   const fb = W.q("SELECT fallbacks FROM ai_usage WHERE actor_id = ?", a.id).reduce((s, r) => s + r.fallbacks, 0);
   check("every one of these is counted as a fallback", fb >= 9, fb);
   check("a provider's error text never reaches a log", !logged.some((l) => l.includes("secret detail")));
@@ -462,7 +462,7 @@ console.log("\n# Timeout, provider errors and bad output all fall back cleanly")
 console.log("\n# Setup problems and bad calls");
 {
   resetGateway();
-  const noKey = await world({ CLAUDE_API_KEY: undefined });
+  const noKey = await world({ OPENROUTER_API_KEY: undefined });
   await everyone(noKey);
   check("no key: misconfigured fallback, no call", (await ask(noKey, noKey.user())).reason === "misconfigured" && gateway.calls.length === 0);
   const http = await world({ AI_GATEWAY_URL: "http://gateway.test/x" });
@@ -470,7 +470,7 @@ console.log("\n# Setup problems and bad calls");
   check("a non-https gateway: misconfigured fallback, no call", (await ask(http, http.user())).reason === "misconfigured" && gateway.calls.length === 0);
   const none = await world({ AI_GATEWAY_URL: undefined });
   await everyone(none);
-  check("no gateway address: misconfigured (it never defaults to calling a provider directly)", (await ask(none, none.user())).reason === "misconfigured" && gateway.calls.length === 0);
+  check("no gateway address set: it defaults to OpenRouter", aiConfig({}).gatewayUrl === DEFAULT_GATEWAY && DEFAULT_GATEWAY === "https://openrouter.ai/api/v1");
   const W = await world();
   await everyone(W);
   const a = W.user();
@@ -489,7 +489,7 @@ console.log("\n# Setup problems and bad calls");
 console.log("\n# Local stub mode");
 {
   resetGateway();
-  const W = await world({ AI_STUB: "1", APP_ORIGIN: "http://localhost:5173", CLAUDE_API_KEY: undefined, AI_GATEWAY_URL: undefined });
+  const W = await world({ AI_STUB: "1", APP_ORIGIN: "http://localhost:5173", OPENROUTER_API_KEY: undefined, AI_GATEWAY_URL: undefined });
   await everyone(W);
   const a = W.user();
   const r = await ask(W, a, { stub: { body: "from the stub" } });
@@ -610,12 +610,12 @@ console.log("\n# Admin: behind the token, and it never shows the key or any text
   const J = first.json;
   check("with the token the page data is returned", first.status === 200 && J.config && J.settings && J.today && J.month && Array.isArray(J.features) && Array.isArray(J.topUsers) && Array.isArray(J.flagged), first.text.slice(0, 200));
   check("it says whether the key and gateway are set (yes or no), never what they are", J.config.keySet === true && J.config.gatewaySet === true && !first.text.includes(KEY) && !first.text.includes("gateway.test") && !/sk-/.test(first.text));
-  check("the model, budgets, prices and whether the prices are confirmed are there", J.config.model === "claude-haiku-5-5" && J.config.dailyBudgetUsd === 2 && J.config.monthlyBudgetUsd === 30 && J.config.prices.confirmed === true && J.config.prices.inputPerMtokUsd === 1);
+  check("the model, budgets, prices and whether the prices are confirmed are there", J.config.model === DEFAULT_MODEL && J.config.dailyBudgetUsd === 2 && J.config.monthlyBudgetUsd === 30 && J.config.prices.confirmed === true && J.config.prices.inputPerMtokUsd === 1);
   check("the starting state is: enabled by the environment, allow-list only, switch not thrown, nobody listed", J.state === "on" && J.settings.rollout === "allowlist" && J.settings.killed === false && J.settings.allow.length === 0);
   check("a fresh install has no spend and no rows", J.today.spendUsd === 0 && J.month.calls === 0 && J.features.length === 0 && J.topUsers.length === 0 && J.cacheHitRate === null);
   const unconfirmed = await world({ ADMIN_TOKEN: TOKEN, AI_PRICE_INPUT_PER_MTOK_USD: undefined, AI_PRICE_OUTPUT_PER_MTOK_USD: undefined });
   check("with no price vars the page says the prices are not confirmed", (await unconfirmed.client({ ip: "10.30.0.7" }).get("/api/admin/ai", adm)).json.config.prices.confirmed === false);
-  const states = [[{ AI_ENABLED: "0" }, "off_env"], [{ CLAUDE_API_KEY: undefined }, "not_configured"], [{ AI_STUB: "1", APP_ORIGIN: "https://lanyd.fyi" }, "stub_refused"]];
+  const states = [[{ AI_ENABLED: "0" }, "off_env"], [{ OPENROUTER_API_KEY: undefined }, "not_configured"], [{ AI_STUB: "1", APP_ORIGIN: "https://lanyd.fyi" }, "stub_refused"]];
   for (const [extra, want] of states) {
     const X = await world({ ADMIN_TOKEN: TOKEN, ...extra });
     check(`state is ${want} when ${Object.keys(extra).join("+")} is ${JSON.stringify(Object.values(extra)[0])}`, (await X.client({ ip: "10.30.0.8" }).get("/api/admin/ai", adm)).json.state === want);
@@ -671,7 +671,7 @@ console.log("\n# Admin: behind the token, and it never shows the key or any text
   gateway.text = '{"ok":true}';
   const t1 = await ok.post("/api/admin/ai/test", {}, adm);
   check("the test button makes one real-shaped call and reports success with the tokens", t1.status === 200 && t1.json.ok === true && t1.json.usage.inputTokens === 100 && gateway.calls.length === before + 1 && !t1.text.includes(KEY), t1.json);
-  check("it sent no personal data: the request holds only the fixed ping", gateway.calls.at(-1).body.messages[0].content.includes('"ping":"hello"') && !/@|Sam|robotics/.test(JSON.stringify(gateway.calls.at(-1).body)));
+  check("it sent no personal data: the request holds only the fixed ping", gateway.calls.at(-1).body.messages[1].content.includes('"ping":"hello"') && !/@|Sam|robotics/.test(JSON.stringify(gateway.calls.at(-1).body)));
   check("it is counted against the budget under the admin kind", W.q1("SELECT calls c FROM ai_usage WHERE actor_kind = 'admin' AND feature = 'admin_test'").c === 1);
   const t2 = await ok.post("/api/admin/ai/test", {}, adm);
   check("pressing it twice at once is refused as too fast", t2.json.ok === false && t2.json.reason === "burst" && gateway.calls.length === before + 1);
@@ -685,7 +685,7 @@ console.log("\n# Admin: behind the token, and it never shows the key or any text
   check("the test respects the kill switch", (await ok.post("/api/admin/ai/test", {}, adm)).json.reason === "off");
   check("every admin action is in the audit log", W.q1("SELECT COUNT(*) n FROM admin_audit WHERE action LIKE '%/api/admin/ai%'").n >= 10);
 
-  const stubW = await world({ ADMIN_TOKEN: TOKEN, AI_STUB: "1", APP_ORIGIN: "http://localhost:5173", CLAUDE_API_KEY: undefined, AI_GATEWAY_URL: undefined });
+  const stubW = await world({ ADMIN_TOKEN: TOKEN, AI_STUB: "1", APP_ORIGIN: "http://localhost:5173", OPENROUTER_API_KEY: undefined, AI_GATEWAY_URL: undefined });
   const sc = stubW.client({ ip: "10.30.0.9" });
   advance(6000);
   const st = await sc.post("/api/admin/ai/test", {}, adm);

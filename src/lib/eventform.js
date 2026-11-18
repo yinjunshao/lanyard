@@ -69,7 +69,7 @@ export function eventFromBody(b, questions, organiser) {
     startsAt: time(b.startsAt),
     theme: THEMES.includes(b.theme) ? b.theme : "default",
     strapColor: HEX.test(b.strapColor || "") ? b.strapColor : null,
-    perks: (Array.isArray(b.perks) ? b.perks : []).slice(0, 10).map((x) => String(x).slice(0, 80)),
+    perks: (Array.isArray(b.perks) ? b.perks : []).slice(0, 10).map((x) => String(x).slice(0, 300)),
     directoryOn: b.directoryOn !== false,
     questions: qs,
     info,

@@ -1,9 +1,9 @@
 // Everything the AI foundation reads from the environment, in one place. Nothing here is a secret
-// except CLAUDE_API_KEY, which is only ever read by client.js and never returned or logged.
+// except OPENROUTER_API_KEY, which is only ever read by client.js and never returned or logged.
 //
 //   AI_ENABLED               "1" to allow AI at all. Anything else, or unset, is off.
 //   AI_MODEL                 the model id (default below). Prices must be set for the model in use.
-//   AI_GATEWAY_URL           base address of the gateway or provider, https. "/v1/messages" is added.
+//   AI_GATEWAY_URL           base address of the provider, https. Default is OpenRouter. "/chat/completions" is added.
 //   AI_DAILY_BUDGET_USD      default 2
 //   AI_MONTHLY_BUDGET_USD    default 30
 //   AI_TIMEOUT_MS            default 10000
@@ -11,8 +11,9 @@
 //   AI_ALERT_EMAIL           where the 50% and 90% budget emails go (none if unset)
 //   AI_STUB                  "1" answers locally with a canned reply and calls nothing. Refused unless
 //                            every APP_ORIGIN is a local address; production config never sets it.
-//   CLAUDE_API_KEY           secret
-export const DEFAULT_MODEL = "claude-haiku-5-5";
+//   OPENROUTER_API_KEY       secret (an OpenRouter key)
+export const DEFAULT_MODEL = "google/gemini-2.5-flash-lite"; // OpenRouter id: very cheap, fine for short text
+export const DEFAULT_GATEWAY = "https://openrouter.ai/api/v1";
 const DEFAULT_DAILY_USD = 2;
 const DEFAULT_MONTHLY_USD = 30;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -29,7 +30,7 @@ function usdToMicros(v, fallbackUsd) {
 
 function gatewayUrl(v) {
   try {
-    const u = new URL(String(v || "").trim());
+    const u = new URL(String(v ?? "").trim() || DEFAULT_GATEWAY);
     if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash) return null;
     return u.origin + u.pathname.replace(/\/+$/, "");
   } catch { return null; }
@@ -55,7 +56,7 @@ export function aiConfig(env) {
     enabled: truthy(env.AI_ENABLED),
     model: String(env.AI_MODEL || "").trim() || DEFAULT_MODEL,
     gatewayUrl: gatewayUrl(env.AI_GATEWAY_URL),
-    hasKey: typeof env.CLAUDE_API_KEY === "string" && env.CLAUDE_API_KEY.trim().length >= 8,
+    hasKey: typeof env.OPENROUTER_API_KEY === "string" && env.OPENROUTER_API_KEY.trim().length >= 8,
     dailyBudgetMicros: usdToMicros(env.AI_DAILY_BUDGET_USD, DEFAULT_DAILY_USD),
     monthlyBudgetMicros: usdToMicros(env.AI_MONTHLY_BUDGET_USD, DEFAULT_MONTHLY_USD),
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? Math.min(timeout, 30_000) : DEFAULT_TIMEOUT_MS,

@@ -12,15 +12,17 @@ const screens = {
   present: () => import("./HostPresent.vue"),
   print: () => import("./HostPrint.vue"),
   live: () => import("./HostLive.vue"),
+  scan: () => import("./HostScanner.vue"), // F40: /scan/:token, the voucher scanner staff open (no account)
 };
 const route = useRoute();
 const shown = shallowRef(null);
-watch(() => route.params.screen, async (s) => {
+const which = () => (route.params.token ? "scan" : route.params.screen);
+watch(which, async (s) => {
   const mod = await (screens[s] || screens.live)();
   shown.value = markRaw(mod.default);
 }, { immediate: true });
 </script>
 
 <template>
-  <component :is="shown" v-if="shown" :key="route.params.id + ':' + (route.params.screen || 'live')" />
+  <component :is="shown" v-if="shown" :key="(route.params.id || route.params.token) + ':' + (which() || 'live')" />
 </template>

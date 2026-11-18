@@ -3,7 +3,7 @@
 // body is recorded and inspected) and what the code does with whatever comes back. What a real model ranks cannot be tested
 // here. The attack strings are in test/ai-injection.mjs. Run: node test/who-to-meet.mjs
 import { readFileSync } from "node:fs";
-import { makeEnv, check, summary, becomeHost, PNG } from "./harness.mjs";
+import { makeEnv, check, summary, becomeHost, PNG, reqBody } from "./harness.mjs";
 import { setSetting } from "../worker/ai/store.js";
 import { purgeExpired, eraseUser } from "../worker/purge.js";
 import { presenceCandidates, PRESENCE_KEEP_MS } from "../worker/presence.js";
@@ -16,12 +16,12 @@ const KEY = "sk-test-not-a-real-key-0123456789";
 const model = { calls: [], reply: null, status: 200 };
 globalThis.fetch = async (url, init = {}) => {
   if (!String(url).startsWith("https://gateway.test/")) throw new Error(`unexpected network call to ${url}`);
-  const body = JSON.parse(init.body);
+  const body = reqBody(init.body);
   model.calls.push(body);
   if (model.status !== 200) return new Response("{}", { status: model.status });
   const out = typeof model.reply === "function" ? model.reply(body) : model.reply ?? { matches: [] };
   const text = typeof out === "string" ? out : JSON.stringify(out);
-  return new Response(JSON.stringify({ content: [{ type: "text", text }], usage: { input_tokens: 900, output_tokens: 80 }, stop_reason: "end_turn" }), { status: 200 });
+  return new Response(JSON.stringify({ choices: [{ message: { content: text }, finish_reason: "stop" }], usage: { prompt_tokens: 900, completion_tokens: 80 } }), { status: 200 });
 };
 const realNow = Date.now.bind(Date);
 let skew = 0;
@@ -32,7 +32,7 @@ const shown = (body) => JSON.parse(/<data>\n([\s\S]*)\n<\/data>/.exec(body.messa
 const lastCall = () => model.calls.at(-1);
 const reset = () => { model.calls.length = 0; model.reply = null; model.status = 200; advance(6000); };
 
-const T = await makeEnv({ AI_ENABLED: "1", AI_GATEWAY_URL: "https://gateway.test/v1/a/b/anthropic", CLAUDE_API_KEY: KEY, AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" });
+const T = await makeEnv({ AI_ENABLED: "1", AI_GATEWAY_URL: "https://gateway.test/v1/a/b/anthropic", OPENROUTER_API_KEY: KEY, AI_PRICE_INPUT_PER_MTOK_USD: "1", AI_PRICE_OUTPUT_PER_MTOK_USD: "5" });
 const { client, q, q1, env } = T;
 const raw = env.DB.raw;
 await setSetting(env.DB, "rollout", "everyone");

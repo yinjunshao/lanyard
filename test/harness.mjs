@@ -176,3 +176,11 @@ export async function becomeHost(c, { email, kind = "individual", name = "Test O
   const org = kind ? await c.post("/api/host/orgs", { kind, name, ...extra }) : null;
   return { email: em, signin, details, terms, org };
 }
+
+// The Worker sends OpenRouter's chat shape (system message first). The AI tests were written against
+// { system, messages: [user] }, so this lifts the system message back out for them.
+export function reqBody(raw) {
+  const b = JSON.parse(raw);
+  if (b.messages?.[0]?.role === "system") return { ...b, system: b.messages[0].content, messages: b.messages.slice(1) };
+  return b;
+}

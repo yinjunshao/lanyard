@@ -43,7 +43,8 @@ const SETUP = new Set(["/api/host/me", "/api/host/account/details", "/api/host/t
   "/api/host/sessions/signout-others", "/api/host/account/export"]);
 hostApp.use("/api/host/*", async (c, next) => {
   const path = new URL(c.req.url).pathname;
-  if (OPEN.has(path)) return next();
+  // F40: the voucher scanner link needs no account: the token in the address is the key (worker/voucherScan.js).
+  if (OPEN.has(path) || path.startsWith("/api/host/scan/")) return next();
   const me = requireHost(c);
   if (!SETUP.has(path) && !path.startsWith("/api/host/sessions/")) {
     const step = setupStep(me);
@@ -331,7 +332,7 @@ function eventFields(b, { partial = false } = {}) {
   if (has("venue")) f.venue = String(b.venue || "").slice(0, 120);
   if (has("theme")) f.theme = ["default", "formal", "night"].includes(b.theme) ? b.theme : "default";
   if (has("strapColor")) f.strap_color = /^#[0-9a-fA-F]{6}$/.test(b.strapColor || "") ? b.strapColor : null;
-  if (has("perks")) f.perks = JSON.stringify(Array.isArray(b.perks) ? b.perks.slice(0, 10).map((x) => String(x).slice(0, 80)) : []);
+  if (has("perks")) f.perks = JSON.stringify(Array.isArray(b.perks) ? b.perks.slice(0, 10).map((x) => String(x).slice(0, 300)) : []);
   if (has("directoryOn")) f.directory_on = b.directoryOn === false ? 0 : 1;
   if (has("info")) f.info = JSON.stringify(eventInfo(b.info));
   if (has("rsvpCount")) {
