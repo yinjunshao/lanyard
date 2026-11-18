@@ -444,4 +444,12 @@ check("UiSheet shows what it showed last while it leaves, because a parent clear
   check("no page unmounts a sheet or the bare date picker with its own v-if when it closes (the exit would never play)", offenders.length === 0, offenders);
 }
 
+{
+  // The photo cropper has no swipe and passes no panel: it must still mount (the browser check found it did not).
+  const { attachSwipe } = await import("../src/lib/sheetMotion.js");
+  check("a dialog with no swipe (root null, or a ref with no element yet) starts nothing and does not throw", (await attachSwipe(null, () => {})) === null && (await attachSwipe({ value: null }, () => {})) === null);
+  const m = read("src/lib/sheetMotion.js");
+  check("every user of useSheetExit gives it a ref or null (the cropper gives null)", !/useSheetExit\(emit, (?!root|null)/.test([...SHEETS, "src/components/PhotoCropper.vue"].map(read).join("\n")) && /root\?\.value/.test(m));
+}
+
 summary();
