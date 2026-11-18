@@ -217,6 +217,7 @@ check("UiSheet still uses no Teleport, Transition or <slot> (they would add to t
 {
   const { swipeClose } = await import("../src/lib/sheetSwipe.js");
   globalThis.window ||= { addEventListener() {}, removeEventListener() {} };
+  globalThis.matchMedia ||= (q) => ({ matches: /max-width: 599px/.test(q) }); // a phone
   let now = 0;
   const realNow = Date.now;
   Date.now = () => now;
@@ -278,6 +279,49 @@ check("UiSheet still uses no Teleport, Transition or <slot> (they would add to t
   s.off();
   check("taking the swipe off removes every listener and its inline styles", Object.keys(s.handlers).length === 0 && s.style.transform === "");
   Date.now = realNow;
+}
+
+console.log("\n# F40.3 The connect sheet, the follow-up composer, People search and the global .sheet styles");
+const SHEETS = ["src/components/ConnectSheet.vue", "src/components/FollowupComposer.vue", "src/components/PeopleAsk.vue"];
+for (const f of SHEETS) {
+  const src = read(f).replace(/\r\n/g, "\n");
+  const script = src.slice(0, src.indexOf("</script>"));
+  const tpl = src.slice(src.indexOf("<template>"), src.lastIndexOf("</template>") + 11);
+  const name = f.split("/").pop();
+  check(`${name} asks lib/sheetMotion.js to close instead of emitting at once, so it can slide out first`, /import \{ useSheetExit \} from "\.\.\/lib\/sheetMotion"/.test(script) && /const \{ leaving, close \} = useSheetExit\(emit, root\)/.test(script));
+  check(`${name}: the backdrop carries .is-leaving, the panel is the swipe's root, and nothing emits "close" directly any more`, /class="sheet-backdrop" :class="\{ 'is-leaving': leaving \}"/.test(tpl) && /<section ref="root" class="sheet"/.test(tpl) && !/emit\(["']close["']\)/.test(src));
+  check(`${name}: Escape and the backdrop and every Close go through close()`, /e\.key === "Escape"\) \{?[^}]*close\(\)/.test(script) && /@click\.self="close\(\)"/.test(tpl));
+}
+const sheetMotion = read("src/lib/sheetMotion.js").replace(/\r\n/g, "\n");
+const mainSheetCss = css.slice(css.indexOf("/* ---------- Bottom sheet"), css.indexOf("/* ---------- Waiting (F38)"));
+check("the global .sheet slides up on opening and down on leaving, its dim fades beside it, and a leaving backdrop takes no clicks", /\.sheet \{[^}]*animation: m-sheet-in var\(--dur-sheet\) var\(--ease-out\)/.test(mainSheetCss) && /\.sheet-backdrop\.is-leaving \.sheet \{ animation: m-sheet-out var\(--dur-sheet-out\) var\(--ease-in\) forwards; \}/.test(mainSheetCss) && /\.sheet-backdrop\.is-leaving::before \{ animation: m-fade-out/.test(mainSheetCss) && /\.sheet-backdrop\.is-leaving \{ pointer-events: none; \}/.test(mainSheetCss));
+check("the sheet's dim is a pseudo-element (the backdrop itself has no background to fade the sheet with it)", /\.sheet-backdrop \{[^}]*\}/.exec(mainSheetCss) && !/background/.test(/\.sheet-backdrop \{([^}]*)\}/.exec(mainSheetCss)[1]) && /\.sheet-backdrop::before \{[^}]*opacity: var\(--dim, 1\)/.test(mainSheetCss));
+check("the .sheet handle is a larger touch target and the top row cannot be panned (so a finger can drag it)", /\.sheet-handle \{[^}]*touch-action: none/.test(mainSheetCss) && /\.sheet-handle::before/.test(mainSheetCss) && /\.sheet-head \{[^}]*touch-action: none/.test(mainSheetCss));
+check("the swipe stays a chunk of its own with nothing behind it: UiSheet and sheetMotion both load it with a plain import(), never statically", /import\("\.\/sheetSwipe\.js"\)/.test(sheetMotion) && !/^import .*sheetSwipe/m.test(sheetMotion) && !/^import /m.test(read("src/lib/sheetSwipe.js")));
+check("the exit wait is at least the slowest exit and at most 300 ms", Number(/EXIT_MS = (\d+)/.exec(sheetMotion)?.[1]) >= ms(token("dur-sheet-out")) && Number(/EXIT_MS = (\d+)/.exec(sheetMotion)?.[1]) <= 300);
+{
+  // useSheetExit against a stand-in emit: nothing is emitted until the exit time has passed, a second press changes
+  // nothing, and a different event can carry a value (the photo cropper's "done").
+  const warn = console.warn;
+  console.warn = () => {};
+  const { useSheetExit, EXIT_MS } = await import("../src/lib/sheetMotion.js");
+  const emitted = [];
+  const { leaving, close } = useSheetExit((...a) => emitted.push(a), { value: null });
+  const b = useSheetExit((...a) => emitted.push(a), { value: null }, "close");
+  close();
+  close();
+  const early = emitted.length === 0 && leaving.value === true;
+  await new Promise((r) => setTimeout(r, EXIT_MS + 80));
+  check("close() marks the sheet as leaving at once and emits close once, only after the exit time", early && emitted.length === 1 && emitted[0][0] === "close");
+  console.warn = warn;
+  b.close("done", "photo.png");
+  await new Promise((r) => setTimeout(r, EXIT_MS + 80));
+  check("close('done', value) emits that event and its value after the exit", emitted.at(-1)?.[0] === "done" && emitted.at(-1)?.[1] === "photo.png");
+}
+{
+  const card = read("src/views/PublicCard.vue").replace(/\r\n/g, "\n").replace(/\/\/.*/g, "");
+  check("the card page fetches the connect sheet with a plain import() beside the card (never imports it statically), so its first load stays under the budget", /import\("\.\.\/components\/ConnectSheet\.vue"\)/.test(card) && !/^import .*ConnectSheet/m.test(card) && !/defineAsyncComponent/.test(card) && /v-if="sheetOpen && view && ConnectSheet"/.test(card));
+  check("no public page imports the sheet motion or swipe code statically", PUBLIC.every((n) => !/sheetMotion|sheetSwipe/.test(read(`src/views/${n}.vue`))) && ["src/main.js", "src/App.vue", "src/lib/store.js", "src/lib/api.js"].every((f) => !/sheetMotion|sheetSwipe/.test(read(f))));
 }
 
 summary();

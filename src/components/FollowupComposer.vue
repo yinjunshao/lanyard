@@ -10,6 +10,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { api } from "../lib/api";
 import Icon from "./Icon.vue";
+import { useSheetExit } from "../lib/sheetMotion";
 import Waiting from "./Waiting.vue";
 import { CHANNELS, TONES, GOALS, templateDraft } from "../lib/followupTemplates";
 
@@ -91,8 +92,10 @@ const opener = typeof document !== "undefined" ? document.activeElement : null;
 onBeforeUnmount(() => { document.removeEventListener("keydown", onKey); opener?.focus?.({ preventScroll: true }); });
 
 const root = ref(null);
+// F40: closing slides the sheet down first, then tells the page (D045); on a phone it can be swiped down.
+const { leaving, close } = useSheetExit(emit, root);
 function onKey(e) {
-  if (e.key === "Escape") { e.stopPropagation(); emit("close"); return; }
+  if (e.key === "Escape") { e.stopPropagation(); close(); return; }
   if (e.key !== "Tab" || !root.value) return;
   const nodes = [...root.value.querySelectorAll("button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled])")];
   if (!nodes.length) return;
@@ -176,7 +179,7 @@ function markDone() { marked.value = true; emit("followed-up"); tally("marked");
 </script>
 
 <template>
-  <div class="sheet-backdrop" @click.self="emit('close')">
+  <div class="sheet-backdrop" :class="{ 'is-leaving': leaving }" @click.self="close()">
     <section ref="root" class="sheet" role="dialog" aria-modal="true" aria-labelledby="fu-title">
       <div class="sheet-handle" aria-hidden="true"></div>
       <div class="stack-2">
@@ -185,13 +188,13 @@ function markDone() { marked.value = true; emit("followed-up"); tally("marked");
             <span class="label">Draft a follow-up</span>
             <h2 id="fu-title">A message to {{ opts?.themFirst || first }}</h2>
           </div>
-          <button class="icon-btn" type="button" aria-label="Close" @click="emit('close')"><Icon name="close" :size="20" /></button>
+          <button class="icon-btn" type="button" aria-label="Close" @click="close()"><Icon name="close" :size="20" /></button>
         </div>
 
         <Waiting v-if="loading" :rows="3" label="Loading" :retry="load" />
         <div v-else-if="loadError" class="stack" role="alert">
           <p class="error-text">{{ loadError }}</p>
-          <button type="button" class="btn" @click="emit('close')">Close</button>
+          <button type="button" class="btn" @click="close()">Close</button>
         </div>
 
         <!-- The choices -->

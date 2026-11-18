@@ -145,7 +145,7 @@ function detach() {
 }
 
 // Swipe down to close, on the phone sheet only. The code is a separate file, fetched when a sheet opens on a phone.
-function disarm() { swipeOff?.(); swipeOff = null; }
+function disarm(keep) { swipeOff?.(keep); swipeOff = null; }
 function arm() {
   const el = panel.value;
   if (swipeOff || !isSheet.value || !el) return;
@@ -175,7 +175,7 @@ async function opened() {
 function closed() {
   detach(); // Esc and a press outside stop counting at once
   if (!shown.value) return;
-  disarm();
+  disarm(true); // keep where a swipe left it: the exit carries on from there
   leaving.value = true;
   // The animation ends it (onEnd); this is the same moment if there is no animation to wait for.
   clearTimeout(exitTimer);

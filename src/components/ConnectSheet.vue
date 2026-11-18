@@ -8,6 +8,7 @@ import { useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
 import Icon from "./Icon.vue";
+import { useSheetExit } from "../lib/sheetMotion";
 
 const props = defineProps({
   view: { type: Object, required: true },
@@ -17,6 +18,10 @@ const props = defineProps({
 });
 const emit = defineEmits(["close", "connected"]);
 const router = useRouter();
+// F40: closing slides the sheet down first, then tells the page, which takes it out (so the scroll lock below is
+// let go after the exit); on a phone it can be swiped down (D045).
+const root = ref(null);
+const { leaving, close } = useSheetExit(emit, root);
 
 const NOTE_MAX = 300;
 const first = computed(() => (props.view.profile.name || "them").split(/\s+/)[0]);
@@ -88,7 +93,7 @@ function openPerson() {
   router.push(`/app/people/${result.value.connectionId}`);
 }
 
-function onKey(e) { if (e.key === "Escape") emit("close"); }
+function onKey(e) { if (e.key === "Escape") close(); }
 onMounted(() => {
   window.addEventListener("keydown", onKey);
   document.body.style.overflow = "hidden";
@@ -100,9 +105,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="sheet-backdrop" @click.self="emit('close')">
+  <div class="sheet-backdrop" :class="{ 'is-leaving': leaving }" @click.self="close()">
     <div v-if="flash" class="shutter-flash"></div>
-    <section class="sheet" role="dialog" aria-modal="true" :aria-label="`Connect with ${view.profile.name}`">
+    <section ref="root" class="sheet" role="dialog" aria-modal="true" :aria-label="`Connect with ${view.profile.name}`">
       <div class="sheet-handle" aria-hidden="true"></div>
 
       <!-- Done -->
@@ -122,7 +127,7 @@ onBeforeUnmount(() => {
           You'll find each other under People<template v-if="result.event"> and in the {{ result.event.name }} album</template>.
         </p>
         <div class="btn-row">
-          <button class="btn" @click="emit('close')">Stay here</button>
+          <button class="btn" @click="close()">Stay here</button>
           <button class="btn btn-primary" @click="openPerson">Open in People</button>
         </div>
       </div>
@@ -134,7 +139,7 @@ onBeforeUnmount(() => {
             <span class="label">{{ already ? "Add to your connection" : "Connect with" }}</span>
             <h2>{{ view.profile.name }}</h2>
           </div>
-          <button class="icon-btn" type="button" aria-label="Close" @click="emit('close')">
+          <button class="icon-btn" type="button" aria-label="Close" @click="close()">
             <Icon name="close" :size="20" />
           </button>
         </div>
@@ -199,7 +204,7 @@ onBeforeUnmount(() => {
         <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
         <div class="btn-row">
-          <button class="btn btn-ghost" type="button" @click="emit('close')">Not now</button>
+          <button class="btn btn-ghost" type="button" @click="close()">Not now</button>
           <button class="btn btn-primary" :disabled="busy" @click="submit">
             {{ busy ? "Saving…" : "Connect" }}
           </button>

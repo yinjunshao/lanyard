@@ -747,13 +747,25 @@ button.list-row { font: inherit; }
 .bubble-who { display: block; }
 .bubble p { margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
-/* ---------- Bottom sheet (connect prompt) ---------- */
+/* ---------- Bottom sheet (connect prompt, follow-up, People search) ----------
+   Motion (F40): the sheet slides up and the dim fades in beside it; closing runs the same the other way, a little
+   faster, while .is-leaving is on the backdrop (set by lib/sheetMotion.js), and takes no clicks meanwhile. The
+   dim is a pseudo-element so it can fade while the sheet moves; --dim is set while a finger drags the sheet. */
 .sheet-backdrop {
   position: fixed; inset: 0; z-index: 100;
-  background: rgba(20, 19, 17, 0.55);
   display: flex; align-items: flex-end; justify-content: center;
 }
+.sheet-backdrop::before {
+  content: ""; position: absolute; inset: 0;
+  background: rgba(20, 19, 17, 0.55);
+  opacity: var(--dim, 1);
+  animation: m-fade var(--dur-sheet) var(--ease-out);
+}
+.sheet-backdrop.is-leaving { pointer-events: none; }
+.sheet-backdrop.is-leaving::before { animation: m-fade-out var(--dur-sheet-out) var(--ease-in) forwards; }
 .sheet {
+  position: relative;
+  animation: m-sheet-in var(--dur-sheet) var(--ease-out);
   width: 100%; max-width: var(--app-w);
   max-height: 92vh; overflow-y: auto;
   background: var(--paper);
@@ -762,8 +774,11 @@ button.list-row { font: inherit; }
   padding: 10px 20px calc(20px + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 -12px 40px -8px rgba(0, 0, 0, 0.35);
 }
-.sheet-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--rule); margin: 0 auto 14px; }
-.sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sheet-backdrop.is-leaving .sheet { animation: m-sheet-out var(--dur-sheet-out) var(--ease-in) forwards; }
+/* The part a finger or a mouse drags (lib/sheetSwipe.js). */
+.sheet-handle { position: relative; width: 40px; height: 4px; border-radius: 2px; background: var(--rule); margin: 0 auto 14px; touch-action: none; }
+.sheet-handle::before { content: ""; position: absolute; inset: -12px -44px -14px; }
+.sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; touch-action: none; }
 .sheet-head h2 { margin-top: 4px; overflow-wrap: anywhere; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;

@@ -9,7 +9,6 @@ import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import CardView from "../components/CardView.vue";
 import { openPhoto } from "../lib/lightbox";
-import ConnectSheet from "../components/ConnectSheet.vue";
 import { connectedVia, metStamp, viaOfS } from "../lib/profile";
 
 const route = useRoute();
@@ -18,6 +17,10 @@ const view = ref(null);
 const error = ref("");
 const loading = ref(true);
 const sheetOpen = ref(false);
+// The connect sheet is its own chunk, fetched at once beside the card, so the card page's first load stays under
+// the budget (F28, D045). A plain dynamic import: defineAsyncComponent would add to the Vue chunk every page loads.
+const ConnectSheet = shallowRef(null);
+import("../components/ConnectSheet.vue").then((m) => { ConnectSheet.value = m.default; });
 
 const noteToken = computed(() => (typeof route.query.n === "string" ? route.query.n : null));
 const eventId = computed(() => {
@@ -154,8 +157,9 @@ const removeSelfie = () => { if (confirm("Delete this selfie for both of you? Th
       </div>
     </template>
 
-    <ConnectSheet
-      v-if="sheetOpen && view"
+    <component
+      :is="ConnectSheet"
+      v-if="sheetOpen && view && ConnectSheet"
       :view="view"
       :note-token="noteToken"
       :event-id="eventId"

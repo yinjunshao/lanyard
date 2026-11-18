@@ -12,6 +12,7 @@ import { api } from "../lib/api";
 import { askTerms, rankRows } from "../lib/ask";
 import { subtitleOf } from "../lib/profile";
 import Icon from "./Icon.vue";
+import { useSheetExit } from "../lib/sheetMotion";
 import Avatar from "./Avatar.vue";
 
 const props = defineProps({ rows: { type: Array, required: true } }); // the people already loaded on the page
@@ -26,6 +27,8 @@ const allowance = ref(null);
 const result = ref(null); // { kind: "ai" | "keyword", asked, items: [{ row, reason, label }], message }
 
 const root = ref(null);
+// F40: closing slides the sheet down first, then tells the page (D045); on a phone it can be swiped down.
+const { leaving, close } = useSheetExit(emit, root);
 const field = ref(null);
 
 const typed = computed(() => text.value.trim());
@@ -49,7 +52,7 @@ const opener = typeof document !== "undefined" ? document.activeElement : null;
 onBeforeUnmount(() => { document.removeEventListener("keydown", onKey); opener?.focus?.({ preventScroll: true }); });
 
 function onKey(e) {
-  if (e.key === "Escape") { e.stopPropagation(); emit("close"); return; }
+  if (e.key === "Escape") { e.stopPropagation(); close(); return; }
   if (e.key !== "Tab" || !root.value) return;
   const nodes = [...root.value.querySelectorAll("button:not([disabled]), a[href], textarea:not([disabled])")];
   if (!nodes.length) return;
@@ -86,13 +89,13 @@ async function search() {
 }
 
 const pick = (example) => { text.value = example; field.value?.focus({ preventScroll: true }); };
-const byKeyword = () => emit("keyword", askTerms(result.value?.asked || typed.value).join(" "));
+const byKeyword = () => close("keyword", askTerms(result.value?.asked || typed.value).join(" "));
 const fmt = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 const linkOf = (r) => (r.cardId ? `/c/${r.cardId}` : `/app/people/${r.id}`);
 </script>
 
 <template>
-  <div class="sheet-backdrop" @click.self="emit('close')">
+  <div class="sheet-backdrop" :class="{ 'is-leaving': leaving }" @click.self="close()">
     <section ref="root" class="sheet" role="dialog" aria-modal="true" aria-labelledby="pa-title">
       <div class="sheet-handle" aria-hidden="true"></div>
       <div class="stack-2">
@@ -101,7 +104,7 @@ const linkOf = (r) => (r.cardId ? `/c/${r.cardId}` : `/app/people/${r.id}`);
             <span class="label">People you know</span>
             <h2 id="pa-title">Do I know someone who…</h2>
           </div>
-          <button class="icon-btn" type="button" aria-label="Close" @click="emit('close')"><Icon name="close" :size="20" /></button>
+          <button class="icon-btn" type="button" aria-label="Close" @click="close()"><Icon name="close" :size="20" /></button>
         </div>
 
         <form class="stack-2" @submit.prevent="search">

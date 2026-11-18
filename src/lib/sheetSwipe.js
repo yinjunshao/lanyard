@@ -7,8 +7,10 @@
 // scrolled down, a drag that goes up or sideways, and a range slider are all left alone.
 const GRIP = ".ui-handle, .ui-sheet-head, .sheet-handle, .sheet-head";
 
-// panel: the sheet; close: asks its owner to close it. Returns a function that takes everything off again.
+// panel: the sheet; close: asks its owner to close it. Returns a function that takes everything off again
+// (swipeOff(true) keeps the sheet where it is).
 export function swipeClose(panel, close) {
+  if (!panel || !matchMedia("(max-width: 599px)").matches) return () => {}; // a phone sheet only
   const layer = panel.parentElement;
   let x0 = 0, y0 = 0, t0 = 0, dy = 0, armed = false, on = false;
 
@@ -68,10 +70,12 @@ export function swipeClose(panel, close) {
   panel.addEventListener("touchend", end);
   panel.addEventListener("touchcancel", end);
   panel.addEventListener("pointerdown", pd);
-  return () => {
+  // keep: leave the sheet where it is (it is leaving; the exit carries on from there).
+  return (keep) => {
     for (const [n, f] of [["touchstart", ts], ["touchmove", tm], ["touchend", end], ["touchcancel", end], ["pointerdown", pd]]) panel.removeEventListener(n, f);
     window.removeEventListener("pointermove", pm);
     window.removeEventListener("pointerup", pu);
+    if (keep) return;
     panel.style.transition = panel.style.transform = panel.style.userSelect = "";
     layer.style.removeProperty("--dim");
   };
