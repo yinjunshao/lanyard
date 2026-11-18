@@ -162,7 +162,7 @@ async function sendReport() {
           <button type="button" class="chip chip-toggle" :disabled="metaBusy" @click="saveMeta({ remindAt: morningIn(7) })">Next week</button>
           <button ref="dateBtn" type="button" class="chip chip-toggle" aria-haspopup="dialog" :aria-expanded="pickingDate ? 'true' : 'false'"
                   @click="pickDate">Pick a date</button>
-          <component :is="DatePicker" v-if="pickingDate && DatePicker" bare v-model:open="pickingDate" min-today label="Remind me on" model-value=""
+          <component :is="DatePicker" v-if="DatePicker" bare v-model:open="pickingDate" min-today label="Remind me on" model-value=""
                         :anchor="dateBtn" @update:model-value="remindOn" />
         </div>
         <button type="button" class="btn" aria-haspopup="dialog" @click="openDraft">Draft a follow-up</button>

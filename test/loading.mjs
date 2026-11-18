@@ -425,4 +425,23 @@ check("no animation or transition is written with a time over 300 ms (the tokens
 const literal = decls.filter(([f, , v]) => !NAMED.test(v) && !/^(none|var\()/.test(v) && /(?<![\w.-])\d*\.?\d+(ms|s)\b/.test(v.replace(/var\([^)]*\)/g, "").replace(/\b0s\b/g, "")) && !/main\.css/.test(f));
 check("components write no duration of their own: they use the tokens", literal.length === 0, literal.map((d) => d.join(" ")));
 
+console.log("\n# F40.7 What the browser check found: a sheet must still be whole while it leaves");
+check("UiSheet shows what it showed last while it leaves, because a parent clears what the content was about (the voucher, the person) when it closes", /let last = null;\s*const Body = \(\) => \(!props\.open && last \? last : \(last = slots\.default\?\.\(\{ sheet: isSheet\.value \}\)\)\);/.test(sheetScript) && /last = null;\s*release\(\);/.test(fnBody(sheetScript, "finish")));
+{
+  // No page may take a sheet out of the page by itself when it closes: that would skip the exit. A condition on the
+  // tag that only says whether the feature exists at all is fine; one that is the open state is not.
+  const offenders = [];
+  for (const f of SRC.filter((x) => x.endsWith(".vue"))) {
+    const src = read(f).replace(/\r\n/g, "\n");
+    for (const m of src.matchAll(/<UiSheet\b[^>]*>/g)) {
+      const cond = /v-if="([^"]+)"/.exec(m[0])?.[1];
+      const open = /:open="([^"]+)"/.exec(m[0])?.[1] || "";
+      if (cond && open && open.replace(/^!+/, "").split(/[\s.?]/)[0] && new RegExp(`\\b${open.replace(/^!+/, "").split(/[\s.?]/)[0]}\\b`).test(cond)) offenders.push(`${f}: ${m[0].slice(0, 80)}`);
+    }
+    // The bare date picker (a public card's reminder) is mounted once it has loaded and opened by its `open` prop.
+    for (const m of src.matchAll(/<component :is="DatePicker"[^>]*>/g)) if (/v-if="[^"]*(picking|pickingDate)/.test(m[0])) offenders.push(`${f}: ${m[0].slice(0, 80)}`);
+  }
+  check("no page unmounts a sheet or the bare date picker with its own v-if when it closes (the exit would never play)", offenders.length === 0, offenders);
+}
+
 summary();

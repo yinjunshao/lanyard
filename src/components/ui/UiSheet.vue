@@ -28,7 +28,10 @@ const emit = defineEmits(["close"]);
 // The content is drawn by calling the slot function directly. A compiled <slot> pulls
 // renderSlot into the shared Vue chunk that public pages load; this does not.
 const slots = useSlots();
-const Body = () => slots.default?.({ sheet: isSheet.value });
+// F40: once the parent has closed it, it shows what it showed last while it slides out (the parent may already have
+// cleared what the content was about, such as the person or voucher being shown). Forgotten when the exit is over.
+let last = null;
+const Body = () => (!props.open && last ? last : (last = slots.default?.({ sheet: isSheet.value })));
 
 // ---- phone or not: one shared media query ----
 const phone = ref(false);
@@ -189,6 +192,7 @@ function finish() {
   if (!leaving.value) return;
   leaving.value = false;
   shown.value = false;
+  last = null;
   release();
 }
 // What waits for the exit: the page behind comes back and focus returns to what opened the layer.

@@ -237,7 +237,7 @@ const withdrawNow = async () => {
       </div>
     </template>
 
-    <UiSheet v-if="picked" :open="!!picked" :anchor="pickedTrigger" :label="picked.name" @close="close">
+    <UiSheet :open="!!picked" :anchor="pickedTrigger" :label="picked?.name || ''" @close="close">
       <div class="stack">
         <Avatar class="presence-big" :src="picked.selfie" :alt="`Photo of ${picked.name}`" />
         <h3 class="presence-name">{{ picked.name }}</h3>

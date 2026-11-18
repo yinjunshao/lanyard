@@ -84,7 +84,7 @@ async function pick() {
     <h2>Bare date picker (as on a public card)</h2>
     <div class="chip-row">
       <button ref="chip" type="button" class="chip chip-toggle" aria-haspopup="dialog" :aria-expanded="picking ? 'true' : 'false'" @click="pick">Pick a date</button>
-      <component :is="DatePicker" v-if="picking && DatePicker" bare v-model:open="picking" min-today label="Remind me on" model-value="" :anchor="chip" @update:model-value="reminder = $event" />
+      <component :is="DatePicker" v-if="DatePicker" bare v-model:open="picking" min-today label="Remind me on" model-value="" :anchor="chip" @update:model-value="reminder = $event" />
     </div>
     <p class="small muted">Chosen: {{ reminder || "(none)" }}</p>
 
