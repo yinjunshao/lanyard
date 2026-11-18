@@ -33,7 +33,7 @@ needs: [F38]
 
 ## Tasks
 - [x] F40.1 Motion tokens and the global reduced-motion rule in `main.css`; a guard in `test/loading.mjs` (or a new section of it) that the tokens exist and that sheet components contain an exit transition.
-- [ ] F40.2 UiSheet: enter and exit for bottom sheet, modal and popover; swipe down to close on phones; focus and scroll lock after exit.
+- [x] F40.2 UiSheet: enter and exit for bottom sheet, modal and popover; swipe down to close on phones; focus and scroll lock after exit.
 - [ ] F40.3 ConnectSheet (public, measure bytes), FollowupComposer, PeopleAsk and the global `.sheet` styles: the same enter and exit and swipe.
 - [ ] F40.4 EventPreview panel, EventPage dialog, Lightbox, PhotoCropper, TermsGate.
 - [ ] F40.5 Waiting to content crossfade, list stagger, in-shell route fade.

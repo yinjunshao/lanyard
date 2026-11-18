@@ -192,4 +192,92 @@ const frames = ALL_CSS.flatMap(([f, t]) => [...t.matchAll(/@keyframes ([\w-]+) \
 const badFrames = frames.filter(([, name, body]) => name !== "sk-in" && [...body.matchAll(/([\w-]+)\s*:/g)].some((m) => !["opacity", "transform"].includes(m[1])));
 check(`only transform and opacity move in any keyframes (${frames.length} checked; sk-in only flips visibility)`, frames.length > 8 && badFrames.length === 0, badFrames.map((f) => f[0] + " " + f[1]));
 
+console.log("\n# F40.2 UiSheet: enter, exit, swipe down");
+const sheetSrc = read("src/components/ui/UiSheet.vue").replace(/\r\n/g, "\n");
+const sheetScript = sheetSrc.slice(0, sheetSrc.indexOf("</script>"));
+const sheetTpl = sheetSrc.slice(sheetSrc.indexOf("<template>"), sheetSrc.indexOf("<style"));
+const sheetCss = styleOf("src/components/ui/UiSheet.vue");
+const fnBody = (src, name) => { const i = src.indexOf(`function ${name}(`); return i < 0 ? "" : src.slice(i, src.indexOf("\n}\n", i)); };
+check("UiSheet keeps the layer in the page while it leaves (shown / leaving), and the layer is v-if shown, not v-if open", /const shown = ref\(false\)/.test(sheetScript) && /const leaving = ref\(false\)/.test(sheetScript) && /v-if="shown"/.test(sheetTpl) && !/v-if="open"/.test(sheetTpl));
+check("the leaving layer carries .is-leaving", /'is-leaving': leaving/.test(sheetTpl));
+check("a bottom sheet slides down on leaving, a modal and a popover drop and fade, and the dim fades", /\.ui-layer\.is-sheet\.is-leaving \.ui-panel \{[^}]*animation: m-sheet-out var\(--dur-sheet-out\)/.test(sheetCss) && /\.ui-layer\.is-modal\.is-leaving \.ui-panel \{[^}]*animation: m-pop-out/.test(sheetCss) && /\.ui-layer\.is-leaving \.ui-panel \{[^}]*animation: m-pop-out var\(--dur-fast-out\)/.test(sheetCss) && /is-sheet\.is-leaving::before \{[^}]*animation: m-fade-out/.test(sheetCss));
+check("a sheet slides up (not 12 px) on opening, from --slide", /\.is-sheet \.ui-panel \{[^}]*animation: m-sheet-in var\(--dur-sheet\)/.test(sheetCss) && /@keyframes m-sheet-in \{ from \{ transform: translateY\(var\(--slide\)\)/.test(css));
+check("a layer that is leaving takes no clicks, panel included (no invisible backdrop in the way)", /\.ui-layer\.is-leaving, \.ui-layer\.is-leaving \.ui-panel \{ pointer-events: none; \}/.test(sheetCss));
+check("the dim is a pseudo-element, so it fades while the panel slides", /\.ui-layer\.is-sheet::before, \.ui-layer\.is-modal::before \{[^}]*opacity: var\(--dim, 1\)/.test(sheetCss) && !/\.ui-layer\.is-sheet \{[^}]*background:/.test(sheetCss));
+check("no duration is written out in UiSheet's rules (only the tokens)", !/animation:[^;]*\b\d+(ms|s)\b/.test(sheetCss.replace(/var\([^)]*\)/g, "")));
+check("Escape and a press outside stop counting at once, before the exit (detach in closed)", /function closed\(\) \{\s*detach\(\);/.test(sheetScript));
+check("the page behind and focus wait for the exit: release() runs from finish() and unmount only, never from closed()", !/release\(\)/.test(fnBody(sheetScript, "closed")) && /release\(\);/.test(fnBody(sheetScript, "finish")) && /setBehind\(false\)/.test(fnBody(sheetScript, "release")) && /\.focus\?\.\(/.test(fnBody(sheetScript, "release")));
+check("the exit ends on animationend for an exit animation, with a timer of no more than 300 ms behind it", /@animationend="onEnd"/.test(sheetTpl) && /\/\^m-\.\+-out\$\/\.test\(e\.animationName\)/.test(sheetScript) && Number(/setTimeout\(finish, (\d+)\)/.exec(sheetScript)?.[1]) <= 300);
+check("opening again during the exit keeps one layer and does not lock the page twice", /const again = shown\.value/.test(sheetScript) && /if \(!lockedBy\) \{ lockedBy = true; setBehind\(true\); \}/.test(sheetScript));
+check("UiSheet loads the swipe code with a plain import() when a phone sheet opens, never statically", /import\("\.\.\/\.\.\/lib\/sheetSwipe"\)/.test(sheetScript) && !/^import .*sheetSwipe/m.test(sheetScript));
+check("UiSheet still uses no Teleport, Transition or <slot> (they would add to the Vue chunk every public page loads)", !/Teleport|<Transition|TransitionGroup|<slot/.test((sheetScript + sheetTpl).replace(/\/\/.*|<!--[\s\S]*?-->/g, "")));
+
+// The swipe, run against stand-ins for the sheet: a short drag springs back, a long drag or a flick closes,
+// and nothing closes while the sheet's content is scrolled or the finger goes up or sideways.
+{
+  const { swipeClose } = await import("../src/lib/sheetSwipe.js");
+  globalThis.window ||= { addEventListener() {}, removeEventListener() {} };
+  let now = 0;
+  const realNow = Date.now;
+  Date.now = () => now;
+  const make = (opts = {}) => {
+    const handlers = {};
+    const layerProps = {};
+    const style = {};
+    const layer = { style: { setProperty: (k, v) => { layerProps[k] = v; }, removeProperty: (k) => { delete layerProps[k]; } } };
+    const panel = {
+      scrollTop: 0, offsetHeight: 400, parentElement: layer, style,
+      addEventListener: (n, f) => { handlers[n] = f; }, removeEventListener: (n) => { delete handlers[n]; },
+      closest: () => (opts.leaving ? {} : null),
+    };
+    let closed = 0;
+    const off = swipeClose(panel, () => { closed++; });
+    const target = Object.assign({ scrollTop: 0, parentElement: panel, matches: () => false }, opts.target || {});
+    const touch = (type, x, y) => ({ target, touches: type === "touchend" ? [] : [{ clientX: x, clientY: y }], cancelable: true, preventDefault() { this.prevented = true; } });
+    const drag = (dx, dy, ms) => {
+      handlers.touchstart(touch("touchstart", 100, 300));
+      const events = [];
+      for (let i = 1; i <= 5; i++) { now += ms / 5; const e = touch("touchmove", 100 + (dx * i) / 5, 300 + (dy * i) / 5); handlers.touchmove(e); events.push(e); }
+      handlers.touchend(touch("touchend", 100 + dx, 300 + dy));
+      return events;
+    };
+    return { panel, style, drag, closed: () => closed, off, layerProps, handlers };
+  };
+  let s = make();
+  s.drag(0, 60, 600);
+  check("a short, slow drag (60 of 400 px) springs back and does not close", s.closed() === 0 && s.style.transform === "" && /transform var\(--dur\) var\(--ease-out\)/.test(s.style.transition));
+  s = make();
+  const ev = s.drag(0, 160, 600);
+  check("a drag past 30% of the height (160 of 400 px) closes, and the page's own scroll is stopped meanwhile", s.closed() === 1 && ev.every((e) => e.prevented));
+  s = make();
+  s.drag(0, 30, 40);
+  check("a quick flick closes even when short (30 px in 40 ms)", s.closed() === 1);
+  s = make();
+  s.drag(0, 5, 20);
+  check("a tap or a 5 px wobble closes nothing and moves nothing", s.closed() === 0 && s.style.transform === undefined);
+  s = make();
+  s.panel.scrollTop = 20;
+  s.drag(0, 300, 300);
+  check("a sheet scrolled down is never closed by a drag (the content scrolls instead)", s.closed() === 0 && s.style.transform === undefined);
+  s = make({ target: { scrollTop: 15 } });
+  s.drag(0, 300, 300);
+  check("a list inside the sheet that is scrolled down is left alone too", s.closed() === 0);
+  s = make();
+  s.drag(0, -300, 300);
+  check("dragging up never closes", s.closed() === 0);
+  s = make();
+  s.drag(200, 120, 300);
+  check("a mostly sideways drag never closes", s.closed() === 0);
+  s = make({ target: { matches: (q) => /range/.test(q) } });
+  s.drag(0, 300, 300);
+  check("a range slider inside a sheet keeps its own drag", s.closed() === 0);
+  s = make({ leaving: true });
+  s.drag(0, 200, 300);
+  check("when the owner closes it, the sheet is left where the finger let go for the exit to carry on from", s.closed() === 1 && s.style.transform === "translateY(200px)");
+  s = make();
+  s.off();
+  check("taking the swipe off removes every listener and its inline styles", Object.keys(s.handlers).length === 0 && s.style.transform === "");
+  Date.now = realNow;
+}
+
 summary();

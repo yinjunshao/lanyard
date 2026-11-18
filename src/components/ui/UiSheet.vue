@@ -51,6 +51,12 @@ const portal = ref(null);
 const pos = ref({});
 let opener = null;
 let lockedBy = false;
+// F40: closing does not remove the layer at once. `shown` keeps it in the page while it slides or fades out
+// (`leaving`); the page behind stays locked, and focus goes back to the opener, only when that ends.
+const shown = ref(false);
+const leaving = ref(false);
+let exitTimer = 0;
+let swipeOff = null;
 
 // ---- document-level state shared by every open layer ----
 const stack = (globalThis.__uiLayers ||= []);
@@ -122,30 +128,71 @@ function onDocPointer(e) {
 }
 function onResize() { place(); }
 
-async function opened() {
-  opener = document.activeElement;
-  stack.push(token);
+function attach() {
+  if (!stack.includes(token)) stack.push(token);
   document.addEventListener("keydown", onDocKey, true);
   document.addEventListener("pointerdown", onDocPointer, true);
   window.addEventListener("resize", onResize);
   window.addEventListener("scroll", onResize, true);
-  await nextTick();
-  place();
-  if (trapping.value) {
-    lockedBy = true;
-    setBehind(true);
-    const target = (props.focus && panel.value?.querySelector(props.focus)) || focusables()[0] || panel.value;
-    target?.focus({ preventScroll: true });
-  }
 }
-
-function closed() {
+function detach() {
   const i = stack.indexOf(token);
   if (i >= 0) stack.splice(i, 1);
   document.removeEventListener("keydown", onDocKey, true);
   document.removeEventListener("pointerdown", onDocPointer, true);
   window.removeEventListener("resize", onResize);
   window.removeEventListener("scroll", onResize, true);
+}
+
+// Swipe down to close, on the phone sheet only. The code is a separate file, fetched when a sheet opens on a phone.
+function disarm() { swipeOff?.(); swipeOff = null; }
+function arm() {
+  const el = panel.value;
+  if (swipeOff || !isSheet.value || !el) return;
+  import("../../lib/sheetSwipe").then((m) => {
+    if (!swipeOff && el === panel.value && isSheet.value && !leaving.value) swipeOff = m.swipeClose(el, () => emit("close"));
+  });
+}
+
+async function opened() {
+  clearTimeout(exitTimer);
+  const again = shown.value; // opened again while it was still sliding out: it stays, the opener is the same
+  leaving.value = false;
+  shown.value = true;
+  if (!again) opener = document.activeElement;
+  else if (panel.value) { panel.value.style.transform = ""; panel.value.parentElement.style.removeProperty("--dim"); }
+  attach();
+  await nextTick();
+  place();
+  if (trapping.value) {
+    if (!lockedBy) { lockedBy = true; setBehind(true); }
+    const target = (props.focus && panel.value?.querySelector(props.focus)) || focusables()[0] || panel.value;
+    target?.focus({ preventScroll: true });
+  }
+  arm();
+}
+
+function closed() {
+  detach(); // Esc and a press outside stop counting at once
+  if (!shown.value) return;
+  disarm();
+  leaving.value = true;
+  // The animation ends it (onEnd); this is the same moment if there is no animation to wait for.
+  clearTimeout(exitTimer);
+  exitTimer = setTimeout(finish, 260);
+}
+function onEnd(e) {
+  if (leaving.value && /^m-.+-out$/.test(e.animationName) && (e.target === panel.value || e.target === e.currentTarget)) finish();
+}
+function finish() {
+  clearTimeout(exitTimer);
+  if (!leaving.value) return;
+  leaving.value = false;
+  shown.value = false;
+  release();
+}
+// What waits for the exit: the page behind comes back and focus returns to what opened the layer.
+function release() {
   if (lockedBy) {
     lockedBy = false;
     setBehind(false);
@@ -156,10 +203,18 @@ function closed() {
   opener = null;
 }
 
-watch(isSheet, () => { if (props.open) nextTick(place); });
+watch(isSheet, async () => {
+  disarm();
+  if (props.open && shown.value) { await nextTick(); place(); arm(); }
+});
 watch(() => props.open, (v) => (v ? opened() : closed()), { immediate: true, flush: "post" });
 onMounted(() => { document.body.appendChild(portal.value); });
-onBeforeUnmount(() => { if (props.open) closed(); portal.value?.remove(); });
+onBeforeUnmount(() => {
+  clearTimeout(exitTimer);
+  disarm();
+  if (shown.value) { detach(); release(); }
+  portal.value?.remove();
+});
 
 defineExpose({ place, panel });
 </script>
@@ -169,8 +224,8 @@ defineExpose({ place, panel });
        any container. Vue's own Teleport is not used: it would add to the shared Vue
        chunk that public pages load. Put this as the last child of its parent. -->
   <div ref="portal" class="ui-portal">
-    <div v-if="open" class="ui-layer" :class="{ 'is-sheet': isSheet, 'is-modal': isModal }"
-         @pointerdown.self="framed && emit('close')">
+    <div v-if="shown" class="ui-layer" :class="{ 'is-sheet': isSheet, 'is-modal': isModal, 'is-leaving': leaving }"
+         @pointerdown.self="framed && !leaving && emit('close')" @animationend="onEnd">
       <div ref="panel" class="ui-panel" tabindex="-1"
            :class="{ 'is-fit': fit && !modal, 'is-roomy': modal }"
            :role="dialog && trapping ? 'dialog' : undefined"
@@ -195,13 +250,18 @@ defineExpose({ place, panel });
 
 <style>
 /* The layer is a fixed frame. Under 600 px it dims the page and holds the sheet
-   at the bottom; from 600 px it has no box of its own, the panel floats. */
+   at the bottom; from 600 px it has no box of its own, the panel floats (or, as a modal, sits in the middle).
+   Motion (F40, tokens in main.css): a sheet slides up and down with its dim fading beside it; a modal and a
+   popover drop a little and fade. Leaving takes less time than arriving, and a layer that is leaving takes no
+   clicks. The dim is its own pseudo-element so it can fade while the panel moves. */
 .ui-layer { position: fixed; inset: 0; z-index: 120; pointer-events: none; }
-.ui-layer.is-sheet {
-  pointer-events: auto;
+.ui-layer.is-sheet, .ui-layer.is-modal { pointer-events: auto; display: flex; justify-content: center; }
+.ui-layer.is-sheet { align-items: flex-end; }
+.ui-layer.is-sheet::before, .ui-layer.is-modal::before {
+  content: ""; position: absolute; inset: 0;
   background: rgba(20, 19, 17, 0.55);
-  display: flex; align-items: flex-end; justify-content: center;
-  animation: ui-fade 120ms linear;
+  opacity: var(--dim, 1);
+  animation: m-fade var(--dur-sheet) var(--ease-out);
 }
 .ui-panel {
   pointer-events: auto;
@@ -212,7 +272,7 @@ defineExpose({ place, panel });
   border-radius: var(--radius);
   overflow-y: auto;
   overscroll-behavior: contain;
-  animation: ui-fade 120ms linear;
+  animation: m-pop-in var(--dur-fast) var(--ease-out);
 }
 .ui-panel:focus { outline: none; }
 .ui-panel.is-fit { min-width: 220px; }
@@ -223,16 +283,11 @@ defineExpose({ place, panel });
   border-bottom: none;
   border-radius: 14px 14px 0 0;
   padding: 10px 16px calc(16px + env(safe-area-inset-bottom, 0px));
-  animation: ui-rise 120ms linear;
+  animation: m-sheet-in var(--dur-sheet) var(--ease-out);
 }
 /* The centred dialog (modal, from 600 px): dims the page like the sheet, the panel sits in the middle. */
-.ui-layer.is-modal {
-  pointer-events: auto;
-  background: rgba(20, 19, 17, 0.55);
-  display: flex; align-items: center; justify-content: center;
-  padding: 24px 16px;
-  animation: ui-fade 120ms linear;
-}
+.ui-layer.is-modal { align-items: center; padding: 24px 16px; }
+.ui-layer.is-modal::before { animation-duration: var(--dur); }
 .is-modal .ui-panel {
   position: relative;
   width: 100%; max-width: 460px;
@@ -240,18 +295,22 @@ defineExpose({ place, panel });
   border-radius: 14px;
   padding: 14px 24px 24px;
   box-shadow: var(--shadow-2);
-  animation: ui-rise 120ms linear;
+  animation: m-pop-in var(--dur) var(--ease-out);
 }
 .is-sheet .ui-panel.is-roomy { padding-left: 20px; padding-right: 20px; }
-.ui-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--rule); margin: 0 auto 10px; }
-.ui-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: 8px; }
+/* Leaving: the same layers run the other way, a little faster, then the component takes them out of the page. */
+.ui-layer.is-leaving, .ui-layer.is-leaving .ui-panel { pointer-events: none; }
+.ui-layer.is-leaving .ui-panel { animation: m-pop-out var(--dur-fast-out) var(--ease-in) forwards; }
+.ui-layer.is-sheet.is-leaving::before { animation: m-fade-out var(--dur-sheet-out) var(--ease-in) forwards; }
+.ui-layer.is-modal.is-leaving::before { animation: m-fade-out var(--dur-out) var(--ease-in) forwards; }
+.ui-layer.is-sheet.is-leaving .ui-panel { animation: m-sheet-out var(--dur-sheet-out) var(--ease-in) forwards; }
+.ui-layer.is-modal.is-leaving .ui-panel { animation: m-pop-out var(--dur-out) var(--ease-in) forwards; }
+/* The part of a phone sheet a finger or a mouse drags (components/lib/sheetSwipe.js). */
+.ui-handle { position: relative; width: 40px; height: 4px; border-radius: 2px; background: var(--rule); margin: 0 auto 10px; touch-action: none; }
+.ui-handle::before { content: ""; position: absolute; inset: -12px -44px -14px; }
+.ui-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: 8px; touch-action: none; }
 .ui-close { width: 44px; height: 44px; }
 .ui-close:focus-visible { outline: 2.5px solid var(--strap); outline-offset: 1px; }
-@keyframes ui-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes ui-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) {
-  .ui-layer.is-sheet, .ui-layer.is-modal, .ui-panel, .is-sheet .ui-panel, .is-modal .ui-panel { animation: none; }
-}
 
 /* The trigger every picker shares: it looks like the form's text inputs. */
 .ui-trigger {
