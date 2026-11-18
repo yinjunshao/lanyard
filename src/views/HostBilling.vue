@@ -96,7 +96,7 @@ async function submit() {
 
 <template>
   <HostRedeem v-if="redeemMode" />
-  <div v-else class="wide-col stack-3" style="max-width:760px">
+  <div v-else class="wide-col in-app stack-3" style="max-width:760px">
     <SessionLost />
     <div class="page-head">
       <router-link to="/" class="small muted">‹ Host portal</router-link>

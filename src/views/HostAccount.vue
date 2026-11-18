@@ -170,7 +170,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
 </script>
 
 <template>
-  <div class="wide-col stack-3" style="max-width:760px">
+  <div class="wide-col in-app stack-3" style="max-width:760px">
     <SessionLost />
     <div class="page-head">
       <router-link to="/" class="small muted">‹ Host portal</router-link>

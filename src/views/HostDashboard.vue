@@ -231,7 +231,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
 </script>
 
 <template>
-  <div class="wide-col stack-3" style="max-width:760px">
+  <div class="wide-col in-app stack-3" style="max-width:760px">
     <div class="page-head">
       <div class="host-head-row">
         <a :href="MAIN_ORIGIN" class="small muted">‹ Back to Lanyard</a>

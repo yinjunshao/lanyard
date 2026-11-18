@@ -186,7 +186,7 @@ const EMAIL = { education: "university or school address", free: "webmail addres
 </script>
 
 <template>
-  <div class="wide-col stack-3" style="max-width:820px">
+  <div class="wide-col in-app stack-3" style="max-width:820px">
     <div class="page-head">
       <h1>Admin</h1>
       <p class="sub">Applications and tickets waiting for a decision.</p>

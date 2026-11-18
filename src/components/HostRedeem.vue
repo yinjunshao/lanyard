@@ -72,7 +72,7 @@ function submitTyped() {
 </script>
 
 <template>
-  <div class="wide-col stack-3 host-redeem" style="max-width:560px">
+  <div class="wide-col in-app stack-3 host-redeem" style="max-width:560px">
     <div class="page-head">
       <router-link to="/billing" class="small muted">‹ Billing</router-link>
       <h1 style="margin-top:8px">Promo code</h1>

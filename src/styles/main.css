@@ -43,6 +43,8 @@
   --dur-out: 140ms;
   --dur-sheet: 260ms;     /* a bottom sheet rising */
   --dur-sheet-out: 200ms; /* and leaving */
+  --dur-glide: 200ms;     /* a tab indicator moving between tabs; 0ms when motion is reduced (it jumps) */
+  --stagger: 30ms;        /* the gap between the first rows of a list arriving; 0ms when motion is reduced */
   --slide: 100%;          /* how far a sheet or panel travels; 0px when motion is reduced */
   --slide-fade: 1;        /* the opacity it starts or ends at while it slides; 0 when motion is reduced */
   --shift: 8px;           /* how far a modal drops or a row rises; 0px when motion is reduced */
@@ -917,8 +919,26 @@ button.list-row { font: inherit; }
     --dur-out: 100ms;
     --dur-sheet: 120ms;
     --dur-sheet-out: 100ms;
+    --dur-glide: 0ms;
+    --stagger: 0ms;
   }
 }
+
+/* Content that has just loaded, and a new page (F40.5). A page shows a skeleton while it waits and its content when
+   the request answers; the content is new elements, so these animations play once as they arrive. Panels and empty
+   notes fade in; the first six rows of a list rise in 30 ms apart (about a quarter of a second in all), and the rest
+   do not move. Only signed-in, host and admin pages (.in-app is the signed-in frame and the root of each host page): public
+   pages show their content at once. A skeleton is made of the same classes, so it fades in too.
+   A new page in the signed-in frame fades in quickly (.page-in, added after the first page); the old page is
+   not waited for. */
+.in-app :is(.panel, .empty, [role="tabpanel"]) { animation: m-fade var(--dur) var(--ease-out) backwards; }
+.in-app .list-row:nth-child(-n+6) { animation: m-rise var(--dur-fast) var(--ease-out) calc(var(--i, 0) * var(--stagger)) backwards; }
+.in-app .list-row:nth-child(2) { --i: 1; }
+.in-app .list-row:nth-child(3) { --i: 2; }
+.in-app .list-row:nth-child(4) { --i: 3; }
+.in-app .list-row:nth-child(5) { --i: 4; }
+.in-app .list-row:nth-child(6) { --i: 5; }
+.page-in { animation: m-fade var(--dur-fast) var(--ease-out); }
 
 /* A native <dialog> (the list of what the organisers collect, on the check-in page): CSS alone drops it in and fades
    it out, and its dim with it, with no script on that public page. A browser that cannot animate display and overlay

@@ -213,7 +213,7 @@ async function copyFeedbackLink() {
 </script>
 
 <template>
-  <div class="wide-col stack-3" style="max-width:860px">
+  <div class="wide-col in-app stack-3" style="max-width:860px">
     <router-link to="/" class="small muted back">‹ Dashboard</router-link>
 
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>

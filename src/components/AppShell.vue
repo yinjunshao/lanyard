@@ -1,7 +1,7 @@
 <script setup>
 // The frame around every /app page: top bar, account banner, tab bar and the Terms pop-up.
 // App.vue loads it only for /app pages (lib/shell.js), so public pages do not carry it.
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { homePath, me } from "../lib/store";
 import Icon from "./Icon.vue";
@@ -12,6 +12,11 @@ import { live, refreshLive } from "../lib/eventlive";
 
 const r = useRoute();
 const showChrome = computed(() => r.meta.app && me.profile);
+// F40: a new page fades in (only the new one; the old one is not waited for). The first page does not: it comes with
+// the frame. The key is the route record, so changing a query or an id on the same page does not fade it again.
+const pageKey = computed(() => r.matched[r.matched.length - 1]?.path || r.path);
+const moved = ref(false);
+watch(pageKey, () => { moved.value = true; });
 // The Events glyph is drawn here, not in Icon.vue: Icon.vue is loaded by public pages (the card,
 // privacy requests) and a glyph only the signed-in frame uses would count against their JS budget (F28).
 const TICKET =
@@ -52,10 +57,10 @@ watch(
     <router-link to="/app/settings" class="topbar-link">Settings</router-link>
   </header>
 
-  <main class="app-col">
+  <main class="app-col in-app">
     <SessionLost />
     <AccountBanner />
-    <router-view />
+    <div :key="pageKey" :class="{ 'page-in': moved }"><router-view /></div>
   </main>
 
   <nav v-if="showChrome" class="tabbar" aria-label="Primary">
