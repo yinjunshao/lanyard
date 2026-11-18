@@ -62,16 +62,41 @@ export async function startCheckout(c, product, who, successUrl) {
 export const billingInfo = (env) => ({ cardPayments: checkoutReady(env), seller: checkoutReady(env) ? seller(env) : null });
 
 const PLUS_IDS = ["plus_month", "plus_year"];
-billingApp.get("/api/billing/plans", (c) => {
+billingApp.get("/api/billing/plans", async (c) => {
   const on = PLUS_IDS.every((id) => checkoutReady(c.env, id));
+  const u = c.get("user"); // never created here: signed out gets no `mine`
   return c.json({
     cardPayments: on,
     seller: on ? seller(c.env) : null,
     products: PLUS_IDS.map((id) => { const pr = productFor(id); return { id, label: pr.label, interval: pr.interval, pence: pr.pence }; }),
     includes: PLUS_INCLUDES,
     freeCards: USER_PLANS.free.cards,
+    ...(u ? { mine: await mineOf(c.env.DB, u.id) } : {}),
   });
 });
+
+/**
+ * F41: this user's own plan end and billing state, for Settings > Plan. Reads only, and only rows
+ * with this user's id, so it works with billing off and takes no money. `renews` needs an active
+ * subscription not set to end; `managed` is what the portal route would accept (a paid or refunded order).
+ */
+async function mineOf(db, userId) {
+  const row = await one(db, "SELECT plan, plan_until FROM users WHERE id = ?", userId);
+  const plus = planOf(row).tier === "plus";
+  const sub = plus ? await one(db,
+    `SELECT product, cancel_at_period_end FROM billing_subscriptions
+     WHERE user_id = ? AND status IN ('active', 'trialing') ORDER BY cancel_at_period_end ASC, updated_at DESC LIMIT 1`, userId) : null;
+  const paid = await one(db, "SELECT 1 AS x FROM billing_orders WHERE user_id = ? AND status IN ('paid', 'refunded', 'part_refunded') LIMIT 1", userId);
+  const until = plus && row.plan_until ? new Date(row.plan_until).toISOString() : null;
+  return {
+    tier: plus ? "plus" : "free",
+    until,
+    renews: !!sub && !sub.cancel_at_period_end && !!until,
+    cancelAtPeriodEnd: !!sub && !!sub.cancel_at_period_end,
+    interval: sub ? productFor(sub.product)?.interval || null : null,
+    managed: !!paid,
+  };
+}
 
 const claimed = (u) => !!(u.has_passkey || u.has_recovery || u.has_totp || u.email_verified);
 

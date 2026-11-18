@@ -4,7 +4,7 @@ id: F41
 priority: P1
 phase: 8
 size: S
-status: Not started
+status: In progress
 needs: [F36]
 ---
 # F41 Next bill date and Manage billing
@@ -32,7 +32,7 @@ needs: [F36]
 4. No new migration. No change to the webhook, checkout or prices.
 
 ## Tasks
-- [ ] F41.1 Worker: `mine` on `GET /api/billing/plans`, with tests in `test/billing.mjs`: signed out has no `mine`; free user; renewing subscriber; cancelled at period end; promo-only Plus (`managed` false); user A never sees user B's subscription; works with billing off.
+- [x] F41.1 Worker: `mine` on `GET /api/billing/plans`, with tests in `test/billing.mjs`: signed out has no `mine`; free user; renewing subscriber; cancelled at period end; promo-only Plus (`managed` false); user A never sees user B's subscription; works with billing off.
 - [ ] F41.2 SettingsPlan: the "Your plan" block and the Manage billing button rules; browser check at 375 and 1280 px, light and dark, by seeding local rows; vault notes ([[API Surface]], [[Screens and Routes]], [[Host Portal and Billing]] if touched).
 
 ## Acceptance checks

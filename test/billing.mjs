@@ -416,6 +416,68 @@ console.log("\n# Portal, provider failures and data downloads");
   check("Polar unreachable: 502 with a plain message, the order marked failed", down.status === 502 && down.json.error === "We couldn't reach the payment page. Try again in a moment." && q1("SELECT status FROM billing_orders WHERE user_id = ?", q.id).status === "failed");
 }
 
+console.log("\n# F41: the Plan page's own next bill date and Manage billing (reads only, own rows only)");
+{
+  const raw = T.env.DB.raw;
+  const when = Date.now() + 25 * 864e5;
+  const iso = (ms) => new Date(ms).toISOString();
+  const seed = (id, { plan = "plus", until = null, sub, order } = {}) => {
+    raw.prepare("UPDATE users SET plan = ?, plan_until = ? WHERE id = ?").run(plan, until, id);
+    if (sub) raw.prepare("INSERT INTO billing_subscriptions (id, provider, provider_subscription_id, user_id, product, status, current_period_end, cancel_at_period_end, created_at, updated_at) VALUES (?, 'polar', ?, ?, ?, ?, ?, ?, 1, 1)")
+      .run("bs_" + id, "psub_" + id, id, sub.product || "plus_month", sub.status || "active", until, sub.cancel ? 1 : 0);
+    if (order) raw.prepare("INSERT INTO billing_orders (id, provider, product, kind, amount_pence, currency, user_id, status, created_at) VALUES (?, 'polar', 'plus_month', 'plus', 149, 'gbp', ?, ?, 1)").run("bo_" + id, id, order);
+  };
+  const mineOf = async (p) => (await p.c.get("/api/billing/plans")).json.mine;
+  const users = count(T, "users");
+  const out = await T.client({ ip: ip() }).get("/api/billing/plans");
+  check("signed out: the plans answer as before, with no mine", out.status === 200 && !("mine" in out.json) && Array.isArray(out.json.products) && out.json.cardPayments === true);
+  check("…and asking while signed out made no guest", count(T, "users") === users);
+  const free = await claimedPerson(T, "FreeF41");
+  const f = await mineOf(free);
+  check("a free user: tier free, until null, renews false, managed false", f.tier === "free" && f.until === null && f.renews === false && f.managed === false && f.cancelAtPeriodEnd === false);
+  const ren = await claimedPerson(T, "RenewF41");
+  seed(ren.id, { until: when, sub: { product: "plus_year" }, order: "paid" });
+  const r = await mineOf(ren);
+  check("a renewing subscriber: Plus, renews true, until is plan_until, yearly, managed", r.tier === "plus" && r.renews === true && r.until === iso(when) && r.interval === "year" && r.managed === true && r.cancelAtPeriodEnd === false);
+  const can = await claimedPerson(T, "CancelF41");
+  seed(can.id, { until: when, sub: { cancel: true }, order: "paid" });
+  const cn = await mineOf(can);
+  check("cancelled at period end: still Plus until the date, renews false, still managed", cn.tier === "plus" && cn.renews === false && cn.cancelAtPeriodEnd === true && cn.until === iso(when) && cn.managed === true);
+  const promo = await claimedPerson(T, "PromoF41");
+  seed(promo.id, { until: when });
+  const pm = await mineOf(promo);
+  check("promo-only Plus (a date, no order): Plus, renews false, managed false", pm.tier === "plus" && pm.until === iso(when) && pm.renews === false && pm.managed === false && pm.interval === null);
+  const forever = await claimedPerson(T, "ForeverF41");
+  seed(forever.id, { until: null });
+  const fv = await mineOf(forever);
+  check("Plus with no end date: until null, renews false", fv.tier === "plus" && fv.until === null && fv.renews === false);
+  const ref = await claimedPerson(T, "RefundF41");
+  seed(ref.id, { plan: "free", order: "refunded" });
+  const rf = await mineOf(ref);
+  check("a refunded order is managed even when back on Free", rf.tier === "free" && rf.managed === true && rf.until === null && rf.renews === false);
+  const open = await claimedPerson(T, "OpenF41");
+  seed(open.id, { plan: "free", order: "open" });
+  check("an unpaid (open) order is not managed", (await mineOf(open)).managed === false);
+  const ended = await claimedPerson(T, "EndedF41");
+  seed(ended.id, { until: Date.now() - 864e5, sub: { status: "canceled" }, order: "paid" });
+  const en = await mineOf(ended);
+  check("Plus that has ended: Free, no date, renews false, still managed to see invoices", en.tier === "free" && en.until === null && en.renews === false && en.managed === true);
+  // Privacy: B's rows sit in the same database; A (free) and the promo user look.
+  const A = JSON.stringify(await mineOf(free));
+  check("user A (free) sees none of B's date, interval or order", A.includes('"until":null') && A.includes('"interval":null') && A.includes('"managed":false') && !A.includes(iso(when)) && !A.includes("year"));
+  const otherUntil = Date.now() + 99 * 864e5;
+  seed(ren.id, { until: otherUntil });
+  check("B's new date shows for B and nowhere in A's or the promo user's answer", (await mineOf(ren)).until === iso(otherUntil) && !JSON.stringify(await mineOf(free)).includes(iso(otherUntil)) && !JSON.stringify(await mineOf(promo)).includes(iso(otherUntil)));
+  check("the response holds no provider ids or user ids", !JSON.stringify(r).includes("psub_") && !JSON.stringify(r).includes(ren.id) && !JSON.stringify(r).includes("bo_"));
+  check("the portal's own rules are unchanged: a promo user still gets 404, a paid one the portal", (await promo.c.post("/api/billing/portal", {})).status === 404 && (await can.c.post("/api/billing/portal", {})).status === 200);
+  const off = wrap(await makeEnv({ ...BASE }));
+  const op = await claimedPerson(off, "OffF41");
+  off.env.DB.raw.prepare("UPDATE users SET plan = 'plus', plan_until = ? WHERE id = ?").run(when, op.id);
+  off.env.DB.raw.prepare("INSERT INTO billing_orders (id, provider, product, kind, amount_pence, currency, user_id, status, created_at) VALUES ('bo_off', 'polar', 'plus_month', 'plus', 149, 'gbp', ?, 'paid', 1)").run(op.id);
+  const offMine = (await op.c.get("/api/billing/plans")).json;
+  check("with BILLING_ENABLED unset: cardPayments false, yet mine says Plus, managed true", offMine.cardPayments === false && offMine.mine.tier === "plus" && offMine.mine.managed === true && offMine.mine.until === iso(when));
+}
+
 console.log("\n# Secrets (payment bar line 6)");
 {
   const all = responses.join("\n");
