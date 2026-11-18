@@ -4,7 +4,7 @@ id: F40
 priority: P1
 phase: 8
 size: L
-status: Not started
+status: In progress
 needs: [F38]
 ---
 # F40 Motion for sheets, panels and tabs
@@ -32,7 +32,7 @@ needs: [F38]
 7. Only animate `transform` and `opacity`. Nothing longer than 300 ms. No new colours, follow [[Design System]].
 
 ## Tasks
-- [ ] F40.1 Motion tokens and the global reduced-motion rule in `main.css`; a guard in `test/loading.mjs` (or a new section of it) that the tokens exist and that sheet components contain an exit transition.
+- [x] F40.1 Motion tokens and the global reduced-motion rule in `main.css`; a guard in `test/loading.mjs` (or a new section of it) that the tokens exist and that sheet components contain an exit transition.
 - [ ] F40.2 UiSheet: enter and exit for bottom sheet, modal and popover; swipe down to close on phones; focus and scroll lock after exit.
 - [ ] F40.3 ConnectSheet (public, measure bytes), FollowupComposer, PeopleAsk and the global `.sheet` styles: the same enter and exit and swipe.
 - [ ] F40.4 EventPreview panel, EventPage dialog, Lightbox, PhotoCropper, TermsGate.

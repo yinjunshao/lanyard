@@ -33,6 +33,20 @@
   --tap: 48px;
   --topbar-h: 56px;
 
+  /* Motion (F40): only transform and opacity move, nothing runs longer than 300 ms, and a thing leaves faster
+     than it arrives. Under prefers-reduced-motion (the one block in the Motion section) a slide becomes a short fade. */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --dur-fast: 120ms;      /* a popover or a label arriving */
+  --dur-fast-out: 90ms;
+  --dur: 200ms;           /* a modal, a page or content arriving */
+  --dur-out: 140ms;
+  --dur-sheet: 260ms;     /* a bottom sheet rising */
+  --dur-sheet-out: 200ms; /* and leaving */
+  --slide: 100%;          /* how far a sheet or panel travels; 0px when motion is reduced */
+  --slide-fade: 1;        /* the opacity it starts or ends at while it slides; 0 when motion is reduced */
+  --shift: 8px;           /* how far a modal drops or a row rises; 0px when motion is reduced */
+
   /* Elevation — the thing a flat, all-bordered page is missing. A badge or
      panel sits ABOVE the paper; a boundary line just separates two things
      on the same surface. Used sparingly: raised surfaces only, not every box. */
@@ -857,6 +871,39 @@ button.list-row { font: inherit; }
 .funnel .num { text-align: right; }
 /* The finished badge on the last welcome step: a little smaller on a short screen so the page does not scroll. */
 @media (max-height: 899px) { .done-badge { zoom: 0.78; } }
+
+/* ---------- Motion (F40) ----------
+   The rules: only transform and opacity move (a details panel may also ease its height where the browser
+   can); nothing runs longer than 300 ms; a thing leaves faster than it arrives; the durations and curves are
+   the tokens in :root. Sheets, panels and dialogs keep their place in the page until they have finished
+   leaving (the .is-leaving class, set by the component, removed with the element when the exit ends), and
+   while leaving they take no clicks. Public pages use these classes with a few lines of script, no library
+   (the first-load budget, D045). */
+@keyframes m-fade { from { opacity: 0; } }
+@keyframes m-fade-out { to { opacity: 0; } }
+/* A bottom sheet (or a side panel) slides; under reduced motion --slide is 0 and --slide-fade is 0, so it fades. */
+@keyframes m-sheet-in { from { transform: translateY(var(--slide)); opacity: var(--slide-fade); } }
+@keyframes m-sheet-out { to { transform: translateY(var(--slide)); opacity: var(--slide-fade); } }
+@keyframes m-side-in { from { transform: translateX(var(--slide)); opacity: var(--slide-fade); } }
+@keyframes m-side-out { to { transform: translateX(var(--slide)); opacity: var(--slide-fade); } }
+/* A dialog or a popover drops a little and settles. */
+@keyframes m-pop-in { from { opacity: 0; transform: translateY(var(--shift)) scale(0.98); } }
+@keyframes m-pop-out { to { opacity: 0; transform: translateY(var(--shift)) scale(0.98); } }
+/* Something that has just loaded rises in. */
+@keyframes m-rise { from { opacity: 0; transform: translateY(var(--shift)); } }
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --slide: 0px;
+    --slide-fade: 0;
+    --shift: 0px;
+    --dur-fast: 100ms;
+    --dur-fast-out: 80ms;
+    --dur: 120ms;
+    --dur-out: 100ms;
+    --dur-sheet: 120ms;
+    --dur-sheet-out: 100ms;
+  }
+}
 
 /* ---------- Waiting (F38): skeletons, CSS only ----------
    Grey blocks in the shape of what is coming, in the paper-and-ink tokens, so every theme follows.

@@ -162,4 +162,34 @@ for (const f of walk("src").filter((p) => p.endsWith(".vue"))) {
 }
 check(`every button or form that sends something is disabled while it waits and its handler ignores a second call (${senders} checked)`, problems.length === 0 && senders > 60, problems);
 
+
+// ---------------------------------------------------------------------------------------------------------
+// F40: motion for sheets, panels and tabs. Source guards (what the eye sees is checked in a browser; see the
+// F40 plan note): the tokens exist, nothing is longer than 300 ms, a thing leaves faster than it arrives,
+// only transform and opacity move, and one global rule turns slides into short fades.
+// ---------------------------------------------------------------------------------------------------------
+const SRC = walk("src").filter((f) => /\.(vue|css)$/.test(f));
+// Every style rule text in the app: main.css and the <style> blocks of every component.
+const styleOf = (f) => (f.endsWith(".css") ? read(f) : [...read(f).matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n"));
+const ALL_CSS = SRC.map((f) => [f, styleOf(f)]).filter(([, t]) => t);
+const rootBlock = /:root \{([\s\S]*?)\n\}/.exec(css)?.[1] || "";
+const token = (n) => new RegExp(`--${n}:\s*([^;]+);`).exec(rootBlock)?.[1].trim();
+const ms = (v) => (v?.endsWith("ms") ? parseFloat(v) : v?.endsWith("s") ? parseFloat(v) * 1000 : NaN);
+
+console.log("\n# F40.1 Motion tokens and the reduced-motion rule");
+const TOKENS = ["ease-out", "ease-in", "dur-fast", "dur-fast-out", "dur", "dur-out", "dur-sheet", "dur-sheet-out", "slide", "slide-fade", "shift"];
+check("every motion token is defined in :root", TOKENS.every((t) => token(t) !== undefined), TOKENS.filter((t) => token(t) === undefined));
+check("the curves are the two cubic-béziers (out for arriving, in for leaving)", /^cubic-bezier\(/.test(token("ease-out")) && /^cubic-bezier\(/.test(token("ease-in")));
+const DURS = ["dur-fast", "dur-fast-out", "dur", "dur-out", "dur-sheet", "dur-sheet-out"];
+check("no duration token is longer than 300 ms", DURS.every((t) => ms(token(t)) <= 300 && ms(token(t)) > 0), DURS.map((t) => token(t)));
+check("a thing leaves faster than it arrives (the sheet exit is about 70% of the enter)", ms(token("dur-sheet-out")) < ms(token("dur-sheet")) && ms(token("dur-out")) < ms(token("dur")) && ms(token("dur-fast-out")) < ms(token("dur-fast")) && ms(token("dur-sheet-out")) / ms(token("dur-sheet")) <= 0.8);
+const reduceRoot = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\) \{\s*:root \{([^}]*)\}\s*\}/g)];
+check("one global prefers-reduced-motion rule redefines the tokens", reduceRoot.length === 1);
+const rr = reduceRoot[0]?.[1] || "";
+check("under reduced motion a slide has no distance and fades instead (slide 0, slide-fade 0, shift 0)", /--slide:\s*0px/.test(rr) && /--slide-fade:\s*0;/.test(rr) && /--shift:\s*0px/.test(rr));
+check("under reduced motion every duration is under 150 ms", DURS.every((t) => ms(new RegExp(`--${t}:\s*([^;]+);`).exec(rr)?.[1].trim()) < 150));
+const frames = ALL_CSS.flatMap(([f, t]) => [...t.matchAll(/@keyframes ([\w-]+) \{([\s\S]*?\})\s*\}/g)].map((m) => [f, m[1], m[2]]));
+const badFrames = frames.filter(([, name, body]) => name !== "sk-in" && [...body.matchAll(/([\w-]+)\s*:/g)].some((m) => !["opacity", "transform"].includes(m[1])));
+check(`only transform and opacity move in any keyframes (${frames.length} checked; sk-in only flips visibility)`, frames.length > 8 && badFrames.length === 0, badFrames.map((f) => f[0] + " " + f[1]));
+
 summary();

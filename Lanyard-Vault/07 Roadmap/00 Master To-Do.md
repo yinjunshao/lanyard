@@ -108,7 +108,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F39** [[F39 Informative error messages]] · P2 · M · Needs: F38 (in progress: Claude subagent, 2026-11-17; all tasks built, last commit fe1790d; waiting on one acceptance check, a timeout seen in a browser, see its Log; built on F38 as it stands, with F38's last browser check still open)
 
 ### Phase 8: owner requests (2026-11-18)
-- [ ] **F40** [[F40 Motion for sheets panels and tabs]] · P1 · L · Needs: F38 (built on F38 as it stands, with its last browser check still open)
+- [ ] **F40** [[F40 Motion for sheets panels and tabs]] · P1 · L · Needs: F38 (built on F38 as it stands, with its last browser check still open) (in progress: Claude subagent, 2026-11-18)
 - [ ] **F41** [[F41 Next bill date and Manage billing]] · P1 · S · Needs: F36
 
 ## Dependency map
