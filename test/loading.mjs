@@ -364,7 +364,7 @@ check("the check-in page gained no script for it (still showModal() and close() 
 console.log("\n# F40.5 Content arriving: panels, list rows and new pages");
 const arriveCss = css.slice(css.indexOf("/* Content that has just loaded"), css.indexOf("/* A native <dialog>"));
 check("the glide and stagger tokens exist, and both are 0 under reduced motion (a tab indicator jumps, rows arrive together)", token("dur-glide") === "200ms" && token("stagger") === "30ms" && /--dur-glide:\s*0ms/.test(rr) && /--stagger:\s*0ms/.test(rr));
-check("panels, empty notes and tab panels fade in as they arrive", /\.in-app :is\(\.panel, \.empty, \[role="tabpanel"\]\) \{ animation: m-fade var\(--dur\) var\(--ease-out\) backwards; \}/.test(arriveCss));
+check("panels, empty notes and tab panels fade in as they arrive", /\.in-app :is\(\.panel, \.empty, \.album-grid, \.perk-list, \[role="tabpanel"\]\) \{ animation: m-fade var\(--dur\) var\(--ease-out\) backwards; \}/.test(arriveCss));
 check("the first six rows of a list rise in 30 ms apart (the token), and the seventh onward do not move", /\.in-app \.list-row:nth-child\(-n\+6\) \{ animation: m-rise var\(--dur-fast\) var\(--ease-out\) calc\(var\(--i, 0\) \* var\(--stagger\)\) backwards; \}/.test(arriveCss) && [2, 3, 4, 5, 6].every((n) => new RegExp(`\\.in-app \\.list-row:nth-child\\(${n}\\) \\{ --i: ${n - 1}; \\}`).test(arriveCss)) && !/nth-child\((7|8|9)\)/.test(arriveCss));
 check("the whole stagger takes no more than 300 ms (5 gaps plus one row's rise)", 5 * ms(token("stagger")) + ms(token("dur-fast")) <= 300);
 check("arrival animations are scoped to the signed-in frame and the host pages (.in-app), never to public pages", arriveCss.split("\n").filter((l) => /\.(panel|list-row|empty)\b/.test(l) && /\{/.test(l)).every((l) => l.startsWith(".in-app")) && ["Admin", "HostAccount", "HostBilling", "HostDashboard", "HostLive"].every((n) => /class="wide-col in-app /.test(read(`src/views/${n}.vue`))) && /class="wide-col in-app /.test(read("src/components/HostRedeem.vue")) && !/in-app/.test(read("src/views/Hosts.vue")) && PUBLIC.every((n) => !/in-app/.test(read(`src/views/${n}.vue`))));
@@ -373,5 +373,56 @@ check("a new page in the signed-in frame fades in at once and the old page is no
 check("the page key is the route record, and the first page does not fade (it comes with the frame)", /r\.matched\[r\.matched\.length - 1\]\?\.path \|\| r\.path/.test(shellSrc) && /watch\(pageKey, \(\) => \{ moved\.value = true; \}\)/.test(shellSrc));
 check("the page fade is the quick token (120 ms), opacity only", /\.page-in \{ animation: m-fade var\(--dur-fast\) var\(--ease-out\); \}/.test(arriveCss) && ms(token("dur-fast")) === 120);
 check("no Vue <Transition>, <TransitionGroup>, mode=\"out-in\" or animation library anywhere in src (each would add to the Vue chunk every public page loads, or wait for the old page)", !SRC.some((f) => f.endsWith(".vue") && /<Transition|<transition|TransitionGroup|mode="out-in"/.test(read(f).replace(/<!--[\s\S]*?-->|\/\/.*/g, ""))) && !/"(framer-motion|gsap|animejs|@vueuse\/motion|motion|auto-animate|@formkit\/auto-animate)"/.test(read("package.json")));
+
+console.log("\n# F40.6 Tab indicators, details, small label swaps, and the whole app's motion rules");
+const shell6 = read("src/components/AppShell.vue").replace(/\r\n/g, "\n");
+const tabCss = css.slice(css.indexOf("/* ---------- Bottom tab bar"), css.indexOf("/* ---------- Landing"));
+check("the tab bar has one indicator that slides between the four columns with transform, not a bar per tab", /\.tabbar-inner::before \{[^}]*transform: translateX\(calc\(var\(--tab, 0\) \* 100%\)\);[^}]*transition: transform var\(--dur-glide\) var\(--ease-out\)/.test(tabCss) && !/\.tab(\.on)?::before/.test(tabCss) && !/transition:[^;]*(width|left|margin)/.test(tabCss));
+check("AppShell hands the open tab's number to it, and hides it on a page that is none of the tabs", /const activeTab = computed\(\(\) => tabs\.findIndex\(\(t\) => t\.match\(r\.path\)\)\)/.test(shell6) && /:class="\{ 'no-tab': activeTab < 0 \}" :style="\{ '--tab': Math\.max\(activeTab, 0\) \}"/.test(shell6) && /\.tabbar-inner\.no-tab::before \{ opacity: 0; \}/.test(tabCss));
+
+// The sliding bar of a segmented control, run against stand-ins for the buttons and the observers.
+{
+  const { glideSeg } = await import("../src/lib/segGlide.js");
+  const frames = [];
+  const watchers = [];
+  globalThis.requestAnimationFrame = (fn) => frames.push(fn);
+  globalThis.ResizeObserver = class { constructor(fn) { this.fn = fn; watchers.push(this); } observe() {} disconnect() { this.off = true; } };
+  globalThis.MutationObserver = class { constructor(fn) { this.fn = fn; watchers.push(this); } observe() {} disconnect() { this.off = true; } };
+  const vars = {};
+  const classes = new Set();
+  let on = { offsetLeft: 80, offsetTop: 0, offsetWidth: 96, offsetHeight: 40 };
+  const el = { style: { setProperty: (k, v) => { vars[k] = String(v); } }, classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c) }, querySelector: (q) => (q === ".seg-btn.on" ? on : null) };
+  const stop = glideSeg(el);
+  check("the bar is placed on the open button (left, top, width, height) and the control is marked as gliding", vars["--x"] === "80px" && vars["--y"] === "0px" && vars["--w"] === "96" && vars["--h"] === "40" && classes.has("glides"));
+  check("the slide is switched on only two frames later, so the first placement does not move", !classes.has("ready") && frames.length === 1 && (frames.shift()(), frames.length === 1) && !classes.has("ready") && (frames.shift()(), classes.has("ready")));
+  on = { offsetLeft: 200, offsetTop: 44, offsetWidth: 70, offsetHeight: 40 }; // another tab, on a second line
+  watchers.find((w) => w instanceof MutationObserver).fn();
+  check("a changed tab or a wrapped line is measured again, and the new place is handed to the CSS", vars["--x"] === "200px" && vars["--y"] === "44px" && vars["--w"] === "70" && frames.length === 0);
+  stop();
+  check("stopping it lets go of both observers", watchers.length === 2 && watchers.every((w) => w.off));
+  on = null;
+  const quiet = { ...el, querySelector: () => null };
+  check("a control with no open button is left alone", (glideSeg(quiet)(), true));
+}
+const segCss = css.slice(css.indexOf("/* A control that glides"), css.indexOf("@media (prefers-reduced-motion: reduce) {\n  .shutter-flash"));
+check("the gliding bar is one pseudo-element moved and stretched with transform only, under the buttons, and the move is off until the first draw", /\.seg\.glides::before \{[^}]*transform: translate\(var\(--x, 0px\), var\(--y, 0px\)\) scale\(var\(--w, 0\), var\(--h, 0\)\);/.test(segCss) && /\.seg\.glides \.seg-btn \{ position: relative; z-index: 1; \}/.test(segCss) && /\.seg\.glides\.ready::before \{ transition: transform var\(--dur-glide\) var\(--ease-out\); \}/.test(segCss) && !/transition:[^;]*(width|height|left|top)/.test(segCss));
+const live6 = read("src/views/HostLive.vue").replace(/\r\n/g, "\n");
+check("the host event page's tabs use it, and let go of it when the page goes", /import \{ glideSeg \} from "\.\.\/lib\/segGlide"/.test(live6) && /<div :ref="glide" class="seg host-tabs" role="tablist"/.test(live6) && /stopGlide\?\.\(\)/.test(live6));
+check("no entry or public file imports the glide code (it is host-only)", ["src/main.js", "src/App.vue", "src/lib/store.js", "src/lib/api.js", "src/components/AppShell.vue"].every((f) => !/segGlide/.test(read(f))) && PUBLIC.every((n) => !/segGlide/.test(read(`src/views/${n}.vue`))));
+const detailsCss = css.slice(css.indexOf("/* A <details> opens"), css.indexOf("/* A native <dialog>"));
+check("a <details> eases open and closed where the browser can (interpolate-size and ::details-content), closing quicker, and is left alone elsewhere", /@supports \(interpolate-size: allow-keywords\) and selector\(::details-content\) \{/.test(detailsCss) && /details \{ interpolate-size: allow-keywords; \}/.test(detailsCss) && /details::details-content \{[^}]*block-size: 0;[^}]*transition: block-size var\(--dur-out\) var\(--ease-in\), content-visibility var\(--dur-out\) allow-discrete;/.test(detailsCss) && /details\[open\]::details-content \{[^}]*block-size: auto;[^}]*transition: block-size var\(--dur\) var\(--ease-out\), content-visibility var\(--dur\) allow-discrete;/.test(detailsCss) && !/interpolate-size/.test(css.replace(detailsCss, "")));
+check("a message that appears (Saved, Copied) and a button's new label fade in; the label is a keyed span so it is a new element when it changes", /\.success-text, \[role="status"\]:not\(\.visually-hidden\)\) \{ animation: m-fade var\(--dur-fast\)/.test(css) && /\.swap \{ animation: m-fade var\(--dur-fast\)/.test(css) && [["src/components/EventDrops.vue", /<span :key="copied === d\.id" class="swap">/], ["src/components/FeedbackSummary.vue", /<span :key="!!copied" class="swap">/], ["src/components/HostDrops.vue", /<span :key="!!copiedLink" class="swap">/], ["src/views/EditProfile.vue", /<span :key="busy \? 1 : saved \? 2 : 0" class="swap">/]].every(([f, re]) => re.test(read(f))));
+
+// The motion bar for the whole app: only transform and opacity move, nothing is longer than 300 ms, and every
+// duration comes from a token (the skeleton and the camera flash, which F38 and the first release made, are named).
+const ALLOWED = new Set(["opacity", "transform", "visibility", "overlay", "display", "content-visibility", "block-size"]);
+const decls = ALL_CSS.flatMap(([f, t]) => [...t.matchAll(/(?<![-\w])(transition|animation)(-property)?\s*:\s*([^;}]+)/g)].map((m) => [f, m[1], m[3].trim()]));
+const badTransitions = decls.filter(([, kind, v]) => kind === "transition" && v !== "none" && v.split(/,(?![^(]*\))/).some((part) => !ALLOWED.has(part.trim().split(/\s+/)[0])));
+check(`every transition in the app moves only transform or opacity (or flips visibility, display, overlay, content-visibility, or a details panel's block-size) (${decls.filter((d) => d[1] === "transition").length} checked)`, badTransitions.length === 0, badTransitions);
+const NAMED = /sk-|shutter|scan-pop|0\.12s/;
+const longOnes = decls.filter(([, , v]) => !NAMED.test(v)).flatMap(([f, kind, v]) => [...v.replace(/var\([^)]*\)/g, "").matchAll(/(?<![\w.-])(\d*\.?\d+)(ms|s)\b/g)].map((m) => [f, kind, v, ms(m[1] + m[2])]).filter((x) => x[3] > 300));
+check("no animation or transition is written with a time over 300 ms (the tokens are the only long ones, and none is over 300)", longOnes.length === 0, longOnes);
+const literal = decls.filter(([f, , v]) => !NAMED.test(v) && !/^(none|var\()/.test(v) && /(?<![\w.-])\d*\.?\d+(ms|s)\b/.test(v.replace(/var\([^)]*\)/g, "").replace(/\b0s\b/g, "")) && !/main\.css/.test(f));
+check("components write no duration of their own: they use the tokens", literal.length === 0, literal.map((d) => d.join(" ")));
 
 summary();

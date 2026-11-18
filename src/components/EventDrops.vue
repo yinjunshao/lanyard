@@ -113,7 +113,7 @@ const voucherLine = (v) => (v.state === "used" ? `Used${v.voucher.usedAt.length 
           <div v-if="shown[d.id] !== undefined" class="stack-2 drop-open">
             <div :id="'secret-' + d.id" class="secret tnum" data-secret>{{ shown[d.id] }}</div>
             <div class="btn-row">
-              <button type="button" class="btn" @click="copy(d)">{{ copied === d.id ? "Copied" : "Copy" }}</button>
+              <button type="button" class="btn" @click="copy(d)"><span :key="copied === d.id" class="swap">{{ copied === d.id ? "Copied" : "Copy" }}</span></button>
               <button type="button" class="btn" @click="hide(d)">Hide</button>
             </div>
             <p class="small muted" style="margin:0" role="status">{{ copied === d.id ? "Copied. Paste it where you need it." : "Only you can see this. Hide it before you hand your phone to anyone." }}</p>

@@ -37,7 +37,7 @@ needs: [F38]
 - [x] F40.3 ConnectSheet (public, measure bytes), FollowupComposer, PeopleAsk and the global `.sheet` styles: the same enter and exit and swipe.
 - [x] F40.4 EventPreview panel, EventPage dialog, Lightbox, PhotoCropper, TermsGate.
 - [x] F40.5 Waiting to content crossfade, list stagger, in-shell route fade.
-- [ ] F40.6 Tab indicators, EventDetail tab fade, `<details>`, label-swap fades.
+- [x] F40.6 Tab indicators, EventDetail tab fade, `<details>`, label-swap fades.
 - [ ] F40.7 Browser check (375 and 1280 px, light and dark, reduced motion on), acceptance checks, vault: [[Design System]] gets a Motion section with the tokens and rules; decision D045.
 
 ## Acceptance checks

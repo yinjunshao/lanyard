@@ -535,11 +535,22 @@ button.list-row { font: inherit; }
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .tabbar-inner {
+  position: relative;
   max-width: var(--app-w);
   margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
 }
+/* The strap-coloured bar above the open tab. One bar slides between the four equal columns (transform, F40) rather
+   than each tab drawing its own; it fades away on a page that is none of the tabs. --tab is set by AppShell. */
+.tabbar-inner::before {
+  content: "";
+  position: absolute; top: 0; left: 0; width: 25%; height: 3px;
+  background: linear-gradient(var(--strap), var(--strap)) center / 40px 100% no-repeat;
+  transform: translateX(calc(var(--tab, 0) * 100%));
+  transition: transform var(--dur-glide) var(--ease-out), opacity var(--dur-fast) linear;
+}
+.tabbar-inner.no-tab::before { opacity: 0; }
 .tab {
   position: relative;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
@@ -549,13 +560,7 @@ button.list-row { font: inherit; }
   font-size: 11.5px; font-weight: 700;
   letter-spacing: 0.02em;
 }
-.tab::before {
-  content: "";
-  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-  width: 0; height: 3px; background: var(--strap);
-}
 .tab.on { color: var(--ink); }
-.tab.on::before { width: 40px; }
 .tab-glyph { display: flex; position: relative; }
 .tab-dot {
   position: absolute; top: -1px; right: -4px;
@@ -806,6 +811,17 @@ button.list-row { font: inherit; }
 .seg-btn + .seg-btn { border-left: 1px solid var(--ink); }
 .seg-btn.on { background: var(--ink); color: var(--paper); }
 .seg-btn:focus-visible { outline: 2.5px solid var(--strap); outline-offset: -2px; }
+/* A control that glides (F40; lib/segGlide.js measures the open button into --x --y --w --h and adds the classes): the
+   filled bar is one pseudo-element, a 1 px square moved and stretched with transform, under the buttons. Until the
+   script has run, the open button is filled itself. The move is off until the first measurement has been drawn. */
+.seg.glides { position: relative; }
+.seg.glides .seg-btn { position: relative; z-index: 1; }
+.seg.glides .seg-btn.on { background: transparent; }
+.seg.glides::before {
+  content: ""; position: absolute; left: 0; top: 0; width: 1px; height: 1px; background: var(--ink);
+  transform-origin: 0 0; transform: translate(var(--x, 0px), var(--y, 0px)) scale(var(--w, 0), var(--h, 0));
+}
+.seg.glides.ready::before { transition: transform var(--dur-glide) var(--ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
   .shutter-flash { animation: none; opacity: 0; }
@@ -931,7 +947,7 @@ button.list-row { font: inherit; }
    pages show their content at once. A skeleton is made of the same classes, so it fades in too.
    A new page in the signed-in frame fades in quickly (.page-in, added after the first page); the old page is
    not waited for. */
-.in-app :is(.panel, .empty, [role="tabpanel"]) { animation: m-fade var(--dur) var(--ease-out) backwards; }
+.in-app :is(.panel, .empty, .album-grid, .perk-list, [role="tabpanel"]) { animation: m-fade var(--dur) var(--ease-out) backwards; }
 .in-app .list-row:nth-child(-n+6) { animation: m-rise var(--dur-fast) var(--ease-out) calc(var(--i, 0) * var(--stagger)) backwards; }
 .in-app .list-row:nth-child(2) { --i: 1; }
 .in-app .list-row:nth-child(3) { --i: 2; }
@@ -939,6 +955,24 @@ button.list-row { font: inherit; }
 .in-app .list-row:nth-child(5) { --i: 4; }
 .in-app .list-row:nth-child(6) { --i: 5; }
 .page-in { animation: m-fade var(--dur-fast) var(--ease-out); }
+
+/* Small things (F40.6). A message that appears ("Saved", "Copied") fades in quickly, and so does a button's new label
+   (the label is a keyed span, so it is a new element when it changes). */
+:is(.success-text, [role="status"]:not(.visually-hidden)) { animation: m-fade var(--dur-fast) var(--ease-out) backwards; }
+.swap { animation: m-fade var(--dur-fast) var(--ease-out) backwards; }
+/* A <details> opens and closes with a height ease where the browser can (interpolate-size and ::details-content);
+   elsewhere it opens and closes at once, as before. Closing is the quicker one. */
+@supports (interpolate-size: allow-keywords) and selector(::details-content) {
+  details { interpolate-size: allow-keywords; }
+  details::details-content {
+    block-size: 0; overflow: clip;
+    transition: block-size var(--dur-out) var(--ease-in), content-visibility var(--dur-out) allow-discrete;
+  }
+  details[open]::details-content {
+    block-size: auto;
+    transition: block-size var(--dur) var(--ease-out), content-visibility var(--dur) allow-discrete;
+  }
+}
 
 /* A native <dialog> (the list of what the organisers collect, on the check-in page): CSS alone drops it in and fades
    it out, and its dim with it, with no script on that public page. A browser that cannot animate display and overlay

@@ -121,7 +121,7 @@ async function copy() {
           <button class="btn" type="button" :disabled="busy || outOfGoes" @click="write">
             {{ busy ? "Writing…" : s ? "Regenerate" : "Write a summary" }}
           </button>
-          <button v-if="s" class="btn" type="button" @click="copy">{{ copied ? "Copied" : "Copy" }}</button>
+          <button v-if="s" class="btn" type="button" @click="copy"><span :key="!!copied" class="swap">{{ copied ? "Copied" : "Copy" }}</span></button>
         </div>
         <p v-if="left !== null" class="small muted no-print" role="status">
           <template v-if="outOfGoes">No summaries left today. They are back tomorrow.</template>

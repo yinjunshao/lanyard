@@ -21,10 +21,14 @@ import { THEME_OPTIONS, detailsBody, eventFromBody } from "../lib/eventform";
 import { defaultEnd } from "../lib/dates";
 import { cleanWhy, whyProblem } from "../lib/collects";
 import { useBusy } from "../components/Waiting.vue";
+import { glideSeg } from "../lib/segGlide";
 
 const route = useRoute();
 const id = computed(() => route.params.id);
 const tab = ref("live");
+// F40: the filled bar under the open tab glides to the next one (the control appears once the event has loaded).
+let stopGlide = null;
+const glide = (el) => { stopGlide?.(); stopGlide = el ? glideSeg(el) : null; };
 const live = ref(null);
 const report = ref(null);
 const reportLoading = ref(false);
@@ -53,7 +57,7 @@ async function load() {
     else error.value = e.message;
   }
 }
-onBeforeUnmount(() => clearInterval(timer));
+onBeforeUnmount(() => { clearInterval(timer); stopGlide?.(); });
 
 async function refresh() {
   if (document.hidden || tab.value !== "live") return; // don't poll a hidden tab
@@ -230,7 +234,7 @@ async function copyFeedbackLink() {
         </p>
       </div>
 
-      <div class="seg host-tabs" role="tablist" aria-label="Event">
+      <div :ref="glide" class="seg host-tabs" role="tablist" aria-label="Event">
         <button v-for="t in [['live','Live'],['details','Details'],['drops','Drops'],['feedback','Feedback'],['report','Report']]" :key="t[0]"
                 type="button" role="tab" class="seg-btn" :class="{ on: tab === t[0] }" :aria-selected="tab === t[0]"
                 @click="show(t[0])">{{ t[1] }}</button>

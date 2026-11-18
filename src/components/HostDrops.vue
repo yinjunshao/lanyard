@@ -201,7 +201,7 @@ const when = (ms) => new Date(ms).toLocaleString("en-GB", { day: "numeric", mont
             <span class="label">Scanner link for {{ d.title }}</span>
             <input class="link-url" :value="linkShown.url" readonly aria-label="Scanner link" @focus="$event.target.select()" />
             <div class="btn-row wrap">
-              <button type="button" class="btn btn-primary" @click="copyLink">{{ copiedLink ? "Copied" : "Copy link" }}</button>
+              <button type="button" class="btn btn-primary" @click="copyLink"><span :key="!!copiedLink" class="swap">{{ copiedLink ? "Copied" : "Copy link" }}</span></button>
               <button v-if="canShare" type="button" class="btn" @click="shareLink">Share</button>
               <a class="btn" :href="linkShown.url" target="_blank" rel="noopener">Open scanner</a>
             </div>

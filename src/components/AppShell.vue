@@ -28,6 +28,9 @@ const tabs = [
   { to: "/app/events", key: "events", label: "Events", paths: TICKET, match: (p) => p.startsWith("/app/events") },
 ];
 
+// F40: one strap-coloured bar slides between the tabs (CSS, from this number) instead of each tab's own bar jumping.
+const activeTab = computed(() => tabs.findIndex((t) => t.match(r.path)));
+
 // The tab's title for each signed-in page (F37). Here and not in the router tables: those load on every
 // public page, and this frame loads on none of them. A page that knows more (a card, an event) sets its own.
 const TITLES = [["/app/cards", "Your cards"], ["/app/profile", "Edit profile"], ["/app/scan", "Scan"], ["/app/people", "People"],
@@ -64,7 +67,7 @@ watch(
   </main>
 
   <nav v-if="showChrome" class="tabbar" aria-label="Primary">
-    <div class="tabbar-inner">
+    <div class="tabbar-inner" :class="{ 'no-tab': activeTab < 0 }" :style="{ '--tab': Math.max(activeTab, 0) }">
       <router-link
         v-for="t in tabs"
         :key="t.key"

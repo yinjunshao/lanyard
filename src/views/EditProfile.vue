@@ -199,7 +199,7 @@ async function save() {
     <div class="thumb-bar" style="bottom:calc(64px + env(safe-area-inset-bottom, 0px));z-index:70">
       <div class="inner">
         <button class="btn btn-primary" :disabled="busy" @click="save">
-          {{ busy ? "Saving…" : saved ? "Saved ✓" : "Save changes" }}
+          <span :key="busy ? 1 : saved ? 2 : 0" class="swap">{{ busy ? "Saving…" : saved ? "Saved ✓" : "Save changes" }}</span>
         </button>
       </div>
     </div>
