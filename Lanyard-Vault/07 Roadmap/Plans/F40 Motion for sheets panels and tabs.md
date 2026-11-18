@@ -54,7 +54,7 @@ needs: [F38]
 - [x] With reduced motion on, no sheet slides; things fade in under 150 ms.
   - Verified by applying the declarations of the real `prefers-reduced-motion: reduce` block to the page, as F38 did: the picker sheet's keyframes become `translateY(0px)` with opacity 0 to 1 over 120 ms (a fade, no slide), and every duration token is 80 to 120 ms. I did not set the operating system's option.
 - [x] `npm test` passes, including the public-page budget, with before and after numbers in the Log.
-  - Budget, first-load gzip bytes, limit 51,200, clean checkouts (before: HEAD be0ef62; after: F40.7 at 0019088): Landing 45,196 to 45,261, PublicCard 51,066 to 48,767, Hosts 43,645 to 43,705, Privacy 50,369 to 50,430, Terms 47,897 to 47,958, Redeem 47,069 to 47,128, SignIn 48,264 to 48,326, PrivacyRequest 50,664 to 51,085 (115 B left). About 60 B on every page is the Lightbox now staying in the page; PrivacyRequest also carries UiSheet's exit.
+  - Budget, first-load gzip bytes, limit 51,200, clean checkouts (before: HEAD be0ef62; after: bc1cfee, the last commit; builds move by up to 15 B): Landing 45,196 to 45,270, PublicCard 51,066 to 48,778, Hosts 43,645 to 43,713, Privacy 50,369 to 50,438, Terms 47,897 to 47,967, Redeem 47,069 to 47,137, SignIn 48,264 to 48,335, PrivacyRequest 50,664 to 51,095 (105 B left). `npm test` exits 0 in a clean worktree of that commit. About 60 B on every page is the Lightbox now staying in the page; PrivacyRequest also carries UiSheet's exit.
 
 ## Log
 - 2026-11-18 (Claude subagent): All seven tasks built and committed: 0e056d7 F40.1 tokens and the reduced-motion block, a963f0c F40.2 UiSheet and swipe, 8ca849c F40.3 the connect, follow-up and People sheets, 7f5b58d F40.4 preview panel, dialogs, Lightbox, cropper, Terms pop-up, 08e2f69 F40.5 content arriving and page fade, fb0df07 F40.6 tab indicators, details and label swaps, 10a1595 and 0019088 F40.7 two fixes the browser check found, and this note. All seven acceptance checks are ticked, each with how it was checked. No migration, no Worker change, no new secret. [[D045 Motion is CSS tokens and a few lines of script, never a library or Vue Transition]].
@@ -70,7 +70,7 @@ needs: [F38]
 ### Owner steps
 - Review the F40 commits, `git push`, `npm run deploy`. No migration, no secret.
 - Try it on a real phone: open and close a picker, the connect sheet on a scanned card and People search; drag a sheet by its handle and by its top; scroll a long list inside a sheet (it must not close); then turn on reduced motion in the phone's accessibility settings and try again: things should fade instead of slide. Look at the host event page's tabs, the Create event preview panel and an event's check-in page (the "What this event collects" dialog) once.
-- The privacy request page loads `UiSheet` and now has about 115 B left of its 51,200 B; the next change that touches it should look at that first.
+- The privacy request page loads `UiSheet` and now has about 105 B left of its 51,200 B; the next change that touches it should look at that first.
 
 > [!question] The card page now fetches the connect sheet after the page loads (in parallel with the card) instead of importing it. The sheet appears when both are ready, as before in practice, but it is one more request on a very slow connection. Is that acceptable? The alternative is to import it again and give up swipe on that sheet, which leaves about 70 B on the card page.
 
