@@ -65,7 +65,7 @@ console.log("\n# Local stub mode is refused anywhere that is not local");
   const prod = read("wrangler.production.toml");
   const live = prod.replace(/^\s*#.*$/gm, "");
   check("production config never sets AI_STUB", !/AI_STUB/.test(live));
-  check("production config has AI_ENABLED off", /^AI_ENABLED\s*=\s*"0"/m.test(live));
+  check("production config has AI_ENABLED on (the owner switched it on, with the key set as a secret)", /^AI_ENABLED\s*=\s*"1"/m.test(live));
   check("production config holds no key and no price (the owner sets both)", !/OPENROUTER_API_KEY|AI_PRICE_|sk-ant/.test(live));
   const localToml = read("wrangler.toml").replace(/^\s*#.*$/gm, "");
   const localOrigin = /^APP_ORIGIN\s*=\s*"([^"]+)"/m.exec(localToml)[1];
