@@ -58,4 +58,9 @@ for (const [n, needles] of Object.entries(where)) check(`${n} holds ${needles.le
 check("the email switches are in EmailPreferences", ["Api.setEventEmails", "Api.setMarketing"].every((x) => read("src/components/EmailPreferences.vue").includes(x)));
 check("the devices sheet uses UiSheet as the last child of its root", /<UiSheet[\s\S]*<\/UiSheet>\s*<\/div>\s*<\/template>\s*<style/.test(read("src/components/DevicesSheet.vue")));
 
+// The list and a page never share the screen: every width shows the list, or one page with the room it needs.
+const css = layout.slice(layout.indexOf("<style>"));
+check("Settings is one list or one page at every width: no two-column grid", !/grid-template-columns/.test(css) && /\.settings:not\(\.is-index\) \.settings-nav \{ display: none; \}/.test(css) && /\.settings\.is-index \.settings-pane \{ display: none; \}/.test(css));
+check("the wider column matches Settings anywhere below it (the page-fade wrapper sits in between)", /\.app-col:has\(\.settings\)/.test(css) && !/:has\(> \.settings\)/.test(css));
+
 summary();

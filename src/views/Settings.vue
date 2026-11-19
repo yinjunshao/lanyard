@@ -1,7 +1,7 @@
 <script setup>
-// Settings: a short list of categories, each on its own page (F09). Phones show the
-// list, then one page with a back link; from 900 px the list stays on the left and
-// the page shows on the right. Later features add rows inside the pages, not here.
+// Settings: a short list of categories, each on its own page (F09). At every screen size
+// it shows the list, then one page with a back link (no side-by-side split, so a page has
+// the whole width). Later features add rows inside the pages, not here.
 //
 // One route (/app/settings/:page?) serves the list and every page. The pages are
 // loaded here, not in the router, so they add nothing to the entry file that every
@@ -99,7 +99,6 @@ async function logout() {
       </template>
       <component :is="Page" v-if="Page" />
       <Waiting v-else-if="!isIndex" shape="panel" :rows="2" label="Loading this page" :retry="() => loadPage(key)" />
-      <p v-else-if="isIndex" class="muted settings-pick">Choose a setting from the list.</p>
     </section>
   </div>
 </template>
@@ -119,19 +118,13 @@ button.settings-row { border: 0; color: inherit; }
 .settings-back { min-height: 44px; display: inline-flex; align-items: center; text-align: left; }
 .settings-title { font-size: 26px; margin: 0 0 calc(var(--space) * 2); }
 .settings-pane > * + * { margin-top: 0; }
-.settings-pick { display: none; }
 
-/* Phones: the list, or one page. */
-@media (max-width: 899px) {
-  .settings:not(.is-index) .settings-nav { display: none; }
-  .settings.is-index .settings-pane { display: none; }
-}
-/* From 900 px: the list on the left, the page on the right. */
+/* Every size: the list, or one page on its own (never both side by side, so a page has the room it needs). */
+.settings:not(.is-index) .settings-nav { display: none; }
+.settings.is-index .settings-pane { display: none; }
+/* Wider screens get a roomier single column for the list and for every page. */
 @media (min-width: 900px) {
-  .app-col:has(> .settings), .topbar:has(+ .app-col > .settings) { max-width: 960px; }
-  .settings { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: calc(var(--space) * 5); align-items: start; }
-  .settings-nav { position: sticky; top: 90px; }
-  .settings-back { display: none; }
-  .settings-pick { display: block; }
+  .app-col:has(.settings), .topbar:has(+ .app-col .settings) { max-width: 760px; } /* a descendant match: the page-fade wrapper sits between them */
+  .settings-title { font-size: 30px; }
 }
 </style>
