@@ -9,6 +9,7 @@ import AccountBanner from "./AccountBanner.vue";
 import { SessionLost } from "../lib/errors"; // F39: also sets plain words for failed requests
 import TermsGate from "./TermsGate.vue";
 import { live, refreshLive } from "../lib/eventlive";
+import { makeGlideCalm } from "../lib/glideCalm.js";
 
 const r = useRoute();
 const showChrome = computed(() => r.meta.app && me.profile);
@@ -30,6 +31,11 @@ const tabs = [
 
 // F40: one strap-coloured bar slides between the tabs (CSS, from this number) instead of each tab's own bar jumping.
 const activeTab = computed(() => tabs.findIndex((t) => t.match(r.path)));
+// F42: the bar's slide is elastic, and a tap while it is still moving (or a third within about 600 ms) jumps it instead
+// (lib/glideCalm.js). The class is set on the same change as the new tab, so the browser never animates a jump.
+const jumpNow = makeGlideCalm();
+const jump = ref(false);
+watch(activeTab, () => { jump.value = jumpNow(); });
 
 // The tab's title for each signed-in page (F37). Here and not in the router tables: those load on every
 // public page, and this frame loads on none of them. A page that knows more (a card, an event) sets its own.
@@ -67,7 +73,7 @@ watch(
   </main>
 
   <nav v-if="showChrome" class="tabbar" aria-label="Primary">
-    <div class="tabbar-inner" :class="{ 'no-tab': activeTab < 0 }" :style="{ '--tab': Math.max(activeTab, 0) }">
+    <div class="tabbar-inner" :class="{ 'no-tab': activeTab < 0, jump }" :style="{ '--tab': Math.max(activeTab, 0) }">
       <router-link
         v-for="t in tabs"
         :key="t.key"

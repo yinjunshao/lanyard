@@ -363,7 +363,7 @@ check("the check-in page gained no script for it (still showModal() and close() 
 
 console.log("\n# F40.5 Content arriving: panels, list rows and new pages");
 const arriveCss = css.slice(css.indexOf("/* Content that has just loaded"), css.indexOf("/* A native <dialog>"));
-check("the glide and stagger tokens exist, and both are 0 under reduced motion (a tab indicator jumps, rows arrive together)", token("dur-glide") === "200ms" && token("stagger") === "30ms" && /--dur-glide:\s*0ms/.test(rr) && /--stagger:\s*0ms/.test(rr));
+check("the elastic and stagger tokens exist, and both are 0 under reduced motion (a tab indicator jumps, rows arrive together)", token("dur-elastic") === "420ms" && token("stagger") === "30ms" && /--dur-elastic:\s*0ms/.test(rr) && /--stagger:\s*0ms/.test(rr));
 check("panels, empty notes and tab panels fade in as they arrive", /\.in-app :is\(\.panel, \.empty, \.album-grid, \.perk-list, \[role="tabpanel"\]\) \{ animation: m-fade var\(--dur\) var\(--ease-out\) backwards; \}/.test(arriveCss));
 check("the first six rows of a list rise in 30 ms apart (the token), and the seventh onward do not move", /\.in-app \.list-row:nth-child\(-n\+6\) \{ animation: m-rise var\(--dur-fast\) var\(--ease-out\) calc\(var\(--i, 0\) \* var\(--stagger\)\) backwards; \}/.test(arriveCss) && [2, 3, 4, 5, 6].every((n) => new RegExp(`\\.in-app \\.list-row:nth-child\\(${n}\\) \\{ --i: ${n - 1}; \\}`).test(arriveCss)) && !/nth-child\((7|8|9)\)/.test(arriveCss));
 check("the whole stagger takes no more than 300 ms (5 gaps plus one row's rise)", 5 * ms(token("stagger")) + ms(token("dur-fast")) <= 300);
@@ -377,8 +377,8 @@ check("no Vue <Transition>, <TransitionGroup>, mode=\"out-in\" or animation libr
 console.log("\n# F40.6 Tab indicators, details, small label swaps, and the whole app's motion rules");
 const shell6 = read("src/components/AppShell.vue").replace(/\r\n/g, "\n");
 const tabCss = css.slice(css.indexOf("/* ---------- Bottom tab bar"), css.indexOf("/* ---------- Landing"));
-check("the tab bar has one indicator that slides between the four columns with transform, not a bar per tab", /\.tabbar-inner::before \{[^}]*transform: translateX\(calc\(var\(--tab, 0\) \* 100%\)\);[^}]*transition: transform var\(--dur-glide\) var\(--ease-out\)/.test(tabCss) && !/\.tab(\.on)?::before/.test(tabCss) && !/transition:[^;]*(width|left|margin)/.test(tabCss));
-check("AppShell hands the open tab's number to it, and hides it on a page that is none of the tabs", /const activeTab = computed\(\(\) => tabs\.findIndex\(\(t\) => t\.match\(r\.path\)\)\)/.test(shell6) && /:class="\{ 'no-tab': activeTab < 0 \}" :style="\{ '--tab': Math\.max\(activeTab, 0\) \}"/.test(shell6) && /\.tabbar-inner\.no-tab::before \{ opacity: 0; \}/.test(tabCss));
+check("the tab bar has one indicator that slides between the four columns with transform, not a bar per tab", /\.tabbar-inner::before \{[^}]*transform: translateX\(calc\(var\(--tab, 0\) \* 100%\)\);[^}]*transition: transform var\(--dur-elastic\) var\(--ease-spring\)/.test(tabCss) && !/\.tab(\.on)?::before/.test(tabCss) && !/transition:[^;]*(width|left|margin)/.test(tabCss));
+check("AppShell hands the open tab's number to it, and hides it on a page that is none of the tabs", /const activeTab = computed\(\(\) => tabs\.findIndex\(\(t\) => t\.match\(r\.path\)\)\)/.test(shell6) && /:class="\{ 'no-tab': activeTab < 0, jump \}" :style="\{ '--tab': Math\.max\(activeTab, 0\) \}"/.test(shell6) && /\.tabbar-inner\.no-tab::before \{ opacity: 0; \}/.test(tabCss));
 
 // The sliding bar of a segmented control, run against stand-ins for the buttons and the observers.
 {
@@ -391,13 +391,21 @@ check("AppShell hands the open tab's number to it, and hides it on a page that i
   const vars = {};
   const classes = new Set();
   let on = { offsetLeft: 80, offsetTop: 0, offsetWidth: 96, offsetHeight: 40 };
-  const el = { style: { setProperty: (k, v) => { vars[k] = String(v); } }, classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c) }, querySelector: (q) => (q === ".seg-btn.on" ? on : null) };
+  const el = { style: { setProperty: (k, v) => { vars[k] = String(v); } }, classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c), toggle: (c, force) => { const yes = force ?? !classes.has(c); if (yes) classes.add(c); else classes.delete(c); return yes; } }, querySelector: (q) => (q === ".seg-btn.on" ? on : null) };
   const stop = glideSeg(el);
   check("the bar is placed on the open button (left, top, width, height) and the control is marked as gliding", vars["--x"] === "80px" && vars["--y"] === "0px" && vars["--w"] === "96" && vars["--h"] === "40" && classes.has("glides"));
   check("the slide is switched on only two frames later, so the first placement does not move", !classes.has("ready") && frames.length === 1 && (frames.shift()(), frames.length === 1) && !classes.has("ready") && (frames.shift()(), classes.has("ready")));
   on = { offsetLeft: 200, offsetTop: 44, offsetWidth: 70, offsetHeight: 40 }; // another tab, on a second line
   watchers.find((w) => w instanceof MutationObserver).fn();
   check("a changed tab or a wrapped line is measured again, and the new place is handed to the CSS", vars["--x"] === "200px" && vars["--y"] === "44px" && vars["--w"] === "70" && frames.length === 0);
+  // F42: a tap while the bar is still moving is given the jump class; a calm tap, long after, takes the spring again.
+  on = { offsetLeft: 10, offsetTop: 0, offsetWidth: 50, offsetHeight: 40 };
+  watchers.find((w) => w instanceof MutationObserver).fn();
+  check("a tap while the bar is still moving gets the jump class (no slide)", classes.has("jump") && vars["--x"] === "10px");
+  await new Promise((done) => setTimeout(done, 650));
+  on = { offsetLeft: 100, offsetTop: 0, offsetWidth: 50, offsetHeight: 40 };
+  watchers.find((w) => w instanceof MutationObserver).fn();
+  check("a calm tap, after the bar has come to rest, takes the spring again (the jump class is cleared)", !classes.has("jump") && vars["--x"] === "100px");
   stop();
   check("stopping it lets go of both observers", watchers.length === 2 && watchers.every((w) => w.off));
   on = null;
@@ -405,7 +413,7 @@ check("AppShell hands the open tab's number to it, and hides it on a page that i
   check("a control with no open button is left alone", (glideSeg(quiet)(), true));
 }
 const segCss = css.slice(css.indexOf("/* A control that glides"), css.indexOf("@media (prefers-reduced-motion: reduce) {\n  .shutter-flash"));
-check("the gliding bar is one pseudo-element moved and stretched with transform only, under the buttons, and the move is off until the first draw", /\.seg\.glides::before \{[^}]*transform: translate\(var\(--x, 0px\), var\(--y, 0px\)\) scale\(var\(--w, 0\), var\(--h, 0\)\);/.test(segCss) && /\.seg\.glides \.seg-btn \{ position: relative; z-index: 1; \}/.test(segCss) && /\.seg\.glides\.ready::before \{ transition: transform var\(--dur-glide\) var\(--ease-out\); \}/.test(segCss) && !/transition:[^;]*(width|height|left|top)/.test(segCss));
+check("the gliding bar is one pseudo-element moved and stretched with transform only, under the buttons, and the move is off until the first draw", /\.seg\.glides::before \{[^}]*transform: translate\(var\(--x, 0px\), var\(--y, 0px\)\) scale\(var\(--w, 0\), var\(--h, 0\)\);/.test(segCss) && /\.seg\.glides \.seg-btn \{ position: relative; z-index: 1; \}/.test(segCss) && /\.seg\.glides\.ready::before \{ transition: transform var\(--dur-elastic\) var\(--ease-spring\); \}/.test(segCss) && !/transition:[^;]*(width|height|left|top)/.test(segCss));
 const live6 = read("src/views/HostLive.vue").replace(/\r\n/g, "\n");
 check("the host event page's tabs use it, and let go of it when the page goes", /import \{ glideSeg \} from "\.\.\/lib\/segGlide"/.test(live6) && /<div :ref="glide" class="seg host-tabs" role="tablist"/.test(live6) && /stopGlide\?\.\(\)/.test(live6));
 check("no entry or public file imports the glide code (it is host-only)", ["src/main.js", "src/App.vue", "src/lib/store.js", "src/lib/api.js", "src/components/AppShell.vue"].every((f) => !/segGlide/.test(read(f))) && PUBLIC.every((n) => !/segGlide/.test(read(`src/views/${n}.vue`))));
@@ -450,6 +458,34 @@ check("UiSheet shows what it showed last while it leaves, because a parent clear
   check("a dialog with no swipe (root null, or a ref with no element yet) starts nothing and does not throw", (await attachSwipe(null, () => {})) === null && (await attachSwipe({ value: null }, () => {})) === null);
   const m = read("src/lib/sheetMotion.js");
   check("every user of useSheetExit gives it a ref or null (the cropper gives null)", !/useSheetExit\(emit, (?!root|null)/.test([...SHEETS, "src/components/PhotoCropper.vue"].map(read).join("\n")) && /root\?\.value/.test(m));
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// F42: elastic slides for tabs and notches. One named exception to F40's 300 ms rule: the elastic token (420 ms, never
+// over 450 ms), used only by the two sliding bars. The spam skip is lib/glideCalm.js, run here against stand-ins.
+// ---------------------------------------------------------------------------------------------------------
+console.log("\n# F42.1 The elastic token, the spring, the spam skip");
+const elastic = token("dur-elastic");
+check("the elastic token is the one named exception: 420 ms, over 300 ms but never over 450 ms", ms(elastic) === 420 && ms(elastic) <= 450, elastic);
+check("under reduced motion the elastic token is 0 (a bar jumps), inside the one reduced-motion block", /--dur-elastic:\s*0ms/.test(rr) && reduceRoot.length === 1);
+check("the old --dur-glide token is gone, so nothing slides with the 200 ms ease-out any more", !/dur-glide/.test(ALL_CSS.map(([, t]) => t).join("\n")) && !/dur-glide/.test(read("src/lib/segGlide.js")));
+const spring = token("ease-spring") || "";
+const springPts = spring.startsWith("linear(") ? spring.slice(7, -1).split(",").map((s) => parseFloat(s)) : [];
+const overshoot = Math.max(...springPts) - 1;
+check("the spring is a linear() curve with 6 to 8% overshoot, starting at 0 and ending at 1 (one settle)", springPts.length > 10 && overshoot >= 0.06 && overshoot <= 0.08 && springPts[0] === 0 && springPts[springPts.length - 1] === 1, springPts.length + " points, overshoot " + (overshoot * 100).toFixed(1) + "%");
+check("a cubic-bezier with a small overshoot is the fallback where linear() is not supported", /@supports not \(transition-timing-function: linear\(0, 1\)\) \{\s*:root \{ --ease-spring: cubic-bezier\(0\.34, 1\.4, 0\.64, 1\); \}/.test(css));
+const elasticUses = ALL_CSS.flatMap(([f, t]) => [...t.matchAll(/var\(--dur-elastic\)/g)].map(() => f));
+check("the elastic token is used by the two sliding bars only (the tab bar and a gliding control), in main.css", elasticUses.length === 2 && elasticUses.every((f) => f.endsWith("main.css")), elasticUses.length + " uses");
+check("a jump has transition none on each bar, placed after the spring rule so it wins", /\.tabbar-inner\.jump::before \{ transition: none; \}/.test(css) && css.indexOf(".tabbar-inner.jump::before") > css.indexOf(".tabbar-inner::before {") && /\.seg\.glides\.jump::before \{ transition: none; \}/.test(css) && css.indexOf(".seg.glides.jump::before") > css.indexOf(".seg.glides.ready::before"));
+check("AppShell sets the tab bar's jump class on the same change as the new tab, from the helper", /import \{ makeGlideCalm \} from "\.\.\/lib\/glideCalm\.js"/.test(shell6) && /watch\(activeTab, \(\) => \{ jump\.value = jumpNow\(\); \}\);/.test(shell6) && /:class="\{ 'no-tab': activeTab < 0, jump \}"/.test(shell6));
+check("the helper's spring time is the elastic token", /const SPRING_MS = 420;/.test(read("src/lib/glideCalm.js")) && ms(elastic) === 420);
+{
+  const { makeGlideCalm } = await import("../src/lib/glideCalm.js");
+  const seq = (times) => { const f = makeGlideCalm(); return times.map((t) => f(t)).join(","); };
+  check("a calm tap (nothing moving, one tap in 600 ms) takes the spring", seq([0, 1000, 2000]) === "false,false,false", seq([0, 1000, 2000]));
+  check("a tap while the bar is still moving (within the 420 ms spring) jumps", seq([0, 300]) === "false,true", seq([0, 300]));
+  check("a third tap within about 600 ms jumps", seq([0, 450, 520]) === "false,false,true", seq([0, 450, 520]));
+  check("after a jump, the next calm tap takes the spring again (nothing queued)", seq([0, 450, 520, 1200]) === "false,false,true,false", seq([0, 450, 520, 1200]));
 }
 
 summary();

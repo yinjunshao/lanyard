@@ -4,7 +4,7 @@ id: F42
 priority: P1
 phase: 8
 size: S
-status: Not started
+status: In progress
 needs: [F40]
 ---
 # F42 Elastic slides for tabs and notches
@@ -27,7 +27,7 @@ needs: [F40]
 5. F40's motion rules hold, with one named exception: the elastic token may run up to 450 ms. Update the F40 guard in `test/loading.mjs` for that one exception without weakening the rest.
 
 ## Tasks
-- [ ] F42.1 The elastic token, the tab bar bar with the spam skip, guards in `test/loading.mjs`.
+- [x] F42.1 The elastic token, the tab bar bar with the spam skip, guards in `test/loading.mjs`.
 - [ ] F42.2 Every other sliding notch (survey listed in the Log), browser check at 375 and 1280 px, light and dark, reduced motion; [[Design System]] Motion section and D045 updated (or D046 if it is a new decision).
 
 ## Acceptance checks
