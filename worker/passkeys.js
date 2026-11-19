@@ -141,7 +141,59 @@ export async function loginVerify(c, db, body) {
 
   await run(db, "UPDATE webauthn_credentials SET counter = ? WHERE id = ?",
     verification.authenticationInfo.newCounter, record.id);
+  // F43: when this passkey was last used. Kept apart from the counter write, and allowed to fail,
+  // so signing in never depends on the 0035 migration having been applied first.
+  await run(db, "UPDATE webauthn_credentials SET last_used_at = ? WHERE id = ?", now(), record.id).catch(() => {});
   await createSession(c, db, record.user_id);
   await notifySignIn(c, db, record.user_id, "passkey");
   return { userId: record.user_id };
+}
+
+/* ---------------------- manage passkeys (F43) ---------------------- */
+
+// Names are plain text: no control or zero-width characters, no angle brackets, 1 to 40 characters.
+const NAME_MAX = 40;
+export function cleanName(raw) {
+  if (typeof raw !== "string" || raw.length > 400) return null;
+  const s = raw
+    .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u2028-\u202f\u205f-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0<>]/g, "")
+    .replace(/\s+/g, " ").trim();
+  const n = [...s].length;
+  return n >= 1 && n <= NAME_MAX ? s : null;
+}
+
+// Only the signed-in person's own rows. Never the public key, counter or credential id.
+export async function listPasskeys(c, db) {
+  const user = requireUser(c);
+  const rows = await all(db,
+    "SELECT id, name, created_at, last_used_at FROM webauthn_credentials WHERE user_id = ? ORDER BY created_at, id", user.id);
+  return { passkeys: rows.map((r) => ({ id: r.id, name: r.name || null, addedAt: r.created_at, lastUsedAt: r.last_used_at || null })) };
+}
+
+export async function renamePasskey(c, db, id, body) {
+  const user = requireUser(c);
+  const name = cleanName(body?.name);
+  if (!name) throw new HttpError(400, `Give it a name of 1 to ${NAME_MAX} characters.`, "bad_name");
+  const r = await run(db, "UPDATE webauthn_credentials SET name = ? WHERE id = ? AND user_id = ?", name, String(id), user.id);
+  if (!r.meta?.changes) throw new HttpError(404, "We couldn't find that passkey.", "not_found");
+  return { ok: true, name };
+}
+
+// One conditional DELETE decides it, so two requests racing to remove a person's last two
+// passkeys cannot both pass: the second sees no other sign-in method left and removes nothing.
+// A way back in is another passkey, a verified email, a recovery key or an authenticator app.
+export async function removePasskey(c, db, id) {
+  const user = requireUser(c);
+  const [del] = await db.batch([
+    db.prepare(
+      `DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ? AND (
+         EXISTS (SELECT 1 FROM webauthn_credentials o WHERE o.user_id = ? AND o.id != ?)
+         OR EXISTS (SELECT 1 FROM users u WHERE u.id = ? AND (u.email_verified = 1 OR u.has_recovery = 1 OR u.has_totp = 1)))`
+    ).bind(String(id), user.id, user.id, String(id), user.id),
+    db.prepare("UPDATE users SET has_passkey = EXISTS (SELECT 1 FROM webauthn_credentials WHERE user_id = ?) WHERE id = ?").bind(user.id, user.id),
+  ]);
+  if (del.meta?.changes) return { ok: true };
+  const there = await one(db, "SELECT id FROM webauthn_credentials WHERE id = ? AND user_id = ?", String(id), user.id);
+  if (!there) throw new HttpError(404, "We couldn't find that passkey.", "not_found");
+  throw new HttpError(409, "This passkey is your only way to sign in. Add another way first (an email, a recovery key or an authenticator app, or another passkey), then remove it.", "last_method");
 }

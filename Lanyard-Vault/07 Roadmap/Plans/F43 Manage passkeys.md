@@ -4,7 +4,7 @@ id: F43
 priority: P1
 phase: 8
 size: M
-status: Not started
+status: In progress
 needs: []
 ---
 # F43 Manage passkeys
@@ -28,7 +28,7 @@ needs: []
 6. Audit and data: a removed passkey row is deleted (not soft-deleted); the data export lists passkeys by name and dates; [[Privacy and Data Retention]] updated if needed.
 
 ## Tasks
-- [ ] F43.1 Worker: list, rename, remove with the last-sign-in-method rule, `last_used_at` set on login if the column does not exist yet (new additive migration, next free number), tests in a new `test/passkeys-manage.mjs` wired into `npm test` before `test/budget.mjs`.
+- [x] F43.1 Worker: list, rename, remove with the last-sign-in-method rule, `last_used_at` set on login if the column does not exist yet (new additive migration, next free number), tests in a new `test/passkeys-manage.mjs` wired into `npm test` before `test/budget.mjs`.
 - [ ] F43.2 Settings > Security list, rename, remove confirm, "Add a passkey on this device" always on, the already-saved message; browser check; vault ([[API Surface]], [[Data Model]], [[Security]]).
 
 ## Acceptance checks

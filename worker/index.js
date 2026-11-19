@@ -73,7 +73,8 @@ const withSession = sessionMiddleware("DB");
 const withSessionNoGuest = sessionMiddleware("DB", { guests: false });
 const isDropRoute = (path) => /^\/api\/e\/[^/]+\/drops(\/|$)/.test(path);
 // F36: card payments never mint a guest (signed out is a 401), and the provider's webhooks get no session at all.
-const noGuest = (path) => isDropRoute(path) || path.startsWith("/api/billing/");
+// F43: managing passkeys is for a signed-in person; signed out is a 401, not a new guest and a 404.
+const noGuest = (path) => isDropRoute(path) || path.startsWith("/api/billing/") || path.startsWith("/api/passkeys");
 app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/webhooks/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/privacy-request" ? next() : (noGuest(c.req.path) ? withSessionNoGuest : withSession)(c, next)));
 app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
 
@@ -404,6 +405,12 @@ app.post("/api/passkey/register/verify", async (c) => {
   await Passkeys.registerVerify(c, c.env.DB, body);
   return c.json({ ok: true });
 });
+app.get("/api/passkeys", (c) => Passkeys.listPasskeys(c, c.env.DB).then((r) => c.json(r)));
+app.patch("/api/passkeys/:id", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return c.json(await Passkeys.renamePasskey(c, c.env.DB, c.req.param("id"), body));
+});
+app.delete("/api/passkeys/:id", async (c) => c.json(await Passkeys.removePasskey(c, c.env.DB, c.req.param("id"))));
 app.get("/api/passkey/login/options", async (c) =>
   c.json(await Passkeys.loginOptions(c, c.env.DB)));
 app.post("/api/passkey/login/verify", async (c) => {
@@ -468,7 +475,9 @@ app.get("/api/account/export", async (c) => {
     q("SELECT event_id, answers, sponsor, created_at FROM checkins WHERE user_id = ?", u.id),
     q("SELECT target_id, reason, created_at FROM reports WHERE reporter_id = ?", u.id).catch(() => []),
     q("SELECT blocked_id, created_at FROM blocks WHERE blocker_id = ?", u.id).catch(() => []),
-    q("SELECT id, created_at FROM webauthn_credentials WHERE user_id = ?", u.id).catch(() => []),
+    // F43: passkeys by name and dates only (never the keys); the older shape if 0035 is not applied yet.
+    q("SELECT name, created_at, last_used_at FROM webauthn_credentials WHERE user_id = ? ORDER BY created_at", u.id)
+      .catch(() => q("SELECT created_at FROM webauthn_credentials WHERE user_id = ?", u.id)).catch(() => []),
   ]);
   const feedbackGiven = await q("SELECT event_id FROM feedback_done WHERE user_id = ?", u.id).catch(() => []);
   const promoCodes = await q("SELECT code, position, granted, created_at FROM promo_claims WHERE user_id = ?", u.id).catch(() => []);
