@@ -14,7 +14,7 @@ import {
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { newId, newToken, now, one, run, all } from "./db.js";
 import { createSession, requireUser, HttpError } from "./session.js";
-import { notifySignIn } from "./alerts.js";
+import { notifySignIn, notifyPasskeyRemoved } from "./alerts.js";
 
 const CHALLENGE_COOKIE = "lanyard_ch";
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -184,6 +184,7 @@ export async function renamePasskey(c, db, id, body) {
 // A way back in is another passkey, a verified email, a recovery key or an authenticator app.
 export async function removePasskey(c, db, id) {
   const user = requireUser(c);
+  const before = await one(db, "SELECT name FROM webauthn_credentials WHERE id = ? AND user_id = ?", String(id), user.id);
   const [del] = await db.batch([
     db.prepare(
       `DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ? AND (
@@ -192,7 +193,7 @@ export async function removePasskey(c, db, id) {
     ).bind(String(id), user.id, user.id, String(id), user.id),
     db.prepare("UPDATE users SET has_passkey = EXISTS (SELECT 1 FROM webauthn_credentials WHERE user_id = ?) WHERE id = ?").bind(user.id, user.id),
   ]);
-  if (del.meta?.changes) return { ok: true };
+  if (del.meta?.changes) { await notifyPasskeyRemoved(c, db, user.id, before?.name || null); return { ok: true }; }
   const there = await one(db, "SELECT id FROM webauthn_credentials WHERE id = ? AND user_id = ?", String(id), user.id);
   if (!there) throw new HttpError(404, "We couldn't find that passkey.", "not_found");
   throw new HttpError(409, "This passkey is your only way to sign in. Add another way first (an email, a recovery key or an authenticator app, or another passkey), then remove it.", "last_method");

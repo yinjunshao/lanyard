@@ -5,6 +5,7 @@ import { makeEnv, makeDb, readMigration, check, summary, withLatency } from "./h
 
 const T = await makeEnv();
 const { client, q1, env } = T;
+env.UNSUB_SECRET = "test-unsub-secret"; // signs the "This wasn't me" link, as in production
 env.DB = withLatency(env.DB); // every query takes a turn, as on D1, so races are real
 
 let ip = 0;
@@ -241,6 +242,45 @@ console.log("\n# Migration");
   old.exec(readMigration("0035_passkey_names.sql"));
   const r = old.raw.prepare("SELECT name, last_used_at, created_at FROM webauthn_credentials").get();
   check("0035 keeps existing passkeys, with a null name and last use", r.name === null && r.last_used_at === null && r.created_at === 5, r);
+}
+
+console.log("\n# Removal email (F43)");
+{
+  const a = await signup("Mailed");
+  methods(a.id, { email: true });
+  const keep = seed(a.id, { name: "Laptop" }), gone = seed(a.id, { name: "Old phone" });
+  env.MAIL_OUTBOX.length = 0;
+  const r = await a.c.del(`/api/passkeys/${gone}`);
+  const m = env.MAIL_OUTBOX.filter((x) => x.to[0] === `u${a.id}@example.com`);
+  check("removing a passkey emails the verified address once", r.status === 200 && m.length === 1, m.length);
+  check("the email names the passkey and has the sign-out-everywhere link", /Old phone/.test(m[0]?.text || "") && /revoke|sign out/i.test(m[0]?.text || ""), m[0]?.text);
+  check("the email never contains key material", !String((m[0]?.text || "") + (m[0]?.html || "")).includes(PK));
+  // Refused removals send nothing: here the only passkey, with no other way in.
+  const b = await signup("NoMail");
+  methods(b.id, {});
+  env.DB.raw.prepare("UPDATE users SET recovery_email = ?, email_verified = 0 WHERE id = ?").run(`u${b.id}@example.com`, b.id);
+  const only = seed(b.id, { name: "Only" });
+  env.MAIL_OUTBOX.length = 0;
+  const d = await b.c.del(`/api/passkeys/${only}`);
+  check("a refused removal (409) sends no email", d.status === 409 && env.MAIL_OUTBOX.length === 0, env.MAIL_OUTBOX.length);
+  // Someone with no verified email can still remove (they have a recovery key): nothing to send to, and it works.
+  const c2 = await signup("Recov");
+  methods(c2.id, { recovery: true });
+  const p1 = seed(c2.id, { name: "One" });
+  env.MAIL_OUTBOX.length = 0;
+  const d2 = await c2.c.del(`/api/passkeys/${p1}`);
+  check("no verified email: the removal still works and nothing is sent", d2.status === 200 && env.MAIL_OUTBOX.length === 0, d2.status);
+  // A mail failure must never undo or block the removal.
+  const f = await signup("Failing");
+  methods(f.id, { email: true });
+  const f1 = seed(f.id, { name: "F1" });
+  const saved = env.MAIL_OUTBOX; env.MAIL_OUTBOX = { push() { throw new Error("mail down"); } };
+  Object.defineProperty(env.MAIL_OUTBOX, "length", { value: 0 });
+  const quiet = console.error; console.error = () => {};
+  const d3 = await f.c.del(`/api/passkeys/${f1}`);
+  console.error = quiet; env.MAIL_OUTBOX = saved;
+  check("a mail failure does not block the removal", d3.status === 200 && countOf(f.id) === 0, d3.status);
+  void keep;
 }
 
 summary();

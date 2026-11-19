@@ -6,7 +6,7 @@ import { one, run, all } from "./db.js";
 import { bump, HOUR } from "./ratelimit.js";
 import { HttpError, requireUser, sha256Hex } from "./session.js";
 import { sendMail } from "./mail.js";
-import { signInAlertEmail } from "./mail-templates.js";
+import { signInAlertEmail, passkeyRemovedEmail } from "./mail-templates.js";
 import { emailLink } from "./unsub.js";
 
 export function describeDevice(ua = "") {
@@ -15,6 +15,27 @@ export function describeDevice(ua = "") {
   const browser = /Edg\//.test(ua) ? "Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /Firefox\//.test(ua) ? "Firefox"
     : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "";
   return [browser, os].filter(Boolean).join(" on ") || "Unknown device";
+}
+
+/** F43: tells the account's verified email that a passkey was removed. Best-effort, like the sign-in alert, and not
+ *  rate-limited: each removal is rare and each one should be told. */
+export async function notifyPasskeyRemoved(c, db, userId, name) {
+  try {
+    const u = await one(db, "SELECT recovery_email AS email FROM users WHERE id = ? AND email_verified = 1", userId);
+    if (!u?.email) return;
+    const origin = new URL(c.req.url).origin;
+    await sendMail(c.env, "accounts", {
+      to: u.email,
+      ...passkeyRemovedEmail({
+        name,
+        device: describeDevice(c.req.header("user-agent") || ""),
+        where: c.req.header("cf-ipcountry") || "",
+        at: Date.now(),
+        revokeUrl: await emailLink(c.env, origin, userId, "revoke"),
+        settingsUrl: `${origin}/app/settings/security`,
+      }),
+    });
+  } catch (e) { console.error(e); }
 }
 
 /** Best-effort: a failed alert must never block the sign-in itself. */

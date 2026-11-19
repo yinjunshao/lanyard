@@ -58,6 +58,23 @@ export function signInAlertEmail({ how, device, where, at, revokeUrl, settingsUr
   };
 }
 
+// "Passkey removed": sent to the account's verified email when someone removes a passkey (F43).
+export function passkeyRemovedEmail({ name, device, where, at, revokeUrl, settingsUrl }) {
+  const when = new Date(at).toUTCString();
+  const nn = "\n\n";
+  const lines = [
+    `A passkey was removed from your Lanyard account${name ? `: ${name}` : ""}.`,
+    `When: ${when}\nDevice: ${device}${where ? `\nCountry: ${where}` : ""}`,
+    "If this was you, there's nothing to do. Your other ways to sign in still work.",
+  ];
+  const text = `${lines.join(nn)}${nn}If it wasn't you, sign out every device: ${revokeUrl}\nThen review your sign-in options: ${settingsUrl}`;
+  return {
+    subject: "A passkey was removed from your Lanyard account",
+    text,
+    html: `${paragraphs(lines.join(nn))}${button(revokeUrl, "This wasn't me: sign out everywhere")}${small(`The link works for 7 days. <a href="${escapeHtml(settingsUrl)}">Review sign-in options</a>`)}`,
+  };
+}
+
 // Warning before an unused account is deleted.
 export function inactiveEmail({ origin, days }) {
   const lines = [
