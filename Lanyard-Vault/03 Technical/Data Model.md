@@ -8,7 +8,7 @@ D1 schema from `migrations/0001`-`0024`. Conventions: ids are 10-character ungue
 ## Identity
 - `users` (**ai_search_ok** 1 or 0, default 1: people I've connected with may find me with AI search, F21 migration 0024; is_guest, recovery_email, email_domain, verified_student, has_passkey, over_18, plan, plan_until, notify_events)
 - `sessions` (hashed token, expiry, user agent)
-- `webauthn_credentials`, `webauthn_challenges`
+- `webauthn_credentials` (credential_id, public_key, counter, transports, created_at; **name** TEXT null and **last_used_at** INTEGER null from F43, migration 0035; a removed passkey's row is deleted, not hidden), `webauthn_challenges`
 - `rate_limits` (fixed-window counters)
 
 ## Profile and cards

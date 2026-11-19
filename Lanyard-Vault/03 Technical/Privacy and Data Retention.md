@@ -113,6 +113,8 @@ Nothing new is stored. The hub shows a person only their own connections at that
 - Breach plan: ICO within 72 hours of a serious breach (**TODO**: one-page plan).
 - The Data (Use and Access) Act 2025 is changing UK law: have the lawyer check current rules.
 
+Passkeys (F43): a passkey row holds the public key, a counter, an optional name the person chose, and when it was added and last used. People can rename and remove their own in Settings > Sign-in and devices; removing deletes the row at once (nothing is kept) and does not touch the copy on their device. The data download lists passkeys by name and dates only, never the key. The Privacy Policy table says the name is kept.
+
 ## Terms and privacy versions
 Terms version in app: `2026-10-26`. Privacy policy operator details were updated 2026-10-27 (git).
 

@@ -29,17 +29,19 @@ needs: []
 
 ## Tasks
 - [x] F43.1 Worker: list, rename, remove with the last-sign-in-method rule, `last_used_at` set on login if the column does not exist yet (new additive migration, next free number), tests in a new `test/passkeys-manage.mjs` wired into `npm test` before `test/budget.mjs`.
-- [ ] F43.2 Settings > Security list, rename, remove confirm, "Add a passkey on this device" always on, the already-saved message; browser check; vault ([[API Surface]], [[Data Model]], [[Security]]).
+- [x] F43.2 Settings > Security list, rename, remove confirm, "Add a passkey on this device" always on, the already-saved message; browser check; vault ([[API Surface]], [[Data Model]], [[Security]]).
 
 ## Acceptance checks
 - [ ] A user with one passkey and a verified email can add a second passkey from another browser profile, sees both listed, and removes the first.
-- [ ] A user whose only sign-in method is one passkey cannot remove it (409, message shown).
-- [ ] User A deleting user B's passkey id gets 404 and B's passkey is still there.
-- [ ] Signed out: 401 on all three routes. A cross-site request is refused as other account changes are.
-- [ ] The list never contains the public key or counter (test checks the raw response).
-- [ ] `npm test` passes.
+- [x] A user whose only sign-in method is one passkey cannot remove it (409, message shown). Tested, and seen in the browser at 375 px (seeded rows): the message shows in the remove sheet and the row stays.
+- [x] User A deleting user B's passkey id gets 404 and B's passkey is still there.
+- [x] Signed out: 401 on all three routes. A cross-site request is refused as other account changes are.
+- [x] The list never contains the public key or counter (test checks the raw response).
+- [x] `npm test` passes. Exit 0 (`test/passkeys-manage.mjs` 55 checks, 54 with the real WebAuthn library; the last-used check needs the offline stub). PrivacyRequest 51,082 to 51,070 B, SignIn 48,325 to 48,311 B, Privacy 50,427 to 50,423 B, PublicCard 48,761 to 48,749 B (hash names only; the passkey code is in `PasskeyList.vue`, a signed-in page).
 
 ## Log
--
+- 2026-11-19 (Claude subagent): F43.1 (e2d28c3) adds `GET/PATCH/DELETE /api/passkeys`, migration 0035 (nullable `name` and `last_used_at`) and `test/passkeys-manage.mjs`; F43.2 adds `PasskeyList.vue` in Settings > Sign-in and devices (list, inline Rename, Remove in a UiSheet, "Add a passkey on this device" always shown, the `InvalidStateError` message, the synced-passkey line) and the Privacy Policy table now says the name is kept. Decisions: [[D047 Passkeys are removed by one conditional delete that keeps a way to sign in]] (no "This device" label because it cannot be known reliably; no default name from the authenticator; unnamed shows "Passkey added <date>"). Two guards changed: `test/people-search.mjs` allows migration 0035, `test/settings.mjs` now looks for `<PasskeyList` where it looked for `registerPasskey`.
+- Seen in a browser (seeded rows, `wrangler dev` and `vite`, both stopped): list, Rename saved, Remove of one of two, the 409 message on the only passkey at 375 px dark, and the remove dialog at desktop width light. **Not tried in a browser: adding a passkey** (no virtual authenticator), so the `InvalidStateError` wording is untested outside code. **Not ticked: add a second passkey from another browser profile (owner step).** Feature left In progress.
+- Owner steps: apply `migrations/0035_passkey_names.sql` to production (`npm run db:remote`) before or with the deploy (additive; login records the last use in a statement that may fail, so sign-in never depends on it); then on a real device add a second passkey from another browser profile, see both listed, remove the first, and tick the last check.
 
 Related: [[Security]] · back to [[00 Master To-Do]]

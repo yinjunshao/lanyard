@@ -7,6 +7,7 @@ tags: [technical, security]
 - Sessions stored hashed; HttpOnly cookies; SameSite Lax.
 - Per-IP rate limits on new guests, wrong-code guesses, webhooks (`worker/ratelimit.js`).
 - Passkey challenges held server-side (`webauthn_challenges`), single use.
+- Managing passkeys (F43, [[D047 Passkeys are removed by one conditional delete that keeps a way to sign in]]): list, rename and remove are signed-in only (401 with no guest made), CSRF-checked like other writes, and scoped to the caller's own rows in the SQL (`user_id = ?`), so another person's id is a 404 with the same words as a made-up one. The list never carries the public key, counter or credential id. Removing the last way to sign in is a 409 decided inside one `DELETE`. Names are plain text. Tested in `test/passkeys-manage.mjs`.
 - Private media: selfies served only to people in the connection.
 - TOTP secrets encrypted at rest.
 - Webhooks: https only, no IP literals or internal hostnames, no redirects followed, HMAC-SHA256 signature `Lanyard-Signature: t=...,v1=...`, 5 s timeout.

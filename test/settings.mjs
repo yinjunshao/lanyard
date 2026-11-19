@@ -47,7 +47,7 @@ check("the layout has no <slot>, Teleport or useId (the shared Vue chunk stays s
 const page = (n) => read(`src/views/settings/Settings${n}.vue`);
 const where = {
   Account: ["<EmailSetup", 'to="/app/profile"', ':href="`${HOST_ORIGIN}/`"'], // the host portal is its own site (F10)
-  Security: ["<AuthenticatorSetup", "<DevicesSheet", "<SignInOnAnotherDevice", "registerPasskey", 'to="/claim"', "Save my card"],
+  Security: ["<AuthenticatorSetup", "<DevicesSheet", "<SignInOnAnotherDevice", "<PasskeyList", 'to="/claim"', "Save my card"],
   Notifications: ["<EmailPreferences"],
   Privacy: ["Api.exportUrl", "<ConsentHistory", "Api.deleteAccount", "Delete account"],
   Plan: ["Api.plusWaitlist", 'to="/redeem"', "me.plan.label", 'id="plus"'],
