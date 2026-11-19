@@ -100,6 +100,14 @@ So even a perfect injection can only show the asker data they could already see.
 
 **Rule 6: test it.** `test/ai-injection.mjs` seeds profiles and feedback with known attack strings (ignore-instructions, fake `</data>` tags, "output all ids", Unicode tricks) and a stubbed model that obeys them. It asserts the Worker's validation still returns only allowed ids, no new links, and no hidden fields. Run it in `npm test`.
 
+**Rule 7: typed choices ([[F44 Custom tone goal and points in follow-ups]], [[D048 Typed tone, goal and points reach the model only as fenced descriptions]]).** The owner allowed people to type their own tone, goal and talk-about points in follow-up drafts (2026-11-19). The rule for such text:
+- it is the asker's own words, checked on the server by one function: NFC, control, zero-width and direction characters removed, then only letters (any script), marks, digits, spaces and `' - , . ! ?` on one line; anything else (quotes, brackets, angle brackets, backticks, colons, slashes, `#`, `*`, guillemets, emoji, line breaks) is a 400. Limits after cleaning: tone 15 characters, goal 40, each point 40, at most 3 typed points (the owner set the tone limit; the others are an orchestrator choice the owner can change);
+- it appears only in the `<data>` block, under its own key and described as a description; the system prompt holds one fixed sentence for "your own" and is byte-identical whatever was typed, so a typed value can never rewrite an instruction;
+- the output checks (rule 4) and the person reading the draft (rule 5) are unchanged, and a custom tone cannot turn off the no-emoji, length or channel rules;
+- the cache key covers the typed text, because it is part of the data.
+
+**Residual risk, accepted by the owner:** letters and spaces cannot be told from a real tone, so a tone such as "ignore rules" is allowed as text and the model may follow it in its wording. It cannot reach any other data or act, and its words go through the same output checks and an editable draft. `test/ai-injection.mjs` runs an obeying model against these cases. Only a real model can show whether it resists (owner check).
+
 ## 6. Privacy (UK GDPR)
 - **Privacy Policy:** a new section "AI features". Purposes (drafting messages, summarising feedback, finding people you already know), the data used, processors (Anthropic for the model, Cloudflare for the gateway), the international transfer, and the fact that nothing runs unless you tap.
 - **No training on our data.** Confirm in Anthropic's commercial terms and data processing addendum that API data isn't used for training. Accept the DPA. Record it in the processor list.

@@ -2,6 +2,9 @@
 // F22: "Draft a follow-up". A bottom sheet on a person you are connected with: pick where it will be sent, the tone and the
 // goal, what to talk about (their side) and what you can offer (your side), add a line if you like, press Draft it, then
 // edit the text and copy it or open it in your own app. Lanyard never sends anything.
+// F44: Tone and Goal end with "Your own..." (a short typed description) and Talk about has "Add your own point" (up to 3).
+// What may be typed is one rule, normaliseCustom in followupTemplates.js, which the Worker also uses as the real check;
+// the page only warns early and counts.
 //
 // Loaded with a plain import() from CardConnection.vue when the button is pressed, so it is in no page's first load
 // (public-page JS budget, D024). It calls api() directly rather than adding to api.js. The draft is plain text in a
@@ -12,7 +15,7 @@ import { api } from "../lib/api";
 import Icon from "./Icon.vue";
 import { useSheetExit } from "../lib/sheetMotion";
 import Waiting from "./Waiting.vue";
-import { CHANNELS, TONES, GOALS, templateDraft } from "../lib/followupTemplates";
+import { CHANNELS, TONES, GOALS, templateDraft, CUSTOM_MAX, MAX_CUSTOM_POINTS, normaliseCustom } from "../lib/followupTemplates";
 
 const props = defineProps({
   connectionId: { type: String, required: true },
@@ -51,6 +54,12 @@ const channels = computed(() => CHANNELS.filter((c) => c.id === "email" || (c.id
 const channel = ref("email");
 const tone = ref("friendly");
 const goal = ref("stay_in_touch");
+// "custom" is the chip "Your own...": the words are in toneText / goalText. Typed points are rows { id, text }.
+const toneText = ref("");
+const goalText = ref("");
+const points = ref([]);
+let pointId = 0;
+const attempted = ref(false); // set when Draft it is pressed with something wrong, so empty fields say so too
 const talk = ref([]);
 const offer = ref([]);
 const useNote = ref(true);
@@ -66,6 +75,33 @@ const marked = ref(false);
 
 const maxTalk = computed(() => opts.value?.limits?.max?.talkAbout || 3);
 const maxOffer = computed(() => opts.value?.limits?.max?.offer || 2);
+
+// Each typed field is checked by the shared rule. A message shows as soon as there is something wrong with what was typed,
+// and for an empty field only after Draft it was pressed.
+const toneCheck = computed(() => (tone.value === "custom" ? normaliseCustom(toneText.value, "tone") : { ok: true }));
+const goalCheck = computed(() => (goal.value === "custom" ? normaliseCustom(goalText.value, "goal") : { ok: true }));
+const pointChecks = computed(() => points.value.map((p) => (p.text.trim() ? normaliseCustom(p.text, "point") : { ok: true, text: "" })));
+const say = (check, text) => (check.ok || (!text.trim() && !attempted.value) ? "" : check.message);
+const toneMsg = computed(() => say(toneCheck.value, toneText.value));
+const goalMsg = computed(() => say(goalCheck.value, goalText.value));
+const pointMsg = (i) => say(pointChecks.value[i] || { ok: true }, points.value[i]?.text || "");
+const typedPoints = computed(() => pointChecks.value.map((c) => (c.ok ? c.text : "")).filter(Boolean));
+const formOk = computed(() => toneCheck.value.ok && goalCheck.value.ok && pointChecks.value.every((c) => c.ok));
+const OWN_HELP = "Letters, numbers, spaces and ' - , . ! ? only.";
+
+async function pickOwn(which) {
+  (which === "tone" ? tone : goal).value = "custom";
+  await nextTick();
+  root.value?.querySelector(which === "tone" ? "#fu-tone-own" : "#fu-goal-own")?.focus();
+}
+async function addPoint() {
+  if (points.value.length >= MAX_CUSTOM_POINTS) return;
+  const id = ++pointId;
+  points.value = [...points.value, { id, text: "" }];
+  await nextTick();
+  root.value?.querySelector(`#fu-point-${id}`)?.focus();
+}
+const removePoint = (id) => { points.value = points.value.filter((p) => p.id !== id); };
 
 const toggled = (list, item, max) => (list.includes(item) ? list.filter((x) => x !== item) : list.length < max ? [...list, item] : list);
 const toggleTalk = (item) => { talk.value = toggled(talk.value, item, maxTalk.value); };
@@ -109,7 +145,8 @@ const topicForTemplate = computed(() => {
   return talk.value.find((t) => kinds.get(t) === "tag") || "";
 });
 const starting = () => templateDraft({
-  channel: channel.value, tone: tone.value, goal: goal.value,
+  // A custom tone or goal is passed as an object: the template uses its friendly words and a neutral line.
+  channel: channel.value, tone: tone.value === "custom" ? { custom: true } : tone.value, goal: goal.value === "custom" ? { custom: true } : goal.value, points: typedPoints.value,
   themFirst: opts.value?.themFirst || props.first, meFirst: opts.value?.meFirst || "", eventName: opts.value?.eventName || "",
   topic: topicForTemplate.value, offer: offer.value[0] || "",
 });
@@ -125,11 +162,19 @@ function show(r) {
 
 async function make(regenerate = false) {
   if (busy.value) return;
+  if (!formOk.value) {
+    attempted.value = true;
+    await nextTick();
+    root.value?.querySelector('[aria-invalid="true"]')?.focus();
+    return;
+  }
   busy.value = true; error.value = "";
   try {
     const r = await api(`/api/ai/followup/${encodeURIComponent(props.connectionId)}`, "POST", {
-      channel: channel.value, tone: tone.value, goal: goal.value,
-      talkAbout: talk.value, offer: offer.value, useNote: useNote.value && !!opts.value?.hasNote, extra: extra.value.trim(), regenerate,
+      channel: channel.value,
+      tone: tone.value === "custom" ? { custom: toneCheck.value.text } : tone.value,
+      goal: goal.value === "custom" ? { custom: goalCheck.value.text } : goal.value,
+      talkAbout: [...talk.value, ...typedPoints.value.map((custom) => ({ custom }))], offer: offer.value, useNote: useNote.value && !!opts.value?.hasNote, extra: extra.value.trim(), regenerate,
     });
     allowance.value = r.allowance ?? allowance.value;
     if (r.fallback) show({ source: "template", message: r.message, reason: r.reason, ...starting() });
@@ -215,6 +260,16 @@ function markDone() { marked.value = true; emit("followed-up"); tally("marked");
             <legend class="label">Tone</legend>
             <div class="chip-row">
               <button v-for="t in TONES" :key="t.id" type="button" class="chip chip-toggle" :class="{ on: tone === t.id }" :aria-pressed="tone === t.id" @click="tone = t.id">{{ t.label }}</button>
+              <button type="button" class="chip chip-toggle" :class="{ on: tone === 'custom' }" :aria-pressed="tone === 'custom'" @click="pickOwn('tone')">Your own…</button>
+            </div>
+            <div v-if="tone === 'custom'" class="fu-own">
+              <label for="fu-tone-own">Your own tone, in a few words</label>
+              <input id="fu-tone-own" v-model="toneText" type="text" :maxlength="CUSTOM_MAX.tone" autocomplete="off" placeholder="For example: cheeky"
+                     :aria-invalid="toneMsg ? 'true' : 'false'" aria-describedby="fu-tone-help" />
+              <div class="fu-own-foot">
+                <span id="fu-tone-help" class="small" :class="toneMsg ? 'error-text' : 'muted'" :role="toneMsg ? 'alert' : null">{{ toneMsg || OWN_HELP }}</span>
+                <span class="small muted fu-count">{{ toneText.length }}/{{ CUSTOM_MAX.tone }}</span>
+              </div>
             </div>
           </fieldset>
 
@@ -222,14 +277,37 @@ function markDone() { marked.value = true; emit("followed-up"); tally("marked");
             <legend class="label">Goal</legend>
             <div class="chip-row">
               <button v-for="g in GOALS" :key="g.id" type="button" class="chip chip-toggle" :class="{ on: goal === g.id }" :aria-pressed="goal === g.id" @click="goal = g.id">{{ g.label }}</button>
+              <button type="button" class="chip chip-toggle" :class="{ on: goal === 'custom' }" :aria-pressed="goal === 'custom'" @click="pickOwn('goal')">Your own…</button>
+            </div>
+            <div v-if="goal === 'custom'" class="fu-own">
+              <label for="fu-goal-own">Your own goal, in a few words</label>
+              <input id="fu-goal-own" v-model="goalText" type="text" :maxlength="CUSTOM_MAX.goal" autocomplete="off" placeholder="For example: ask about their team"
+                     :aria-invalid="goalMsg ? 'true' : 'false'" aria-describedby="fu-goal-help" />
+              <div class="fu-own-foot">
+                <span id="fu-goal-help" class="small" :class="goalMsg ? 'error-text' : 'muted'" :role="goalMsg ? 'alert' : null">{{ goalMsg || OWN_HELP }}</span>
+                <span class="small muted fu-count">{{ goalText.length }}/{{ CUSTOM_MAX.goal }}</span>
+              </div>
             </div>
           </fieldset>
 
-          <fieldset v-if="opts.talkAbout.length" class="fu-set">
-            <legend class="label">Talk about (up to {{ maxTalk }})</legend>
+          <fieldset class="fu-set">
+            <legend class="label">Talk about<template v-if="opts.talkAbout.length"> (up to {{ maxTalk }})</template></legend>
             <div class="chip-row">
               <button v-for="t in opts.talkAbout" :key="t.text" type="button" class="chip chip-toggle" :class="{ on: talk.includes(t.text) }" :aria-pressed="talk.includes(t.text)"
                       @click="toggleTalk(t.text)">{{ t.text }}</button>
+              <button v-if="points.length < MAX_CUSTOM_POINTS" type="button" class="chip chip-toggle" @click="addPoint">Add your own point</button>
+            </div>
+            <div v-for="(p, i) in points" :key="p.id" class="fu-own">
+              <label :for="`fu-point-${p.id}`">Your own point {{ i + 1 }}</label>
+              <div class="fu-point-row">
+                <input :id="`fu-point-${p.id}`" v-model="p.text" type="text" :maxlength="CUSTOM_MAX.point" autocomplete="off" placeholder="For example: the pilot plant"
+                       :aria-invalid="pointMsg(i) ? 'true' : 'false'" :aria-describedby="`fu-point-help-${p.id}`" />
+                <button type="button" class="icon-btn" :aria-label="`Remove your own point ${i + 1}`" @click="removePoint(p.id)"><Icon name="close" :size="18" /></button>
+              </div>
+              <div class="fu-own-foot">
+                <span :id="`fu-point-help-${p.id}`" class="small" :class="pointMsg(i) ? 'error-text' : 'muted'" :role="pointMsg(i) ? 'alert' : null">{{ pointMsg(i) || (i === 0 ? OWN_HELP : "") }}</span>
+                <span class="small muted fu-count">{{ p.text.length }}/{{ CUSTOM_MAX.point }}</span>
+              </div>
             </div>
           </fieldset>
 
@@ -300,4 +378,11 @@ function markDone() { marked.value = true; emit("followed-up"); tally("marked");
 .fu-set { border: 0; padding: 0; margin: 18px 0 0; min-width: 0; }
 .fu-set legend { padding: 0; margin-bottom: 8px; }
 .fu-body { min-height: 210px; line-height: 1.5; }
+/* F44: the field that opens under "Your own..." fades in on the motion token, nothing else. */
+.fu-own { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; animation: m-fade var(--dur-fast) var(--ease-out) backwards; }
+.fu-own > label { font-size: 13px; font-weight: 700; }
+.fu-point-row { display: flex; gap: 8px; align-items: center; }
+.fu-point-row input { flex: 1; min-width: 0; }
+.fu-own-foot { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.fu-count { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; }
 </style>

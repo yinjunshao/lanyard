@@ -53,7 +53,7 @@ export function normaliseCustom(raw, kind) {
   if (LINE_BREAK.test(s)) return no("lines", `${label} must be on one line.`);
   s = s.replace(HIDDEN, "").replace(/\s+/g, " ").replace(/[\p{Cc}\p{Cf}]/gu, "").replace(/\u2019/g, "'").replace(/ {2,}/g, " ").trim();
   if (!s) return no("empty", kind === "point" ? "Type your point, or remove it." : `Type your own ${kind}, or pick one from the list.`);
-  if (!ALLOWED.test(s)) return no("chars", `${label} can only use letters, numbers, spaces and the marks apostrophe, hyphen, comma, full stop, exclamation mark and question mark.`);
+  if (!ALLOWED.test(s)) return no("chars", `${label} can use letters, numbers, spaces and ' - , . ! ? only.`);
   if ([...s].length > max) return no("long", `${label} can be up to ${max} characters.`);
   return { ok: true, text: s };
 }
@@ -111,6 +111,14 @@ const NEUTRAL = {
   enthusiastic: "I'd love to keep the conversation going.",
 };
 
+// How the typed points are brought in, by tone. They are listed as written.
+const OWN_POINTS = {
+  friendly: (x) => `It would be good to talk about ${x}.`,
+  professional: (x) => `I would welcome a conversation about ${x}.`,
+  short: (x) => `Let's talk about ${x}.`,
+  enthusiastic: (x) => `I'd love to talk about ${x}.`,
+};
+
 const cutWords = (s, n) => s.split(/\s+/).filter(Boolean).slice(0, n).join(" ");
 
 // Typed points are listed as written: "a", "a and b", "a, b and c".
@@ -132,7 +140,7 @@ export function templateDraft({ channel = "linkedin", tone = "friendly", goal = 
   const inAsk = !!x && (goal === "advice" || goal === "work_together");
   const detail = x && !inAsk && tone !== "short" ? (tone === "professional" ? `I enjoyed our conversation about ${x}.` : `I enjoyed hearing about ${x}.`) : "";
   const ask = customGoal ? NEUTRAL[tone] : ASK[goal][tone](inAsk ? x : "");
-  const own = typed.length ? (tone === "professional" ? `I would like to talk about ${listed(typed)}.` : `I'd like to talk about ${listed(typed)}.`) : "";
+  const own = typed.length ? OWN_POINTS[tone](listed(typed)) : "";
   // An offer is mentioned only when the person chose one, and only as something they can help with.
   const help = can && tone !== "short" ? `I'm happy to help with ${can} if that's useful.` : "";
   const parts = [met, detail, own, ask, help].filter(Boolean).join(" ");

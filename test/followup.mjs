@@ -9,7 +9,7 @@ import { setSetting } from "../worker/ai/store.js";
 import { COUNT_KINDS } from "../worker/ai/followup.js";
 import { fitWords, followupSystem, refineFollowup, WORD_LIMIT, PROMPT_VERSION } from "../worker/ai/prompts/followup.js";
 import { URL_RE, EMAIL_RE } from "../worker/ai/sanitize.js";
-import { templateDraft, CHANNELS, TONES, GOALS } from "../src/lib/followupTemplates.js";
+import { templateDraft, CHANNELS, TONES, GOALS, CUSTOM_MAX, MAX_CUSTOM_POINTS } from "../src/lib/followupTemplates.js";
 
 const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
 const realFetch = globalThis.fetch;
@@ -337,6 +337,14 @@ console.log("\n# The screen (source guards)");
   check("the topic and offer chips toggle by value (a ref passed from a template arrives unwrapped; this once broke them)", /toggleTalk\(t\.text\)/.test(comp) && /toggleOffer\(t\)/.test(comp) && !/toggle\((talk|offer)\b/.test(comp) && /length < max/.test(comp));
   check("no sparkle, magic or wand wording or icon, and no emoji", !/sparkle|magic|wand|✨|\p{Extended_Pictographic}/iu.test(comp + read("src/lib/followupTemplates.js")));
   check("it handles Escape and keeps focus in the sheet", /e\.key === "Escape"/.test(comp) && /e\.key !== "Tab"/.test(comp) && /aria-modal="true"/.test(comp));
+  // F44: the typed fields, in the page.
+  check("Tone and Goal each end with a 'Your own…' chip, and Talk about has 'Add your own point'", (comp.match(/>Your own…<\/button>/g) || []).length === 2 && /Add your own point/.test(comp));
+  check("the browser limits are the ones the Worker uses (15, 40, 40 and 3 points), from one place, with a counter and a maxlength on each field", CUSTOM_MAX.tone === 15 && CUSTOM_MAX.goal === 40 && CUSTOM_MAX.point === 40 && MAX_CUSTOM_POINTS === 3 && /:maxlength="CUSTOM_MAX\.tone"/.test(comp) && /:maxlength="CUSTOM_MAX\.goal"/.test(comp) && /:maxlength="CUSTOM_MAX\.point"/.test(comp) && /\{\{ toneText\.length \}\}\/\{\{ CUSTOM_MAX\.tone \}\}/.test(comp) && /\{\{ goalText\.length \}\}\/\{\{ CUSTOM_MAX\.goal \}\}/.test(comp) && /\{\{ p\.text\.length \}\}\/\{\{ CUSTOM_MAX\.point \}\}/.test(comp));
+  check("the Worker's check is the same function the page uses (normaliseCustom), so the two cannot drift", /normaliseCustom/.test(comp) && /normaliseCustom/.test(read("worker/ai/prompts/followup.js")) && /followupTemplates\.js/.test(read("worker/ai/prompts/followup.js")));
+  check("the request carries { custom } for a typed tone, goal and point, and a wrong field stops Draft it with the message", /\{ custom: toneCheck\.value\.text \}/.test(comp) && /\{ custom: goalCheck\.value\.text \}/.test(comp) && /typedPoints\.value\.map\(\(custom\) => \(\{ custom \}\)\)/.test(comp) && /if \(!formOk\.value\)/.test(comp));
+  check("a typed point can be removed, and at most 3 can be added", /removePoint/.test(comp) && /Remove your own point/.test(comp) && /points\.length < MAX_CUSTOM_POINTS/.test(comp));
+  check("what appears uses the motion token and no time is written in the component", /animation: m-fade var\(--dur-fast\) var\(--ease-out\)/.test(comp) && !/\d+(\.\d+)?m?s/.test(comp.slice(comp.indexOf("<style"))));
+  check("the typed text is shown as text (v-model, mustache), never as HTML", !/v-html/.test(comp));
   check("each group of chips is a fieldset with a legend, and chips say whether they are on", (comp.match(/<fieldset/g) || []).length === 5 && (comp.match(/:aria-pressed/g) || []).length >= 5);
 }
 
@@ -577,7 +585,7 @@ console.log("\n# F44: the template when there is no AI");
   const customGoal = templateDraft({ ...base, channel: "linkedin", tone: "friendly", goal: { custom: "ask about a job" } });
   check("a custom goal gives one neutral line and nothing from what was typed", /keep the conversation going/.test(customGoal.body) && !/job|ask about/.test(customGoal.body) && customGoal.body.includes("Spring networking night"), customGoal.body);
   const withPoints = templateDraft({ ...base, channel: "linkedin", tone: "friendly", goal: "thanks", points: ["chess club", "the pilot plant", "sailing"] });
-  check("typed points are listed as written", /I'd like to talk about chess club, the pilot plant and sailing\./.test(withPoints.body) && /talk about chess club and sailing\./.test(templateDraft({ ...base, points: ["chess club", "sailing"] }).body) && /talk about sailing\./.test(templateDraft({ ...base, points: ["sailing"] }).body));
+  check("typed points are listed as written", /talk about chess club, the pilot plant and sailing\./.test(withPoints.body) && /talk about chess club and sailing\./.test(templateDraft({ ...base, points: ["chess club", "sailing"] }).body) && /talk about sailing\./.test(templateDraft({ ...base, points: ["sailing"] }).body));
   check("a fourth point passed to the template is ignored (the same limit as the Worker)", !/four/.test(templateDraft({ ...base, points: ["one", "two", "three", "four"] }).body));
   const all = [];
   for (const ch of CHANNELS) for (const tn of [...TONES.map((t) => t.id), { custom: "cheeky" }]) for (const g of [...GOALS.map((x) => x.id), { custom: "ask about a job" }]) {
