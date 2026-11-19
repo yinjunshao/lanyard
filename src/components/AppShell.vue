@@ -9,7 +9,6 @@ import AccountBanner from "./AccountBanner.vue";
 import { SessionLost } from "../lib/errors"; // F39: also sets plain words for failed requests
 import TermsGate from "./TermsGate.vue";
 import { live, refreshLive } from "../lib/eventlive";
-import { makeGlideCalm } from "../lib/glideCalm.js";
 
 const r = useRoute();
 const showChrome = computed(() => r.meta.app && me.profile);
@@ -32,7 +31,21 @@ const tabs = [
 // F40: one strap-coloured bar slides between the tabs (CSS, from this number) instead of each tab's own bar jumping.
 const activeTab = computed(() => tabs.findIndex((t) => t.match(r.path)));
 // F42: the bar's slide is elastic, and a tap while it is still moving (or a third within about 600 ms) jumps it instead
-// (lib/glideCalm.js). The class is set on the same change as the new tab, so the browser never animates a jump.
+// (the same rule as makeGlideCalm in the glide helper, copied here so the frame does not load that file). The class is
+// set on the same change as the new tab, so the browser never animates a jump.
+const SPRING_MS = 420;
+const BURST_MS = 600;
+function makeGlideCalm() {
+  let movedAt = -Infinity;
+  let taps = [];
+  return function jumpNow(now = Date.now()) {
+    taps = taps.filter((t) => now - t < BURST_MS);
+    taps.push(now);
+    const stillMoving = now - movedAt < SPRING_MS;
+    movedAt = now;
+    return stillMoving || taps.length > 2;
+  };
+}
 const jumpNow = makeGlideCalm();
 const jump = ref(false);
 watch(activeTab, () => { jump.value = jumpNow(); });

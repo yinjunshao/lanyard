@@ -462,7 +462,7 @@ check("UiSheet shows what it showed last while it leaves, because a parent clear
 
 // ---------------------------------------------------------------------------------------------------------
 // F42: elastic slides for tabs and notches. One named exception to F40's 300 ms rule: the elastic token (420 ms, never
-// over 450 ms), used only by the two sliding bars. The spam skip is lib/glideCalm.js, run here against stand-ins.
+// over 450 ms), used only by the two sliding bars. The spam skip is makeGlideCalm in lib/segGlide.js, run here.
 // ---------------------------------------------------------------------------------------------------------
 console.log("\n# F42.1 The elastic token, the spring, the spam skip");
 const elastic = token("dur-elastic");
@@ -477,15 +477,21 @@ check("a cubic-bezier with a small overshoot is the fallback where linear() is n
 const elasticUses = ALL_CSS.flatMap(([f, t]) => [...t.matchAll(/var\(--dur-elastic\)/g)].map(() => f));
 check("the elastic token is used by the two sliding bars only (the tab bar and a gliding control), in main.css", elasticUses.length === 2 && elasticUses.every((f) => f.endsWith("main.css")), elasticUses.length + " uses");
 check("a jump has transition none on each bar, placed after the spring rule so it wins", /\.tabbar-inner\.jump::before \{ transition: none; \}/.test(css) && css.indexOf(".tabbar-inner.jump::before") > css.indexOf(".tabbar-inner::before {") && /\.seg\.glides\.jump::before \{ transition: none; \}/.test(css) && css.indexOf(".seg.glides.jump::before") > css.indexOf(".seg.glides.ready::before"));
-check("AppShell sets the tab bar's jump class on the same change as the new tab, from the helper", /import \{ makeGlideCalm \} from "\.\.\/lib\/glideCalm\.js"/.test(shell6) && /watch\(activeTab, \(\) => \{ jump\.value = jumpNow\(\); \}\);/.test(shell6) && /:class="\{ 'no-tab': activeTab < 0, jump \}"/.test(shell6));
-check("the helper's spring time is the elastic token", /const SPRING_MS = 420;/.test(read("src/lib/glideCalm.js")) && ms(elastic) === 420);
+check("AppShell sets the tab bar's jump class on the same change as the new tab, from the helper", /function makeGlideCalm\(\) \{/.test(shell6) && !/segGlide/.test(shell6) && /watch\(activeTab, \(\) => \{ jump\.value = jumpNow\(\); \}\);/.test(shell6) && /:class="\{ 'no-tab': activeTab < 0, jump \}"/.test(shell6));
 {
-  const { makeGlideCalm } = await import("../src/lib/glideCalm.js");
+  const calmBody = (src) => { const m = /function makeGlideCalm\(\) \{([\s\S]*?\n\})/.exec(src); return m ? m[1].replace(/\s+/g, " ") : ""; };
+  check("the frame's copy of the spam skip is the same function as segGlide's (the frame must not load segGlide, so it has a copy)", calmBody(shell6) !== "" && calmBody(shell6) === calmBody(read("src/lib/segGlide.js")));
+}
+check("the helper's spring time is the elastic token", /const SPRING_MS = 420;/.test(read("src/lib/segGlide.js")) && ms(elastic) === 420);
+{
+  const { makeGlideCalm } = await import("../src/lib/segGlide.js");
   const seq = (times) => { const f = makeGlideCalm(); return times.map((t) => f(t)).join(","); };
   check("a calm tap (nothing moving, one tap in 600 ms) takes the spring", seq([0, 1000, 2000]) === "false,false,false", seq([0, 1000, 2000]));
   check("a tap while the bar is still moving (within the 420 ms spring) jumps", seq([0, 300]) === "false,true", seq([0, 300]));
   check("a third tap within about 600 ms jumps", seq([0, 450, 520]) === "false,false,true", seq([0, 450, 520]));
   check("after a jump, the next calm tap takes the spring again (nothing queued)", seq([0, 450, 520, 1200]) === "false,false,true,false", seq([0, 450, 520, 1200]));
 }
+
+check("Settings' appearance control glides with the elastic spring like the host tabs (signed-in, not on a public page)", /import \{ glideSeg \} from "\.\.\/\.\.\/lib\/segGlide"/.test(read("src/views/settings/SettingsAppearance.vue")) && /<div :ref="glide" class="seg" role="group" aria-label="Appearance">/.test(read("src/views/settings/SettingsAppearance.vue")) && /onBeforeUnmount\(\(\) => stopGlide\?\.\(\)\)/.test(read("src/views/settings/SettingsAppearance.vue")) && PUBLIC.every((n) => !/segGlide/.test(read("src/views/" + n + ".vue"))));
 
 summary();
