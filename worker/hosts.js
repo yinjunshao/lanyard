@@ -488,8 +488,8 @@ async function eventTotals(db, eventId) {
     db,
     `SELECT
        (SELECT COUNT(*) FROM checkins WHERE event_id = ?) checkins,
-       (SELECT COUNT(*) FROM connections WHERE event_id = ?) connections,
-       (SELECT COUNT(*) FROM connections WHERE event_id = ? AND selfie_key IS NOT NULL AND consent_b = 1) selfies,
+       (SELECT COUNT(*) FROM event_connections WHERE event_id = ?) connections,
+       (SELECT COUNT(*) FROM event_connections ec JOIN connections cn ON cn.id = ec.connection_id WHERE ec.event_id = ? AND cn.selfie_key IS NOT NULL AND cn.consent_b = 1) selfies,
        (SELECT COUNT(*) FROM feedback_responses WHERE event_id = ?) feedback,
        (SELECT presence_used FROM events WHERE id = ?) presence`,
     eventId, eventId, eventId, eventId, eventId

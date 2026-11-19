@@ -172,7 +172,7 @@ const r1 = await meet(A, live);
   ];
   for (const [what, needle] of leak) check(`${what} did not reach the model`, !text.includes(needle), needle);
   check("no URL or email address is anywhere in the data", !/https?:|www\.|[\w.-]+@[\w-]+\./.test(JSON.stringify(d)));
-  check("the system prompt is the fixed task and guard", sent.system.startsWith("You help a person at an event") && /untrusted content/.test(sent.system));
+  check("the system prompt is the fixed task and guard", sent.system.startsWith("ROLE\nYou help someone at a live event") && /untrusted content/.test(sent.system));
   check("the request body names no connection, notes, or other event", !/connection|note|myTags/i.test(JSON.stringify(d)));
 }
 {

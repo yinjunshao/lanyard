@@ -73,7 +73,7 @@ export async function sendEventEmails(env, ts = now()) {
       ...hostSummaryEmail({
         eventName: ev.name,
         checkins: await n("SELECT COUNT(*) AS n FROM checkins WHERE event_id = ?"),
-        connections: await n("SELECT COUNT(*) AS n FROM connections WHERE event_id = ?"),
+        connections: await n("SELECT COUNT(*) AS n FROM event_connections WHERE event_id = ?"),
         responses: await n("SELECT COUNT(*) AS n FROM feedback_responses WHERE event_id = ?"),
         nudged: await n("SELECT COUNT(*) AS n FROM event_mail_log WHERE event_id = ? AND kind = 'feedback'"),
         url: `${hostOrigin(env)}/events/${ev.id}`, // the host portal (F10)

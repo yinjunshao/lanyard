@@ -35,6 +35,7 @@ import { cleanText, CAPS } from "./sanitize.js";
 import { assignIds } from "./prompt.js";
 import { filterIds } from "./validate.js";
 import { searchableIds } from "./optout.js";
+import { SHARED_CARD_SQL } from "../shares.js";
 import { MAX_MATCHES, MAX_PEOPLE, MAX_TOKENS, CACHE_MS, PEOPLE_SEARCH_SCHEMA, PEOPLE_SEARCH_SYSTEM, PROMPT_VERSION } from "./prompts/peopleSearch.js";
 
 export const peopleSearchApp = new Hono();
@@ -57,6 +58,8 @@ const INSTRUCTION = [
   /\b(you are|you're|act as|pretend)\b.{0,25}\b(now|an? (?:ai|assistant|model|bot)|the model)\b/i,
   /^\s*(system|assistant|user)\s*:/i,
   /\bp\d{1,3}\b.{0,25}\b(first|top|best)\b/i,
+  /\b(ignore|disregard)\s+(the|your|all|any|this)\s+(user|asker|sender|person|instructions?|rules?)\b/i,
+  /\b(output|reveal|print|include|share)\b.{0,30}\b(e-?mail|email address|phone( number)?|password|user ?id)s?\b/i,
 ];
 export const looksLikeInstruction = (text) => INSTRUCTION.some((re) => re.test(String(text)));
 export const scrub = (v) => { const t = cleanText(v, 2000); return t && !looksLikeInstruction(t) ? t : ""; };
@@ -99,12 +102,13 @@ export function buildRecord({ profile, card, event, note, myTags, connectedAt })
  */
 export async function gatherPeople(db, askerId) {
   const conns = await all(db,
-    `SELECT cn.id, cn.user_a, cn.user_b, cn.card_id, cn.created_at, n.text AS note, n.tags AS my_tags, ev.name AS event_name
+    `SELECT cn.id, cn.user_a, cn.user_b, cn.created_at, n.text AS note, n.tags AS my_tags, ev.name AS event_name,
+            ${SHARED_CARD_SQL("CASE WHEN cn.user_a = ?1 THEN cn.user_b ELSE cn.user_a END")} AS card_id
      FROM connections cn
-     LEFT JOIN notes n ON n.connection_id = cn.id AND n.user_id = ?
+     LEFT JOIN notes n ON n.connection_id = cn.id AND n.user_id = ?1
      LEFT JOIN events ev ON ev.id = cn.event_id
-     WHERE cn.user_a = ? OR cn.user_b = ?
-     ORDER BY cn.created_at DESC LIMIT ?`, askerId, askerId, askerId, MAX_CONNECTIONS);
+     WHERE cn.user_a = ?1 OR cn.user_b = ?1
+     ORDER BY cn.created_at DESC LIMIT ?2`, askerId, MAX_CONNECTIONS);
   const peerOf = (cn) => (cn.user_a === askerId ? cn.user_b : cn.user_a);
   const blocked = await blockedSet(db, askerId);
   const peerIds = [...new Set(conns.map(peerOf))].filter((id) => id !== askerId && !blocked.has(id));
@@ -115,22 +119,19 @@ export async function gatherPeople(db, askerId) {
   const json = JSON.stringify(ids);
   const [profiles, cards] = await Promise.all([
     all(db, "SELECT * FROM profiles WHERE user_id IN (SELECT value FROM json_each(?))", json),
-    all(db, `SELECT * FROM cards WHERE user_id IN (SELECT value FROM json_each(?))
-             AND (is_default = 1 OR id IN (SELECT value FROM json_each(?)))`, json, JSON.stringify(conns.map((c) => c.card_id).filter(Boolean))),
+    all(db, "SELECT * FROM cards WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(conns.map((c) => c.card_id).filter(Boolean))),
   ]);
   const profileOf = new Map(profiles.map((p) => [p.user_id, p]));
   const cardById = new Map(cards.map((c) => [c.id, c]));
-  const defaultOf = new Map(cards.filter((c) => c.is_default).map((c) => [c.user_id, c]));
   const out = [];
   const seen = new Set();
   for (const cn of conns) {
     const peer = peerOf(cn);
     const profile = profileOf.get(peer);
     if (!profile || !ok.has(peer) || seen.has(peer)) continue;
-    // The card the peer shared with the asker: the one the connection was made through if it is the peer's, else their
-    // default card (the same rule as sharedCard in worker/inCommon.js). No card shared, nobody to read.
+    // The card the peer chose to share with the asker (worker/shares.js). No card shared, nobody to read.
     const via = cn.card_id ? cardById.get(cn.card_id) : null;
-    const card = via && via.user_id === peer ? via : defaultOf.get(peer);
+    const card = via && via.user_id === peer ? via : null;
     if (!card) continue;
     seen.add(peer);
     out.push({

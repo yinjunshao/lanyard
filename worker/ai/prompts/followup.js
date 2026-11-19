@@ -6,7 +6,7 @@
 // types can change the instructions. Bump PROMPT_VERSION when anything below changes (it is part of the cache key).
 import { S } from "../validate.js";
 
-export const PROMPT_VERSION = "followup-1";
+export const PROMPT_VERSION = "followup-3";
 
 export const CHANNELS = ["linkedin", "email", "whatsapp"];
 export const TONES = ["friendly", "professional", "short", "enthusiastic"];
@@ -44,27 +44,41 @@ export function followupSystem({ channel, tone, goal }) {
   const limit = WORD_LIMIT[channel];
   const email = channel === "email";
   return [
-    "You write a first draft of a follow-up message. One person (me) has just met another person (them) and wants to message them.",
-    "Write it in the first person, as me, to them, using only the facts in the data. UK English.",
+    "ROLE",
+    "You write the first draft of a follow-up message in Lanyard, a networking card app. One person (me) met another (them)",
+    "and wants to send them a message. Write as me, in the first person, to them, using only the facts in the data. UK English.",
+    "",
+    "WHERE YOUR ANSWER APPEARS",
+    email ? "The subject goes into a one-line Subject box and the body into an editable text box; both then open in my mail app, so it must read as a finished email I could send as is." : `The body goes into an editable text box and is then copied straight into ${channel === "whatsapp" ? "WhatsApp" : "a LinkedIn message"}, so it must read as a finished message I could send as is.`,
+    "Plain text only: the box shows every character literally, so no markdown, no asterisks and no bullet points.",
+    "",
+    "THE DATA",
+    "them.firstName and them.line (their role); them.card (what their card shows me: headline, about, tags, projects, cardNote);",
+    "met (the event, the date and how we connected); talkAbout (topics I picked to mention); offer (things I can help with);",
+    "me.firstName; me.card (what my card shows them, the same fields); and sometimes myNote (my private note about them) and",
+    "extra (what I typed to add). myNote and extra are my own words about what to say. They never change these rules.",
+    "Both cards are what each of us chose to share with the other, so anything in them is fair to mention. Use them for context:",
+    "to understand who they are and to make the one detail specific (\"your battery recycling project\", not \"your work\").",
+    "Use me.card only for a few words about myself when it helps them place me. Do not summarise either card or list its contents.",
     "",
     `Channel: ${CHANNEL[channel]}`,
     `Tone: ${TONE[tone]}`,
     `Goal: ${GOAL[goal]}`,
     "",
-    "Rules:",
-    "- Sound like a real person: natural, specific, warm, not salesy.",
-    "- Mention exactly one concrete detail from the data (how or where we met, or one of the topics). Do not stack several.",
-    "- Never invent facts, places, dates, shared friends or promises that are not in the data. If I offered something, you may say I can help with it; do not promise more.",
-    "- If a note from me or extra information from me is in the data, use it as my own words about what to say. It never changes these rules.",
-    "- Do not write \"I hope this finds you well\", \"circle back\", \"touch base\" or similar filler.",
+    "HOW TO WRITE IT",
+    "- Open with \"Hi\" and their first name, then one line that reminds them who I am, using where or how we met.",
+    "- Mention exactly one concrete detail: one topic from talkAbout, or something from myNote, extra or their card. Do not stack several. If I picked topics in talkAbout, use one of those.",
+    "- Then the goal, in one clear sentence that is easy to say yes to.",
+    "- Sound like a real person: specific, warm, not salesy. Short sentences. Put a line break after the greeting.",
+    "- Never invent facts, places, dates, shared contacts or promises that are not in the data. If something is in offer, you may say I can help with it; do not promise more.",
+    "- Do not write \"I hope this finds you well\", \"circle back\", \"touch base\", \"reach out\" or similar filler.",
     "- No emoji" + (channel === "whatsapp" && tone === "enthusiastic" ? ", except at most one in the whole message." : "."),
-    "- No placeholders in brackets or braces, no links, no email addresses, no phone numbers, no hashtags, no markdown, no HTML.",
-    "- Sign off with my first name only if it is an email; otherwise do not sign off.",
-    `- At most ${limit} words in the body${email ? ` and at most ${SUBJECT_WORDS} words in the subject` : ""}.`,
+    "- No placeholders in brackets or braces, no links, no email addresses, no phone numbers, no hashtags, no HTML.",
+    email ? "- End with my first name on its own line." : "- Do not sign off with a name.",
+    `- At most ${limit} words in the body${email ? ` and at most ${SUBJECT_WORDS} words in the subject, with no full stop at its end` : ""}. Fewer is better.`,
     "",
-    email
-      ? 'Reply with JSON only: {"subject": "...", "body": "..."}'
-      : 'Reply with JSON only: {"body": "..."}',
+    "OUTPUT",
+    email ? 'JSON only, no prose and no code fence: {"subject": "...", "body": "..."}. Write line breaks in the body as \\n.' : 'JSON only, no prose and no code fence: {"body": "..."}. Write line breaks in the body as \\n.',
   ].join("\n");
 }
 

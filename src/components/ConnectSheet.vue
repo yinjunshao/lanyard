@@ -3,12 +3,17 @@
 // code, or a shared link): shared selfie + a note back, then Connect.
 // Everything is optional except a name for guests. If the card carried a
 // per-person note (?n=), it is redeemed here — once — and shown on success.
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+// Someone with a card of their own also picks what they share back: which card
+// (its "What I do" and "About" come with it) and which of its links. The card
+// owner chose theirs by showing this card; this is the scanner's equivalent.
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { me, refreshMe } from "../lib/store";
 import Icon from "./Icon.vue";
 import { useSheetExit } from "../lib/sheetMotion";
+// Loaded on mount, and only for someone with a card of their own (public-page JS budget, F28).
+const ShareBack = shallowRef(null);
 
 const props = defineProps({
   view: { type: Object, required: true },
@@ -39,6 +44,9 @@ const flash = ref(false);
 const busy = ref(false);
 const error = ref("");
 const result = ref(null); // { connectionId, receivedNote }
+
+// What you share back (ShareBack.vue): only for someone with a card of their own, and loaded only for them.
+const share = ref(null); // { cardId, links } once ShareBack has loaded; without it the server keeps what you shared before
 
 async function takeSelfie(e) {
   const file = e.target.files?.[0];
@@ -78,6 +86,7 @@ async function submit() {
       over18: needsAgree.value ? agreed.value : undefined,
       eventId: props.eventId,
       via: props.via || undefined,
+      share: share.value || undefined,
     });
     await refreshMe();
     result.value = res;
@@ -95,6 +104,7 @@ function openPerson() {
 
 function onKey(e) { if (e.key === "Escape") close(); }
 onMounted(() => {
+  if (me.profile) import("./ShareBack.vue").then((m) => { ShareBack.value = m.default; });
   window.addEventListener("keydown", onKey);
   document.body.style.overflow = "hidden";
 });
@@ -153,6 +163,8 @@ onBeforeUnmount(() => {
           <label for="sheet-name">Your name</label>
           <input id="sheet-name" v-model="name" type="text" autocomplete="name" placeholder="So they remember you" />
         </div>
+
+        <component :is="ShareBack" v-if="ShareBack" :current="view.viewer?.connection?.myShare || null" :first="first" @update="share = $event" />
 
         <div class="field">
           <label class="label-top">Shared selfie (optional)</label>

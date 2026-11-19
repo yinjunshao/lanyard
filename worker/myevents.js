@@ -7,6 +7,7 @@ import { requireUser } from "./session.js";
 import { blockedSet } from "./blocks.js";
 import { eventStatus } from "./eventstatus.js";
 import { selfieView } from "./selfie.js";
+import { SHARED_CARD_SQL } from "./shares.js";
 
 export const myEventsApp = new Hono();
 
@@ -65,9 +66,7 @@ myEventsApp.get("/api/my/events/:id", async (c) => {
     `SELECT cn.id AS connection_id, cn.selfie_key, cn.selfie_by, cn.consent_b, cn.created_at, cn.via,
             CASE WHEN cn.user_a = ?1 THEN cn.user_b ELSE cn.user_a END AS peer_id,
             p.name AS peer_name, p.photo_key AS peer_photo_key, p.course, p.uni, p.mode, p.company, p.role, p.headline,
-            COALESCE((SELECT c2.id FROM cards c2 WHERE c2.id = cn.card_id
-                      AND c2.user_id = CASE WHEN cn.user_a = ?1 THEN cn.user_b ELSE cn.user_a END),
-                     (SELECT c3.id FROM cards c3 WHERE c3.user_id = p.user_id AND c3.is_default = 1)) AS card_id
+            ${SHARED_CARD_SQL("p.user_id")} AS card_id
      ${MY_CONNECTIONS_AT.replace("WHERE cn.event_id = e.id", "WHERE cn.event_id = ?2")}
      ORDER BY cn.created_at DESC`,
     me.id, e.id

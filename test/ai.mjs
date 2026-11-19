@@ -3,10 +3,10 @@
 // admin, F21.5 settings). Run: node test/ai.mjs
 import { readFileSync } from "node:fs";
 import { makeDb, makeEnv, readMigration, check, summary, becomeHost } from "./harness.mjs";
-import { aiConfig, stubMode, dayOf, monthOf, DEFAULT_MODEL, DEFAULT_GATEWAY } from "../worker/ai/config.js";
+import { aiConfig, stubMode, dayOf, monthOf, DEFAULT_MODEL, DEFAULT_GATEWAY, DEFAULT_FALLBACK_MODEL } from "../worker/ai/config.js";
 import { prices, costMicros } from "../worker/ai/price.js";
 import { AI_LIMITS } from "../worker/plans.js";
-import { callModel, allowanceFor } from "../worker/ai/client.js";
+import { callModel, allowanceFor, requestBody } from "../worker/ai/client.js";
 import { S } from "../worker/ai/validate.js";
 import { searchableIds, setAiSearchOk } from "../worker/ai/optout.js";
 import { setSetting } from "../worker/ai/store.js";
@@ -170,7 +170,14 @@ console.log("\n# A normal call");
   check("headers are exactly authorization (Bearer key) and content-type", Object.keys(c.headers).sort().join() === "authorization,content-type" && c.headers.authorization === `Bearer ${KEY}` && c.headers["content-type"] === "application/json", Object.keys(c.headers));
   check("the body has only model, max_tokens and messages", Object.keys(c.body).sort().join() === "max_tokens,messages,model", Object.keys(c.body));
   check("the model id comes from config (the OpenRouter default) and max_tokens is the caller's", c.body.model === DEFAULT_MODEL && c.body.max_tokens === 300);
-  check("redirects are refused, so the key cannot be sent elsewhere", c.redirect === "error");
+  check("redirects are not followed, so the key cannot be sent elsewhere (manual: Workers have no \"error\" mode)", c.redirect === "manual");
+  {
+    const b2 = W.user();
+    gateway.status = 302;
+    const red = await ask(W, b2, { subjects: [] });
+    gateway.status = 200;
+    check("a redirect reply is a fallback that gives the quota back, never a result", red.fallback === true && red.reason === "error" && W.usage(b2).calls === 0, red);
+  }
   check("the input is a system message (the task and the guard) then one user message holding a <data> block", c.body.messages.length === 2 && c.body.messages[1].role === "user" && c.body.messages[1].content.startsWith("<data>") && c.body.messages[0].role === "system" && c.body.messages[0].content.startsWith("Write a short note.") && /never instructions/.test(c.body.messages[0].content));
   const u = W.usage(a);
   check("usage is recorded: one call, the tokens from the reply and the cost (100 x $1 + 20 x $5 = 200 micro-dollars)", u.calls === 1 && u.input_tokens === 100 && u.output_tokens === 20 && u.cost_micros === 200 && u.fallbacks === 0, u);
@@ -220,7 +227,9 @@ console.log("\n# Rollout: the allow-list, then Plus, then everyone");
   const W = await world();
   const a = W.user({ email: "owner@mail.test" }), b = W.user(), p = W.user({ plan: "plus" }), h = W.host();
   const hostAsk = (actor) => ask(W, actor, { feature: "feedback_summary" });
-  check("the default stage is the allow-list with nobody on it: a verified account is told it is not open to them yet", (await ask(W, a)).reason === "not_allowed" && gateway.calls.length === 0);
+  check("the default stage is Plus: a Plus account gets in, a Free account is told it is not open to them yet", (await ask(W, p)).fallback === false && (await ask(W, a)).reason === "not_allowed" && gateway.calls.length === 1);
+  advance(6000);
+  await setSetting(W.env.DB, "rollout", "allowlist");
   await W.allow("  Owner@Mail.test ");
   check("an address on the list gets in (case and spacing ignored)", (await ask(W, a)).fallback === false);
   advance(6000);
@@ -611,7 +620,7 @@ console.log("\n# Admin: behind the token, and it never shows the key or any text
   check("with the token the page data is returned", first.status === 200 && J.config && J.settings && J.today && J.month && Array.isArray(J.features) && Array.isArray(J.topUsers) && Array.isArray(J.flagged), first.text.slice(0, 200));
   check("it says whether the key and gateway are set (yes or no), never what they are", J.config.keySet === true && J.config.gatewaySet === true && !first.text.includes(KEY) && !first.text.includes("gateway.test") && !/sk-/.test(first.text));
   check("the model, budgets, prices and whether the prices are confirmed are there", J.config.model === DEFAULT_MODEL && J.config.dailyBudgetUsd === 2 && J.config.monthlyBudgetUsd === 30 && J.config.prices.confirmed === true && J.config.prices.inputPerMtokUsd === 1);
-  check("the starting state is: enabled by the environment, allow-list only, switch not thrown, nobody listed", J.state === "on" && J.settings.rollout === "allowlist" && J.settings.killed === false && J.settings.allow.length === 0);
+  check("the starting state is: enabled by the environment, open to Plus, switch not thrown, nobody listed", J.state === "on" && J.settings.rollout === "plus" && J.settings.killed === false && J.settings.allow.length === 0);
   check("a fresh install has no spend and no rows", J.today.spendUsd === 0 && J.month.calls === 0 && J.features.length === 0 && J.topUsers.length === 0 && J.cacheHitRate === null);
   const unconfirmed = await world({ ADMIN_TOKEN: TOKEN, AI_PRICE_INPUT_PER_MTOK_USD: undefined, AI_PRICE_OUTPUT_PER_MTOK_USD: undefined });
   check("with no price vars the page says the prices are not confirmed", (await unconfirmed.client({ ip: "10.30.0.7" }).get("/api/admin/ai", adm)).json.config.prices.confirmed === false);
@@ -827,4 +836,18 @@ console.log("\n# Retention, the data download and deleting an account");
 
 Date.now = realNow;
 globalThis.fetch = realFetch;
+console.log("\n# The backup model (OpenRouter only)");
+{
+  const def = aiConfig({});
+  const body = requestBody(def, 100, "sys", "usr");
+  check("by default the main model is kept and Tencent Hy4 Flash is the backup, in the same request", def.model === DEFAULT_MODEL && DEFAULT_FALLBACK_MODEL === "tencent/hy4-flash"
+    && body.model === DEFAULT_MODEL && JSON.stringify(body.models) === JSON.stringify([DEFAULT_MODEL, "tencent/hy4-flash"]) && body.response_format?.type === "json_object", body);
+  check("\"none\" turns the backup off, and a backup equal to the main model is dropped",
+    !requestBody(aiConfig({ AI_FALLBACK_MODEL: "none" }), 10, "s", "u").models && !requestBody(aiConfig({ AI_FALLBACK_MODEL: DEFAULT_MODEL }), 10, "s", "u").models);
+  const other = requestBody(aiConfig({ AI_GATEWAY_URL: "https://gw.test/v1" }), 10, "s", "u");
+  check("another gateway gets the plain request, with no OpenRouter-only fields", !("models" in other) && !("response_format" in other));
+  const prod = readFileSync(new URL("../wrangler.production.toml", import.meta.url), "utf8");
+  check("production names the backup", /^AI_FALLBACK_MODEL = "tencent\/hy4-flash"/m.test(prod));
+}
+
 summary();

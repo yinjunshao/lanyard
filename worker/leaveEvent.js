@@ -37,6 +37,7 @@ leaveEventApp.delete("/api/my/events/:id", async (c) => {
     db.prepare("DELETE FROM event_attendees WHERE event_id = ? AND user_id = ?").bind(ev.id, me.id),
     db.prepare("DELETE FROM event_mail_log WHERE event_id = ? AND user_id = ?").bind(ev.id, me.id),
     db.prepare("UPDATE connections SET event_id = NULL WHERE event_id = ?1 AND (user_a = ?2 OR user_b = ?2)").bind(ev.id, me.id),
+    db.prepare("DELETE FROM event_connections WHERE event_id = ?1 AND connection_id IN (SELECT id FROM connections WHERE user_a = ?2 OR user_b = ?2)").bind(ev.id, me.id),
     db.prepare(`UPDATE consents SET granted = 0, created_at = ?3 WHERE ${MINE}`).bind(me.id, ev.id, now()),
     ...scopes.map((s) => logConsentStmt(db, me.id, s.scope, "withdrawn", "left_event")),
     db.prepare("DELETE FROM checkins WHERE event_id = ? AND user_id = ?").bind(ev.id, me.id),

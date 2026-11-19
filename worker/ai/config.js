@@ -3,6 +3,10 @@
 //
 //   AI_ENABLED               "1" to allow AI at all. Anything else, or unset, is off.
 //   AI_MODEL                 the model id (default below). Prices must be set for the model in use.
+//   AI_FALLBACK_MODEL        the backup model OpenRouter switches to, in the same request, when the main one is down,
+//                            rate-limited or refuses (default below). "none" turns the backup off. It is only sent to
+//                            OpenRouter itself (another gateway may not understand the "models" list). Its price must be
+//                            at or below the main model's: every call is charged at the main model's price.
 //   AI_GATEWAY_URL           base address of the provider, https. Default is OpenRouter. "/chat/completions" is added.
 //   AI_DAILY_BUDGET_USD      default 2
 //   AI_MONTHLY_BUDGET_USD    default 30
@@ -13,6 +17,7 @@
 //                            every APP_ORIGIN is a local address; production config never sets it.
 //   OPENROUTER_API_KEY       secret (an OpenRouter key)
 export const DEFAULT_MODEL = "google/gemini-2.5-flash-lite"; // OpenRouter id: very cheap, fine for short text
+export const DEFAULT_FALLBACK_MODEL = "tencent/hy4-flash"; // Tencent Hy4 Flash: cheaper than the default on both input and output
 export const DEFAULT_GATEWAY = "https://openrouter.ai/api/v1";
 const DEFAULT_DAILY_USD = 2;
 const DEFAULT_MONTHLY_USD = 30;
@@ -52,10 +57,17 @@ export function stubMode(env) {
 
 export function aiConfig(env) {
   const timeout = Number(env.AI_TIMEOUT_MS);
+  const model = String(env.AI_MODEL || "").trim() || DEFAULT_MODEL;
+  const fb = String(env.AI_FALLBACK_MODEL ?? "").trim();
+  const fallback = /^(none|off|0)$/i.test(fb) ? null : fb || DEFAULT_FALLBACK_MODEL;
+  const gw = gatewayUrl(env.AI_GATEWAY_URL);
   return {
     enabled: truthy(env.AI_ENABLED),
-    model: String(env.AI_MODEL || "").trim() || DEFAULT_MODEL,
-    gatewayUrl: gatewayUrl(env.AI_GATEWAY_URL),
+    model,
+    fallbackModel: fallback && fallback !== model ? fallback : null,
+    gatewayUrl: gw,
+    // OpenRouter's own options (the backup model list, JSON mode) go only to OpenRouter.
+    openRouter: !!gw && new URL(gw).hostname === "openrouter.ai",
     hasKey: typeof env.OPENROUTER_API_KEY === "string" && env.OPENROUTER_API_KEY.trim().length >= 8,
     dailyBudgetMicros: usdToMicros(env.AI_DAILY_BUDGET_USD, DEFAULT_DAILY_USD),
     monthlyBudgetMicros: usdToMicros(env.AI_MONTHLY_BUDGET_USD, DEFAULT_MONTHLY_USD),

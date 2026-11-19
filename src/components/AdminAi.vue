@@ -43,8 +43,8 @@ const STATE = {
   stub_refused: "AI is on but AI_STUB is set on a non-local address, so it is refused and every feature falls back.",
 };
 const ROLLOUT = [
-  { mode: "allowlist", label: "Only the addresses listed below", hint: "Start here." },
-  { mode: "plus", label: "Plus accounts, hosts and the list", hint: "Free accounts stay out." },
+  { mode: "allowlist", label: "Only the addresses listed below", hint: "Testing only: Plus accounts are shut out." },
+  { mode: "plus", label: "Plus accounts, hosts and the list", hint: "The default. Free accounts stay out." },
   { mode: "everyone", label: "Everyone with a confirmed email", hint: "Each on their free allowance." },
 ];
 const KIND = { user: "Person", host: "Host", admin: "Admin" };

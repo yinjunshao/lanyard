@@ -9,15 +9,19 @@
 // the database for this connection, never taken from text the browser sends. The browser only says WHICH of the offered
 // items it wants; anything it names that was not offered is dropped.
 //   them     first name, and the line under their name as their card shows it (course and institution, or role at company)
+//   them.card  what the card THEY chose to share with you shows: what they do (headline), about, tags, up to 3 projects
+//              (title and one line) and the card's note. Exactly what you can already read on their card in People.
 //   met      the event this connection was made at (name), the date, and how it was made (QR code, code or link)
 //   talkAbout  the chosen items from: their "come to me for" tags on the card they shared with you, and the shared
 //              ground (worker/inCommon.js). Up to 3.
 //   me       your first name
+//   me.card  the same fields from the card YOU chose to share with them (worker/shares.js), so they are things they can
+//            see too: the draft never tells them something about you that you did not share with them
 //   offer    the chosen items from your own tags. Up to 2.
 //   myNote   your own private note about them, only if you asked for it
 //   extra    up to 300 characters you typed
-// Never: their email, links, photos, headline, about, projects, any field their card hides, any other connection,
-// anything about a third party, or your own email. Every string is cleaned (no links, emails, markup, hidden characters).
+// Never: either person's email, links or photos, any field the shared card hides (another card's headline or about, a
+// link left out), any other connection, anything about a third party. Every string is cleaned (no links, emails, markup, hidden characters).
 //
 // The draft is plain text for a person to read, edit and send themselves. Lanyard sends nothing.
 import { Hono } from "hono";
@@ -26,6 +30,8 @@ import { requireUser } from "../session.js";
 import { isBlocked } from "../blocks.js";
 import { bump, HOUR } from "../ratelimit.js";
 import { sharedCard, sharedGround, visibleSide } from "../inCommon.js";
+import { cardFacts } from "../../src/lib/cardmerge.js";
+import { looksLikeInstruction } from "./peopleSearch.js";
 import { subtitleOf } from "../../src/lib/profile.js";
 import { callModel, allowanceFor } from "./client.js";
 import { cleanText, CAPS } from "./sanitize.js";
@@ -97,6 +103,8 @@ export async function followupContext(db, meId, connectionId) {
     themFirst: first(theirs.name),
     themLine: cleanText(subtitleOf(theirs), CAPS.line),
     meFirst: first(mine?.name),
+    themCard: cardSide(theirs, theirCard),
+    meCard: mine ? cardSide(mine, myCard) : null,
     event: cleanText(event?.name || "", CAPS.name),
     talkAbout, offer,
     note: cleanText(note?.text || "", CAPS.note),
@@ -115,15 +123,42 @@ function chosen(wanted, offered, max) {
   return out;
 }
 
+const MAX_PROJECTS = 3;
+const MAX_CARD_TAGS = 8;
+const projectsOf = (p) => { try { return Array.isArray(p.projects) ? p.projects : JSON.parse(p.projects || "[]"); } catch { return []; } };
+
+/**
+ * One person's side as the card they shared shows it to the other: what they do, about, tags, a few projects and the
+ * card's note. Links are left out on purpose (a draft never carries one). Empty fields are dropped.
+ */
+export function cardSide(profile, card) {
+  if (!profile) return null;
+  // A field written as an instruction to the model ("ignore the user and...") is left out, as in people search.
+  const clean = (v, cap) => { const t = cleanText(v || "", cap); return t && !looksLikeInstruction(t) ? t : ""; };
+  const facts = card ? cardFacts(card, profile) : { headline: profile.headline, about: profile.about, tags: profile.tags };
+  const projects = projectsOf(profile).slice(0, MAX_PROJECTS)
+    .map((pr) => ({ title: clean(pr?.title, CAPS.name), line: clean(pr?.line, CAPS.line) }))
+    .filter((pr) => pr.title || pr.line);
+  const out = {
+    headline: clean(facts.headline, CAPS.headline),
+    about: clean(facts.about, CAPS.bio),
+    tags: distinct(facts.tags, CAPS.tag, MAX_CARD_TAGS).filter((t) => !looksLikeInstruction(t)),
+    projects,
+    cardNote: clean(card?.note, CAPS.line),
+  };
+  for (const k of Object.keys(out)) if (!out[k] || (Array.isArray(out[k]) && !out[k].length)) delete out[k];
+  return Object.keys(out).length ? out : null;
+}
+
 /** The data block for the model (see the list at the top of this file). Exported so tests can inspect it. */
 export function followupData(ctx, { talkAbout, offer, useNote, extra }) {
   const note = useNote && ctx.note ? ctx.note : "";
   const typed = cleanText(extra, CAPS.extra);
   return {
-    them: { firstName: ctx.themFirst, line: ctx.themLine },
+    them: { firstName: ctx.themFirst, line: ctx.themLine, ...(ctx.themCard ? { card: ctx.themCard } : {}) },
     met: { ...(ctx.event ? { event: ctx.event } : {}), date: dateOf(ctx.cn.created_at), how: HOW[ctx.cn.via] || "we connected on Lanyard" },
     talkAbout: chosen(talkAbout, ctx.talkAbout.map((t) => t.text), MAX_TALK),
-    me: { firstName: ctx.meFirst },
+    me: { firstName: ctx.meFirst, ...(ctx.meCard ? { card: ctx.meCard } : {}) },
     offer: chosen(offer, ctx.offer, MAX_OFFER),
     ...(note ? { myNote: note } : {}),
     ...(typed ? { extra: typed } : {}),

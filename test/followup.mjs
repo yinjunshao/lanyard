@@ -120,15 +120,17 @@ reset();
   const text = JSON.stringify(sent);
   const d = shown(sent);
   check("the data holds exactly: them, met, talkAbout, me, offer, myNote, extra", Object.keys(d).sort().join() === "extra,me,met,myNote,offer,talkAbout,them", Object.keys(d));
-  check("them: first name and the line their card shows (role at company, studied at), nothing else", Object.keys(d.them).sort().join() === "firstName,line" && d.them.firstName === "Bea" && d.them.line === "Hardware engineer at Acme Ltd · Studied at University of Example", d.them);
+  check("them: first name, the line their card shows (role at company, studied at) and the card they shared", Object.keys(d.them).sort().join() === "card,firstName,line" && d.them.firstName === "Bea" && d.them.line === "Hardware engineer at Acme Ltd · Studied at University of Example", d.them);
+  check("their card: what it shows you (headline, about, its tags), and no field it hides", d.them.card.headline === SECRET.headline && d.them.card.about === SECRET.about && d.them.card.tags.includes("Robotics") && !JSON.stringify(d.them.card).includes("Secret hobby"), d.them.card);
+  check("your card: the one you shared with them, headline included", d.me.card?.headline === "ALICE-HEADLINE", d.me);
   check("met: the event name, the date written in words, and how", d.met.event === "Spring networking night" && /^\d{1,2} \w+ 20\d\d$/.test(d.met.date) && d.met.how === "I scanned their QR code", d.met);
   check("talkAbout is the chosen items, in the order chosen", d.talkAbout.join() === "Battery recycling,Robotics", d.talkAbout);
   check("offer is your own chosen tag, me is your first name", d.offer.join() === "Music" && d.me.firstName === "Alice", d);
   check("your own note goes in only because you asked, with the link and email in it removed", /pilot plant/.test(d.myNote) && !/@|https?:|my-notes/.test(d.myNote), d.myNote);
   check("the extra text goes in", d.extra === "I'll send the article we talked about.", d.extra);
-  for (const [what, needle] of [["their email", "bea.private@secret.example"], ["their link", "secret-link"], ["their headline", "BEA-HEADLINE"], ["their about text", "BEA-ABOUT"], ["their LinkedIn address", "linkedin.com"], ["a tag their card hides", "Secret hobby"],
+  for (const [what, needle] of [["their email", "bea.private@secret.example"], ["their link", "secret-link"], ["their LinkedIn address", "linkedin.com"], ["a tag their card hides", "Secret hobby"],
     ["a course their career profile keeps hidden", "KEPT-HIDDEN-COURSE"], ["a third person's name", "Zed"], ["a third person's headline", "ZED-"], ["your note about a third person", "ALICE-NOTE-ABOUT-ZED"], ["their private note about you", "BEA-PRIVATE-NOTE"],
-    ["your own email address", A.email], ["their email address's domain", "secret.example"], ["your headline", "ALICE-HEADLINE"], ["your own links", "alice.example"], ["a user id", A.id], ["their user id", B.id], ["the connection id", cnAB], ["their card id", B.card]]) {
+    ["your own email address", A.email], ["their email address's domain", "secret.example"], ["your own links", "alice.example"], ["a user id", A.id], ["their user id", B.id], ["the connection id", cnAB], ["their card id", B.card]]) {
     check(`${what} did not reach the model`, !text.includes(needle), needle);
   }
   check("no URL or email address is anywhere in the data", !/https?:|www\.|[\w.-]+@[\w-]+\./.test(JSON.stringify(d)), d);

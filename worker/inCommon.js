@@ -14,6 +14,7 @@
 import { one, all } from "./db.js";
 import { isBlocked } from "./blocks.js";
 import { eventStatus } from "./eventstatus.js";
+import { shareOf } from "./shares.js";
 
 export const MAX_FACTS = 3;
 
@@ -126,10 +127,7 @@ export function inCommon(me, peer, events = []) {
 // The card this person shared with the other: the card the connection was made through if it is
 // theirs, otherwise their default card. Read only (the Worker's own helper may create one).
 export async function sharedCard(db, userId, cn) {
-  if (cn?.card_id) {
-    const own = await one(db, "SELECT * FROM cards WHERE id = ? AND user_id = ?", cn.card_id, userId);
-    if (own) return own;
-  }
+  if (cn) return (await shareOf(db, cn, userId)).card; // the card this person picked for this connection (worker/shares.js)
   return one(db, "SELECT * FROM cards WHERE user_id = ? ORDER BY is_default DESC, created_at LIMIT 1", userId);
 }
 

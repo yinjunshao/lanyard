@@ -49,6 +49,8 @@ import { whoToMeetApp } from "./ai/whoToMeet.js";
 import { forgetSearchReplies } from "./ai/optout.js";
 import { billingApp, exportBillingOrders } from "./billing/routes.js";
 import { servePage } from "./seo.js";
+import { recordConnection } from "./eventConnections.js";
+import { SHARED_CARD_SQL, SHARED_LINKS_SQL, shareOf, onlyLinks, parseLinks, readShare, setShareStmt } from "./shares.js";
 
 const app = new Hono();
 
@@ -158,7 +160,7 @@ async function loadFullUser(db, userId) {
 // edit screen can show which links are currently selected for this card.
 // `shared: true` = the viewer is who this card was shared with (see
 // sharedCardId): they see everything the card shares, even on a private profile.
-async function cardView(db, card, { forOwner = false, limited = false, shared = false, profile } = {}) {
+async function cardView(db, card, { forOwner = false, limited = false, shared = false, profile, onlyLinksOf = null } = {}) {
   const p = profile !== undefined ? profile : await one(db, "SELECT * FROM profiles WHERE user_id = ?", card.user_id);
   if (!p) return null;
   // Which links, tags, headline and about this card shows: one function, also used by the card preview (F18).
@@ -193,7 +195,8 @@ async function cardView(db, card, { forOwner = false, limited = false, shared = 
       mode: p.mode || "student", company: p.company || "", role: p.role || "",
       headline: facts.headline,
       about: limited ? "" : facts.about,
-      links: limited ? {} : facts.links, tags: facts.tags,
+      // onlyLinksOf: the links this person chose to share with this viewer when they connected (worker/shares.js).
+      links: limited ? {} : onlyLinks(facts.links, onlyLinksOf), tags: facts.tags,
       projects: limited ? [] : (p.projects || []).map((pr) => ({ ...pr, image: pr.image_key ? `/media/${pr.image_key}` : null })),
     },
   };
@@ -633,9 +636,11 @@ app.get("/api/c/:cardId", async (c) => {
   const isOwner = !!me && card.user_id === me.id;
   if (me && !isOwner && (await isBlocked(db, me.id, card.user_id))) return c.json({ error: "We couldn't find that card. The link may be wrong, or the card may have been removed." }, 404);
   const cn = me && !isOwner ? await findConnection(db, me.id, card.user_id) : null;
-  const shared = !!cn && card.id === (await sharedCardId(db, cn, card.user_id));
+  const ownerShare = cn ? await shareOf(db, cn, card.user_id) : null;
+  const shared = !!cn && card.id === (ownerShare.card?.id || (await sharedCardId(db, cn, card.user_id)));
   const profile = await one(db, "SELECT * FROM profiles WHERE user_id = ?", card.user_id);
-  let view = await cardView(db, card, { forOwner: isOwner, shared, profile });
+  // A connection sees only the links the owner chose to share with them, on whichever of their cards they open.
+  let view = await cardView(db, card, { forOwner: isOwner, shared, profile, onlyLinksOf: ownerShare?.links || null });
   // A private profile is still reachable by someone who is checked in to the
   // same event, where its owner opted into the attendee directory — but only
   // the identity the room already shows (no links, about or projects).
@@ -669,13 +674,16 @@ app.get("/api/c/:cardId", async (c) => {
 
 // Your side of a connection: your private note, follow-up and tags, the thread.
 async function connectionDetail(db, cn, meId) {
-  const [mine, msgs, cev] = await Promise.all([
+  const [mine, msgs, cev, myShare] = await Promise.all([
     one(db, "SELECT text, tags, remind_at, followed_up_at FROM notes WHERE user_id = ? AND connection_id = ?", meId, cn.id),
     all(db, "SELECT id, from_id, text, created_at FROM messages WHERE connection_id = ? ORDER BY created_at", cn.id),
     cn.event_id ? one(db, "SELECT id, name FROM events WHERE id = ?", cn.event_id) : null,
+    shareOf(db, cn, meId),
   ]);
   return {
     id: cn.id,
+    // What you share with them: the connect sheet opens on it when you scan them again.
+    myShare: myShare.card ? { cardId: myShare.card.id, links: myShare.links } : null,
     metAt: cn.created_at,
     via: cn.via || null,
     ...selfieView(cn, meId),
@@ -888,11 +896,8 @@ async function findConnection(db, a, b) {
 // The card the owner shared through this connection: the card that was scanned
 // if it's theirs, otherwise (they scanned you) their default card.
 async function sharedCardId(db, cn, ownerId) {
-  if (cn.card_id) {
-    const own = await one(db, "SELECT id FROM cards WHERE id = ? AND user_id = ?", cn.card_id, ownerId);
-    if (own) return own.id;
-  }
-  return ensureDefaultCard(db, ownerId);
+  const { card } = await shareOf(db, cn, ownerId);
+  return card ? card.id : ensureDefaultCard(db, ownerId);
 }
 
 // Every profile needs a default card so it always has a /c/<id> page. Guests
@@ -1001,6 +1006,18 @@ app.post("/api/connect", async (c) => {
   if (eventId && !existing?.event_id) {
     await run(db, "UPDATE connections SET event_id = ? WHERE id = ?", eventId, connId);
   }
+  // What each side shares (worker/shares.js). The owner shares the card that was scanned. The scanner shares the card
+  // and links they picked in the sheet; with no choice sent, a first connection keeps the old rule (their default card).
+  {
+    const myCards = await all(db, "SELECT * FROM cards WHERE user_id = ?", me.id);
+    const mine = readShare(body.share, myCards, (cd) => cardFacts(cd, myProfile).links);
+    await db.batch([
+      setShareStmt(db, connId, peerId, card.id, null),
+      ...(mine ? [setShareStmt(db, connId, me.id, mine.cardId, mine.links)] : []),
+    ]);
+  }
+  // Event analytics: every event this counts for, including a second meeting at a new event. Never blocks the connection.
+  await recordConnection(db, connId, me.id, peerId, ts).catch(() => console.error("event_connections: could not record a connection"));
 
   if (body.note) {
     await run(
@@ -1044,17 +1061,15 @@ app.get("/api/connections", async (c) => {
     `SELECT cn.id AS connection_id, cn.selfie_key, cn.selfie_by, cn.consent_b, cn.event_id, cn.created_at, cn.via,
             CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END AS peer_id,
             p.name AS peer_name, p.photo_key AS peer_photo_key, p.course, p.uni, p.mode, p.company, p.role, p.headline,
-            COALESCE((SELECT c2.id FROM cards c2 WHERE c2.id = cn.card_id
-                      AND c2.user_id = CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END), cd.id) AS card_id,
+            ${SHARED_CARD_SQL("p.user_id")} AS card_id, ${SHARED_LINKS_SQL("p.user_id")} AS share_links,
             n.text AS my_note, n.tags AS my_tags, n.remind_at, n.followed_up_at, ev.name AS event_name
      FROM connections cn
      JOIN profiles p ON p.user_id = CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END
      LEFT JOIN notes n ON n.connection_id = cn.id AND n.user_id = ?
-     LEFT JOIN cards cd ON cd.user_id = p.user_id AND cd.is_default = 1
      LEFT JOIN events ev ON ev.id = cn.event_id
      WHERE cn.user_a = ? OR cn.user_b = ?
      ORDER BY cn.created_at DESC`,
-    me.id, me.id, me.id, me.id, me.id, me.id
+    me.id, me.id, me.id, me.id, me.id
   );
   for (const r of rows) if (!r.card_id) r.card_id = await ensureDefaultCard(db, r.peer_id);
   // Same card-scoped view as GET /api/connections/:id, so search only ever sees
@@ -1069,7 +1084,7 @@ app.get("/api/connections", async (c) => {
   const profileByUser = new Map(profiles.map((x) => [x.user_id, x]));
   const views = await Promise.all(rows.map((r) => {
     const card = cardById.get(r.card_id);
-    return card ? cardView(db, card, { shared: true, profile: profileByUser.get(r.peer_id) || null }) : null;
+    return card ? cardView(db, card, { shared: true, profile: profileByUser.get(r.peer_id) || null, onlyLinksOf: parseLinks(r.share_links) }) : null;
   }));
   const parseTags = (t) => { try { return Array.isArray(t) ? t : JSON.parse(t || "[]"); } catch { return []; } };
   return c.json({
@@ -1080,7 +1095,7 @@ app.get("/api/connections", async (c) => {
         peer: {
           id: r.peer_id, name: r.peer_name,
           photo: r.peer_photo_key ? `/media/${r.peer_photo_key}` : null,
-          course: r.course, uni: r.uni, headline: r.headline,
+          course: r.course, uni: r.uni, headline: v ? v.profile.headline : r.headline,
           mode: r.mode || "student", company: r.company || "", role: r.role || "",
           year: v?.profile.year || "", about: v?.profile.about || "",
           tags: v?.profile.tags || [], links: v?.profile.links || {},
@@ -1116,11 +1131,11 @@ app.get("/api/connections/:id", async (c) => {
   // the whole profile. card_id is the card the SCANNER opened, so it only
   // describes the peer when the peer is the card's owner; otherwise (and for
   // older connections with no card_id) use the peer's default card.
-  let card = null;
-  if (cn.card_id) card = await one(db, "SELECT * FROM cards WHERE id = ? AND user_id = ?", cn.card_id, peerId);
-  if (!card) card = await one(db, "SELECT * FROM cards WHERE user_id = ? AND is_default = 1", peerId);
+  // The card they share with you and the links they picked (worker/shares.js).
+  const theirShare = await shareOf(db, cn, peerId);
+  let card = theirShare.card;
   if (!card) card = await one(db, "SELECT * FROM cards WHERE id = ?", await ensureDefaultCard(db, peerId));
-  const view = card ? await cardView(db, card, { shared: true }) : null;
+  const view = card ? await cardView(db, card, { shared: true, onlyLinksOf: theirShare.links }) : null;
   const inCommon = await sharedGround(db, { viewerId: me.id, peerId, cn, peerCard: card });
 
   return c.json({
@@ -1133,7 +1148,8 @@ app.get("/api/connections/:id", async (c) => {
       photo: p.photo_key ? `/media/${p.photo_key}` : null,
       uni: p.uni, course: p.course, year: p.year,
       mode: p.mode || "student", company: p.company || "", role: p.role || "",
-      headline: p.headline, about: p.about,
+      // What I do and About as the card they shared shows them (a card can carry its own), not the profile's.
+      headline: view ? view.profile.headline : p.headline, about: view ? view.profile.about : p.about,
       links: view?.profile.links || {},
       tags: view?.profile.tags || p.tags || [],
       projects: view?.profile.projects || [],
@@ -1195,8 +1211,7 @@ app.get("/api/home", async (c) => {
   const [followups, feedback] = await Promise.all([
     all(db,
       `SELECT cn.id, n.remind_at, p.name, p.photo_key,
-              COALESCE((SELECT c2.id FROM cards c2 WHERE c2.id = cn.card_id AND c2.user_id = p.user_id),
-                       (SELECT c3.id FROM cards c3 WHERE c3.user_id = p.user_id AND c3.is_default = 1)) AS card_id
+              ${SHARED_CARD_SQL("p.user_id")} AS card_id
        FROM notes n JOIN connections cn ON cn.id = n.connection_id
        JOIN profiles p ON p.user_id = CASE WHEN cn.user_a = ? THEN cn.user_b ELSE cn.user_a END
        WHERE n.user_id = ? AND n.remind_at IS NOT NULL AND n.followed_up_at IS NULL AND n.remind_at <= ?

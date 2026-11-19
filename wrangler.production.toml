@@ -40,11 +40,12 @@ RP_DOMAIN = "lanyd.fyi"
 RP_ID = "lanyard-v2.musea-moderation.workers.dev"
 
 # --- AI (F21) ----------------------------------------------------------------
-# OFF until the owner turns it on, after the steps in "F21 AI foundation" (Owner steps). Even then
-# nobody can use it until the owner-only allow-list on /admin lists them. AI_STUB must never be set here
+# On. Who may use it is the rollout stage on /admin: unset means Plus accounts and hosts (plus anyone on the
+# allow-list); the owner can narrow it to the allow-list or open it to everyone there. AI_STUB must never be set here
 # (the Worker refuses it on a non-local origin as well, and test/ai.mjs checks this file).
 AI_ENABLED = "1"
 AI_MODEL = "google/gemini-2.5-flash-lite"
+AI_FALLBACK_MODEL = "tencent/hy4-flash"   # backup, used by OpenRouter in the same request when the main model fails
 AI_DAILY_BUDGET_USD = "2"
 AI_MONTHLY_BUDGET_USD = "30"
 # Owner to add once the AI Gateway exists, and once the prices are checked against Anthropic's pricing:

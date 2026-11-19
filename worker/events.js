@@ -10,6 +10,7 @@ import { blockedSet } from "./blocks.js";
 import { eventInfo, feedbackOpensAt } from "./feedback.js";
 import { checkinCapFor } from "./plans.js";
 import { noticeFor, choiceStatements } from "./attendance.js";
+import { recordCheckin } from "./eventConnections.js";
 
 export const eventsApp = new Hono();
 
@@ -158,6 +159,8 @@ eventsApp.post("/api/e/:code/checkin", async (c) => {
     stmts.push(...await choiceStatements(db, ev, me.id, body.collect));
   }
   await db.batch(stmts);
+  // Event analytics: scans made in this event's window before this check-in now count for it.
+  await recordCheckin(db, ev.id, me.id).catch(() => console.error("event_connections: could not record a check-in"));
 
   return c.json({ ok: true, eventId: ev.id });
 });

@@ -45,7 +45,13 @@ const MAX_TOKENS_CAP = 1500;
 const MAX_BODY_CHARS = 200_000;
 const MAX_CACHED_CHARS = 30_000;
 
-const fallback = (reason, feature, extra = {}) => ({ fallback: true, reason, message: friendly(reason, feature), ...extra });
+// Every fallback logs its reason code and feature only (never the request, the reply or who asked), so a feature that
+// keeps falling back can be diagnosed from the Worker logs.
+const fallback = (reason, feature, extra = {}) => {
+  console.log(`ai ${feature}: fallback ${reason}${extra.detail ? ` (${extra.detail})` : ""}`);
+  const { detail, ...rest } = extra;
+  return { fallback: true, reason, message: friendly(reason, feature), ...rest };
+};
 
 const canonical = (v) => {
   if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
@@ -103,6 +109,20 @@ export async function allowanceFor(env, actor, feature, scope = "") {
   const day = dayOf(ts);
   const used = await usedBy(env.DB, who, feature, scope, day, `${day.slice(0, 7)}-01`);
   return { limit: l, remaining: remainingOf(l, used, scope) };
+}
+
+/**
+ * What is sent to the provider. On OpenRouter the backup model rides in the same request ("models": tried in order
+ * when the first is down, rate-limited or refuses), so a failover costs no extra round trip and no extra quota, and
+ * the reply is asked for as a JSON object. Every reply is still parsed and checked as if neither were there.
+ */
+export function requestBody(cfg, maxTokens, systemText, userText) {
+  const body = { model: cfg.model, max_tokens: maxTokens, messages: [{ role: "system", content: systemText }, { role: "user", content: userText }] };
+  if (cfg.openRouter) {
+    if (cfg.fallbackModel) body.models = [cfg.model, cfg.fallbackModel];
+    body.response_format = { type: "json_object" };
+  }
+  return body;
 }
 
 export async function callModel(env, opts = {}) {
@@ -209,19 +229,26 @@ async function run(env, opts) {
     try {
       const res = await fetch(`${cfg.gatewayUrl}/chat/completions`, {
         method: "POST",
-        redirect: "error", // a redirect could carry the key somewhere else
+        // A redirect could carry the key somewhere else, so it is never followed. Workers' fetch has no "error" mode
+        // (it throws on every call), so "manual" is used and any 3xx is treated as a failed call below.
+        redirect: "manual",
         signal: ctl.signal,
         headers: { authorization: `Bearer ${env.OPENROUTER_API_KEY}`, "content-type": "application/json" },
-        body: JSON.stringify({ model: cfg.model, max_tokens: maxTokens, messages: [{ role: "system", content: systemText }, { role: "user", content: userText }] }),
+        body: JSON.stringify(requestBody(cfg, maxTokens, systemText, userText)),
       });
+      if (res.status >= 300 && res.status < 400) {
+        console.error(`ai ${feature}: the model's address answered with a redirect, which is not followed`);
+        return giveBack("error");
+      }
       if (!res.ok) {
         console.error(`ai ${feature}: the model answered ${res.status}`);
         return giveBack(res.status === 429 ? "provider_limit" : "error");
       }
       const text = await res.text();
-      if (text.length > MAX_BODY_CHARS) return giveBack("error");
-      try { body = JSON.parse(text); } catch { return giveBack("error"); }
+      if (text.length > MAX_BODY_CHARS) { console.error(`ai ${feature}: the reply was too large`); return giveBack("error"); }
+      try { body = JSON.parse(text); } catch { console.error(`ai ${feature}: the reply was not JSON`); return giveBack("error"); }
     } catch (e) {
+      if (e?.name !== "AbortError") console.error(`ai ${feature}: the call failed (${e?.name || "error"}: ${String(e?.message || "").slice(0, 120)})`);
       return giveBack(e?.name === "AbortError" ? "timeout" : "error");
     } finally { clearTimeout(timer); }
   }
@@ -245,11 +272,13 @@ async function run(env, opts) {
   if (checked.ok && typeof opts.refine === "function") {
     try { final = opts.refine(checked.value) ?? null; } catch { final = null; }
   }
+  const failedAt = stopped === "length" ? "cut off at max_tokens" : !parsed.ok ? "not JSON" : !checked.ok ? "schema" : final === null ? "refine" : "";
+  const usedModel = typeof body?.model === "string" ? body.model.slice(0, 80) : "?";
   if (final === null) {
     // The model was paid for, so the call still counts.
     await addUsage(db, who, day, feature, scope, { fallbacks: 1 });
     await addDaily(db, day, { fallbacks: 1 });
-    return fallback("bad_output", feature);
+    return fallback("bad_output", feature, { detail: `${failedAt}, model ${usedModel}` });
   }
 
   const ttl = Math.min(Number.isFinite(opts.cacheTtlMs) ? opts.cacheTtlMs : CACHE_MAX_MS, CACHE_MAX_MS);

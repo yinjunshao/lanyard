@@ -3,16 +3,21 @@
 import { all, one, run } from "../db.js";
 
 export const ROLLOUTS = ["allowlist", "plus", "everyone"];
+export const DEFAULT_ROLLOUT = "plus"; // Plus is a paid promise ("Bigger AI allowances"), so it is open unless the owner narrows it
 export const MAX_ALLOW = 50;
 export const normEmail = (e) => String(e || "").trim().toLowerCase();
 
-/** Kill switch, rollout stage and allow-list. Unset means: not killed, allow-list only, nobody listed. */
+/**
+ * Kill switch, rollout stage and allow-list. Unset means: not killed, open to Plus accounts and hosts, nobody listed.
+ * A stage that is saved but not one of ROLLOUTS (a bad write) falls back to the strictest, the allow-list.
+ */
 export async function getSettings(db) {
   const rows = await all(db, "SELECT key, value FROM ai_settings");
   const m = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   let allow = [];
   try { allow = (JSON.parse(m.allow || "[]") || []).map(normEmail).filter(Boolean); } catch { allow = []; }
-  return { killed: m.killed === "1", rollout: ROLLOUTS.includes(m.rollout) ? m.rollout : "allowlist", allow };
+  const rollout = m.rollout === undefined ? DEFAULT_ROLLOUT : ROLLOUTS.includes(m.rollout) ? m.rollout : "allowlist";
+  return { killed: m.killed === "1", rollout, allow };
 }
 
 export const setSetting = (db, key, value) => run(db,
