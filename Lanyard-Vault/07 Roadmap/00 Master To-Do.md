@@ -113,7 +113,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F41** [[F41 Next bill date and Manage billing]] · P1 · S · Needs: F36 (in progress: Claude subagent, 2026-11-18; all tasks built and tested, waiting on the owner's browser look at the four Plan page states)
 - [ ] **F42** [[F42 Elastic slides for tabs and notches]] · P1 · S · Needs: F40 (in progress: Claude subagent, 2026-11-19; the elastic token, the tab bar and the host and Settings segmented controls)
 - [ ] **F43** [[F43 Manage passkeys]] · P1 · M · Needs: none (in progress: Claude subagent, 2026-11-19; all tasks built and tested, waiting on one check that needs a real device: add a second passkey from another browser profile; migration 0035 to apply)
-- [ ] **F44** [[F44 Custom tone goal and points in follow-ups]] · P1 · M · Needs: F22 (typed text reaches the model by owner decision, 2026-11-19; risk recorded in the plan note)
+- [ ] **F44** [[F44 Custom tone goal and points in follow-ups]] · P1 · M · Needs: F22 (typed text reaches the model by owner decision, 2026-11-19; risk recorded in the plan note) (in progress: Claude subagent, 2026-11-19)
 
 ## Dependency map
 ```mermaid

@@ -2,6 +2,8 @@
 //   GET  /api/ai/followup/:connectionId   what the composer offers: topics from THEIR side, your own tags, whether you
 //                                         have a note, your first name, and what is left of today's allowance
 //   POST /api/ai/followup/:connectionId   { channel, tone, goal, talkAbout[], offer[], useNote, extra, regenerate }
+//                                         tone and goal: a preset id or { custom: "<text>" } (F44); talkAbout items: an offered
+//                                         topic, or { custom: "<text>" } for a point you typed (at most 3)
 //                                         returns { fallback:false, draft:{ subject?, body }, cached, remaining }
 //                                         or      { fallback:true, reason, message, allowance }  (the page then shows its template)
 //
@@ -20,6 +22,9 @@
 //   offer    the chosen items from your own tags. Up to 2.
 //   myNote   your own private note about them, only if you asked for it
 //   extra    up to 300 characters you typed
+//   myTone, myGoal, myPoints   F44, only when typed: tone up to 15 characters, goal and each of up to 3 points up to 40.
+//            Checked and cleaned in the route (letters, marks, digits, spaces and ' - , . ! ? only), and they sit in the data
+//            block as descriptions, never in the instructions.
 // Never: either person's email, links or photos, any field the shared card hides (another card's headline or about, a
 // link left out), any other connection, anything about a third party. Every string is cleaned (no links, emails, markup, hidden characters).
 //
@@ -36,7 +41,7 @@ import { subtitleOf } from "../../src/lib/profile.js";
 import { callModel, allowanceFor } from "./client.js";
 import { cleanText, CAPS } from "./sanitize.js";
 import { dayOf } from "./config.js";
-import { FOLLOWUP_SCHEMA, MAX_TOKENS, PROMPT_VERSION, followupSystem, refineFollowup, isChannel, isGoal, isTone } from "./prompts/followup.js";
+import { FOLLOWUP_SCHEMA, MAX_TOKENS, PROMPT_VERSION, followupSystem, refineFollowup, isChannel, readChoice, readTalkAbout, TONES, GOALS } from "./prompts/followup.js";
 
 export const followupApp = new Hono();
 
@@ -151,7 +156,7 @@ export function cardSide(profile, card) {
 }
 
 /** The data block for the model (see the list at the top of this file). Exported so tests can inspect it. */
-export function followupData(ctx, { talkAbout, offer, useNote, extra }) {
+export function followupData(ctx, { talkAbout, offer, useNote, extra, tone, goal, points }) {
   const note = useNote && ctx.note ? ctx.note : "";
   const typed = cleanText(extra, CAPS.extra);
   return {
@@ -162,12 +167,15 @@ export function followupData(ctx, { talkAbout, offer, useNote, extra }) {
     offer: chosen(offer, ctx.offer, MAX_OFFER),
     ...(note ? { myNote: note } : {}),
     ...(typed ? { extra: typed } : {}),
+    ...(tone?.custom ? { myTone: tone.custom } : {}),
+    ...(goal?.custom ? { myGoal: goal.custom } : {}),
+    ...(points?.length ? { myPoints: points.slice(0, 3) } : {}),
   };
 }
 
 // Local stub mode only (AI_STUB): a plausible draft built from the data, so the screen can be tried without a key.
 function stubDraft(data, channel) {
-  const topic = data.talkAbout[0];
+  const topic = data.talkAbout[0] || data.myPoints?.[0];
   const where = data.met.event ? ` at ${data.met.event}` : "";
   const body = `Hi ${data.them.firstName}, it was good to meet you${where}.${topic ? ` I enjoyed hearing about ${topic}.` : ""} Let's keep in touch. ${channel === "email" ? data.me.firstName : ""}`.trim();
   return channel === "email" ? { subject: `Good to meet you${where}`.split(" ").slice(0, 8).join(" "), body } : { body };
@@ -194,25 +202,32 @@ followupApp.get("/api/ai/followup/:connectionId", async (c) => {
 followupApp.post("/api/ai/followup/:connectionId", async (c) => {
   const u = requireUser(c);
   const b = await c.req.json().catch(() => ({}));
-  if (!isChannel(b.channel) || !isTone(b.tone) || !isGoal(b.goal)) return c.json({ error: "Pick a channel, a tone and a goal." }, 400);
+  if (!isChannel(b.channel)) return c.json({ error: "Pick a channel, a tone and a goal." }, 400);
+  const tone = readChoice(b.tone, TONES, "tone");
+  if (!tone.ok) return c.json({ error: tone.error }, 400);
+  const goal = readChoice(b.goal, GOALS, "goal");
+  if (!goal.ok) return c.json({ error: goal.error }, 400);
+  const talk = readTalkAbout(b.talkAbout);
+  if (!talk.ok) return c.json({ error: talk.error }, 400);
   if (b.extra !== undefined && typeof b.extra !== "string") return c.json({ error: "Extra information must be text." }, 400);
   const db = c.env.DB;
   const ctx = await followupContext(db, u.id, c.req.param("connectionId"));
   if (!ctx) return c.json({ error: "not found" }, 404);
   const actor = { kind: "user", id: u.id };
-  const data = followupData(ctx, { talkAbout: b.talkAbout, offer: b.offer, useNote: b.useNote === true, extra: b.extra || "" });
+  const choices = { channel: b.channel, tone: tone.value, goal: goal.value };
+  const data = followupData(ctx, { talkAbout: talk.offered, offer: b.offer, useNote: b.useNote === true, extra: b.extra || "", tone: tone.value, goal: goal.value, points: talk.points });
   const r = await callModel(c.env, {
     feature: "followup",
     actor,
     promptVersion: PROMPT_VERSION,
-    system: followupSystem(b),
+    system: followupSystem(choices),
     data,
     schema: FOLLOWUP_SCHEMA,
     maxTokens: MAX_TOKENS,
     subjects: [ctx.peerId], // blocks, and any future opt-out, are checked inside callModel
     regenerate: b.regenerate === true,
     ip: c.req.header("cf-connecting-ip"),
-    refine: refineFollowup(b),
+    refine: refineFollowup(choices),
     stub: stubDraft(data, b.channel),
   });
   const allowance = async () => {

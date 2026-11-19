@@ -4,7 +4,7 @@ id: F44
 priority: P1
 phase: 8
 size: M
-status: Not started
+status: In progress
 needs: [F22]
 ---
 # F44 Custom tone, goal and points in follow-ups
@@ -32,7 +32,7 @@ Answers (2026-11-19): custom tone as "short fenced text, but shorter than 40 cha
 6. Keep `PROMPT_VERSION` rules: bump it.
 
 ## Tasks
-- [ ] F44.1 Worker: accept and validate custom tone, goal and points; fence them in the prompt; bump the prompt version; tests in `test/followup.mjs` and `test/ai-injection.mjs` (over-length, bad characters, a fence-breaking attempt, "ignore previous instructions" as a tone, a preset still works, the stub sees the text only in the data part).
+- [x] F44.1 Worker: accept and validate custom tone, goal and points; fence them in the prompt; bump the prompt version; tests in `test/followup.mjs` and `test/ai-injection.mjs` (over-length, bad characters, a fence-breaking attempt, "ignore previous instructions" as a tone, a preset still works, the stub sees the text only in the data part).
 - [ ] F44.2 FollowupComposer: "Your own…" chips and fields with counters, template fallback, browser check at 375 and 1280 px, light and dark; vault ([[AI Safety and Cost Plan]] residual risk, [[API Surface]]), decision note.
 
 ## Acceptance checks
