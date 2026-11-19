@@ -48,6 +48,7 @@ These block the items in brackets. Tick each one and write the answer in the lin
 - [x] Which of `demo-v1/`, `brag-output/`, `logo-concepts/` stay in git ([[F01 Repo housekeeping]]): only `logo-concepts/` (answered 2026-11-10)
 - [x] AI people search on by default with an opt-out, and the policy wording ([[F21 AI foundation]], [[F24 Do I know someone who]]): **on by default, opt-out in Settings**, wording as in [[AI Safety and Cost Plan]] (answered 2026-11-10)
 - [x] Event presence selfies deleted 48 hours after the event ends: OK? ([[F17 Event presence and who to meet]]): **yes, 48 hours** (answered 2026-11-10)
+- [x] Custom text in follow-up drafts ([[F44 Custom tone goal and points in follow-ups]]): **tone, goal and talk-about; tone at most 15 characters, fenced as data** (answered 2026-11-19)
 
 ## Build order
 Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a week or more. Priorities: **P0** now · **P1** next · **P2** after · **P3** only if needed.
@@ -109,11 +110,16 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 
 ### Phase 8: owner requests (2026-11-18)
 - [x] **F40** [[F40 Motion for sheets panels and tabs]] · P1 · L · Needs: F38 (done 2026-11-18, last commit 0019088; built on F38 as it stands, with its last browser check still open)
-- [ ] **F41** [[F41 Next bill date and Manage billing]] · P1 · S · Needs: F36 (in progress: Claude subagent, 2026-11-18)
+- [ ] **F41** [[F41 Next bill date and Manage billing]] · P1 · S · Needs: F36 (in progress: Claude subagent, 2026-11-18; all tasks built and tested, waiting on the owner's browser look at the four Plan page states)
+- [ ] **F42** [[F42 Elastic slides for tabs and notches]] · P1 · S · Needs: F40
+- [ ] **F43** [[F43 Manage passkeys]] · P1 · M · Needs: none
+- [ ] **F44** [[F44 Custom tone goal and points in follow-ups]] · P1 · M · Needs: F22 (typed text reaches the model by owner decision, 2026-11-19; risk recorded in the plan note)
 
 ## Dependency map
 ```mermaid
 graph LR
+  F40 --> F42
+  F22 --> F44
   F38 --> F40
   F36 --> F41
   F07 --> F10
