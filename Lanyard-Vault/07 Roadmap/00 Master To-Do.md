@@ -119,7 +119,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F44** [[F44 Custom tone goal and points in follow-ups]] · P1 · M · Needs: F22 (typed text reaches the model by owner decision, 2026-11-19; risk recorded in the plan note) (in progress: Claude subagent, 2026-11-19; both tasks built and tested with a stub, waiting on one check that needs a real model: a typed tone should sound like it)
 
 ### Phase 9: owner requests (2026-11-22)
-- [ ] **F46** [[F46 One selfie button]] · P0 · S · Needs: none
+- [ ] **F46** [[F46 One selfie button]] · P0 · S · Needs: none (in progress: Claude subagent, 2026-11-22; built and tested, waiting on one check that needs a real device: Enter or Space opens the native picker)
 - [ ] **F47** [[F47 Tidy follow-up section]] · P1 · S · Needs: none
 - [ ] **F45** [[F45 Email when someone new connects]] · P1 · M · Needs: none (owner decision answered 2026-11-22)
 - [ ] **F48** [[F48 Follow-up reminder emails]] · P1 · M · Needs: F45, F47

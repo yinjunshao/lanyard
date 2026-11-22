@@ -37,6 +37,7 @@ const message = ref("");
 const privateNote = ref("");
 const showPrivate = ref(false);
 const selfieDataUrl = ref(null);
+const selfieInput = ref(null);
 const consent = ref(false);
 const needsAgree = computed(() => !me.user?.termsAccepted);
 const agreed = ref(false);
@@ -47,6 +48,12 @@ const result = ref(null); // { connectionId, receivedNote }
 
 // What you share back (ShareBack.vue): only for someone with a card of their own, and loaded only for them.
 const share = ref(null); // { cardId, links } once ShareBack has loaded; without it the server keeps what you shared before
+
+function removeSelfie() {
+  selfieDataUrl.value = null;
+  consent.value = false;
+  if (selfieInput.value) selfieInput.value.value = "";
+}
 
 async function takeSelfie(e) {
   const file = e.target.files?.[0];
@@ -168,13 +175,17 @@ onBeforeUnmount(() => {
 
         <div class="field">
           <label class="label-top">Shared selfie (optional)</label>
-          <div class="file-picker">
-            <img v-if="selfieDataUrl" :src="selfieDataUrl" alt="Selfie preview" class="avatar" style="width:64px;height:64px" />
-            <span v-else class="avatar avatar-initial" style="width:64px;height:64px" aria-hidden="true">
-              <Icon name="camera" :size="24" />
-            </span>
-            <label for="sheet-selfie" class="btn">{{ selfieDataUrl ? "Retake" : "Take a selfie together" }}</label>
-            <input id="sheet-selfie" class="visually-hidden" type="file" accept="image/*" capture="user" @change="takeSelfie" />
+          <div class="selfie-field">
+            <input id="sheet-selfie" ref="selfieInput" class="visually-hidden" type="file" accept="image/*" capture="user" @change="takeSelfie" />
+            <label v-if="!selfieDataUrl" for="sheet-selfie" class="btn selfie-btn">
+              <Icon name="camera" :size="22" />
+              Take a selfie together
+            </label>
+            <div v-else class="selfie-done">
+              <img :src="selfieDataUrl" alt="Selfie preview" class="selfie-thumb" />
+              <label for="sheet-selfie" class="btn-quiet">Retake</label>
+              <button type="button" class="btn-quiet" @click="removeSelfie">Remove</button>
+            </div>
           </div>
         </div>
 
@@ -225,3 +236,12 @@ onBeforeUnmount(() => {
     </section>
   </div>
 </template>
+
+<style scoped>
+/* One control before a photo (the whole button is the tap target); after one, a plain picture with Retake and Remove. */
+.selfie-field { display: flex; }
+.selfie-btn { width: 100%; }
+.selfie-done { display: flex; align-items: center; gap: 12px; }
+.selfie-thumb { width: 64px; height: 64px; border-radius: var(--radius); object-fit: cover; border: var(--border); }
+.selfie-field:has(input:focus-visible) :is(.selfie-btn, .selfie-done label) { outline: 2.5px solid var(--strap); outline-offset: 2px; }
+</style>

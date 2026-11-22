@@ -16,6 +16,7 @@ const error = ref("");
 const name = ref(me.profile?.name || "");
 const note = ref("");
 const selfieDataUrl = ref(null);
+const selfieInput = ref(null);
 const consent = ref(false);
 const flash = ref(false);
 const busy = ref(false);
@@ -31,6 +32,12 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+function removeSelfie() {
+  selfieDataUrl.value = null;
+  consent.value = false;
+  if (selfieInput.value) selfieInput.value.value = "";
+}
 
 async function takeSelfie(e) {
   const file = e.target.files?.[0];
@@ -102,14 +109,18 @@ async function submit() {
 
       <div class="field">
         <label class="label-top">Shared selfie (optional)</label>
-        <div class="file-picker">
-          <img v-if="selfieDataUrl" :src="selfieDataUrl" alt="Selfie preview" class="avatar" style="width:60px;height:60px" />
-          <span v-else class="avatar avatar-initial" style="width:60px;height:60px" aria-hidden="true">
-            <Icon name="camera" :size="22" />
-          </span>
-          <label for="selfie" class="btn">{{ selfieDataUrl ? "Retake" : "Take selfie" }}</label>
-          <input id="selfie" class="visually-hidden" type="file" accept="image/*" capture="user" @change="takeSelfie" />
-        </div>
+        <div class="selfie-field">
+            <input id="selfie" ref="selfieInput" class="visually-hidden" type="file" accept="image/*" capture="user" @change="takeSelfie" />
+            <label v-if="!selfieDataUrl" for="selfie" class="btn selfie-btn">
+              <Icon name="camera" :size="22" />
+              Take a selfie together
+            </label>
+            <div v-else class="selfie-done">
+              <img :src="selfieDataUrl" alt="Selfie preview" class="selfie-thumb" />
+              <label for="selfie" class="btn-quiet">Retake</label>
+              <button type="button" class="btn-quiet" @click="removeSelfie">Remove</button>
+            </div>
+          </div>
       </div>
 
       <label v-if="selfieDataUrl" class="checkbox-row">
@@ -143,3 +154,12 @@ async function submit() {
     </div>
   </main>
 </template>
+
+<style scoped>
+/* One control before a photo (the whole button is the tap target); after one, a plain picture with Retake and Remove. */
+.selfie-field { display: flex; }
+.selfie-btn { width: 100%; }
+.selfie-done { display: flex; align-items: center; gap: 12px; }
+.selfie-thumb { width: 64px; height: 64px; border-radius: var(--radius); object-fit: cover; border: var(--border); }
+.selfie-field:has(input:focus-visible) :is(.selfie-btn, .selfie-done label) { outline: 2.5px solid var(--strap); outline-offset: 2px; }
+</style>

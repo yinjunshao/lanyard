@@ -35,4 +35,15 @@ check("MyCard has Edit profile and Cards as .btn-quiet links",
   /<router-link to="\/app\/cards" class="btn-quiet">Cards<\/router-link>/.test(mycard));
 check("the old Edit and Cards text links are gone from MyCard", !/class="topbar-link">(Edit|Cards)</.test(mycard));
 
+console.log("\n# F46 One selfie button");
+for (const [name, path, id] of [["the connect sheet", "src/components/ConnectSheet.vue", "sheet-selfie"], ["the Connect page", "src/views/Connect.vue", "selfie"]]) {
+  const src = read(path);
+  const field = /<div class="selfie-field">[\s\S]*?<\/div>\s*<\/div>/.exec(src)?.[0] || "";
+  check(`${name}: the selfie field exists`, !!field);
+  check(`${name}: no dead camera circle (avatar-initial) in the selfie field`, !!field && !field.includes("avatar-initial") && !/class="file-picker"/.test(field));
+  check(`${name}: the one button is a label for the input with the camera icon and its words`, new RegExp(`<label v-if="!selfieDataUrl" for="${id}" class="btn selfie-btn">\\s*<Icon name="camera"[^>]*/>\\s*Take a selfie together`).test(field));
+  check(`${name}: the input keeps capture="user" and is reachable by keyboard (visually hidden, not display:none)`, /capture="user"/.test(field) && /class="visually-hidden"/.test(field));
+  check(`${name}: after a photo there is Retake and Remove, and Remove clears the tick`, /Retake/.test(field) && /@click="removeSelfie"/.test(field) && /function removeSelfie\(\) \{[^}]*consent\.value = false/.test(src));
+}
+
 summary();
