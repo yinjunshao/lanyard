@@ -6,7 +6,7 @@ tags: [technical, privacy, gdpr]
 Not legal advice; a checklist from ICO guidance to be reviewed by a lawyer or UCL legal clinic before the first paid event.
 
 ## Roles
-- Lanyard is **controller** for profiles and connections.
+- Lanyard is **controller** for profiles and connections. Since 2026-11-22 the controller is named as Quantlink Investment Service Company Limited, in Privacy Policy section 1, Terms section 1 and a footer line on the landing, hosts, Terms and Privacy pages: name only, with the `lanyd.fyi` addresses and England and Wales law ([[F50 QuantLink as the operator]]). No address or registration number is shown; ICO registration and a possible UK representative are open.
 - Current Terms make Lanyard the controller of check-ins; hosts get aggregates only, except an event's own named list (F31): the organiser decides why that list is kept, so it is a controller for its own copy and Lanyard holds the data for it. The roles, and what the Host Terms must say, need a lawyer before launch ([[D038 Named attendance is per event, shown on the check-in page and pre-ticked by the owner's choice]]). If named exports or sponsor lead lists are added, roles change and a host DPA / sponsor agreement is needed. See [[UK GDPR Audit 2026-11-01]].
 - Register with the ICO and pay the data protection fee (**TODO**).
 
@@ -136,7 +136,7 @@ Nothing new is stored. The hub shows a person only their own connections at that
 Passkeys (F43): a passkey row holds the public key, a counter, an optional name the person chose, and when it was added and last used. People can rename and remove their own in Settings > Sign-in and devices; removing deletes the row at once (nothing is kept) and does not touch the copy on their device. The data download lists passkeys by name and dates only, never the key. The Privacy Policy table says the name is kept.
 
 ## Terms and privacy versions
-Terms version in app: `2026-10-26`. Privacy policy operator details were updated 2026-10-27 (git).
+Terms version in app: `2026-11-22` (F50: the one bump for F45 to F50, so everyone and every host is asked to agree again). The operator was named in the policy on 2026-11-22.
 
 Audit with gaps and fixes: [[UK GDPR Audit 2026-11-01]]
 

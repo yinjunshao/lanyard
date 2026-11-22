@@ -1,13 +1,11 @@
 <script setup>
 import { homePath } from "../lib/store";
-// Privacy Policy (UK GDPR). Bracketed items are for the operator to fill in before launch.
-const OPERATOR = "ARCK Softworks";
-const ADDRESS = "WC1E 6BT";
-import { HELP_EMAIL, LEGAL_EMAIL } from "../lib/contact";
+// Privacy Policy (UK GDPR).
+import { HELP_EMAIL, LEGAL_EMAIL, OPERATOR } from "../lib/contact";
 document.title = "Privacy policy | Lanyard";
 const CONTACT = LEGAL_EMAIL;
 const HELP = HELP_EMAIL;
-const UPDATED = "13 November 2026";
+const UPDATED = "22 November 2026";
 </script>
 
 <template>
@@ -20,7 +18,7 @@ const UPDATED = "13 November 2026";
 
     <h2>1. Who is responsible</h2>
     <p>
-      {{ OPERATOR }} ("Lanyard", "we") of {{ ADDRESS }} is the controller of the personal data described here under the
+      Lanyard is run by {{ OPERATOR }} ("Lanyard", "we"), which is the controller of the personal data described here under the
       UK GDPR and the Data Protection Act 2018. Contact us at <a :href="`mailto:${CONTACT}`">{{ CONTACT }}</a> for anything about your data.
     </p>
 
@@ -223,5 +221,6 @@ const UPDATED = "13 November 2026";
     <p class="muted" style="margin-top:32px">
       <router-link to="/terms">Terms of Service</router-link> · <router-link to="/terms#hosts">Host terms</router-link> · <router-link to="/">Home</router-link>
     </p>
+    <p class="small muted operator">Lanyard is run by {{ OPERATOR }}.</p>
   </main>
 </template>

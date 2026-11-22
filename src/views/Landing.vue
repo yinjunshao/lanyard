@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { me } from "../lib/store";
 import { defaultCard } from "../lib/store";
 import Badge from "../components/Badge.vue";
+import { OPERATOR } from "../lib/contact";
 document.title = "Lanyard: a digital card and a memory of everyone you meet";
 
 // Static demo badge for the hero — scans open the same landing page until real
@@ -76,5 +77,6 @@ onMounted(() => { url.value = `${location.origin}/`; });
         <Badge :view="demo" :url="url" subtitle="Mechanical Engineering  ·  Year 2" />
       </div>
     </div>
+    <p class="small muted operator" style="max-width:960px;margin:24px auto;padding:0 20px">Lanyard is run by {{ OPERATOR }}.</p>
   </div>
 </template>

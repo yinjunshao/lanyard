@@ -2,6 +2,7 @@
 import { homePath } from "../lib/store";
 // Host pitch page: what hosts get, early pricing, and the way into the portal.
 import { HOST_ORIGIN } from "../lib/site";
+import { OPERATOR } from "../lib/contact";
 document.title = "Lanyard for hosts: event check-in and networking";
 const portal = `${HOST_ORIGIN}/`;
 </script>
@@ -94,5 +95,6 @@ const portal = `${HOST_ORIGIN}/`;
       Sponsor sharing is opt-in per sponsor.
       <router-link to="/terms#hosts">Host terms</router-link> · <router-link to="/privacy">Privacy Policy</router-link>
     </p>
+    <p class="small muted operator">Lanyard is run by {{ OPERATOR }}.</p>
   </div>
 </template>

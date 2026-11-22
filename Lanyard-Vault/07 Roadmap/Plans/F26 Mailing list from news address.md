@@ -39,7 +39,7 @@ Resend has its own Broadcasts with contacts, segments and topics ([docs](https:/
 Two topics to start: **Product news** and **Events and offers**. `users.news_topics` / `newsletter_subscribers.topics` (JSON). Settings → Email and notifications ([[F09 Settings in category pages]]) shows switches for each. The unsubscribe page offers "Unsubscribe from everything" or per-topic choices.
 
 ### Every marketing email must have
-- Who it's from: "Lanyard, run by ARCK Softworks", with a **full postal address**. This is blocked until [[UK GDPR Audit 2026-11-01]] High 3 is fixed: the policy has only a postcode today.
+- Who it's from: "Lanyard, run by Quantlink Investment Service Company Limited" ([[F50 QuantLink as the operator]]), with a **full postal address**. The postal address is still blocked on [[UK GDPR Audit 2026-11-01]] High 3: the site names the company but gives no address.
 - Why they're getting it ("You signed up at lanyd.fyi on 4 Nov 2026").
 - A one-click unsubscribe (link plus headers, which already exist) and a "Change what you get" link.
 - No tracking pixels by default (fewer consent questions). If open tracking is ever turned on, the Privacy Policy must say so.

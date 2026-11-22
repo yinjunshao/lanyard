@@ -4,7 +4,7 @@ id: F50
 priority: P1
 phase: 9
 size: S
-status: Not started
+status: Done
 needs: [F45, F48, F49]
 ---
 # F50 QuantLink as the operator
@@ -39,16 +39,22 @@ The owner's file is a Hong Kong annual return (form NAR1). The only item used: t
 6. Vault: Master To-Do "Legal entity" decision line, [[F27 Lanyard Plus and billing]] (`SELLER_NAME` is the company name; the address question returns when paid plans go live), [[UK GDPR Audit 2026-11-01]] High 3, [[Privacy and Data Retention]].
 
 ## Tasks
-- [ ] F50.1 Operator name in Privacy, Terms and the footers; the version bump; tests updated; vault notes; browser check of the footer at 375 and 1280 px, light and dark.
+- [x] F50.1 Operator name in Privacy, Terms and the footers; the version bump; tests updated; vault notes; browser check of the footer at 375 and 1280 px, light and dark.
 
 ## Acceptance checks
-- [ ] "ARCK Softworks" and "WC1E 6BT" appear nowhere in `src/` or `worker/` (test guard).
-- [ ] The Privacy Policy and Terms name Quantlink Investment Service Company Limited and give only the `lanyd.fyi` addresses; no street address, registration number or person's name appears (test guard for the document's street name, the registration number and the names in it, without writing those names into the repo in plain text: compare hashes or check for a short list kept out of git, the subagent's choice).
-- [ ] The landing, hosts, Terms and Privacy pages show the footer line.
-- [ ] `TERMS_VERSION` is bumped and a signed-in person who agreed to the old version is asked again.
-- [ ] `npm test` passes; public pages within budget.
+- [x] "ARCK Softworks" and "WC1E 6BT" appear nowhere in `src/` or `worker/` (test guard).
+- [x] The Privacy Policy and Terms name Quantlink Investment Service Company Limited and give only the `lanyd.fyi` addresses; no street address, registration number or person's name appears (test guard for the document's street name, the registration number and the names in it, without writing those names into the repo in plain text: compare hashes or check for a short list kept out of git, the subagent's choice).
+- [x] The landing, hosts, Terms and Privacy pages show the footer line.
+- [x] `TERMS_VERSION` is bumped and a signed-in person who agreed to the old version is asked again.
+- [x] `npm test` passes; public pages within budget.
 
 ## Log
--
+- 2026-11-22 · Claude subagent. F50.1: `OPERATOR` is exported from `src/lib/contact.js` (the one place the name is written) and used by Privacy, Terms, Landing and Hosts. Privacy section 1 and Terms section 1 say it as the owner worded it; no address constant; the "bracketed items" comments are gone. A small muted line, "Lanyard is run by Quantlink Investment Service Company Limited.", ends the Landing, Hosts, Terms and Privacy pages. `TERMS_VERSION` is `2026-11-22` and both pages say "Last updated 22 November 2026": this is the one bump for F45 to F50, so everyone is asked to agree again, and so is every host (the Host Terms use the same version; the host portal sends them back to its terms step). Nothing else about the company is on the site.
+- **How the no-address check was done:** nothing about the company's address, number or people was written into the repo or the vault, not even in tests. `test/operator.mjs` (wired into `npm test` before `test/budget.mjs`) instead checks that section 1 of both legal pages and `contact.js` hold only `@lanyd.fyi` addresses and no run of 6 or more digits, that no page has an `ADDRESS` constant, that the footer line names no place or registration, that the name is spelt exactly and written in only one file in `src/`, and that the old operator name and postcode appear nowhere in `src/` or `worker/`. It also proves re-acceptance: a person whose only agreement is `terms:2026-11-13` has `termsAccepted` false and `needsTerms` true, and agreeing makes it `2026-11-22`; a host with the old version is sent back to the terms step and agrees again.
+- Tests changed for the bump: `test/ai.mjs`, `test/connect-email.mjs`, `test/drops.mjs`, `test/feedback-summary.mjs`, `test/named-attendance.mjs`, `test/onboarding.mjs`, `test/profile-nudge.mjs` (the version pins; the two "not bumped here" guards now expect the bump). The check-in notice wording version (`NOTICE_VERSION`, `2026-11-13`) is a separate string in `src/lib/collects.js` and is not changed.
+- Budget (gzip, first load, before to after): Landing 45,270 to 45,491 B, Hosts 43,716 to 43,899 B (both now load the small shared `contact` chunk), Privacy 50,746 to 50,800 B (400 B left), Terms 47,969 to 48,023 B, PrivacyRequest 51,095 to 51,096 B (104 B left; it does not use the constant, only chunk names moved), PublicCard 48,799 B, Redeem 47,237 B, SignIn 48,364 B. `api.js`, `store.js` and `main.css` untouched.
+- **Browser look** (local `vite` and `wrangler dev`, both stopped after): the footer line on Terms at 375 px light, Privacy section 1 and footer at 1280 px dark, Landing at 1280 px dark and 375 px light (the Landing line is aligned with the hero by an inline style, no CSS file touched). Hosts was checked in tests only, not in a browser. The same browser profile, which had agreed to the old version, was shown "Our terms and privacy policy" again on opening My card.
+- Decisions made without the owner: the footer sits at the end of each of the four pages with the class `small muted operator` and no new CSS; the Privacy Policy wording is the owner's text with "Lanyard is run by" in front, and the ICO line is unchanged. The warning above (a UK representative, the ICO fee) is unchanged and stays with the owner's lawyer.
+- **Owner steps:** with F45 to F49: `npm run db:remote` (0036, 0037, 0038), `npm run deploy`, and the real-world checks in the F45, F48 and F49 Logs. Everyone will be asked to agree to the Terms again on next use. Still open and not code: the postal address for paid plans, ICO registration, and a lawyer's view on a UK representative.
 
 Related: [[F27 Lanyard Plus and billing]] · [[UK GDPR Audit 2026-11-01]] · back to [[00 Master To-Do]]

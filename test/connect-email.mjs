@@ -484,7 +484,7 @@ console.log("\n# F45.2 The pages (source guards; the browser check is in the pla
   check("Privacy Policy section 2 lists the email you must give when you connect or make a card, and that only we see it",
     pol.includes("Your email, which you must give when you connect or make a card") && pol.includes("Only we see it: never the people you meet, organisers or your card"));
   check("…and section 6 says it is cleared 30 days after you gave it if never confirmed", pol.includes("If you never confirm it, it is cleared 30 days after you gave it"));
-  check("the Terms version is not bumped (F50 does one bump for F45 to F50)", /TERMS_VERSION = "2026-11-13"/.test(read("worker/legal.js")));
+  check("the Terms version is the one F50 set for F45 to F50", /TERMS_VERSION = "2026-11-22"/.test(read("worker/legal.js")));
   check("the dead Connect page says why it is out of step", /Not routed: no route imports this page/.test(read("src/views/Connect.vue")));
 }
 

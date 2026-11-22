@@ -16,7 +16,7 @@ tags: [project, questions]
 ## Legal and compliance
 See the full list in [[UK GDPR Audit 2026-11-01]].
 - [ ] Fix the four High items in the audit before real events
-- [ ] Full postal address and legal entity for ARCK Softworks
+- [ ] Full postal address for paid plans, ICO registration and a possible UK representative (the legal entity is named, 2026-11-22: [[F50 QuantLink as the operator]])
 - [ ] Register with the ICO; pay fee
 - [ ] Draft host DPA; one-page breach plan
 - [ ] Privacy policy matches retention exactly

@@ -1,14 +1,12 @@
 <script setup>
 import { homePath } from "../lib/store";
-// Terms of Service. Bracketed items are for the operator to fill in before launch.
+// Terms of Service.
 // Bump TERMS_VERSION in worker/legal.js when this changes materially.
-const OPERATOR = "ARCK Softworks";
-const ADDRESS = "WC1E 6BT";
-import { HELP_EMAIL, LEGAL_EMAIL } from "../lib/contact";
+import { HELP_EMAIL, LEGAL_EMAIL, OPERATOR } from "../lib/contact";
 document.title = "Terms of service | Lanyard";
 const CONTACT = LEGAL_EMAIL;
 const HELP = HELP_EMAIL;
-const UPDATED = "13 November 2026";
+const UPDATED = "22 November 2026";
 </script>
 
 <template>
@@ -24,7 +22,7 @@ const UPDATED = "13 November 2026";
     <h3>1. Who we are</h3>
     <p>
       Lanyard is a service for sharing a digital card at events and keeping the connections you make.
-      It is run by {{ OPERATOR }} ("Lanyard", "we", "us"), {{ ADDRESS }}. For help using Lanyard, email
+      It is run by {{ OPERATOR }} ("Lanyard", "we", "us"). For help using Lanyard, email
       <a :href="`mailto:${HELP}`">{{ HELP }}</a>. For anything about these terms or the law, email
       <a :href="`mailto:${CONTACT}`">{{ CONTACT }}</a>. These terms are a contract between you and us. Please also
       read our <router-link to="/privacy">Privacy Policy</router-link>, which explains how we handle personal data.
@@ -207,6 +205,7 @@ const UPDATED = "13 November 2026";
       Questions about these terms? <a :href="`mailto:${CONTACT}`">{{ CONTACT }}</a>
       · <router-link to="/privacy">Privacy Policy</router-link> · <router-link to="/">Home</router-link>
     </p>
+    <p class="small muted operator">Lanyard is run by {{ OPERATOR }}.</p>
   </main>
 </template>
 
