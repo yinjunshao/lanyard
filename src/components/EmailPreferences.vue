@@ -33,7 +33,7 @@ async function toggleMarketing(ev) {
       </label>
       <label class="small" style="display:flex;gap:10px;align-items:flex-start;min-height:44px">
         <input type="checkbox" :checked="me.user.reminderEmails" style="margin-top:3px" @change="toggleReminders" />
-        <span>Email me when a follow-up reminder I set is due.</span>
+        <span>Email me when a follow-up reminder I set is due, and to finish my card.</span>
       </label>
       <label v-if="me.user.emailVerified" class="small" style="display:flex;gap:10px;align-items:flex-start;min-height:44px">
         <input type="checkbox" :checked="me.user.marketingOptin" style="margin-top:3px" @change="toggleMarketing" />

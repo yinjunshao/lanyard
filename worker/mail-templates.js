@@ -40,6 +40,27 @@ export function followupReminderEmail({ people, total, stopUrl, listUrl }) {
   };
 }
 
+// F49: finish your card. `names` is at most two first names of people they met (as they see them in the app);
+// `missing` is the labels of what is still to add. Nothing else about anyone. The second email says it is the last.
+// `stopUrl` is the same switch as the follow-up reminders.
+export function profileNudgeEmail({ second, names, score, max, missing, url, stopUrl }) {
+  const who = (names || []).slice(0, 2).map((n) => plain(n, 30)).filter(Boolean);
+  const list = who.length > 1 ? `${who[0]} and ${who[1]}` : who[0] || "";
+  const items = (missing || []).slice(0, 6).map((m) => plain(m, 40));
+  const intro = second
+    ? `Your Lanyard card is still ${score} of ${max}.`
+    : `${list ? `You met ${list} recently. A finished card helps them remember you.` : "A finished card helps the people you meet remember you."} Your card is ${score} of ${max}.`;
+  const foot = second ? "This is the last email we'll send about your card." : "We'll send one more email about this at most.";
+  const subject = second ? "Your Lanyard card is still unfinished"
+    : list ? `Finish your card so ${list} ${who.length > 1 ? "remember" : "remembers"} you` : "Finish your Lanyard card";
+  return {
+    subject,
+    text: `${intro}\n\nStill to add:\n${items.map((m) => `- ${m}`).join("\n")}\n\nFinish your card: ${url}\n\n${foot} Stop these emails: ${stopUrl}`,
+    html: `${paragraphs(intro)}<p style="margin:4px 0">Still to add:</p><ul style="margin:4px 0 12px">${items.map((m) => `<li>${escapeHtml(m)}</li>`).join("")}</ul>${button(url, "Finish your card")}${small(`${escapeHtml(foot)} <a href="${escapeHtml(stopUrl)}">Stop these emails</a>`)}`,
+    headers: { "List-Unsubscribe": `<${stopUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+  };
+}
+
 // To the person who runs the event, a day after it ended.
 export function hostSummaryEmail({ eventName, checkins, connections, responses, nudged, url, aiSummary }) {
   const lines = [

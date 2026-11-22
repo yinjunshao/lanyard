@@ -58,7 +58,7 @@ async function valid(c) {
 const COPY = {
   news: ["Unsubscribe?", "Stop news and offers from Lanyard. You'll still get sign-in codes.", "Unsubscribe", "Unsubscribed", "You won't get news emails from Lanyard any more."],
   events: ["Stop event reminders?", "No more emails asking for feedback after events. You'll still get sign-in codes.", "Stop reminders", "Reminders off", "We won't email you about event feedback again."],
-  reminders: ["Stop reminder emails?", "No more emails when a follow-up reminder you set is due. You'll still get sign-in codes. You can switch them back on in Settings.", "Stop reminder emails", "Reminder emails off", "We won't email you about follow-up reminders again."],
+  reminders: ["Stop reminder emails?", "No more emails when a follow-up reminder you set is due, or to finish your card. You'll still get sign-in codes. You can switch them back on in Settings.", "Stop reminder emails", "Reminder emails off", "We won't email you about follow-up reminders or finishing your card again."],
   revoke: ["Sign out everywhere?", "This signs out every device on your account, including this one. Then sign in again with your email or passkey.", "Sign out everywhere", "Signed out everywhere", "Every device was signed out. If you didn't sign in just now, sign back in and add a passkey in Settings."],
 };
 

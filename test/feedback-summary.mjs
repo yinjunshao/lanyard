@@ -469,7 +469,7 @@ console.log("\n# F23.2 The hourly job: once, when the feedback window has closed
   const ctx = { waits: [], waitUntil(p) { this.waits.push(p); } };
   await worker.scheduled({ cron: "0 * * * *" }, env, ctx);
   await Promise.all(ctx.waits);
-  check("the hourly scheduled run starts the event emails, the follow-up reminder emails (F48) and the summaries", ctx.waits.length === 3);
+  check("the hourly scheduled run starts the event emails, the follow-up reminder emails (F48), the finish-your-card emails (F49) and the summaries", ctx.waits.length === 4);
   const ctxDaily = { waits: [], waitUntil(p) { this.waits.push(p); } };
   await worker.scheduled({ cron: "17 3 * * *" }, env, ctxDaily);
   await Promise.all(ctxDaily.waits);

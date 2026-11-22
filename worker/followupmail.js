@@ -25,7 +25,7 @@ const PER_RUN = 300;                  // people emailed per run; the next hour c
 const ROWS = 1500;                    // reminders looked at per run
 
 // Nobody has blocked the other, in either direction. `cn` is the connection's table alias.
-const NOT_BLOCKED = (cn) => `NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ${cn}.user_a AND b.blocked_id = ${cn}.user_b) OR (b.blocker_id = ${cn}.user_b AND b.blocked_id = ${cn}.user_a))`;
+export const NOT_BLOCKED = (cn) => `NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ${cn}.user_a AND b.blocked_id = ${cn}.user_b) OR (b.blocker_id = ${cn}.user_b AND b.blocked_id = ${cn}.user_a))`;
 
 /** Claims one reminder for sending. True only for the one caller whose write changed the row. */
 async function claim(db, userId, connectionId, remindAt, ts) {

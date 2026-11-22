@@ -27,6 +27,7 @@ import { privacyApp } from "./privacy.js";
 import * as Alerts from "./alerts.js";
 import { sendEventEmails } from "./eventmail.js";
 import { sendFollowupEmails } from "./followupmail.js";
+import { sendProfileNudges } from "./profilenudge.js";
 import { writeDueSummaries } from "./ai/feedbackSummary.js";
 import {
   newCardCode, rotateCardCode, FOREVER, freshenCards, findCardByCode, normaliseCode,
@@ -527,7 +528,7 @@ app.get("/api/account/export", async (c) => {
   const ai = await exportAi(db, "user", u.id); // F21
   const billingOrders = await exportBillingOrders(db, "user", u.id); // F36: card orders (none until billing is on)
   // F45: the unconfirmed address, its emails and the time zone (the older shape if 0036 is not applied yet).
-  const pend = await one(db, "SELECT pending_email, pending_email_at, pending_mails, tz FROM users WHERE id = ?", u.id).catch(() => null);
+  const pend = await one(db, "SELECT pending_email, pending_email_at, pending_mails, tz, profile_nudges, profile_nudge_at FROM users WHERE id = ?", u.id).catch(() => null);
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
     exportedAt: now(),
@@ -539,7 +540,8 @@ app.get("/api/account/export", async (c) => {
             authenticatorApp: !!u.has_totp, passkey: !!u.has_passkey, recoveryKeySet: !!u.has_recovery,
             verifiedStudent: !!u.verified_student, createdAt: u.created_at,
             pendingEmail: pend?.pending_email || null, pendingEmailSince: pend?.pending_email_at || null,
-            emailsToPendingEmail: pend?.pending_mails || 0, timeZone: pend?.tz || null },
+            emailsToPendingEmail: pend?.pending_mails || 0, timeZone: pend?.tz || null,
+            finishCardEmailsSent: pend?.profile_nudges || 0, lastFinishCardEmailAt: pend?.profile_nudge_at || null },
     profile: profile && { ...profile, photo: media(profile.photo_key) },
     cards,
     connections: connections.map((x) => ({
@@ -1438,6 +1440,7 @@ export default {
     else {
       ctx.waitUntil(sendEventEmails(env).catch((e) => console.error(e)));
       ctx.waitUntil(sendFollowupEmails(env).catch((e) => console.error("follow-up reminder emails failed")));
+      ctx.waitUntil(sendProfileNudges(env).catch((e) => console.error("finish-your-profile emails failed")));
       ctx.waitUntil(writeDueSummaries(env).catch((e) => console.error("feedback summaries failed")));
     }
   },
