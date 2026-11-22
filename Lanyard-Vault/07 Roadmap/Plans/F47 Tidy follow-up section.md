@@ -4,7 +4,7 @@ id: F47
 priority: P1
 phase: 9
 size: S
-status: In progress
+status: Done
 needs: []
 ---
 # F47 Tidy follow-up section
