@@ -58,7 +58,7 @@ const rows = computed(() => [
   { key: "account", to: "/app/settings/account", title: "Account", summary: u.value?.emailVerified ? u.value.recoveryEmail : "No email saved" },
   { key: "security", to: "/app/settings/security", title: "Sign-in and devices", summary: signInSummary.value },
   { key: "notifications", to: "/app/settings/notifications", title: "Email and notifications",
-    summary: u.value?.emailVerified ? `Feedback reminders ${u.value.eventEmails ? "on" : "off"}, news ${u.value.marketingOptin ? "on" : "off"}` : "Add an email first" },
+    summary: u.value?.emailVerified ? `Feedback reminders ${u.value.eventEmails ? "on" : "off"}, follow-ups ${u.value.reminderEmails ? "on" : "off"}, news ${u.value.marketingOptin ? "on" : "off"}` : u.value?.pendingEmail ? `Follow-up reminders ${u.value.reminderEmails ? "on" : "off"}` : "Add an email first" },
   { key: "privacy", to: "/app/settings/privacy", title: "Privacy and data", summary: "Your data, consents, delete account" },
   { key: "plan", to: "/app/settings/plan", title: "Plan", summary: me.plan.label },
   { key: "appearance", to: "/app/settings/appearance", title: "Appearance and app", summary: `Theme: ${{ auto: "auto", light: "light", dark: "dark" }[themePref.value] || "auto"}` },

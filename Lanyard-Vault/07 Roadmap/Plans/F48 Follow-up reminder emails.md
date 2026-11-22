@@ -29,7 +29,7 @@ needs: [F45, F47]
 
 ## Tasks
 - [x] F48.1 Worker: migration 0037, the hourly job, the template, the stop link, the preference route; tests in a new `test/followup-mail.mjs` (due, not due, followed up, cleared, blocked, deleted connection, switched off, no address, pending address cap, two people due give one email, run twice sends once, a 3-day-old reminder at first deploy is not mailed).
-- [ ] F48.2 Front end: the Settings switch and the F47 hint; Privacy Policy rows; vault notes ([[Data Model]], [[Integrations and Email]], [[Privacy and Data Retention]]), browser check at 375 and 1280 px, light and dark; the email seen in the `MAIL_LOG=1` console.
+- [x] F48.2 Front end: the Settings switch and the F47 hint; Privacy Policy rows; vault notes ([[Data Model]], [[Integrations and Email]], [[Privacy and Data Retention]]), browser check at 375 and 1280 px, light and dark; the email seen in the `MAIL_LOG=1` console.
 
 ## Acceptance checks
 - [ ] A reminder set for 09:00 today is emailed by the first hourly run after 09:00 and never again (test with a fixed clock).

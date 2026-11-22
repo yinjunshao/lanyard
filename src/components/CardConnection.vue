@@ -6,6 +6,7 @@
 import { computed, ref, shallowRef, watch } from "vue";
 import { useRouter } from "vue-router";
 import { Api } from "../lib/api";
+import { me } from "../lib/store";
 import { morningIn, fmtDay, relativeDay } from "../lib/time";
 
 const props = defineProps({
@@ -34,6 +35,7 @@ async function saveNote() {
 // ---- Follow-up: a reminder, "done", and your own tags (all private to you) ----
 const myTags = ref([]);
 const remindAt = ref(null);
+const emailsGo = computed(() => !!me.user?.reminderEmailsGo && !!remindAt.value && remindAt.value > Date.now() - 48 * 3600e3);
 const followedUpAt = ref(null);
 const metaMsg = ref("");
 watch(connection, (cn) => {
@@ -151,12 +153,15 @@ async function sendReport() {
         <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ followedUp: false })">Undo</button>
       </p>
       <template v-else>
-        <p v-if="remindAt && !changing" class="small" style="margin:0">
-          Reminder {{ relativeDay(remindAt) }}, {{ fmtDay(remindAt) }} ·
-          <button type="button" class="link-btn" :disabled="metaBusy" @click="changing = true">Change</button> ·
-          <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ remindAt: null })">Clear</button>
-        </p>
-        <!-- F48 adds the muted "We'll email you then" line here, once reminder emails are sent. Not before: it must never promise an email that is not sent. -->
+        <template v-if="remindAt && !changing">
+          <p class="small" style="margin:0">
+            Reminder {{ relativeDay(remindAt) }}, {{ fmtDay(remindAt) }} ·
+            <button type="button" class="link-btn" :disabled="metaBusy" @click="changing = true">Change</button> ·
+            <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ remindAt: null })">Clear</button>
+          </p>
+          <!-- Shown only when an email would really go: the switch is on and an address may be emailed (the Worker says so in /api/me), and the reminder is still inside the 48 hours the job covers. -->
+          <p v-if="emailsGo" class="small muted" style="margin:0">We'll email you then.</p>
+        </template>
         <template v-else>
           <p class="small muted" style="margin:0">
             Remind me to follow up

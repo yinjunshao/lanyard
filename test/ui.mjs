@@ -57,7 +57,14 @@ check("In 3 days is 9:00 three days ahead (morningIn(3))", /setRemind\(morningIn
 check("a set reminder shows Change and Clear", /Reminder \{\{ relativeDay\(remindAt\) \}\}, \{\{ fmtDay\(remindAt\) \}\}/.test(fu) && />Change</.test(fu) && />Clear</.test(fu));
 check("Mark as followed up is a quiet link-btn, not a .btn", /class="link-btn"[^>]*>Mark as followed up</.test(fu) && !/class="btn"[^>]*>Mark as followed up/.test(conn));
 check("followed up reads Followed up <date> with Undo and hides the chips", /Followed up \{\{ fmtDay\(followedUpAt\) \}\}/.test(fu) && /v-if="followedUpAt"/.test(fu));
-check("no email promise yet: the F48 line is only a code comment", !/email you/i.test(conn.replace(/<!--[\s\S]*?-->/g, "")));
+{
+  // F48: exactly one email promise, "We'll email you then.", shown only when an email would really go.
+  const bare = conn.replace(/<!--[\s\S]*?-->/g, "");
+  const promises = bare.match(/[^<>\n]*email you[^<>\n]*/gi) || [];
+  check("the only email promise is \"We'll email you then.\", on one line", promises.length === 1 && promises[0].trim() === "We'll email you then.", promises);
+  check("it shows only with a set reminder, inside the 48-hour window, and when the Worker says an email would go (switch on and an address)",
+    /<p v-if="emailsGo" class="small muted"[^>]*>We'll email you then\.<\/p>/.test(bare) && /const emailsGo = computed\(\(\) => !!me\.user\?\.reminderEmailsGo && !!remindAt\.value && remindAt\.value > Date\.now\(\) - 48 \* 3600e3\)/.test(bare));
+}
 check("Draft a message sits in its own block with exactly one button", /Write to \{\{ first \}\}/.test(wr) && (wr.match(/<button/g) || []).length === 1 && /Draft a message/.test(wr) && !/Draft a follow-up/.test(conn));
 check("the order is Follow up, Write to, private note, tags", conn.indexOf("Follow up</span>") < conn.indexOf("Write to {{") && conn.indexOf("Write to {{") < conn.indexOf('for="private-note"') && conn.indexOf('for="private-note"') < conn.indexOf("Your tags</span>"));
 check("Remove and Report are quiet buttons; Remove still confirms", /class="btn-quiet"[^>]*@click="removeConnection"/.test(conn) && /class="btn-quiet"[^>]*@click="reporting = !reporting"/.test(conn) && /confirm\("Remove this connection\?/.test(conn));
