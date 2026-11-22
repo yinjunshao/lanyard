@@ -528,6 +528,8 @@ console.log("\n# Bar 8: the per-run cap, the hourly job and the guards");
   const idx = read("worker/index.js");
   check("the hourly scheduled run starts it, the daily clean-up does not", /else \{[^}]*sendProfileNudges\(env\)/s.test(idx.slice(idx.indexOf("scheduled:"))) && !/17 3 \* \* \*"\) ctx\.waitUntil\(sendProfileNudges/.test(idx));
   check("wrangler.toml still runs the hourly job", /47 \* \* \* \*/.test(read("wrangler.toml")));
+  check("the privacy policy says it: up to two emails after an event if the profile is unfinished, a switch stops each kind, and a retention row", /up to two after an event if your profile is unfinished/.test(read("src/views/Privacy.vue")) && /Finish-your-card emails<\/td><td>[^<]*never more than two/.test(read("src/views/Privacy.vue")));
+  check("the Terms version is not bumped here (F50 does it)", /2026-11-13/.test(read("worker/legal.js")));
   check("the Settings label and the stop page both say finish my card", /and to finish my card/.test(read("src/components/EmailPreferences.vue")) && /or to finish your card/.test(read("worker/unsub.js")));
   // The anchor query reads people only through connections and check-ins, never through a note or a tag.
   const daily = [];

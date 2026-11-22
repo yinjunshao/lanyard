@@ -27,6 +27,7 @@ tags: [product, features]
 - **Events tab and event hub** (F15): the fourth tab lists what is on now and the events you attended (Ongoing or Ended, the date you attended, your connection count); checking in lands on the hub with your figures and the people you met there.
 - **Event room, album and Discovery** after check-in. See [[Host Portal and Billing]].
 - **Feedback survey** after events, with reminder email.
+- **Profile score and finish-your-profile emails** (F49): Edit profile shows "Profile N of 6" with what is missing as links to the fields; someone whose profile is under 6 gets at most two emails after an event, timed to their evening, stopped by the reminders switch.
 - **Account:** passkeys, email sign-in, authenticator app (TOTP), recovery code, export my data, delete account. See [[Auth and Sessions]].
 - **Plus plan** (waitlist table exists): more cards, custom strap colour. See [[Pricing]].
 

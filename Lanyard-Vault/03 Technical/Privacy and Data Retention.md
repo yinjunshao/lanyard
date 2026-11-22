@@ -97,6 +97,12 @@ Nothing new is stored. The hub shows a person only their own connections at that
 - **Kept:** `notes.reminder_mailed_for` is the time we last emailed, kept with the reminder and removed with it or the account. No email text is stored.
 - **Policy:** Privacy Policy section 2 (the signed-in email row) and section 6 (the reminders row). Terms version not bumped; [[F50 QuantLink as the operator]] does one bump.
 
+## Finish-your-profile emails (F49)
+- **What:** after an event or a run of connections, if your profile is under 6 of 6 (name, photo, university or company, course or role, what you do, a link), we email you once about 75 minutes later (never between 23:00 and 08:30 your time) and, if you have not saved your profile since, once more the next evening. At most two in total, ever. To your confirmed email or, until you confirm it, the address you gave (within its two-email limit). The email names at most two first names of people you met and what is still missing, never anyone's last name, address, tag, note or links. See [[D051 Finish-your-profile emails follow a timing rule, at most two ever, claimed before they are sent]].
+- **Stop:** the same switch as follow-up reminders (Settings, Email and notifications, or the link in every email); nothing goes with it off, with no address, at 6 of 6 or for a deleted account.
+- **Kept:** `users.profile_nudges` and `profile_nudge_at` (a count and a time), until you delete your account; included in the data download. The score is worked out when needed and not stored. No email text is stored.
+- **Policy:** Privacy Policy section 2 (the signed-in email row) and a row in section 6. Terms version not bumped; [[F50 QuantLink as the operator]] does one bump.
+
 ## A new person's email (F45)
 - **What:** someone without a card gives an email when they connect or make a card (step 5 can no longer be skipped without one). It is kept as `users.pending_email` until confirmed, with when it was given and how many emails went to it, and the browser's time zone (`users.tz`). See [[D049 A new person's email is kept unconfirmed, never signs in, and gets at most two emails]].
 - **Who sees it:** only its own account (`/api/me`, Settings, step 5, the own data download). Never the person they connected with, their People list or data download, a card page, a host's attendee list, CSV, live view or report, presence, or anything sent to the AI provider (`test/connect-email.mjs` searches each of these responses for the address). F31's list still uses only confirmed emails.
