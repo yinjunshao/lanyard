@@ -44,11 +44,14 @@ The build list for the next round of Lanyard work. Each line links to a plan not
 These block the items in brackets. Tick each one and write the answer in the linked note.
 - [x] Host reset: option **A** (reset accounts, keep events) or **B** (full wipe) ([[F10 Separate host accounts on host subdomain]]): **B, full wipe** (answered 2026-11-10)
 - [ ] Lanyard Plus price: the code says £1.49 / £11.99, [[Pricing]] says £2.99 / £24. Also confirm what Plus includes ([[F27 Lanyard Plus and billing]]): price answered 2026-11-10, **£1.49 a month / £11.99 a year**; what Plus includes is still open
-- [ ] Legal entity, full postal address and ICO registration ([[F26 Mailing list from news address]] footer; [[F27 Lanyard Plus and billing]] before any charge; [[UK GDPR Audit 2026-11-01]] High 3)
+- [ ] Legal entity, full postal address and ICO registration ([[F26 Mailing list from news address]] footer; [[F27 Lanyard Plus and billing]] before any charge; [[UK GDPR Audit 2026-11-01]] High 3): entity answered 2026-11-22, **Quantlink Investment Service Company Limited** (Hong Kong), name only on the site with the existing lanyd.fyi addresses, England and Wales law kept ([[F50 QuantLink as the operator]]); postal address for paid plans, ICO registration and a possible UK representative still open
 - [x] Which of `demo-v1/`, `brag-output/`, `logo-concepts/` stay in git ([[F01 Repo housekeeping]]): only `logo-concepts/` (answered 2026-11-10)
 - [x] AI people search on by default with an opt-out, and the policy wording ([[F21 AI foundation]], [[F24 Do I know someone who]]): **on by default, opt-out in Settings**, wording as in [[AI Safety and Cost Plan]] (answered 2026-11-10)
 - [x] Event presence selfies deleted 48 hours after the event ends: OK? ([[F17 Event presence and who to meet]]): **yes, 48 hours** (answered 2026-11-10)
 - [x] Custom text in follow-up drafts ([[F44 Custom tone goal and points in follow-ups]]): **tone, goal and talk-about; tone at most 15 characters, fenced as data** (answered 2026-11-19)
+- [x] How a new person's email is checked ([[F45 Email when someone new connects]]): **typed at connect, confirmed later by a link in our first email; never signs in until confirmed; at most two emails to an unconfirmed address** (answered 2026-11-22)
+- [x] Profile score ([[F49 Profile score and finish-your-profile emails]]): **photo counts; six items; bar shown on Edit profile** (answered 2026-11-22)
+- [ ] Finish-your-profile emails: two in total ever, or two again after each later event ([[F49 Profile score and finish-your-profile emails]]); the plan says two in total
 
 ## Build order
 Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a week or more. Priorities: **P0** now · **P1** next · **P2** after · **P3** only if needed.
@@ -115,9 +118,22 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F43** [[F43 Manage passkeys]] · P1 · M · Needs: none (in progress: Claude subagent, 2026-11-19; all tasks built and tested, waiting on one check that needs a real device: add a second passkey from another browser profile; migration 0035 to apply)
 - [ ] **F44** [[F44 Custom tone goal and points in follow-ups]] · P1 · M · Needs: F22 (typed text reaches the model by owner decision, 2026-11-19; risk recorded in the plan note) (in progress: Claude subagent, 2026-11-19; both tasks built and tested with a stub, waiting on one check that needs a real model: a typed tone should sound like it)
 
+### Phase 9: owner requests (2026-11-22)
+- [ ] **F46** [[F46 One selfie button]] · P0 · S · Needs: none
+- [ ] **F47** [[F47 Tidy follow-up section]] · P1 · S · Needs: none
+- [ ] **F45** [[F45 Email when someone new connects]] · P1 · M · Needs: none (owner decision answered 2026-11-22)
+- [ ] **F48** [[F48 Follow-up reminder emails]] · P1 · M · Needs: F45, F47
+- [ ] **F49** [[F49 Profile score and finish-your-profile emails]] · P1 · M · Needs: F45, F48
+- [ ] **F50** [[F50 QuantLink as the operator]] · P1 · S · Needs: F45, F48, F49 (does the one Terms and Privacy version bump for this phase)
+
 ## Dependency map
 ```mermaid
 graph LR
+  F45 --> F48
+  F47 --> F48
+  F45 --> F49
+  F48 --> F49
+  F49 --> F50
   F40 --> F42
   F22 --> F44
   F38 --> F40
