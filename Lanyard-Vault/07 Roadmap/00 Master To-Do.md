@@ -123,7 +123,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F47** [[F47 Tidy follow-up section]] · P1 · S · Needs: none (done 2026-11-22, last commit 0c71c47)
 - [x] **F45** [[F45 Email when someone new connects]] · P1 · M · Needs: none (owner decision answered 2026-11-22) (done 2026-11-22, last commit ccec48a)
 - [x] **F48** [[F48 Follow-up reminder emails]] · P1 · M · Needs: F45, F47 (done 2026-11-22, last commit 2d11833)
-- [ ] **F49** [[F49 Profile score and finish-your-profile emails]] · P1 · M · Needs: F45, F48
+- [ ] **F49** [[F49 Profile score and finish-your-profile emails]] · P1 · M · Needs: F45, F48 (in progress: Claude subagent, 2026-11-22)
 - [ ] **F50** [[F50 QuantLink as the operator]] · P1 · S · Needs: F45, F48, F49 (does the one Terms and Privacy version bump for this phase)
 
 ## Dependency map

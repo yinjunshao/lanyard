@@ -10,6 +10,7 @@ import TagFields from "../components/TagFields.vue";
 import { buildLinks } from "../lib/links";
 import CardPreview from "../components/CardPreview.vue";
 import { cardOf, profileOf } from "../lib/cardpreview";
+import { profileScore } from "../lib/profileScore";
 
 const router = useRouter();
 const origin = location.origin;
@@ -23,15 +24,18 @@ const existingPhoto = ref("");
 const busy = ref(false);
 const error = ref("");
 const saved = ref(false);
+// Scrolls to a field by its id (#photo, #course ...) and puts the cursor in it.
+function goTo(hash) {
+  let el = null;
+  try { el = document.querySelector(hash); } catch { /* not a field */ }
+  el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  (el?.matches("input, textarea, button") ? el : el?.querySelector("input:not([type=file]), textarea"))?.focus({ preventScroll: true });
+}
 onMounted(() => {
   // No card yet: the welcome steps are where a card is made (F14); this page is for editing one.
   if (!me.profile) { router.replace("/app/welcome"); return; }
   // Arrived from "Finish your card": put the cursor in the field that's missing.
-  if (route.hash) setTimeout(() => {
-    const el = document.querySelector(route.hash);
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
-    (el?.matches("input, textarea, button") ? el : el?.querySelector("input:not([type=file]), textarea"))?.focus({ preventScroll: true });
-  }, 250);
+  if (route.hash) setTimeout(() => goTo(route.hash), 250);
   const p = me.profile;
   if (p) {
     const links = Object.entries(p.links || {}).map(([label, url]) => ({ label, url }));
@@ -108,6 +112,11 @@ const previewCard = computed(() => {
   return c ? cardOf({ name: c.name, note: c.note, theme: c.theme, strapColor: c.strapColor, visibleLinks: c.visibleLinks, headline: c.headlineOverride, about: c.aboutOverride },
     { tags: c.tagsOverride, cardId: c.cardId, code: c.code }) : null;
 });
+// F49: the score of what is on the page now (after Save it is what the emails use). Six items, one point each.
+const score = computed(() => profileScore({
+  name: f.value.name, photo: photo.value || existingPhoto.value, mode: f.value.mode, uni: f.value.uni, course: f.value.course,
+  company: f.value.company, role: f.value.role, headline: f.value.headline, links: buildLinks(f.value.links),
+}));
 const previewProfile = computed(() => profileOf(payloadOf(), photo.value || existingPhoto.value || null, me.profile?.projects));
 
 async function save() {
@@ -147,6 +156,19 @@ async function save() {
   <div class="stack-2">
     <PhotoCropper v-if="cropFile" :file="cropFile" @done="onCropped" @cancel="cropFile = null" />
     <h1>Edit profile</h1>
+    <section aria-label="Profile score" style="display:grid;gap:8px">
+      <div class="spread">
+        <strong class="tnum">Profile {{ score.score }} of {{ score.max }}</strong>
+        <span v-if="!score.missing.length" class="small muted">Your profile is complete</span>
+      </div>
+      <div style="height:6px;background:var(--rule);border-radius:3px;overflow:hidden" role="progressbar" aria-label="Profile score" :aria-valuenow="score.score" aria-valuemin="0" :aria-valuemax="score.max"
+           :aria-valuetext="`${score.score} of ${score.max}`">
+        <span :style="{ display: 'block', height: '100%', background: 'var(--strap)', width: `${(score.score / score.max) * 100}%` }"></span>
+      </div>
+      <p v-if="score.missing.length" class="small muted" style="margin:0;line-height:1.9">Still to add:
+        <template v-for="(m, i) in score.missing" :key="m.key"><a :href="`#${m.field}`" style="color:var(--ink);text-decoration:underline;text-underline-offset:3px;display:inline-block;min-height:24px" @click.prevent="goTo(`#${m.field}`)">{{ m.label }}</a><span v-if="i < score.missing.length - 1">, </span></template>
+      </p>
+    </section>
     <CardPreview v-if="previewCard" :profile="previewProfile" :card="previewCard" :url="`${origin}/c/${previewCard.cardId}`" />
 
     <div class="form-section">

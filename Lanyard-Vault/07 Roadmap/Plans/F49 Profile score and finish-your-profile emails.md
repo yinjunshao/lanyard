@@ -4,7 +4,7 @@ id: F49
 priority: P1
 phase: 9
 size: M
-status: Not started
+status: In progress
 needs: [F45, F48]
 ---
 # F49 Profile score and finish-your-profile emails
@@ -46,7 +46,7 @@ Answer (2026-11-22): **Photo counts, bar shown**: "Complete = name, photo, unive
 6. **Privacy Policy:** section 2 and 6 rows for these emails (at most two, the switch stops them). No Terms version bump ([[F50 QuantLink as the operator]] does it).
 
 ## Tasks
-- [ ] F49.1 Scoring module and the Edit profile bar; tests for the score in both modes.
+- [x] F49.1 Scoring module and the Edit profile bar; tests for the score in both modes.
 - [ ] F49.2 Worker: migration 0038, the nudge job with the timing rules, the email; tests in a new `test/profile-nudge.mjs` with a fixed clock (mid-event no email, 75 min after the anchor sends, 23:30 London waits until 08:30, email 2 next evening, no email 2 after a profile change, none at 6 of 6, never a third, switch off, pending address cap, a Hong Kong time zone shifts the quiet hours, two runs at once send once).
 - [ ] F49.3 Privacy Policy rows; vault notes ([[Data Model]], [[Integrations and Email]], [[Privacy and Data Retention]], [[Features]]), decision note for the timing rules; browser check of the bar at 375 and 1280 px, light and dark; the email seen in the `MAIL_LOG=1` console.
 
