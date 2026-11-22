@@ -39,7 +39,7 @@ const page = (body) => new Response(
 
 // Compares every character, whatever the first difference (F35.7): how long a wrong signature takes
 // to refuse says nothing about how much of it was right.
-function sameText(a, b) {
+export function sameText(a, b) {
   let diff = a.length ^ b.length;
   for (let i = 0; i < b.length; i++) diff |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);
   return diff === 0;

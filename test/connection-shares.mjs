@@ -55,8 +55,8 @@ const cn2 = r2.json.connectionId;
 check("a card that is not the scanner's is ignored: they share their own default card, as before", (await owen.c.get(`/api/connections/${cn2}`)).json.cardId === pat.card
   && !db.raw.prepare("SELECT 1 FROM connection_shares WHERE connection_id = ? AND user_id = ?").get(cn2, pat.id));
 const g = client({ ip: "10.34.0.9" });
-const r3 = await g.post("/api/connect", { cardId: owen.card, name: "Guest Gail", acceptTerms: true, over18: true, via: "link" });
-check("a guest with no card of their own still connects with just a name", r3.status === 200 || r3.status === 201, r3.text);
+const r3 = await g.post("/api/connect", { cardId: owen.card, name: "Guest Gail", email: "gail@example.com", acceptTerms: true, over18: true, via: "link" });
+check("a guest with no card of their own still connects with a name and (F45) an email", r3.status === 200 || r3.status === 201, r3.text);
 
 console.log("\n# The AI follow-up sees both shared cards and nothing else");
 {

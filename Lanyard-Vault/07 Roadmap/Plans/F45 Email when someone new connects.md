@@ -4,7 +4,7 @@ id: F45
 priority: P1
 phase: 9
 size: M
-status: Not started
+status: In progress
 needs: []
 ---
 # F45 Email when someone new connects
@@ -37,7 +37,7 @@ Answer (2026-11-22) to "how should we check the address is theirs": **Confirm li
 7. **Privacy Policy.** Add the pending email to section 2 (what we collect: "your email, which you must give when you connect or make a card; only we see it") and section 6 (kept until confirmed, replaced or the account is deleted; an unconfirmed address that is never confirmed is cleared after 30 days without a confirm). Do **not** bump the Terms version: [[F50 QuantLink as the operator]] does one bump for F45 to F50.
 
 ## Tasks
-- [ ] F45.1 Worker: migration 0036, guest connect requires an email, `tz`, pending storage, the confirm token and endpoint, `mailableAddress` with the two-email cap, export and deletion; tests in a new `test/connect-email.mjs`.
+- [x] F45.1 Worker: migration 0036, guest connect requires an email, `tz`, pending storage, the confirm token and endpoint, `mailableAddress` with the two-email cap, export and deletion; tests in a new `test/connect-email.mjs`.
 - [ ] F45.2 Front end: email field on `ConnectSheet.vue` and `Connect.vue`, required email at onboarding step 5, confirmed page or notice; Privacy Policy wording; vault notes ([[Data Model]], [[API Surface]], [[Privacy and Data Retention]], [[Auth and Sessions]]), decision note; browser check at 375 and 1280 px, light and dark.
 
 ## Acceptance checks

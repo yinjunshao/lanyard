@@ -430,7 +430,7 @@ const anon = client();
 const view = await anon.get(`/api/c/${Bp.card}`);
 check("a first-time visitor can open a public card", view.status === 200 && view.json.viewer.signedIn === false, view.status);
 check("…without creating an account", !anon.jar.has("lanyard_session"));
-const conn = await anon.post("/api/connect", { cardId: Bp.card, name: "Newbie", acceptTerms: true, over18: true });
+const conn = await anon.post("/api/connect", { cardId: Bp.card, name: "Newbie", email: "newbie@example.com", acceptTerms: true, over18: true });
 check("…and connecting creates their guest account", conn.status === 200 && anon.jar.has("lanyard_session"), conn.text);
 
 console.log("\n# Retention and erasure");

@@ -17,7 +17,8 @@ export const validEmail = (e) => e.length <= 254 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const sixDigits = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
 const hashCode = (email, code) => sha256Hex(`${email}:${code}`);
 
-/** The account that signs in with this address. Verified owners win; legacy unverified entries are a fallback. */
+/** The account that signs in with this address. Verified owners win; legacy unverified entries are a fallback.
+ *  Only recovery_email is read: an unconfirmed address typed when connecting (users.pending_email, F45) never signs in. */
 export function findUserByEmail(db, email) {
   return one(db,
     `SELECT u.id FROM users u WHERE u.recovery_email = ?
@@ -120,6 +121,11 @@ export async function addConfirm(c, db, rawEmail, rawCode, marketing) {
   } catch {
     throw new HttpError(409, "That email already has a Lanyard account. Sign in with it instead.", "email_taken");
   }
+  // F45: a confirmed email replaces any unconfirmed one, and its confirm links stop working.
+  await db.batch([
+    db.prepare("UPDATE users SET pending_email = NULL, pending_email_at = NULL, pending_mails = 0 WHERE id = ?").bind(user.id),
+    db.prepare("DELETE FROM email_confirms WHERE user_id = ?").bind(user.id),
+  ]).catch(() => { /* before migration 0036 there is nothing to clear */ });
   // A failed welcome mail must not fail the confirmation.
   await sendMail(c.env, "accounts", { to: email, ...welcomeEmail(new URL(c.req.url).origin) }).catch((e) => console.error(e));
   return c.json({ ok: true });

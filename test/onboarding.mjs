@@ -116,15 +116,15 @@ console.log("\n# A guest who connected before making a card");
   await owner.post("/api/profile", { name: "Owner", acceptTerms: true, over18: true });
   const card = (await me(owner)).cards[0].cardId;
   const g = client({ ip: "10.14.1.2" });
-  const r = await g.post("/api/connect", { cardId: card, name: "Guest", acceptTerms: true, over18: true, via: "qr" });
-  check("connecting as a guest still works with a name and the tick", r.status === 200, r.text);
+  const r = await g.post("/api/connect", { cardId: card, name: "Guest", email: "guest@example.com", acceptTerms: true, over18: true, via: "qr" });
+  check("connecting as a guest still works with a name, an email (F45) and the tick", r.status === 200, r.text);
   const m = await me(g);
   check("the guest's stub profile starts at step 1 with the Terms already accepted", m.profile.onboarding_step === 1 && m.profile.onboarding_max === 0 && m.user.termsAccepted === true, m.profile);
   check("and the connection kept how it was made", q1("SELECT via FROM connections WHERE user_a = ?", m.user.id).via === "qr");
   const open = await g.put("/api/onboarding", { step: 1 });
   check("the steps open at step 1 and carry on from there", open.json.step === 1 && (await g.put("/api/onboarding", { step: 2 })).json.step === 2);
   const noTick = client({ ip: "10.14.1.3" });
-  const refused = await noTick.post("/api/connect", { cardId: card, name: "NoTick" });
+  const refused = await noTick.post("/api/connect", { cardId: card, name: "NoTick", email: "notick@example.com" });
   check("a guest still cannot connect without the 18+ and Terms tick", refused.status === 400 && refused.json.code === "terms_required");
 }
 
@@ -286,7 +286,7 @@ console.log("\n# The funnel: daily counts, nothing about who");
   // A guest who connected first (stub profile at step 1) counts when step 1 is shown, not before.
   const card = (await me(A)).cards[0].cardId;
   const G = fc({ ip: "10.14.7.3" });
-  await G.post("/api/connect", { cardId: card, name: "Gus", acceptTerms: true, over18: true });
+  await G.post("/api/connect", { cardId: card, name: "Gus", email: "gus@example.com", acceptTerms: true, over18: true });
   check("a guest who has not opened the steps is not counted", (await funnel())[1].join() === "2,2");
   await mv(G, 1);
   check("they are counted once they reach step 1", (await funnel())[1].join() === "3,2");

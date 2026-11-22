@@ -85,3 +85,32 @@ export function inactiveEmail({ origin, days }) {
   const text = lines.join(nn) + nn + `Sign in: ${origin}/signin`;
   return { subject: "Your Lanyard account will be deleted soon", text, html: paragraphs(lines.join(nn)) + button(`${origin}/signin`, "Keep my account") };
 }
+
+// F45: the first email to an address a new person typed (connecting, or step 5 of making a card). It names no one
+// else, because the address is not confirmed and may not be theirs. The link opens a page with a button; it never
+// signs anyone in. `reason` is "connect" or "card".
+export function confirmEmail({ url, reason }) {
+  const nn = "\n\n";
+  const lines = [
+    reason === "card" ? "You gave this email when you made your Lanyard card." : "You gave this email when you connected with someone on Lanyard.",
+    "Confirm it's you, so you can sign in with this email on any device. Until it is confirmed, nobody can sign in with it.",
+  ];
+  const foot = "The link works for 14 days. If this wasn't you, ignore this email: we will write to this address at most once more.";
+  return {
+    subject: "Confirm your email for Lanyard",
+    text: `${lines.join(nn)}${nn}Confirm it's you: ${url}${nn}${foot}`,
+    html: `${paragraphs(lines.join(nn))}${button(url, "Confirm it's you")}${small(escapeHtml(foot))}`,
+  };
+}
+
+// F45, for F48 and F49: every email to an address that is not confirmed yet carries the "Confirm it's you" button.
+// `message` is { subject, text, html, ... }; `url` comes from confirmLink() in worker/pending-email.js.
+export function withConfirm(message, url) {
+  if (!url) return message;
+  const line = "This email address isn't confirmed yet. Confirm it's you, so you can sign in with it. If this wasn't you, ignore this email.";
+  return {
+    ...message,
+    text: `${message.text}\n\n${line}\nConfirm it's you: ${url}`,
+    html: `${message.html}${small(escapeHtml(line))}${button(url, "Confirm it's you")}`,
+  };
+}

@@ -37,9 +37,11 @@ console.log("\n# Sessions and bots");
 }
 {
   let blocked = 0;
+  // F45: a refused connect (a made-up card) no longer makes a guest, so this connects for real.
+  const target = await signup("Limit");
   for (let i = 0; i < 130; i++) {
     const c = client({ ip: "198.51.100.9" });
-    const r = await c.post("/api/connect", { cardId: "nope" });
+    const r = await c.post("/api/connect", { cardId: target.card, name: "Guest", email: "guest@example.com", acceptTerms: true, over18: true });
     if (r.status === 429) blocked++;
   }
   check("new guest accounts are rate-limited per IP", blocked > 0, { blocked });

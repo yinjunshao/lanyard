@@ -51,6 +51,7 @@ import { billingApp, exportBillingOrders } from "./billing/routes.js";
 import { servePage } from "./seo.js";
 import { recordConnection } from "./eventConnections.js";
 import { SHARED_CARD_SQL, SHARED_LINKS_SQL, shareOf, onlyLinks, parseLinks, readShare, setShareStmt } from "./shares.js";
+import { confirmApp, setPending, sendConfirm, saveTz } from "./pending-email.js";
 
 const app = new Hono();
 
@@ -74,8 +75,11 @@ const withSessionNoGuest = sessionMiddleware("DB", { guests: false });
 const isDropRoute = (path) => /^\/api\/e\/[^/]+\/drops(\/|$)/.test(path);
 // F36: card payments never mint a guest (signed out is a 401), and the provider's webhooks get no session at all.
 // F43: managing passkeys is for a signed-in person; signed out is a 401, not a new guest and a 404.
-const noGuest = (path) => isDropRoute(path) || path.startsWith("/api/billing/") || path.startsWith("/api/passkeys");
-app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/webhooks/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/privacy-request" ? next() : (noGuest(c.req.path) ? withSessionNoGuest : withSession)(c, next)));
+// F45: connecting makes a guest only once the request is known to be good (in the route), so a refused connect leaves
+// nothing behind; saving a pending email needs a card already.
+const noGuest = (path) => isDropRoute(path) || path.startsWith("/api/billing/") || path.startsWith("/api/passkeys")
+  || path === "/api/connect" || path === "/api/account/pending-email";
+app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/webhooks/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/email/confirm" || c.req.path === "/api/privacy-request" ? next() : (noGuest(c.req.path) ? withSessionNoGuest : withSession)(c, next)));
 app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
 
 app.onError((err, c) => {
@@ -235,6 +239,8 @@ app.get("/api/me", async (c) => {
       recoveryEmail: u.recovery_email || null, emailVerified: !!u.email_verified, marketingOptin: !!u.marketing_optin, eventEmails: u.notify_events !== 0,
       verifiedStudent: !!u.verified_student, over18: !!u.over_18,
       emailDomain: u.email_domain || null,
+      // F45: the address typed when connecting or making a card, until it is confirmed. Only ever sent to its own account.
+      pendingEmail: (!u.email_verified && data.user?.pending_email) || null,
       appInstalled: !!data.user?.app_installed_at,
     },
     plan: {
@@ -271,6 +277,7 @@ app.post("/api/profile", async (c) => {
     return c.json({ error: "Please confirm you're 18 or over and agree to the Terms and Privacy Policy.", code: "terms_required" }, 400);
   }
 
+  await saveTz(db, u.id, body.tz); // F45: for F49's quiet hours
   let photoKey = null;
   if (body.photoDataUrl) photoKey = await putImage(c.env, await photoAllowed(c, u, body.photoDataUrl), "avatar");
   await run(db, "UPDATE users SET over_18 = 1, age_confirmed_at = ? WHERE id = ?", now(), u.id);
@@ -358,6 +365,7 @@ app.put("/api/profile", async (c) => {
   }
   const fields = profilePayload(body);
   applyInstitution(fields, pick, current);
+  await saveTz(db, u.id, body.tz); // F45
   const sets = Object.keys(fields);
   const vals = Object.values(fields);
   if (sets.length || photoKey !== current.photo_key) {
@@ -378,6 +386,22 @@ app.post("/api/account/email", async (c) => {
 app.post("/api/account/email/confirm", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   return EmailAuth.addConfirm(c, c.env.DB, body.email, body.code, body.marketing === true);
+});
+// F45: step 5 of making a card. The address is kept unconfirmed (never used to sign in) and our first email to it
+// carries the confirm link. Whether another account has it is not said here; the confirm page says it to the mailbox.
+app.post("/api/account/pending-email", async (c) => {
+  const u = requireUser(c);
+  const db = c.env.DB;
+  const body = await c.req.json().catch(() => ({}));
+  if ((await bump(db, `pend:u:${u.id}`, HOUR)) > 10) return c.json({ error: "That's a lot of changes in an hour. Wait a bit and try again.", code: "throttled" }, 429);
+  if (!(await one(db, "SELECT 1 AS x FROM profiles WHERE user_id = ?", u.id))) return c.json({ error: "Make your card first, then try again." }, 404);
+  await saveTz(db, u.id, body.tz);
+  if (u.email_verified) return c.json({ error: "Your email is already confirmed, so there is nothing to change here.", code: "email_verified" }, 409);
+  const email = typeof body.email === "string" ? EmailAuth.normEmail(body.email) : "";
+  if (!EmailAuth.validEmail(email)) return c.json({ error: "That email doesn't look right. Check it and try again." }, 400);
+  const saved = await setPending(db, u.id, email);
+  if (saved.unmailed) await sendConfirm(c.env, new URL(c.req.url).origin, u.id, "card");
+  return c.json({ ok: true, pendingEmail: email });
 });
 app.post("/api/account/marketing", async (c) => {
   const body = await c.req.json().catch(() => ({}));
@@ -493,6 +517,8 @@ app.get("/api/account/export", async (c) => {
   const drops = await exportDrops(c.env, u.id); // F32: what organisers gave this person (opened, theirs only)
   const ai = await exportAi(db, "user", u.id); // F21
   const billingOrders = await exportBillingOrders(db, "user", u.id); // F36: card orders (none until billing is on)
+  // F45: the unconfirmed address, its emails and the time zone (the older shape if 0036 is not applied yet).
+  const pend = await one(db, "SELECT pending_email, pending_email_at, pending_mails, tz FROM users WHERE id = ?", u.id).catch(() => null);
   const media = (k) => (k ? `/media/${k}` : null);
   return c.json({
     exportedAt: now(),
@@ -502,7 +528,9 @@ app.get("/api/account/export", async (c) => {
     user: { id: u.id, isGuest: !!u.is_guest, plan: u.plan || "free", recoveryEmail: u.recovery_email || null,
             emailVerified: !!u.email_verified, newsEmails: !!u.marketing_optin, eventReminders: u.notify_events !== 0,
             authenticatorApp: !!u.has_totp, passkey: !!u.has_passkey, recoveryKeySet: !!u.has_recovery,
-            verifiedStudent: !!u.verified_student, createdAt: u.created_at },
+            verifiedStudent: !!u.verified_student, createdAt: u.created_at,
+            pendingEmail: pend?.pending_email || null, pendingEmailSince: pend?.pending_email_at || null,
+            emailsToPendingEmail: pend?.pending_mails || 0, timeZone: pend?.tz || null },
     profile: profile && { ...profile, photo: media(profile.photo_key) },
     cards,
     connections: connections.map((x) => ({
@@ -934,24 +962,49 @@ const VIA = ["qr", "code", "link"];
 const viaOf = (v) => (VIA.includes(v) ? v : "link");
 
 app.post("/api/connect", async (c) => {
-  const me = requireUser(c);
   const body = await c.req.json().catch(() => ({}));
   const db = c.env.DB;
-  if ((await bump(db, `conn:u:${me.id}`, HOUR)) > 60) {
-    return c.json({ error: "That's a lot of connections in an hour. Take a breather and try again soon.", code: "throttled" }, 429);
-  }
   const card = await one(db, "SELECT * FROM cards WHERE id = ?", String(body.cardId || ""));
   if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
   const peerId = card.user_id;
+
+  // Everything a request can be refused for is checked before anything is written, and a first-time visitor
+  // becomes a guest only after that (F45), so a refused connect leaves no user, profile or connection behind.
+  let me = c.get("user");
+  const [profile0, consented] = me
+    ? await Promise.all([one(db, "SELECT * FROM profiles WHERE user_id = ?", me.id), hasConsent(db, me.id, termsScope())])
+    : [null, false];
+  // Guests must have a name, and (F45) an email unless they already have a confirmed one. The email is only ever
+  // kept as their unconfirmed address: never shown to the person they connect with, never used to sign in.
+  const name = String(body.name || "").trim();
+  const email = typeof body.email === "string" ? EmailAuth.normEmail(body.email) : "";
+  const needsEmail = !profile0 && !me?.email_verified;
+  if (!profile0) {
+    if (!name) return c.json({ error: "Add your name to connect." }, 400);
+    if (needsEmail && !EmailAuth.validEmail(email)) {
+      return c.json({ error: "Add your email to connect. Only Lanyard sees it, not the person you connect with.", code: "email_required" }, 400);
+    }
+  }
+  // Agreement happens here for people who haven't given it yet (e.g. guests
+  // connecting for the first time): 18+, Terms and Privacy Policy.
+  if (!consented && (body.acceptTerms !== true || body.over18 !== true)) {
+    return c.json({ error: "Please confirm you're 18 or over and agree to the Terms and Privacy Policy.", code: "terms_required" }, 400);
+  }
+  if (body.selfieDataUrl && !body.consent) return c.json({ error: "Tick the box to agree to the photo being shared, or leave the photo out." }, 400);
+  if (!me) {
+    await ensureSession(c, db, { create: true });
+    me = c.get("user");
+  }
+  if ((await bump(db, `conn:u:${me.id}`, HOUR)) > 60) {
+    return c.json({ error: "That's a lot of connections in an hour. Take a breather and try again soon.", code: "throttled" }, 429);
+  }
   if (peerId === me.id) return c.json({ error: "That's your own card, so there is nothing to connect." }, 400);
   if (await isBlocked(db, me.id, peerId)) return c.json({ error: "You can't connect with this person." }, 403);
 
-  // Guests must at least have a name. If they have no profile, make a stub one
-  // they can finish at home (the /claim flow).
-  let myProfile = await one(db, "SELECT * FROM profiles WHERE user_id = ?", me.id);
+  // No profile yet: make a stub one they can finish at home (the welcome steps).
+  let myProfile = profile0;
+  let confirmToSend = false;
   if (!myProfile) {
-    const name = String(body.name || "").trim();
-    if (!name) return c.json({ error: "Add your name to connect." }, 400);
     await run(
       db,
       `INSERT INTO profiles (user_id, name, uni, course, headline, about, links, tags, projects, is_public, updated_at, onboarding_step)
@@ -959,18 +1012,14 @@ app.post("/api/connect", async (c) => {
       me.id, name.slice(0, 80), now()
     );
     myProfile = await one(db, "SELECT * FROM profiles WHERE user_id = ?", me.id);
+    if (needsEmail) confirmToSend = (await setPending(db, me.id, email)).unmailed;
   }
   await ensureDefaultCard(db, me.id);
-
-  // Agreement happens here for people who haven't given it yet (e.g. guests
-  // connecting for the first time): 18+, Terms and Privacy Policy.
-  if (!(await hasConsent(db, me.id, termsScope()))) {
-    if (body.acceptTerms !== true || body.over18 !== true) {
-      return c.json({ error: "Please confirm you're 18 or over and agree to the Terms and Privacy Policy.", code: "terms_required" }, 400);
-    }
+  if (!consented) {
     await recordConsent(db, me.id, termsScope());
     await run(db, "UPDATE users SET over_18 = 1 WHERE id = ?", me.id);
   }
+  await saveTz(db, me.id, body.tz); // F45: the browser's time zone, for F49's quiet hours
 
   const existing = await findConnection(db, me.id, peerId);
   let connId = existing?.id;
@@ -979,10 +1028,7 @@ app.post("/api/connect", async (c) => {
   // Shared selfie: the person taking it ticks that everyone in it agrees. The
   // other person still has to accept it in the app (consent_b); until they do
   // it stays "pending", is only a request for them, and is deleted after 7 days.
-  if (body.selfieDataUrl) {
-    if (!body.consent) return c.json({ error: "Tick the box to agree to the photo being shared, or leave the photo out." }, 400);
-    selfieKey = await putImage(c.env, body.selfieDataUrl, "selfie");
-  }
+  if (body.selfieDataUrl) selfieKey = await putImage(c.env, body.selfieDataUrl, "selfie");
 
   const ts = now();
   // File the connection under an event only if you BOTH checked in to it.
@@ -1057,6 +1103,9 @@ app.post("/api/connect", async (c) => {
       "INSERT INTO messages (id, connection_id, from_id, text, created_at) VALUES (?, ?, ?, ?, ?)",
       newId(), connId, me.id, reply, ts + 1);
   }
+
+  // F45: our first email to the address they typed, with the confirm link. A failed email never fails the connect.
+  if (confirmToSend) await sendConfirm(c.env, new URL(c.req.url).origin, me.id, "connect");
 
   const ev = eventId ? await one(db, "SELECT id, name FROM events WHERE id = ?", eventId) : null;
   return c.json({ ok: true, connectionId: connId, receivedNote, event: ev ? { id: ev.id, name: ev.name } : null });
@@ -1349,6 +1398,7 @@ app.route("/", hostApp);
 app.route("/", adminApp);
 app.route("/", promoApp);
 app.route("/", unsubApp);
+app.route("/", confirmApp);
 app.route("/", privacyApp);
 app.route("/", integrationsApp);
 app.route("/", billingApp);
