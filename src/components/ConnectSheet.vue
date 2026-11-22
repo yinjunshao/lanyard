@@ -1,7 +1,9 @@
 <script setup>
 // The sheet that slides up when someone lands on a card (QR scan, 4-character
 // code, or a shared link): shared selfie + a note back, then Connect.
-// Everything is optional except a name for guests. If the card carried a
+// Everything is optional except a name and (F45) an email for guests. The email is only ours: it is
+// kept unconfirmed until they open our first email, is never shown to the person they connect with,
+// and cannot sign anyone in until it is confirmed. If the card carried a
 // per-person note (?n=), it is redeemed here — once — and shown on success.
 // Someone with a card of their own also picks what they share back: which card
 // (its "What I do" and "About" come with it) and which of its links. The card
@@ -33,6 +35,10 @@ const first = computed(() => (props.view.profile.name || "them").split(/\s+/)[0]
 const already = computed(() => !!props.view.viewer?.connection);
 
 const name = ref(me.profile?.name || "");
+// F45: someone without a card (and without a confirmed email) gives one. Never sent by anyone else.
+const needsEmail = computed(() => !me.profile && !me.user?.emailVerified);
+const email = ref("");
+const signInTo = computed(() => `/signin?next=${encodeURIComponent(`/c/${props.view.cardId}`)}`);
 const message = ref("");
 const privateNote = ref("");
 const showPrivate = ref(false);
@@ -70,6 +76,10 @@ async function submit() {
     error.value = "Add your name so they remember you.";
     return;
   }
+  if (needsEmail.value && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) {
+    error.value = "Add your email to connect. Only we see it, and it's how you get back to your card.";
+    return;
+  }
   if (needsAgree.value && !agreed.value) {
     error.value = "Please tick the box to confirm you're 18 or over and agree to the Terms and Privacy Policy.";
     return;
@@ -84,6 +94,8 @@ async function submit() {
     const res = await Api.connect({
       cardId: props.view.cardId,
       name: name.value.trim(),
+      email: needsEmail.value ? email.value.trim() : undefined,
+      tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })(),
       message: message.value.trim(),
       note: privateNote.value.trim(),
       noteToken: props.noteToken || undefined,
@@ -170,6 +182,15 @@ onBeforeUnmount(() => {
           <label for="sheet-name">Your name</label>
           <input id="sheet-name" v-model="name" type="text" autocomplete="name" placeholder="So they remember you" />
         </div>
+        <div v-if="needsEmail" class="field">
+          <label for="sheet-email">Your email</label>
+          <input id="sheet-email" v-model="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false"
+                 maxlength="254" required aria-describedby="sheet-email-hint" placeholder="you@example.com" />
+          <span id="sheet-email-hint" class="small muted">Only we see this. It isn't shown to {{ first }} or on your card.</span>
+        </div>
+        <p v-if="!me.profile" class="small" style="margin:0">
+          <span class="muted">Already on Lanyard?</span> <router-link :to="signInTo">Sign in</router-link>
+        </p>
 
         <component :is="ShareBack" v-if="ShareBack" :current="view.viewer?.connection?.myShare || null" :first="first" @update="share = $event" />
 

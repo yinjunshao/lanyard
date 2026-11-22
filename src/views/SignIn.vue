@@ -26,9 +26,11 @@ const code = ref(q("code"));
 const key = ref("");
 const showMore = ref(!!q("code"));
 
+// F45: "Already on Lanyard? Sign in" on a card's connect sheet comes back to that card (only a card address is followed).
+const next = /^\/c\/[0-9a-f]{10}$/.test(q("next")) ? q("next") : "/app";
 async function done() {
   await refreshMe();
-  router.replace(me.profile ? afterAccountPath("/app") : "/app/welcome");
+  router.replace(me.profile ? afterAccountPath(next) : "/app/welcome");
 }
 
 async function withPasskey() {

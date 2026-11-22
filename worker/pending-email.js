@@ -162,11 +162,16 @@ export async function purgePending(db, ts = now()) {
 export const confirmApp = new Hono();
 
 const TOKEN = /^([0-9a-f]{10})([0-9a-f]{32})$/;
+// Referrer-Policy same-origin: the token never leaves in a Referer, and the button still sends a real Origin (no-referrer
+// would send "Origin: null", which the same-origin check refuses). Paper and ink, with a dark version; the button is the strap colour dark enough for white text (4.5:1).
+const STYLE = `body{font-family:system-ui,sans-serif;max-width:420px;margin:15vh auto;padding:0 16px;line-height:1.5;background:#F4F1EA;color:#1B1A17}
+a{color:#B03E1F}.quiet{color:#6B675F;font-size:13px}
+button{font:inherit;font-size:16px;padding:10px 18px;min-height:44px;background:#B03E1F;color:#fff;border:0;border-radius:6px}
+@media (prefers-color-scheme:dark){body{background:#1B1A17;color:#F4F1EA}a{color:#F08A66}.quiet{color:#B5B0A6}}`;
 const page = (status, body) => new Response(
-  `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lanyard</title>
-<body style="font-family:system-ui,sans-serif;max-width:420px;margin:15vh auto;padding:0 16px;line-height:1.5;background:#F4F1EA;color:#1B1A17">${body}</body>`,
-  { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" } });
-const btn = "font-size:16px;padding:10px 18px;min-height:44px;background:#D9502B;color:#fff;border:0;border-radius:6px";
+  `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Lanyard</title>
+<style>${STYLE}</style><body>${body}</body>`,
+  { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "same-origin" } });
 const linkTo = (href, label) => `<p><a href="${href}">${label}</a></p>`;
 // One answer for a used, expired, wrong, made-up or out-of-date link: it says nothing about which.
 const notValid = () => page(400, `<h1>This link doesn't work</h1><p>It has expired, has already been used, or is not complete. You can confirm your email with a code in Lanyard instead, under Settings, Account.</p>${linkTo("/app/settings/account", "Open Lanyard")}`);
@@ -197,8 +202,8 @@ confirmApp.get("/api/email/confirm", async (c) => {
   if (!row) return notValid();
   await giveBack(db, keys);
   return page(200, `<h1>Confirm your email</h1><p>Is <strong>${escapeHtml(row.email)}</strong> your email? Once it is confirmed you can sign in to Lanyard with it on any device.</p>
-<form method="post" action="/api/email/confirm?t=${escapeHtml(t)}"><button style="${btn}">Confirm it's me</button></form>
-<p style="color:#6B675F;font-size:13px">If this wasn't you, close this page. Nothing changes.</p>`);
+<form method="post" action="/api/email/confirm?t=${escapeHtml(t)}"><button>Confirm it's me</button></form>
+<p class="quiet">If this wasn't you, close this page. Nothing changes.</p>`);
 });
 
 confirmApp.post("/api/email/confirm", async (c) => {

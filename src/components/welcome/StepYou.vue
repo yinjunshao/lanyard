@@ -31,6 +31,7 @@ async function save() {
   if (!me.profile) {
     await Api.createProfile({
       name: name.value, photoDataUrl: photo.value || undefined, over18: true, acceptTerms: true, note: "", onboarding: true,
+      tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })(), // F45
     });
   } else {
     if (needsTerms.value) await Api.acceptTerms();

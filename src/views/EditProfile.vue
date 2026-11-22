@@ -118,6 +118,8 @@ async function save() {
   try {
     const payload = payloadOf();
     if (photo.value) payload.photoDataUrl = photo.value;
+    // F45: the browser's time zone, so finish-your-card emails (F49) keep to sensible hours. Unknown ones are ignored.
+    try { payload.tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* not sent */ }
 
     // This write is what actually persists the edit. Everything after it
     // (refreshing the cached `me`, navigating back) is best-effort: if either

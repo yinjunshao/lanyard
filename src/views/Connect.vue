@@ -1,4 +1,7 @@
 <script setup>
+// Not routed: no route imports this page (the card page's ConnectSheet.vue replaced it). It lacks the
+// Terms tick and the F45 email, so the server refuses a guest who connects from it. If it is ever
+// routed again, copy the guest fields from ConnectSheet.vue first.
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Api } from "../lib/api";

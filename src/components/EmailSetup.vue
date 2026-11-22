@@ -6,7 +6,8 @@ import { ref } from "vue";
 import { me, refreshMe } from "../lib/store";
 import { Api } from "../lib/api";
 
-const email = ref("");
+// F45: an email given when connecting or making a card waits here, unconfirmed, until its link or a code confirms it.
+const email = ref(me.user?.pendingEmail || "");
 const code = ref("");
 const marketing = ref(false);
 const sent = ref(false);
@@ -42,7 +43,10 @@ async function confirm() {
     </template>
 
     <form v-else-if="!sent" class="stack" @submit.prevent="send">
-      <p class="small muted">Add your email so you can always get back in, on any device. We'll send a code to check it's yours.</p>
+      <p v-if="me.user?.pendingEmail" class="small muted">
+        <strong>{{ me.user.pendingEmail }}</strong> isn't confirmed yet. Open the link we emailed you, or get a code here to confirm it now.
+      </p>
+      <p v-else class="small muted">Add your email so you can always get back in, on any device. We'll send a code to check it's yours.</p>
       <input v-model="email" type="email" aria-label="Email" placeholder="you@example.com" autocomplete="email"
              autocapitalize="none" spellcheck="false" maxlength="254" />
       <button class="btn btn-primary" :disabled="busy || !email.includes('@')">{{ busy ? "Sending…" : "Send me a code" }}</button>

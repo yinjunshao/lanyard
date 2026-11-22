@@ -30,7 +30,8 @@ const STEPS = [
   { id: 6, title: "Your card is ready", comp: StepDone },
 ];
 // Steps 2 to 5 can be skipped. Step 1 needs a name, and step 6 is the end. (Step 5 cannot be
-// skipped while a promo code is waiting: the email is what lets them claim it.)
+// skipped without an email on file, confirmed or not (F45), nor while a promo code is waiting:
+// a confirmed email is what lets them claim it. StepSave says so with noSkip.)
 const SKIPPABLE = [2, 3, 4, 5];
 
 const ready = ref(false);

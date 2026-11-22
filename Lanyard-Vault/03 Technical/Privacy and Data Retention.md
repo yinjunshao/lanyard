@@ -91,11 +91,19 @@ Nothing new is stored. The hub shows a person only their own connections at that
 - The funnel is a table of daily counts per step (`onboarding_stats`: day, step, reached, completed). It has no user id, session, address or time of day, so it holds no personal data. Rows over 400 days old are deleted by the daily purge. No cookie and no third-party analytics are used. The admin page shows it (`GET /api/admin/onboarding`); hosts never see it. Step 1 counts people who have saved a name, so a visitor who opens the page and leaves is not counted.
 - Terms, the 18+ confirmation and consent recording are unchanged: step 1 holds the same tick (`consents`, `consent_log`, Terms version `2026-10-26`); see the table in [[F14 Onboarding revamp]].
 
+## A new person's email (F45)
+- **What:** someone without a card gives an email when they connect or make a card (step 5 can no longer be skipped without one). It is kept as `users.pending_email` until confirmed, with when it was given and how many emails went to it, and the browser's time zone (`users.tz`). See [[D049 A new person's email is kept unconfirmed, never signs in, and gets at most two emails]].
+- **Who sees it:** only its own account (`/api/me`, Settings, step 5, the own data download). Never the person they connected with, their People list or data download, a card page, a host's attendee list, CSV, live view or report, presence, or anything sent to the AI provider (`test/connect-email.mjs` searches each of these responses for the address). F31's list still uses only confirmed emails.
+- **Email to it:** at most two while unconfirmed (the first carries the confirm button; F48 and F49 use `mailableAddress` for the second). At most three first emails a day go to one address from all accounts together, so typing someone else's address cannot fill their inbox.
+- **Retention:** until confirmed (it then becomes the sign-in email), changed, or the account is deleted; if never confirmed, cleared by the daily purge 30 days after it was given. Confirm links last 14 days, are stored only as a hash and go with the address. In the person's own data download.
+- **Policy:** Privacy Policy section 2 (what we collect: the email you must give, only we see it, the time zone) and section 6 (kept until confirmed, changed or deleted; cleared after 30 days unconfirmed; at most two emails). The Terms and Privacy version was **not** bumped; F50 does one bump for F45 to F50. In our view this is a material change (a new required field), so it belongs in that bump.
+
 ## Retention (implemented in `worker/purge.js`)
 - Selfies: 12 months. Feedback text: 12 months.
 - Event presence (F17): at once on withdrawal, otherwise 48 hours after the event ends.
 - A host's list of who checked in (F31): at once on an untick, when the host switches it off or the account is deleted; otherwise 12 months after the event ends (proposed, owner to confirm). The consent record of each choice is kept 6 years.
 - Drops (F32): keys, codes and voucher uses an organiser gave out: 30 days after the event ends (proposed, owner to confirm; the same end rule as an event's status), or sooner when the organiser deletes the drop or the person deletes their account. The drop's title and its counts stay. Items are stored sealed with a Worker key (`DROP_KEY`); the host sees counts, and names only through F31's list. The host's audit rows (no values): 12 months. They are in the person's data download (their own) and the host's (counts only).
+- An email given at connect or step 5 and never confirmed (F45): 30 days after it was given.
 - Inactive guests: 30 days. Expired codes and sessions: daily purge.
 - Consent records: 6 years.
 - Welcome-step counts: 400 days (no personal data).

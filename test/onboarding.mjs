@@ -225,7 +225,8 @@ console.log("\n# Connecting from a scanned card: no extra steps, and how it was 
   const card = read("src/views/PublicCard.vue"), sheet = read("src/components/ConnectSheet.vue"), landing = read("src/views/Landing.vue");
   check("the public card and connect sheet never send a visitor into the welcome steps", !/welcome/.test(card) && !/welcome/.test(sheet));
   check("?s= is still read once, taken out of the address, and sent as via", has(card, "viaOfS(route.query.s)", "router.replace(", ':via="via"') && has(sheet, "via: props.via || undefined"));
-  check("a guest still connects with a name and one tick (the connect sheet asks for nothing more)", has(sheet, 'id="sheet-name"') && [...sheet.matchAll(/id="(sheet-[a-z]+)"/g)].map((m) => m[1]).join() === "sheet-name,sheet-selfie,sheet-message,sheet-private");
+  // F45: the owner asked for an email from a new person, so the sheet has one more field (and its hint); nothing else.
+  check("a guest connects with a name, an email (F45) and one tick (the connect sheet asks for nothing more)", has(sheet, 'id="sheet-name"') && [...sheet.matchAll(/id="(sheet-[a-z-]+)"/g)].map((m) => m[1]).join() === "sheet-name,sheet-email,sheet-email-hint,sheet-selfie,sheet-message,sheet-private");
   check("the landing page sends a new person to the welcome steps", has(landing, 'to="/app/welcome"'));
   check("every way into a first card now goes to the welcome steps", ["src/views/SignIn.vue", "src/views/Redeem.vue", "src/views/MyCard.vue"].every((f) => /['"]\/app\/welcome['"]/.test(read(f))));
   check("Edit profile sends someone with no card to the welcome steps, and no old link to it is left for a new person", has(read("src/views/EditProfile.vue"), 'router.replace("/app/welcome")')

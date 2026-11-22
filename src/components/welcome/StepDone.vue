@@ -33,7 +33,10 @@ function hideInstall() { dismissInstall(); showInstall.value = false; }
       <InstallGuide heading="Open Lanyard in one tap" @done="hideInstall" />
       <button type="button" class="link-btn small" style="margin-top:8px" @click="hideInstall">Not now</button>
     </section>
-    <p v-if="!me.user?.emailVerified" class="small muted" style="margin:0">
+    <p v-if="!me.user?.emailVerified && me.user?.pendingEmail" class="small muted" style="margin:0">
+      Your card only lives in this browser until you confirm your email: open the link we sent to {{ me.user.pendingEmail }}.
+    </p>
+    <p v-else-if="!me.user?.emailVerified" class="small muted" style="margin:0">
       Your card only lives in this browser until you add an email.
       <router-link to="/app/welcome?step=5">Add it now</router-link>.
     </p>

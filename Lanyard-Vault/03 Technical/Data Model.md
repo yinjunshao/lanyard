@@ -7,6 +7,7 @@ D1 schema from `migrations/0001`-`0024`. Conventions: ids are 10-character ungue
 
 ## Identity
 - `users` (**ai_search_ok** 1 or 0, default 1: people I've connected with may find me with AI search, F21 migration 0024; is_guest, recovery_email, email_domain, verified_student, has_passkey, over_18, plan, plan_until, notify_events)
+- F45, migration 0036 ([[D049 A new person's email is kept unconfirmed, never signs in, and gets at most two emails]]): `users.pending_email` (lower-case, not unique, never used to sign in), `pending_email_at`, `pending_mails` (emails sent to it while unconfirmed, at most 2), `tz` (IANA time zone, only if `Intl` knows it). `email_confirms` (id, user_id ON DELETE CASCADE, email, secret_hash (SHA-256 only), created_at, expires_at +14 days): one row per confirm link, deleted when used, when the address is confirmed or changed, and by the daily purge once expired
 - `sessions` (hashed token, expiry, user agent)
 - `webauthn_credentials` (credential_id, public_key, counter, transports, created_at; **name** TEXT null and **last_used_at** INTEGER null from F43, migration 0035; a removed passkey's row is deleted, not hidden), `webauthn_challenges`
 - `rate_limits` (fixed-window counters)

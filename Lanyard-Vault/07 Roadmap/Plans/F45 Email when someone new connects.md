@@ -38,7 +38,7 @@ Answer (2026-11-22) to "how should we check the address is theirs": **Confirm li
 
 ## Tasks
 - [x] F45.1 Worker: migration 0036, guest connect requires an email, `tz`, pending storage, the confirm token and endpoint, `mailableAddress` with the two-email cap, export and deletion; tests in a new `test/connect-email.mjs`.
-- [ ] F45.2 Front end: email field on `ConnectSheet.vue` and `Connect.vue`, required email at onboarding step 5, confirmed page or notice; Privacy Policy wording; vault notes ([[Data Model]], [[API Surface]], [[Privacy and Data Retention]], [[Auth and Sessions]]), decision note; browser check at 375 and 1280 px, light and dark.
+- [x] F45.2 Front end: email field on `ConnectSheet.vue` and `Connect.vue`, required email at onboarding step 5, confirmed page or notice; Privacy Policy wording; vault notes ([[Data Model]], [[API Surface]], [[Privacy and Data Retention]], [[Auth and Sessions]]), decision note; browser check at 375 and 1280 px, light and dark.
 
 ## Acceptance checks
 - [ ] A guest pressing Connect with a name but no email sees "Add your email…" and nothing is sent; the server refuses the same request with 400.

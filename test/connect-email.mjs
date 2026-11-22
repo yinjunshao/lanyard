@@ -453,7 +453,39 @@ console.log("\n# The emails are worded plainly, and the confirm page is plain HT
   const m = confirmEmail({ url: "https://lanyard.test/api/email/confirm?t=x", reason: "connect" });
   check("subject and lines", m.subject === "Confirm your email for Lanyard" && /connected with someone on Lanyard/.test(m.text) && /Until it is confirmed, nobody can sign in with it/.test(m.text) && /14 days/.test(m.text));
   const page = await client({ ip: ip() }).get(`/api/email/confirm?t=${"ef".repeat(21)}`);
-  check("the page has no script, is not cached and sends no referrer", !/<script/i.test(page.text) && page.headers.get("cache-control") === "no-store" && page.headers.get("referrer-policy") === "no-referrer");
+  check("the page has no script, is not cached and never sends its address (with the token) to another site", !/<script/i.test(page.text) && page.headers.get("cache-control") === "no-store" && page.headers.get("referrer-policy") === "same-origin");
+}
+
+console.log("\n# F45.2 The pages (source guards; the browser check is in the plan note)");
+{
+  const sheet = read("src/components/ConnectSheet.vue");
+  check("the connect sheet asks a guest without a card or a confirmed email for an email under the name",
+    /const needsEmail = computed\(\(\) => !me\.profile && !me\.user\?\.emailVerified\)/.test(sheet) && sheet.indexOf('id="sheet-name"') < sheet.indexOf('id="sheet-email"') && /<div v-if="needsEmail" class="field">/.test(sheet));
+  check("…required, type=email, autocomplete=email, labelled, with the 'Only we see this' line naming the person",
+    /<label for="sheet-email">Your email<\/label>/.test(sheet) && /type="email" autocomplete="email"/.test(sheet) && / required /.test(sheet) && sheet.includes("Only we see this. It isn't shown to {{ first }} or on your card."));
+  check("…and a quiet 'Already on Lanyard? Sign in' link back to this card", sheet.includes('Already on Lanyard?</span> <router-link :to="signInTo">Sign in</router-link>') && /\/signin\?next=\$\{encodeURIComponent\(`\/c\/\$\{props\.view\.cardId\}`\)\}/.test(sheet));
+  check("Connect without an email: 'Add your email…' and nothing is sent (the check returns before Api.connect)",
+    /error\.value = "Add your email to connect\./.test(sheet) && sheet.indexOf('"Add your email to connect.') < sheet.indexOf("Api.connect("));
+  check("it sends the email only when asked for one, and the browser's time zone", /email: needsEmail\.value \? email\.value\.trim\(\) : undefined/.test(sheet) && /tz: \(\(\) => \{ try \{ return Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone/.test(sheet));
+  check("someone signed in with a card sees no email field (needsEmail is false with a profile)", /!me\.profile && !me\.user\?\.emailVerified/.test(sheet));
+  check("the card page still fetches the sheet lazily (its first load is unchanged)", /import\("\.\.\/components\/ConnectSheet\.vue"\)/.test(read("src/views/PublicCard.vue")) && !/^import .*ConnectSheet/m.test(read("src/views/PublicCard.vue")));
+  check("no shared public file was touched for it (api.js, store.js, main.css have no F45 code)", ["src/lib/api.js", "src/lib/store.js", "src/styles/main.css"].every((f) => !/pending-email|pendingEmail|sheet-email/.test(read(f))));
+  const signin = read("src/views/SignIn.vue");
+  check("Sign in follows ?next= only to a card address", signin.includes('const next = /^\\/c\\/[0-9a-f]{10}$/.test(q("next")) ? q("next") : "/app";') && /afterAccountPath\(next\)/.test(signin));
+  const save = read("src/components/welcome/StepSave.vue");
+  check("step 5 cannot be skipped without an email on file, confirmed or pending", /const noSkip = computed\(\(\) => !hasEmail\.value \|\| promo\.value\)/.test(save) && /const hasEmail = computed\(\(\) => verified\.value \|\| !!pending\.value\)/.test(save) && /!stepEl\?\.noSkip/.test(read("src/views/Welcome.vue")));
+  check("with a pending email it shows the address with 'We'll send you a link to confirm it', and Continue shows",
+    /\{\{ pending \}\}/.test(save) && save.includes("We'll send you a link to confirm it.") && /hideContinue: computed\(\(\) => \(promo\.value \? !verified\.value : !hasEmail\.value\)\)/.test(save));
+  check("'Confirm now with a code' opens the existing code flow, and a typed email is saved as pending", save.includes("Confirm now with a code") && /<EmailSetup \/>/.test(save) && /api\("\/api\/account\/pending-email", "POST", \{ email: email\.value\.trim\(\), tz \}\)/.test(save));
+  check("the passkey extra is unchanged", /verified && canPasskey && !me\.user\?\.hasPasskey/.test(save) && save.indexOf("<EmailSetup") < save.indexOf("Add a passkey"));
+  check("Settings' email form shows a pending address and fills it in for the code", /const email = ref\(me\.user\?\.pendingEmail \|\| ""\)/.test(read("src/components/EmailSetup.vue")) && read("src/components/EmailSetup.vue").includes("isn't confirmed yet"));
+  check("the time zone is sent when a card is made and when Edit profile saves", /tz: \(\(\) => \{ try \{ return Intl/.test(read("src/components/welcome/StepYou.vue")) && /payload\.tz = Intl\.DateTimeFormat/.test(read("src/views/EditProfile.vue")));
+  const pol = read("src/views/Privacy.vue");
+  check("Privacy Policy section 2 lists the email you must give when you connect or make a card, and that only we see it",
+    pol.includes("Your email, which you must give when you connect or make a card") && pol.includes("Only we see it: never the people you meet, organisers or your card"));
+  check("…and section 6 says it is cleared 30 days after you gave it if never confirmed", pol.includes("If you never confirm it, it is cleared 30 days after you gave it"));
+  check("the Terms version is not bumped (F50 does one bump for F45 to F50)", /TERMS_VERSION = "2026-11-13"/.test(read("worker/legal.js")));
+  check("the dead Connect page says why it is out of step", /Not routed: no route imports this page/.test(read("src/views/Connect.vue")));
 }
 
 summary();

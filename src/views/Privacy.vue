@@ -29,6 +29,7 @@ const UPDATED = "13 November 2026";
       <thead><tr><th>Who</th><th>Data</th><th>Why</th></tr></thead>
       <tbody>
         <tr><td>Users</td><td>Name, whether you are a student or working, company, role, university, course, year, headline, about text, tags, links, profile photo, and whether you show your age band</td><td>To make your card and profile and show them as you choose</td></tr>
+        <tr><td>Users</td><td>Your email, which you must give when you connect or make a card, kept unconfirmed until you open the link in our first email, and your device's time zone</td><td>So you can get back to your card, and so we write at sensible hours. Only we see it: never the people you meet, organisers or your card</td></tr>
         <tr><td>Users</td><td>Connections you make, which card was scanned, how you met (QR code, typed code or link) and when, optional note, private notes, messages, and shared selfies</td><td>To keep your connections and let both people see them</td></tr>
         <tr><td>Users</td><td>Event check-ins, answers to optional questions, and your optional directory and sponsor choices</td><td>To join events and respect your choices</td></tr>
         <tr><td>Users</td><td>If you choose "Be easy to find" at an event: a photo of your face, a short line about you, and what kind of person you would like to meet</td><td>To let other people at that event who chose the same spot you in the room. Optional and off unless you turn it on</td></tr>
@@ -88,6 +89,7 @@ const UPDATED = "13 November 2026";
         <tr><td>An AI summary of an event's written feedback</td><td>With that feedback: deleted when the event is deleted or its written answers are removed after 12 months. It holds no names and no account</td></tr>
         <tr><td>Counts of AI use (how many times, tokens and cost; no text)</td><td>13 months, or until you delete your account</td></tr>
         <tr><td>Sign-in codes</td><td>5 to 10 minutes, single use</td></tr>
+        <tr><td>An email you have not confirmed yet</td><td>Until you confirm it, change it or delete your account. If you never confirm it, it is cleared 30 days after you gave it, and it gets no more than two emails from us</td></tr>
         <tr><td>Your email address</td><td>Until you delete your account. News emails stop as soon as you untick the box or use the unsubscribe link</td></tr>
         <tr><td>Rate-limit counters, expired sessions</td><td>Days; removed automatically</td></tr>
         <tr><td>Unclaimed guest sessions with no profile</td><td>Removed automatically after a period of inactivity</td></tr>
