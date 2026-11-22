@@ -120,7 +120,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 
 ### Phase 9: owner requests (2026-11-22)
 - [ ] **F46** [[F46 One selfie button]] · P0 · S · Needs: none (in progress: Claude subagent, 2026-11-22; built and tested, waiting on one check that needs a real device: Enter or Space opens the native picker)
-- [ ] **F47** [[F47 Tidy follow-up section]] · P1 · S · Needs: none
+- [ ] **F47** [[F47 Tidy follow-up section]] · P1 · S · Needs: none (in progress: Claude subagent, 2026-11-22)
 - [ ] **F45** [[F45 Email when someone new connects]] · P1 · M · Needs: none (owner decision answered 2026-11-22)
 - [ ] **F48** [[F48 Follow-up reminder emails]] · P1 · M · Needs: F45, F47
 - [ ] **F49** [[F49 Profile score and finish-your-profile emails]] · P1 · M · Needs: F45, F48

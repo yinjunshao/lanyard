@@ -46,4 +46,21 @@ for (const [name, path, id] of [["the connect sheet", "src/components/ConnectShe
   check(`${name}: after a photo there is Retake and Remove, and Remove clears the tick`, /Retake/.test(field) && /@click="removeSelfie"/.test(field) && /function removeSelfie\(\) \{[^}]*consent\.value = false/.test(src));
 }
 
+console.log("\n# F47 Tidy follow-up section");
+const conn = read("src/components/CardConnection.vue");
+const fu = /<span class="label">Follow up<\/span>[\s\S]*?<span class="label">Write to /.exec(conn)?.[0] || "";
+const wr = /<span class="label">Write to [\s\S]*?<\/div>/.exec(conn)?.[0] || "";
+check("Next week is gone from the panel", !/Next week/i.test(conn) && !/morningIn\(7\)/.test(conn));
+const chips = [...fu.matchAll(/class="chip chip-toggle"[^>]*>([^<]*)</g)].map((m) => m[1].trim());
+check("the Follow up chips are Tomorrow, In 3 days, Pick a day", chips.join("|") === "Tomorrow|In 3 days|Pick a day", chips);
+check("In 3 days is 9:00 three days ahead (morningIn(3))", /setRemind\(morningIn\(3\)\)[^>]*>In 3 days/.test(fu));
+check("a set reminder shows Change and Clear", /Reminder \{\{ relativeDay\(remindAt\) \}\}, \{\{ fmtDay\(remindAt\) \}\}/.test(fu) && />Change</.test(fu) && />Clear</.test(fu));
+check("Mark as followed up is a quiet link-btn, not a .btn", /class="link-btn"[^>]*>Mark as followed up</.test(fu) && !/class="btn"[^>]*>Mark as followed up/.test(conn));
+check("followed up reads Followed up <date> with Undo and hides the chips", /Followed up \{\{ fmtDay\(followedUpAt\) \}\}/.test(fu) && /v-if="followedUpAt"/.test(fu));
+check("no email promise yet: the F48 line is only a code comment", !/email you/i.test(conn.replace(/<!--[\s\S]*?-->/g, "")));
+check("Draft a message sits in its own block with exactly one button", /Write to \{\{ first \}\}/.test(wr) && (wr.match(/<button/g) || []).length === 1 && /Draft a message/.test(wr) && !/Draft a follow-up/.test(conn));
+check("the order is Follow up, Write to, private note, tags", conn.indexOf("Follow up</span>") < conn.indexOf("Write to {{") && conn.indexOf("Write to {{") < conn.indexOf('for="private-note"') && conn.indexOf('for="private-note"') < conn.indexOf("Your tags</span>"));
+check("Remove and Report are quiet buttons; Remove still confirms", /class="btn-quiet"[^>]*@click="removeConnection"/.test(conn) && /class="btn-quiet"[^>]*@click="reporting = !reporting"/.test(conn) && /confirm\("Remove this connection\?/.test(conn));
+check("finishing a draft still marks the connection followed up", /function draftedFollowUp\(\) \{ saveMeta\(\{ followedUp: true \}\); \}/.test(conn));
+
 summary();

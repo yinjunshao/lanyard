@@ -333,7 +333,7 @@ console.log("\n# The screen (source guards)");
   check("only https addresses on the right host are used, and the WhatsApp address is rebuilt from the digits", /protocol === "https:"/.test(comp) && /https:\/\/wa\.me\/\$\{whatsappNumber\.value\}/.test(comp));
   check("it opens in a new tab without giving the page to the other site", /target="_blank" rel="noopener noreferrer"/.test(comp));
   check("it uses the existing follow-up setting for 'Mark as followed up' (the panel saves it)", /emit\("followed-up"\)/.test(comp) && /draftedFollowUp\(\) \{ saveMeta\(\{ followedUp: true \}\)/.test(conn));
-  check("the button sits with the follow-up controls", /Draft a follow-up/.test(conn) && conn.indexOf("Draft a follow-up") < conn.indexOf("Mark as followed up</button>"));
+  check("the button sits in the Write block right after the Follow up block (F47: Draft a message)", conn.indexOf("Mark as followed up</button>") < conn.indexOf(">Draft a message</button>") && conn.indexOf(">Draft a message</button>") < conn.indexOf('for="private-note"'));
   check("the topic and offer chips toggle by value (a ref passed from a template arrives unwrapped; this once broke them)", /toggleTalk\(t\.text\)/.test(comp) && /toggleOffer\(t\)/.test(comp) && !/toggle\((talk|offer)\b/.test(comp) && /length < max/.test(comp));
   check("no sparkle, magic or wand wording or icon, and no emoji", !/sparkle|magic|wand|✨|\p{Extended_Pictographic}/iu.test(comp + read("src/lib/followupTemplates.js")));
   check("it handles Escape and keeps focus in the sheet", /e\.key === "Escape"/.test(comp) && /e\.key !== "Tab"/.test(comp) && /aria-modal="true"/.test(comp));

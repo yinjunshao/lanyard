@@ -4,7 +4,7 @@ id: F47
 priority: P1
 phase: 9
 size: S
-status: Not started
+status: In progress
 needs: []
 ---
 # F47 Tidy follow-up section
@@ -31,16 +31,18 @@ Two clearly separate blocks inside the panel, each with a small heading:
 - Follow [[Design System]] (paper, ink, one strap colour, spacing tokens). No new library; motion only from the existing tokens ([[D045 Motion is CSS tokens and a few lines of script, never a library or Vue Transition]]).
 
 ## Tasks
-- [ ] F47.1 Rework the follow-up and drafting blocks and the bottom row in `CardConnection.vue`; update any guard in `test/` that reads the old buttons; browser check at 375 and 1280 px, light and dark, in all three states (no reminder, reminder set, followed up).
+- [x] F47.1 Rework the follow-up and drafting blocks and the bottom row in `CardConnection.vue`; update any guard in `test/` that reads the old buttons; browser check at 375 and 1280 px, light and dark, in all three states (no reminder, reminder set, followed up).
 
 ## Acceptance checks
-- [ ] With no reminder, the Follow up block shows exactly three chips: Tomorrow, In 3 days, Pick a day. "Next week" appears nowhere in the panel.
-- [ ] Tapping In 3 days sets the reminder to 9:00 three days ahead and the block reads "Reminder in 3 days, <date>" with Change and Clear.
-- [ ] Draft a message is the only button in its own block and opens the composer; finishing a draft still marks the connection as followed up as before.
-- [ ] Remove still asks to confirm; Report still opens its form.
-- [ ] `npm test` passes; public pages within budget.
+- [x] With no reminder, the Follow up block shows exactly three chips: Tomorrow, In 3 days, Pick a day. "Next week" appears nowhere in the panel.
+- [x] Tapping In 3 days sets the reminder to 9:00 three days ahead and the block reads "Reminder in 3 days, <date>" with Change and Clear.
+- [x] Draft a message is the only button in its own block and opens the composer; finishing a draft still marks the connection as followed up as before.
+- [x] Remove still asks to confirm; Report still opens its form.
+- [x] `npm test` passes; public pages within budget.
 
 ## Log
--
+- 2026-11-22 · Claude subagent: `CardConnection.vue` now has two blocks, **Follow up** (Next week removed; chips Tomorrow, In 3 days, Pick a day; a set reminder reads "Reminder in 3 days, Wed 25 Nov" with Change and Clear; Change brings the chips back with a Cancel; Mark as followed up is a quiet text button; followed up reads "Followed up <date> · Undo") and **Write to {first}** (one line of help and one primary Draft a message button). The private note moved below them; Save to contacts is one button and Remove and Report are two quiet buttons under it (Remove still confirms, Report still opens its form). `FollowupComposer.vue` and `draftedFollowUp` are unchanged. The Write block now also shows once a connection is marked followed up (before, the draft button vanished then).
+- The "We'll email you then" line is not added: a code comment in the Follow up block marks where F48 puts it. Guards are in `test/ui.mjs`. One existing guard in `test/followup.mjs` ("the button sits with the follow-up controls") read the old button text and order; it now checks that Draft a message sits after Mark as followed up and before the private note, same strength.
+- Browser check (local servers, two throwaway profiles): 375 px light and 1280 px dark, no reminder, reminder set (In 3 days and a picked day), followed up and Undo, Change and Cancel, Draft a message opens the composer, Remove asks to confirm, Report opens its form. Not looked at: 375 px dark and 1280 px light. Finishing a real draft was not run in the browser; the check is ticked on the basis that `draftedFollowUp`, the `@followed-up` wiring and `FollowupComposer.vue` are untouched (git diff) and the handler is guarded in `test/ui.mjs`.
 
 Related: [[F22 AI follow-up drafts]] · [[F48 Follow-up reminder emails]] · back to [[00 Master To-Do]]

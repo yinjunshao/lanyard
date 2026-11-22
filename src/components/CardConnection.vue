@@ -1,6 +1,6 @@
 <script setup>
 // The "Your connection" panel of a card you are already connected to: your private note, the
-// follow-up reminder, your tags, Save to contacts, Remove and Report. PublicCard.vue loads it
+// follow-up reminder, a button that drafts a message, your tags, Save to contacts, Remove and Report. PublicCard.vue loads it
 // only once the card says you are connected (a plain import(), like the calendar), so the first
 // load of a scanned card does not carry it (public-page JS budget, F28).
 import { computed, ref, shallowRef, watch } from "vue";
@@ -60,7 +60,7 @@ function addTag() {
   if (t && !myTags.value.includes(t)) saveMeta({ tags: [...myTags.value, t] });
 }
 const removeTag = (t) => saveMeta({ tags: myTags.value.filter((x) => x !== t) });
-// The calendar is only fetched when someone taps "Pick a date" (public-page JS budget).
+// The calendar is only fetched when someone taps "Pick a day" (public-page JS budget).
 // A plain dynamic import: defineAsyncComponent would add its code to the Vue chunk every
 // public page loads.
 const DatePicker = shallowRef(null);
@@ -70,7 +70,7 @@ async function pickDate() {
   pickingDate.value = true;
   if (!DatePicker.value) DatePicker.value = (await import("../components/ui/UiDatePicker.vue")).default;
 }
-// F22: the draft composer is its own chunk, fetched when "Draft a follow-up" is pressed (plain import(), as above).
+// F22: the draft composer is its own chunk, fetched when "Draft a message" is pressed (plain import(), as above).
 const Composer = shallowRef(null);
 const drafting = ref(false);
 async function openDraft() {
@@ -78,7 +78,13 @@ async function openDraft() {
   if (!Composer.value) Composer.value = (await import("./FollowupComposer.vue")).default;
 }
 function draftedFollowUp() { saveMeta({ followedUp: true }); }
-function remindOn(v) { if (v) saveMeta({ remindAt: new Date(`${v}T09:00`).getTime() }); }
+// A reminder that is already set shows its date with Change and Clear; Change brings the chips back.
+const changing = ref(false);
+async function setRemind(at) {
+  await saveMeta({ remindAt: at });
+  if (!metaMsg.value) changing.value = false;
+}
+function remindOn(v) { if (v) setRemind(new Date(`${v}T09:00`).getTime()); }
 
 function vcard() {
   const pr = p.value;
@@ -138,36 +144,50 @@ async function sendReport() {
       </div>
     </div>
 
+    <div class="stack">
+      <span class="label">Follow up</span>
+      <p v-if="followedUpAt" class="small" style="margin:0">
+        Followed up {{ fmtDay(followedUpAt) }} ·
+        <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ followedUp: false })">Undo</button>
+      </p>
+      <template v-else>
+        <p v-if="remindAt && !changing" class="small" style="margin:0">
+          Reminder {{ relativeDay(remindAt) }}, {{ fmtDay(remindAt) }} ·
+          <button type="button" class="link-btn" :disabled="metaBusy" @click="changing = true">Change</button> ·
+          <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ remindAt: null })">Clear</button>
+        </p>
+        <!-- F48 adds the muted "We'll email you then" line here, once reminder emails are sent. Not before: it must never promise an email that is not sent. -->
+        <template v-else>
+          <p class="small muted" style="margin:0">
+            Remind me to follow up
+            <template v-if="remindAt"> ·
+              <button type="button" class="link-btn" @click="changing = false">Cancel</button>
+            </template>
+          </p>
+          <div class="chip-row" role="group" aria-label="Remind me to follow up">
+            <button type="button" class="chip chip-toggle" :disabled="metaBusy" @click="setRemind(morningIn(1))">Tomorrow</button>
+            <button type="button" class="chip chip-toggle" :disabled="metaBusy" @click="setRemind(morningIn(3))">In 3 days</button>
+            <button ref="dateBtn" type="button" class="chip chip-toggle" aria-haspopup="dialog" :aria-expanded="pickingDate ? 'true' : 'false'"
+                    @click="pickDate">Pick a day</button>
+            <component :is="DatePicker" v-if="DatePicker" bare v-model:open="pickingDate" min-today label="Remind me on" model-value=""
+                          :anchor="dateBtn" @update:model-value="remindOn" />
+          </div>
+        </template>
+        <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ followedUp: true })">Mark as followed up</button>
+      </template>
+    </div>
+
+    <div class="stack">
+      <span class="label">Write to {{ first }}</span>
+      <p class="small muted" style="margin:0">Get a first draft for email, LinkedIn or WhatsApp. You edit it and send it yourself.</p>
+      <button type="button" class="btn btn-primary" aria-haspopup="dialog" @click="openDraft">Draft a message</button>
+    </div>
+
     <div class="field" style="margin-bottom:0">
       <label for="private-note">Your private note</label>
       <textarea id="private-note" v-model="note" maxlength="600" @input="noteDirty = true" @blur="saveNote"
                 placeholder="Where you met, what to follow up on…"></textarea>
       <span v-if="noteSaved" class="success-text small" role="status">Saved</span>
-    </div>
-
-    <div class="stack">
-      <span class="label">Follow up</span>
-      <p v-if="followedUpAt" class="small" style="margin:0">
-        Followed up {{ fmtDay(followedUpAt) }}.
-        <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ followedUp: false })">Undo</button>
-      </p>
-      <template v-else>
-        <p v-if="remindAt" class="small" style="margin:0">
-          Reminder {{ relativeDay(remindAt) }} ({{ fmtDay(remindAt) }}).
-          <button type="button" class="link-btn" :disabled="metaBusy" @click="saveMeta({ remindAt: null })">Clear</button>
-        </p>
-        <div class="chip-row" role="group" aria-label="Remind me to follow up">
-          <button type="button" class="chip chip-toggle" :disabled="metaBusy" @click="saveMeta({ remindAt: morningIn(1) })">Tomorrow</button>
-          <button type="button" class="chip chip-toggle" :disabled="metaBusy" @click="saveMeta({ remindAt: morningIn(3) })">In 3 days</button>
-          <button type="button" class="chip chip-toggle" :disabled="metaBusy" @click="saveMeta({ remindAt: morningIn(7) })">Next week</button>
-          <button ref="dateBtn" type="button" class="chip chip-toggle" aria-haspopup="dialog" :aria-expanded="pickingDate ? 'true' : 'false'"
-                  @click="pickDate">Pick a date</button>
-          <component :is="DatePicker" v-if="DatePicker" bare v-model:open="pickingDate" min-today label="Remind me on" model-value=""
-                        :anchor="dateBtn" @update:model-value="remindOn" />
-        </div>
-        <button type="button" class="btn" aria-haspopup="dialog" @click="openDraft">Draft a follow-up</button>
-        <button type="button" class="btn" :disabled="metaBusy" @click="saveMeta({ followedUp: true })">Mark as followed up</button>
-      </template>
     </div>
 
     <div class="stack">
@@ -187,10 +207,10 @@ async function sendReport() {
       <p v-if="metaMsg" class="error-text" role="alert">{{ metaMsg }}</p>
     </div>
 
-    <div class="btn-row">
-      <button class="btn" @click="vcard">Save to contacts</button>
-      <button class="btn" style="color:var(--strap-deep)" :disabled="removeBusy" @click="removeConnection">{{ removeBusy ? "Removing…" : "Remove" }}</button>
-      <button class="btn" :aria-expanded="reporting" @click="reporting = !reporting">Report</button>
+    <button class="btn" type="button" @click="vcard">Save to contacts</button>
+    <div class="quiet-row">
+      <button class="btn-quiet" type="button" style="color:var(--strap-deep)" :disabled="removeBusy" @click="removeConnection">{{ removeBusy ? "Removing…" : "Remove" }}</button>
+      <button class="btn-quiet" type="button" :aria-expanded="reporting" @click="reporting = !reporting">Report</button>
     </div>
     <form v-if="reporting" class="stack-1" @submit.prevent="sendReport">
       <label for="report-text">What happened?</label>
@@ -208,4 +228,5 @@ async function sendReport() {
 <style scoped>
 .tag-x { background: none; border: none; padding: 0 0 0 6px; margin: 0; cursor: pointer; font-weight: 800; color: inherit; min-width: 24px; min-height: 24px; }
 .tag-x:focus-visible { outline: 2px solid var(--strap); }
+.quiet-row { display: flex; gap: var(--space); }
 </style>
