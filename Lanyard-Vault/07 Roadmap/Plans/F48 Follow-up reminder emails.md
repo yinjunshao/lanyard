@@ -4,7 +4,7 @@ id: F48
 priority: P1
 phase: 9
 size: M
-status: Not started
+status: In progress
 needs: [F45, F47]
 ---
 # F48 Follow-up reminder emails
@@ -28,7 +28,7 @@ needs: [F45, F47]
 5. **Privacy Policy:** section 2 and 6 rows for these emails (sent only for reminders you set; one switch to stop). No Terms version bump ([[F50 QuantLink as the operator]] does it).
 
 ## Tasks
-- [ ] F48.1 Worker: migration 0037, the hourly job, the template, the stop link, the preference route; tests in a new `test/followup-mail.mjs` (due, not due, followed up, cleared, blocked, deleted connection, switched off, no address, pending address cap, two people due give one email, run twice sends once, a 3-day-old reminder at first deploy is not mailed).
+- [x] F48.1 Worker: migration 0037, the hourly job, the template, the stop link, the preference route; tests in a new `test/followup-mail.mjs` (due, not due, followed up, cleared, blocked, deleted connection, switched off, no address, pending address cap, two people due give one email, run twice sends once, a 3-day-old reminder at first deploy is not mailed).
 - [ ] F48.2 Front end: the Settings switch and the F47 hint; Privacy Policy rows; vault notes ([[Data Model]], [[Integrations and Email]], [[Privacy and Data Retention]]), browser check at 375 and 1280 px, light and dark; the email seen in the `MAIL_LOG=1` console.
 
 ## Acceptance checks

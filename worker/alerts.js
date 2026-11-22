@@ -99,6 +99,13 @@ export async function signOutOthers(c, db) {
   return c.json({ ok: true, signedOut: r.meta?.changes || 0 });
 }
 
+// F48: the one switch for emails about reminders you set (and, in F49, finish-your-profile emails).
+export async function setReminderEmails(c, db, on) {
+  const user = requireUser(c);
+  await run(db, "UPDATE users SET notify_reminders = ? WHERE id = ?", on ? 1 : 0, user.id);
+  return c.json({ ok: true });
+}
+
 export async function setEventEmails(c, db, on) {
   const user = requireUser(c);
   await run(db, "UPDATE users SET notify_events = ? WHERE id = ?", on ? 1 : 0, user.id);

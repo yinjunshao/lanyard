@@ -50,6 +50,7 @@ function userFromRow(row) {
     email_verified: row.email_verified,
     marketing_optin: row.marketing_optin,
     notify_events: row.notify_events,
+    notify_reminders: row.notify_reminders,
     over_18: row.over_18,
   };
 }

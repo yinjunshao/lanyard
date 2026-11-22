@@ -16,6 +16,30 @@ export function feedbackReminderEmail({ eventName, url, stopUrl }) {
   };
 }
 
+// F48: a follow-up reminder the person set has come due. `people` is [{ first, event, url }] (first names and the
+// event name only, as the person sees them in the app); `total` counts everyone due and the email names at most 3.
+// Never the private note, tags, an email address or the other person's links. `stopUrl` turns the switch off.
+const SHOW = 3;
+const plain = (s, n) => [...String(s || "")].map((ch) => { const k = ch.codePointAt(0); return k < 32 || (k >= 127 && k < 160) || k === 8232 || k === 8233 ? " " : ch; }).join("").replace(/ {2,}/g, " ").trim().slice(0, n);
+export function followupReminderEmail({ people, total, stopUrl, listUrl }) {
+  const shown = people.slice(0, SHOW).map((p) => ({ ...p, first: plain(p.first, 30) || "someone", event: plain(p.event, 80) }));
+  const names = shown.map((p) => p.first);
+  const more = Math.max(0, total - shown.length);
+  const who = more > 0 ? `${names.join(", ")} and ${more} ${more === 1 ? "other" : "others"}`
+    : names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+  const met = (p) => (p.event ? ` (met at ${p.event})` : "");
+  const one = shown.length === 1 && more === 0;
+  const intro = `It's time to follow up with ${who}.`;
+  const foot = "You set this reminder in Lanyard.";
+  const rows = shown.map((p) => `<p style="margin:4px 0"><a href="${escapeHtml(p.url)}">${escapeHtml(p.first)}</a>${escapeHtml(met(p))}</p>`).join("");
+  return {
+    subject: `Time to follow up with ${who}`,
+    text: `${intro}\n\n${shown.map((p) => `${p.first}${met(p)}: ${p.url}`).join("\n")}${more > 0 ? `\n\nThe rest are in your People list: ${listUrl}` : ""}\n\n${foot} Stop these emails: ${stopUrl}`,
+    html: `${paragraphs(intro)}${rows}${button(one ? shown[0].url : listUrl, one ? `Open ${shown[0].first}'s page` : "Open your People list")}${small(`${foot} <a href="${escapeHtml(stopUrl)}">Stop these emails</a>`)}`,
+    headers: { "List-Unsubscribe": `<${stopUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+  };
+}
+
 // To the person who runs the event, a day after it ended.
 export function hostSummaryEmail({ eventName, checkins, connections, responses, nudged, url, aiSummary }) {
   const lines = [

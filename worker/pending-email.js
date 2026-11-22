@@ -74,6 +74,9 @@ export async function mailableAddress(db, userId) {
   return row ? { to: row.pending_email, pending: true } : null;
 }
 
+/** SQL for "this users row has an address mailableAddress() could give": a quick filter for jobs, never a claim. */
+export const hasMailableSql = (u) => `((${u}.email_verified = 1 AND ${u}.recovery_email IS NOT NULL) OR (${u}.pending_email IS NOT NULL AND ${u}.pending_mails < ${PENDING_MAIL_CAP}))`;
+
 /** Gives back a send claimed by mailableAddress() when the email could not be sent. */
 export async function releaseMail(db, userId, to) {
   await run(db, "UPDATE users SET pending_mails = pending_mails - 1 WHERE id = ? AND pending_email = ? AND pending_mails > 0", userId, to);

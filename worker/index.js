@@ -26,6 +26,7 @@ import { cardFacts } from "../src/lib/cardmerge.js";
 import { privacyApp } from "./privacy.js";
 import * as Alerts from "./alerts.js";
 import { sendEventEmails } from "./eventmail.js";
+import { sendFollowupEmails } from "./followupmail.js";
 import { writeDueSummaries } from "./ai/feedbackSummary.js";
 import {
   newCardCode, rotateCardCode, FOREVER, freshenCards, findCardByCode, normaliseCode,
@@ -51,7 +52,7 @@ import { billingApp, exportBillingOrders } from "./billing/routes.js";
 import { servePage } from "./seo.js";
 import { recordConnection } from "./eventConnections.js";
 import { SHARED_CARD_SQL, SHARED_LINKS_SQL, shareOf, onlyLinks, parseLinks, readShare, setShareStmt } from "./shares.js";
-import { confirmApp, setPending, sendConfirm, saveTz } from "./pending-email.js";
+import { confirmApp, setPending, sendConfirm, saveTz, PENDING_MAIL_CAP } from "./pending-email.js";
 
 const app = new Hono();
 
@@ -237,6 +238,9 @@ app.get("/api/me", async (c) => {
       // Anyone with a profile must have accepted the current Terms and Privacy Policy.
       needsTerms: !!profile && !termsAccepted,
       recoveryEmail: u.recovery_email || null, emailVerified: !!u.email_verified, marketingOptin: !!u.marketing_optin, eventEmails: u.notify_events !== 0,
+      // F48: the switch, and whether a reminder email would really go (switch on and an address that may be emailed).
+      reminderEmails: u.notify_reminders !== 0,
+      reminderEmailsGo: u.notify_reminders !== 0 && (!!u.email_verified || (!!data.user?.pending_email && (data.user?.pending_mails || 0) < PENDING_MAIL_CAP)),
       verifiedStudent: !!u.verified_student, over18: !!u.over_18,
       emailDomain: u.email_domain || null,
       // F45: the address typed when connecting or making a card, until it is confirmed. Only ever sent to its own account.
@@ -477,6 +481,11 @@ app.post("/api/account/event-emails", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   return Alerts.setEventEmails(c, c.env.DB, body.on === true);
 });
+// F48: the switch for follow-up reminder emails.
+app.post("/api/account/reminder-emails", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return Alerts.setReminderEmails(c, c.env.DB, body.on === true);
+});
 app.post("/api/logout", async (c) => {
   await endSession(c, c.env.DB);
   return c.json({ ok: true });
@@ -526,7 +535,7 @@ app.get("/api/account/export", async (c) => {
     consentHistory, billingRequests, privacyRequests,
     ...(billingOrders.length ? { billingOrders } : {}), // only for someone who started a card payment
     user: { id: u.id, isGuest: !!u.is_guest, plan: u.plan || "free", recoveryEmail: u.recovery_email || null,
-            emailVerified: !!u.email_verified, newsEmails: !!u.marketing_optin, eventReminders: u.notify_events !== 0,
+            emailVerified: !!u.email_verified, newsEmails: !!u.marketing_optin, eventReminders: u.notify_events !== 0, followUpReminderEmails: u.notify_reminders !== 0,
             authenticatorApp: !!u.has_totp, passkey: !!u.has_passkey, recoveryKeySet: !!u.has_recovery,
             verifiedStudent: !!u.verified_student, createdAt: u.created_at,
             pendingEmail: pend?.pending_email || null, pendingEmailSince: pend?.pending_email_at || null,
@@ -1428,6 +1437,7 @@ export default {
     if (event.cron === "17 3 * * *") ctx.waitUntil(purgeExpired(env));
     else {
       ctx.waitUntil(sendEventEmails(env).catch((e) => console.error(e)));
+      ctx.waitUntil(sendFollowupEmails(env).catch((e) => console.error("follow-up reminder emails failed")));
       ctx.waitUntil(writeDueSummaries(env).catch((e) => console.error("feedback summaries failed")));
     }
   },

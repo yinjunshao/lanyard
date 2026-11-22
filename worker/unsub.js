@@ -2,6 +2,7 @@
 // (kind, user, expiry) so it can't be forged:
 //   news    unsubscribe from news and offers            (never expires)
 //   events  stop post-event feedback reminders          (never expires)
+//   reminders  stop follow-up reminder emails (F48, and F49's finish-your-profile emails; never expires)
 //   revoke  "this wasn't me": sign out every device     (expires after 7 days)
 // GET only shows a confirm button (mail scanners prefetch links); POST acts (it is
 // also what mail apps' own "unsubscribe" button sends).
@@ -11,7 +12,7 @@ import { logConsentStmt } from "./legal.js";
 
 export const unsubApp = new Hono();
 
-const KINDS = new Set(["news", "events", "revoke"]);
+const KINDS = new Set(["news", "events", "reminders", "revoke"]);
 
 async function mac(env, kind, userId, exp) {
   const secret = env.UNSUB_SECRET || env.TOTP_KEY || env.ADMIN_TOKEN;
@@ -57,6 +58,7 @@ async function valid(c) {
 const COPY = {
   news: ["Unsubscribe?", "Stop news and offers from Lanyard. You'll still get sign-in codes.", "Unsubscribe", "Unsubscribed", "You won't get news emails from Lanyard any more."],
   events: ["Stop event reminders?", "No more emails asking for feedback after events. You'll still get sign-in codes.", "Stop reminders", "Reminders off", "We won't email you about event feedback again."],
+  reminders: ["Stop reminder emails?", "No more emails when a follow-up reminder you set is due. You'll still get sign-in codes. You can switch them back on in Settings.", "Stop reminder emails", "Reminder emails off", "We won't email you about follow-up reminders again."],
   revoke: ["Sign out everywhere?", "This signs out every device on your account, including this one. Then sign in again with your email or passkey.", "Sign out everywhere", "Signed out everywhere", "Every device was signed out. If you didn't sign in just now, sign back in and add a passkey in Settings."],
 };
 
@@ -78,6 +80,7 @@ unsubApp.post("/api/unsubscribe", async (c) => {
     ]);
   }
   else if (v.kind === "events") await run(db, "UPDATE users SET notify_events = 0 WHERE id = ?", v.u);
+  else if (v.kind === "reminders") await run(db, "UPDATE users SET notify_reminders = 0 WHERE id = ?", v.u);
   else await run(db, "DELETE FROM sessions WHERE user_id = ?", v.u);
   const [, , , done, more] = COPY[v.kind];
   return page(`<h1>${done}</h1><p>${more}</p>`);
