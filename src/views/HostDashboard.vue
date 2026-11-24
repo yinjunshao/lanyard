@@ -15,7 +15,7 @@ import EventCreate from "../components/EventCreate.vue";
 import EventPreview from "../components/EventPreview.vue";
 import { collectBody, createBody, eventFromBody } from "../lib/eventform";
 import { UiCombobox } from "../components/ui/UiSelect.vue";
-import { blankForm, copyFacts, firstBadStep, formFromDraft, serverErrorField, stepFromQuery, submitPlan } from "../lib/eventsteps";
+import { blankForm, copyFacts, firstBadStep, formFromDraft, freshForm as freshFrom, serverErrorField, startFromEvent, startValues, stepFromQuery, submitPlan } from "../lib/eventsteps";
 import { clearDraft, loadDraft, saveDraft } from "../lib/eventdraft";
 import { useBusy } from "../components/Waiting.vue";
 import { useEventClock } from "../lib/eventlive";
@@ -56,6 +56,15 @@ async function signOut() {
 }
 
 const f = ref(blankForm());
+// F64 (D056): a fresh form starts with the switches and "What this event collects" as on the organisation's latest
+// event (the server's `eventDefaults`; the fixed defaults for a first event). A draft keeps its own values.
+const eventDefaults = ref(null);
+const freshForm = () => freshFrom(eventDefaults.value);
+// Where the seven settings came from, so the form and Review can say so: the last event, or the one started from.
+const start = computed(() => (f.value.from
+  ? (source.value?.event ? { values: startFromEvent(source.value.event), by: "copy" } : null)
+  : { values: startValues(eventDefaults.value), by: "last" }));
+const setStart = (form, values) => Object.assign(form, values);
 const FROM_OPTIONS = computed(() => [{ value: "", label: "A blank event" }, ...events.value.map((e) => ({ value: e.id, label: `A copy of ${e.name}` }))]);
 
 // What an earlier event brings when "Start from" is used (F30). Read from the host's own live route and only
@@ -63,13 +72,20 @@ const FROM_OPTIONS = computed(() => [{ value: "", label: "A blank event" }, ...e
 const source = ref(null);
 const sourceState = ref("ok"); // loading | error | ok
 let sourceSeq = 0;
-watch(() => f.value.from, async (id) => {
+watch(() => [f.value, f.value.from], async ([form, id], prev) => {
+  if (prev && prev[1] === id) return; // the same "Start from" in a form put in (a draft, a fresh form): nothing to read again
+  // F64: the host changed "Start from" on this form (not a draft or a fresh form put in): the seven settings follow
+  // the event chosen, or the latest event again for a blank one. Collects stay off until the chosen one is read.
+  const picked = !!prev && prev[0] === form;
   const mine = ++sourceSeq;
   source.value = null;
+  if (picked) setStart(form, startValues(id ? null : eventDefaults.value));
   if (!id) { sourceState.value = "ok"; return; }
   sourceState.value = "loading";
-  try { const r = await HostApi.hostLive(id); if (mine === sourceSeq) { source.value = r; sourceState.value = "ok"; } }
-  catch { if (mine === sourceSeq) sourceState.value = "error"; }
+  try {
+    const r = await HostApi.hostLive(id);
+    if (mine === sourceSeq) { source.value = r; sourceState.value = "ok"; if (picked) setStart(form, startFromEvent(r.event)); }
+  } catch { if (mine === sourceSeq) sourceState.value = "error"; }
 }, { immediate: true });
 const facts = computed(() => copyFacts(source.value));
 
@@ -98,6 +114,7 @@ async function load() {
     if (d.credits) credits.value = d.credits;
     setServerNow(d.now);
     events.value = d.events || [];
+    eventDefaults.value = d.eventDefaults || null;
     if (d.step === "ready") loadDraftOnce();
     view.value = d.step;
     if (location.pathname === "/signin") history.replaceState(null, "", "/");
@@ -190,18 +207,21 @@ function loadDraftOnce() {
   const key = draftIds().join(":");
   if (!org.value || draftFor === key) return;
   draftFor = key;
-  const form = formFromDraft(loadDraft(...draftIds()));
+  const saved = loadDraft(...draftIds());
+  const form = saved ? formFromDraft(saved) : freshForm(); // F64: only a fresh form takes the latest event's settings
   if (form.from && !events.value.some((e) => e.id === form.from)) form.from = ""; // that event is gone
   f.value = form;
 }
 const blank = JSON.stringify(blankForm());
 watch(f, (form) => {
   if (!draftFor) return;
-  if (JSON.stringify(form) === blank) clearDraft(...draftIds()); else saveDraft(...draftIds(), form);
+  // F64: a form still as it started (blank, or fresh with the latest event's settings) is not a draft, so the next visit starts fresh again.
+  const now = JSON.stringify(form);
+  if (now === blank || now === JSON.stringify(freshForm())) clearDraft(...draftIds()); else saveDraft(...draftIds(), form);
 }, { deep: true });
 function cancel() {
   clearDraft(...draftIds());
-  f.value = blankForm();
+  f.value = freshForm();
   fieldError.value = null;
   error.value = "";
   leave();
@@ -228,6 +248,7 @@ async function create() {
     f.value = blankForm();
     leave();
     await load();
+    f.value = freshForm(); // F64: the next form starts from the event just made
   } catch (e) {
     // A refusal that belongs to one field takes the host back to that field's step.
     const hit = serverErrorField(e.message);
@@ -349,7 +370,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       <EventPreview v-if="creating" v-model:theme="f.theme" v-model:strap-color="f.strapColor" :event="previewEvent"
                     :sponsors="f.from ? (source?.sponsors || []) : []" :off="!!f.from && !source?.event" :strip="!f.from" :inline="step === 5">
         <EventCreate :form="f" :step="step" :from-options="FROM_OPTIONS" :has-events="events.length > 0" :facts="facts" :facts-state="sourceState"
-                     :busy="busy" :error="error" :server-error="fieldError" :needs-credits="!freeNow"
+                     :busy="busy" :error="error" :server-error="fieldError" :needs-credits="!freeNow" :start="start"
                      :create-label="(f.from ? 'Create the copy' : 'Create event') + (freeNow ? ' (free this week)' : ' (uses 1 credit)')"
                      @go="go" @create="create" @cancel="cancel">
           <template #error-extra><router-link v-if="credits.remaining <= 0" to="/billing" style="text-decoration:underline">Buy credits</router-link></template>

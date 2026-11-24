@@ -36,6 +36,38 @@ export const blankForm = () => ({
   foodOn: false, diet: [],
 });
 
+// F64 (D056): the seven settings a fresh form takes from the organisation's latest event (`eventDefaults` on
+// GET /api/host/me), and that "Start from an earlier event" takes from the event chosen. Nothing else follows.
+export const START_KEYS = ["directoryOn", "suggestOn", "feedbackOn", "collectOn", "collectEmail", "collectCard", "collectWhy"];
+const FIXED = blankForm();
+// The server's values, cleaned: a missing or odd value is the fixed default, so collects stay off unless it says true.
+export function startValues(d) {
+  const o = {};
+  for (const k of START_KEYS) o[k] = d && typeof d[k] === typeof FIXED[k] ? d[k] : FIXED[k];
+  if (!o.collectOn) Object.assign(o, { collectEmail: false, collectCard: false, collectWhy: "" });
+  return o;
+}
+// The same seven from an event as the host's live route returns it (for "Start from").
+export const startFromEvent = (e) => startValues(e && {
+  directoryOn: e.directoryOn !== false, suggestOn: e.suggestOn !== false, feedbackOn: e.feedbackOn !== false,
+  collectOn: e.collect?.attendance === true, collectEmail: !!e.collect?.items?.includes("email"), collectCard: !!e.collect?.items?.includes("card"),
+  collectWhy: String(e.collect?.why || ""),
+});
+// A fresh form: blank, with the seven settings as `d` says (the fixed defaults when `d` is empty).
+export const freshForm = (d) => ({ ...blankForm(), ...startValues(d) });
+// Where the seven came from ({ values, by: "last" | "copy" }), and which of them the form still holds as copied.
+// Only a value that differs from the fixed default counts: a line under a switch in its usual state says nothing new.
+export function copiedKeys(f, start) {
+  if (!start?.values) return [];
+  return START_KEYS.filter((k) => start.values[k] !== FIXED[k] && f[k] === start.values[k]
+    && (!["collectEmail", "collectCard", "collectWhy"].includes(k) || f.collectOn));
+}
+export const COPIED_LINE = { last: "As on your last event", copy: "As on the event you started from" };
+export const COLLECT_LINE = {
+  last: "On because your last event collected names. Untick to stop.",
+  copy: "On because the event you started from collected names. Untick to stop.",
+};
+
 // A saved draft laid over a blank form: unknown keys are dropped, wrong types fall back, so an
 // old or edited draft cannot break the form.
 export function formFromDraft(d) {
@@ -145,16 +177,24 @@ export function copyFacts(s) {
 
 // The Review step: every choice, grouped by the step it came from (each group has a Change link
 // back to that step). For a copy, the steps after Basics show what the earlier event brings.
-const collectRows = (f) => {
+// F64: a setting the form still holds as copied says so on its row, "(as on your last event)".
+const collectRows = (f, mark = (k, v) => v) => {
   if (!f.collectOn) return [["Attendance list", "Off"]];
   const extra = [f.collectEmail && "email address", f.collectCard && "card"].filter(Boolean);
   return [
-    ["Attendance list", `On: names and check-in times${extra.length ? `, with ${extra.join(" and ")} for people who leave that tick on` : ""}`],
-    ["Why you say you collect it", cleanWhy(f.collectWhy) || "Not written yet"],
+    ["Attendance list", mark(["collectOn", "collectEmail", "collectCard"], `On: names and check-in times${extra.length ? `, with ${extra.join(" and ")} for people who leave that tick on` : ""}`)],
+    ["Why you say you collect it", cleanWhy(f.collectWhy) ? mark(["collectWhy"], cleanWhy(f.collectWhy)) : "Not written yet"],
   ];
 };
+// `mark(keys, text)` adds the note when any of those settings is still as copied.
+const marker = (f, start) => {
+  const copied = copiedKeys(f, start);
+  const note = ` (${(COPIED_LINE[start?.by] || COPIED_LINE.last).toLowerCase()})`;
+  return (keys, v) => (keys.some((k) => copied.includes(k)) ? `${v}${note}` : v);
+};
 const when = (ms) => (ms ? new Date(ms).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Not set");
-export function reviewGroups(f, facts) {
+export function reviewGroups(f, facts, start = null) {
+  const mark = marker(f, start);
   const basics = [
     ["Event name", f.name.trim() || (f.from ? "Same name as the earlier event" : "Not set")],
     ["Starts", when(f.startsAt)],
@@ -165,7 +205,7 @@ export function reviewGroups(f, facts) {
     return [
       { step: 1, title: "Basics", rows: [...basics, ...(c.basics || [["Venue", "Copied from the earlier event"]])] },
       { step: 2, title: "Look", rows: c.look || [["Theme and colour", "Copied from the earlier event"]] },
-      { step: 3, title: "At the event", rows: [...(c.event || [["Perks, notes and attendee room", "Copied from the earlier event"]]), ...collectRows(f)] },
+      { step: 3, title: "At the event", rows: [...(c.event || [["Perks, notes and attendee room", "Copied from the earlier event"]]), ...collectRows(f, mark)] },
       { step: 4, title: "Questions", rows: c.questions || [["Questions, feedback and sponsors", "Copied from the earlier event"]] },
     ];
   }
@@ -178,13 +218,13 @@ export function reviewGroups(f, facts) {
       ["Perks", perks.join(", ") || "None"],
       ["Food and drink", f.foodOn ? foodLine({ food: String(f.food || "").trim(), diet: f.diet }) || "Provided" : "None"],
       ["Sign-ups so far", f.rsvpCount === "" || f.rsvpCount === null ? "None" : String(f.rsvpCount)],
-      ["Attendee room", yes(f.directoryOn)],
-      ["Suggest people to each other", yes(f.suggestOn !== false)],
-      ...collectRows(f),
+      ["Attendee room", mark(["directoryOn"], yes(f.directoryOn))],
+      ["Suggest people to each other", mark(["suggestOn"], yes(f.suggestOn !== false))],
+      ...collectRows(f, mark),
     ] },
     { step: 4, title: "Questions", rows: [
       ["Check-in questions", [f.q1, f.q2].map((s) => s.trim()).filter(Boolean).join(", ") || "None"],
-      ["Feedback after the event", f.feedbackOn ? (own.length ? `Asked, with ${own.length} of your own question${own.length === 1 ? "" : "s"}` : "Asked, with the three standard questions") : "Not asked"],
+      ["Feedback after the event", mark(["feedbackOn"], f.feedbackOn ? (own.length ? `Asked, with ${own.length} of your own question${own.length === 1 ? "" : "s"}` : "Asked, with the three standard questions") : "Not asked")],
     ] },
   ];
 }

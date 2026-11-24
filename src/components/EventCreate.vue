@@ -9,7 +9,7 @@ import EventStepBasics from "./EventStepBasics.vue";
 import EventStepLook from "./EventStepLook.vue";
 import EventStepAtEvent from "./EventStepAtEvent.vue";
 import EventStepQuestions from "./EventStepQuestions.vue";
-import { LAST, STEPS, reviewGroups, stepDirection, validateStep } from "../lib/eventsteps";
+import { COLLECT_LINE, COPIED_LINE, LAST, STEPS, copiedKeys, reviewGroups, stepDirection, validateStep } from "../lib/eventsteps";
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -26,6 +26,8 @@ const props = defineProps({
   serverError: { type: Object, default: null },
   createLabel: { type: String, default: "Create event" },
   needsCredits: { type: Boolean, default: false },
+  // F64: where the seven settings started ({ values, by: "last" | "copy" }), so a copied one says so. Null: nothing copied.
+  start: { type: Object, default: null },
 });
 const emit = defineEmits(["go", "create", "cancel"]);
 
@@ -38,7 +40,10 @@ watch(() => props.step, (n, o) => { dir.value = stepDirection(o, n); });
 const root = ref(null);
 const heading = ref(null);
 const sf = (k) => props.facts?.[k] || null;
-const groups = computed(() => reviewGroups(props.form, props.facts));
+const groups = computed(() => reviewGroups(props.form, props.facts, props.start));
+// F64: the settings still as copied, and the words under them.
+const copied = computed(() => copiedKeys(props.form, props.start));
+const notes = computed(() => { const by = props.start?.by === "copy" ? "copy" : "last"; return { line: COPIED_LINE[by], collect: COLLECT_LINE[by] }; });
 
 // A problem stays up until it is fixed, then goes; nothing is shown before Next is pressed.
 watch(() => props.form, () => {
@@ -94,8 +99,8 @@ defineExpose({ heading });
     <EventStepBasics v-if="step === 1" :form="form" :errors="errors" :from-options="fromOptions" :has-events="hasEvents"
                      :facts="sf('basics')" :facts-state="form.from ? factsState : 'none'" />
     <EventStepLook v-else-if="step === 2" :form="form" :facts="sf('look')" :facts-state="factsState" />
-    <EventStepAtEvent v-else-if="step === 3" :form="form" :errors="errors" :facts="sf('event')" :facts-state="factsState" />
-    <EventStepQuestions v-else-if="step === 4" :form="form" :errors="errors" :facts="sf('questions')" :facts-state="factsState" />
+    <EventStepAtEvent v-else-if="step === 3" :form="form" :errors="errors" :facts="sf('event')" :facts-state="factsState" :copied="copied" :notes="notes" />
+    <EventStepQuestions v-else-if="step === 4" :form="form" :errors="errors" :facts="sf('questions')" :facts-state="factsState" :copied="copied" :notes="notes" />
 
     <div v-else class="ev-groups">
       <p class="muted small" style="margin:0">Nothing is saved until you press the button below. The preview shows the check-in page as people will see it.</p>
@@ -162,4 +167,6 @@ defineExpose({ heading });
 .ev-group .field:last-child { margin-bottom: 0; }
 .ev-group .checkbox-row + .checkbox-row { margin-top: 4px; }
 .ev-reveal-pad { padding-top: 12px; }
+/* F64: the muted line under a setting that started as on the last event. */
+.ev-copied { display: block; }
 </style>

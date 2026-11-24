@@ -11,6 +11,10 @@ defineProps({
   errors: { type: Object, default: () => ({}) },
   // Details only: the list was already on when the page opened, so switching it off deletes it.
   wasOn: { type: Boolean, default: false },
+  // F64, Create event only: the settings still as they were copied from the last event (or the one started from), and the
+  // words under them. Details passes neither, so it shows no such line.
+  copied: { type: Array, default: () => [] },
+  notes: { type: Object, default: () => ({}) },
 });
 const KEYS = { email: "collectEmail", card: "collectCard" };
 </script>
@@ -21,7 +25,8 @@ const KEYS = { email: "collectEmail", card: "collectCard" };
     <label class="checkbox-row">
       <input type="checkbox" v-model="form.collectOn" />
       <span class="small"><strong>Keep a list of who checked in</strong>
-        <span class="muted" style="display:block">Names and check-in times of the people who leave it ticked. Off unless you switch it on.</span></span>
+        <span class="muted" style="display:block">Names and check-in times of the people who leave it ticked. Off unless you switch it on.</span>
+        <span v-if="copied.includes('collectOn')" class="collects-copied" data-copied="collectOn">{{ notes.collect }}</span></span>
     </label>
     <p v-if="wasOn && !form.collectOn" class="notice small" role="status">Saving with this off deletes the list you have so far.</p>
 
@@ -32,7 +37,8 @@ const KEYS = { email: "collectEmail", card: "collectCard" };
         <span class="label">Also ask for</span>
         <label v-for="i in EXTRA_ITEMS" :key="i.key" class="checkbox-row">
           <input type="checkbox" v-model="form[KEYS[i.key]]" />
-          <span class="small">{{ i.host }}</span>
+          <span class="small">{{ i.host }}
+            <span v-if="copied.includes(KEYS[i.key])" class="muted collects-line" :data-copied="KEYS[i.key]">{{ notes.line }}</span></span>
         </label>
       </div>
       <div class="field">
@@ -41,6 +47,7 @@ const KEYS = { email: "collectEmail", card: "collectCard" };
                placeholder="So we can keep a register for fire safety and thank people who came"
                :aria-invalid="errors.collectWhy ? 'true' : null" :aria-describedby="errors.collectWhy ? 'collect-why-e' : 'collect-why-h'" />
         <span v-if="errors.collectWhy" id="collect-why-e" class="error-text" role="alert">{{ errors.collectWhy }}</span>
+        <span v-if="copied.includes('collectWhy')" class="small muted collects-line" data-copied="collectWhy">{{ notes.line }}</span>
         <span id="collect-why-h" class="small muted">Required. People read this on the check-in page, next to your name, with a tick already in each box. They can untick anything and still check in. Plain text, {{ WHY_MAX }} characters at most.</span>
       </div>
       <p class="small muted collects-care">
@@ -54,6 +61,9 @@ const KEYS = { email: "collectEmail", card: "collectCard" };
 
 <style scoped>
 .collects-care { margin: 0; }
+/* F64: the line under a setting copied from the last event; the collects one is ink, not muted, so it is not missed. */
+.collects-line, .collects-copied { display: block; }
+.collects-copied { font-weight: 700; }
 .collects-body { padding-top: 8px; }
 .collects > :deep(.reveal) { margin-top: 0; }
 </style>

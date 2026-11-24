@@ -158,7 +158,7 @@ Build order: F68, F69, F63, F67, F64, F65, F66. F61's research note can be writt
 - [x] **F69** [[F69 Keep sensitive words out of who to meet]] · P0 · S · Needs: F60 (owner decision 2026-11-24, from the F61 research; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so) (done 2026-11-24, last commit 98c03a2)
 - [ ] **F63** [[F63 Create event form refresh]] · P1 · M · Needs: F30 (in progress: Claude subagent, 2026-11-24; all tasks built and tested, last commit adfa120; waiting on one check: the step shown as a plain fade with reduced motion on, which the browser pane could not emulate)
 - [x] **F67** [[F67 Check-in page layout]] · P1 · S · Needs: F63 (done 2026-11-24, last commit 7ff00c8)
-- [ ] **F64** [[F64 New events start from the host's latest settings]] · P1 · S · Needs: F63, F31, F60 (collects copied by owner decision, 2026-11-24; narrows D038; risk recorded in the plan note; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so)
+- [ ] **F64** [[F64 New events start from the host's latest settings]] · P1 · S · Needs: F63, F31, F60 (collects copied by owner decision, 2026-11-24; narrows D038; risk recorded in the plan note; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so) (in progress: Claude subagent, 2026-11-24)
 - [ ] **F65** [[F65 Event themes and an advanced look]] · P1 · M · Needs: F63, F55
 - [ ] **F66** [[F66 Host branding on event pages]] · P2 · L · Needs: F65 (paid events only, with a "Check in with Lanyard" line, by owner decision, 2026-11-24)
 

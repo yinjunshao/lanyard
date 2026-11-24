@@ -192,6 +192,23 @@ const orgJson = (org) => ({
   appliedAt: org.applied_at || null,
 });
 
+// F64 (D056): what a new event's switches and "What this event collects" start as on the Create form: as on the
+// organisation's most recently created event (events are only ever removed outright, so every row here is live),
+// or the fixed defaults when it has none. Only these seven values; nothing about anyone who came.
+// The fixed defaults are the same as blankForm() in src/lib/eventsteps.js.
+export const EVENT_DEFAULTS = Object.freeze({ directoryOn: true, suggestOn: true, feedbackOn: true, collectOn: false, collectEmail: false, collectCard: false, collectWhy: "" });
+async function eventDefaults(db, orgId) {
+  const ev = await one(db,
+    `SELECT directory_on, suggest_on, feedback_on, collect_attendance, collect_items, collect_why FROM events
+     WHERE org_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`, orgId);
+  if (!ev) return { ...EVENT_DEFAULTS };
+  const c = collectOf(ev);
+  return {
+    directoryOn: !!ev.directory_on, suggestOn: ev.suggest_on !== 0, feedbackOn: !!ev.feedback_on,
+    collectOn: !!c, collectEmail: !!c?.items.includes("email"), collectCard: !!c?.items.includes("card"), collectWhy: c?.why || "",
+  };
+}
+
 const accountJson = (a) => ({
   email: a.email, fullName: a.full_name || "", useCase: a.use_case || "", frequency: a.event_frequency || "",
   size: a.typical_size || "", referral: a.referral || "", termsAccepted: a.terms_version === TERMS_VERSION,
@@ -252,6 +269,8 @@ hostApp.get("/api/host/me", async (c) => {
       endsAt: e.ends_at || null, ended: !!e.ended_at, endedAt: e.ended_at || null, rsvpCount: e.rsvp_count ?? null,
       info: eventInfo(e.info), feedbackOn: !!e.feedback_on,
     })),
+    // F64: where a fresh Create event form starts (the latest event's seven settings, or the fixed defaults).
+    eventDefaults: await eventDefaults(db, org.id),
   });
 });
 

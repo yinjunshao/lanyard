@@ -11,6 +11,9 @@ defineProps({
   errors: { type: Object, default: () => ({}) },
   facts: { type: Array, default: null },
   factsState: { type: String, default: "none" },
+  // F64: the settings still as they were copied (lib/eventsteps.js: copiedKeys), and the words under them.
+  copied: { type: Array, default: () => [] },
+  notes: { type: Object, default: () => ({}) },
 });
 </script>
 
@@ -34,13 +37,15 @@ defineProps({
         <span id="ev-rsvp-h" class="small muted">From Luma or the Union site. A number only; the report shows turnout.</span></div>
       <label class="checkbox-row">
         <input type="checkbox" v-model="form.directoryOn" />
-        <span class="small">Show the live attendee room to checked-in people</span>
+        <span class="small">Show the live attendee room to checked-in people
+          <span v-if="copied.includes('directoryOn')" class="muted ev-copied" data-copied="directoryOn">{{ notes.line }}</span></span>
       </label>
       <!-- F60: on by default; off means nobody at this event is suggested and the hub shows no Who to meet. -->
       <label class="checkbox-row">
         <input type="checkbox" v-model="form.suggestOn" data-suggest-on />
         <span class="small"><strong>Suggest people to each other</strong>
-          <span class="muted" style="display:block">{{ SUGGEST_HOST_HELP }}</span></span>
+          <span class="muted" style="display:block">{{ SUGGEST_HOST_HELP }}</span>
+          <span v-if="copied.includes('suggestOn')" class="muted ev-copied" data-copied="suggestOn">{{ notes.line }}</span></span>
       </label>
     </section>
   </template>
@@ -48,6 +53,6 @@ defineProps({
   <!-- F31: "What this event collects" (the attendance list, the items people can tick on the
        check-in page and the "why" line). Outside the copy branch: a copy chooses again, the
        earlier event's list is never carried over (D038). Its fields live in the same `form`, so the draft keeps them. -->
-  <div data-slot="f31-collects"><EventCollects :form="form" :errors="errors" /></div>
+  <div data-slot="f31-collects"><EventCollects :form="form" :errors="errors" :copied="copied" :notes="notes" /></div>
   </div>
 </template>

@@ -10,6 +10,9 @@ defineProps({
   errors: { type: Object, default: () => ({}) },
   facts: { type: Array, default: null },
   factsState: { type: String, default: "none" },
+  // F64: the settings still as they were copied, and the words under them.
+  copied: { type: Array, default: () => [] },
+  notes: { type: Object, default: () => ({}) },
 });
 </script>
 
@@ -27,7 +30,8 @@ defineProps({
       <h3 id="ev-g-fb" class="label ev-group-h">Feedback</h3>
       <label class="checkbox-row">
         <input type="checkbox" v-model="form.feedbackOn" />
-        <span class="small">Ask attendees for anonymous feedback after the event</span>
+        <span class="small">Ask attendees for anonymous feedback after the event
+          <span v-if="copied.includes('feedbackOn')" class="muted ev-copied" data-copied="feedbackOn">{{ notes.line }}</span></span>
       </label>
       <UiReveal :open="form.feedbackOn"><div class="ev-reveal-pad"><FeedbackEditor v-model="form.feedbackQuestions" /></div></UiReveal>
       <p v-for="(m, k) in errors" :key="k" class="error-text" role="alert">{{ m }}</p>

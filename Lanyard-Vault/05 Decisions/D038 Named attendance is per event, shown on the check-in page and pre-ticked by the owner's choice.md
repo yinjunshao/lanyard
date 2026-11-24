@@ -7,6 +7,8 @@ date: 2026-11-13
 
 **Status:** Accepted  ·  **Date:** 2026-11-13  ·  Narrows [[D004 Aggregate-only host analytics]]
 
+> [!note] Narrowed by [[D056 New events start from the organisation's latest event's switches, collects included, flagged on the form]] (2026-11-24): a new event's form now starts with "What this event collects" as on the organisation's latest event (or the event it starts from), flagged on the form and on Review, so "the host chooses again" now means "the host sees it on and can untick it". Off by default still holds for an organisation that never switched it on, and the Worker still copies no list by itself.
+
 ## Context
 [[D004 Aggregate-only host analytics]] says hosts see aggregate numbers only. The owner asked (2026-11-13) that some events can keep a list of the exact people who showed up, with what the event collects shown on the check-in page and the ticks pre-ticked, so a person has to untick to opt out. The owner was told that ICO guidance says a pre-ticked box is not valid consent and chose this anyway. [[F31 Named attendance with check-in notice]] builds it.
 
