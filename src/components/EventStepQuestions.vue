@@ -3,6 +3,7 @@
 // create form; a copy of an earlier event brings its sponsors, and they are shown here.)
 import FeedbackEditor from "./FeedbackEditor.vue";
 import CopiedFacts from "./CopiedFacts.vue";
+import UiReveal from "./ui/UiReveal.vue";
 
 defineProps({
   form: { type: Object, required: true },
@@ -13,17 +14,24 @@ defineProps({
 </script>
 
 <template>
-  <div v-if="!form.from" class="stack-2">
-    <div class="field"><label for="ev-q1">Check-in question 1 (optional)</label>
-      <input id="ev-q1" v-model="form.q1" type="text" placeholder="Course" /></div>
-    <div class="field"><label for="ev-q2">Check-in question 2 (optional)</label>
-      <input id="ev-q2" v-model="form.q2" type="text" placeholder="What are you looking for?" /></div>
-    <label class="checkbox-row">
-      <input type="checkbox" v-model="form.feedbackOn" />
-      <span class="small">Ask attendees for anonymous feedback after the event</span>
-    </label>
-    <FeedbackEditor v-if="form.feedbackOn" v-model="form.feedbackQuestions" />
-    <p v-for="(m, k) in errors" :key="k" class="error-text" role="alert">{{ m }}</p>
+  <div v-if="!form.from" class="ev-groups">
+    <section class="ev-group" aria-labelledby="ev-g-q">
+      <h3 id="ev-g-q" class="label ev-group-h">Check-in questions</h3>
+      <div class="field"><label for="ev-q1">Question 1 (optional)</label>
+        <input id="ev-q1" v-model="form.q1" type="text" placeholder="Course" aria-describedby="ev-q-h" /></div>
+      <div class="field"><label for="ev-q2">Question 2 (optional)</label>
+        <input id="ev-q2" v-model="form.q2" type="text" placeholder="What are you looking for?" aria-describedby="ev-q-h" />
+        <span id="ev-q-h" class="small muted">People type a short answer for each when they check in.</span></div>
+    </section>
+    <section class="ev-group" aria-labelledby="ev-g-fb">
+      <h3 id="ev-g-fb" class="label ev-group-h">Feedback</h3>
+      <label class="checkbox-row">
+        <input type="checkbox" v-model="form.feedbackOn" />
+        <span class="small">Ask attendees for anonymous feedback after the event</span>
+      </label>
+      <UiReveal :open="form.feedbackOn"><div class="ev-reveal-pad"><FeedbackEditor v-model="form.feedbackQuestions" /></div></UiReveal>
+      <p v-for="(m, k) in errors" :key="k" class="error-text" role="alert">{{ m }}</p>
+    </section>
   </div>
   <CopiedFacts v-else-if="factsState !== 'none'" :facts="facts" :state="factsState" />
 </template>

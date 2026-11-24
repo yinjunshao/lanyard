@@ -3,12 +3,13 @@
 // (?step=N), the draft and the request; this draws the step, checks only that step's fields
 // when Next is pressed, and moves focus to the step heading on each change.
 // Nothing is saved to the server until Create (the last step).
+// F63: a step slides in from the side you are going towards and fades (CSS tokens only, D045); Back slides the other way.
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import EventStepBasics from "./EventStepBasics.vue";
 import EventStepLook from "./EventStepLook.vue";
 import EventStepAtEvent from "./EventStepAtEvent.vue";
 import EventStepQuestions from "./EventStepQuestions.vue";
-import { LAST, STEPS, reviewGroups, validateStep } from "../lib/eventsteps";
+import { LAST, STEPS, reviewGroups, stepDirection, validateStep } from "../lib/eventsteps";
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -30,6 +31,10 @@ const emit = defineEmits(["go", "create", "cancel"]);
 
 const current = computed(() => STEPS[props.step - 1]);
 const errors = ref({});
+// Which way the last step change went: the new step slides in from that side. Empty on the first draw, so opening
+// the form or refreshing on a step shows it at once.
+const dir = ref("");
+watch(() => props.step, (n, o) => { dir.value = stepDirection(o, n); });
 const root = ref(null);
 const heading = ref(null);
 const sf = (k) => props.facts?.[k] || null;
@@ -71,7 +76,7 @@ defineExpose({ heading });
 </script>
 
 <template>
-  <form ref="root" class="panel stack-2 ev-steps" novalidate :aria-labelledby="'ev-step-h'" @submit.prevent="onSubmit">
+  <form ref="root" class="panel ev-steps" novalidate :aria-labelledby="'ev-step-h'" @submit.prevent="onSubmit">
     <div class="spread">
       <span class="label" aria-hidden="true">Step {{ step }} of {{ LAST }}</span>
       <button type="button" class="link-btn small" style="min-height:44px" @click="emit('cancel')">Cancel</button>
@@ -85,17 +90,18 @@ defineExpose({ heading });
     </ol>
     <h2 id="ev-step-h" ref="heading" tabindex="-1" class="ev-h"><span class="visually-hidden">Step {{ step }} of {{ LAST }}: </span>{{ current.lead }}</h2>
 
+    <div :key="step" class="ev-body" :class="dir === 'fwd' ? 'ev-fwd' : dir === 'back' ? 'ev-back-dir' : null">
     <EventStepBasics v-if="step === 1" :form="form" :errors="errors" :from-options="fromOptions" :has-events="hasEvents"
                      :facts="sf('basics')" :facts-state="form.from ? factsState : 'none'" />
     <EventStepLook v-else-if="step === 2" :form="form" :facts="sf('look')" :facts-state="factsState" />
     <EventStepAtEvent v-else-if="step === 3" :form="form" :errors="errors" :facts="sf('event')" :facts-state="factsState" />
     <EventStepQuestions v-else-if="step === 4" :form="form" :errors="errors" :facts="sf('questions')" :facts-state="factsState" />
 
-    <div v-else class="stack-2">
+    <div v-else class="ev-groups">
       <p class="muted small" style="margin:0">Nothing is saved until you press the button below. The preview shows the check-in page as people will see it.</p>
-      <section v-for="g in groups" :key="g.step" class="ev-review" :aria-labelledby="`ev-rv-${g.step}`">
+      <section v-for="g in groups" :key="g.step" class="ev-group ev-review" :aria-labelledby="`ev-rv-${g.step}`">
         <div class="spread">
-          <h3 :id="`ev-rv-${g.step}`" class="label">{{ g.title }}</h3>
+          <h3 :id="`ev-rv-${g.step}`" class="label ev-group-h">{{ g.title }}</h3>
           <button type="button" class="link-btn small" style="min-height:44px" @click="emit('go', g.step)">Change<span class="visually-hidden"> {{ g.title.toLowerCase() }}</span></button>
         </div>
         <p v-for="r in g.rows" :key="r[0]" class="small" style="margin:2px 0"><span class="muted">{{ r[0] }}:</span> {{ r[1] }}</p>
@@ -105,6 +111,7 @@ defineExpose({ heading });
         {{ error }}
         <slot name="error-extra" />
       </p>
+    </div>
     </div>
 
     <div class="ev-bar">
@@ -118,22 +125,41 @@ defineExpose({ heading });
 </template>
 
 <style scoped>
-.ev-names { display: flex; flex-wrap: wrap; gap: 4px 14px; list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--graphite); }
-.ev-names li { display: flex; align-items: center; min-height: 28px; }
-.ev-names li.on { color: var(--ink); font-weight: 700; border-bottom: 2px solid var(--strap); }
-.ev-names .link-btn { font-size: 13px; padding: 0; min-height: 28px; font-weight: 400; }
+.ev-steps { display: flex; flex-direction: column; gap: 16px; }
+.ev-names { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--graphite); }
+.ev-names li { display: flex; align-items: flex-start; min-height: 44px; padding-top: 6px; border-top: 3px solid var(--rule); line-height: 1.25; overflow-wrap: anywhere; }
+.ev-names li.done { border-top-color: var(--strap); }
+.ev-names li.on { color: var(--ink); font-weight: 700; border-top-color: var(--strap); }
+.ev-names .link-btn { font-size: 13px; padding: 0; min-height: 0; font-weight: 400; text-align: left; line-height: 1.25; }
 .ev-h { margin: 0; }
 .ev-h:focus { outline: none; }
 .ev-h:focus-visible { outline: 2.5px solid var(--strap); outline-offset: 3px; }
-.ev-review { border-top: var(--border); padding-top: 4px; }
+/* F63: the step's content slides in from the side you are going towards and fades; Back is the other way. The distance
+   is --shift (8 px) times three and the time is --dur; under reduced motion --shift is 0, so it is a short fade. */
+.ev-body { display: flex; flex-direction: column; gap: 16px; }
+.ev-fwd { animation: m-step-fwd var(--dur) var(--ease-out); }
+.ev-back-dir { animation: m-step-back var(--dur) var(--ease-out); }
+.ev-review { padding-top: 12px; }
 .ev-review :deep(.label) { margin: 0; }
 .ev-bar {
   position: sticky; bottom: 0; z-index: 3;
   display: flex; gap: var(--space);
-  margin: 24px -20px -20px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+  margin: 8px -20px -20px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
   background: var(--paper-raised); border-top: var(--border); border-radius: 0 0 var(--radius) var(--radius);
 }
 .ev-bar .btn { width: auto; }
 .ev-back { flex: none; min-width: 96px; }
 .ev-bar .btn-primary { flex: 1; }
+</style>
+
+<!-- F63: the labelled groups every step is made of (also used by the step components). -->
+<style>
+.ev-groups { display: flex; flex-direction: column; gap: 24px; }
+.ev-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ev-groups > .ev-group + .ev-group { border-top: var(--border); padding-top: 20px; }
+.ev-group-h { margin: 0 0 8px; }
+.ev-group .field { margin-bottom: 16px; }
+.ev-group .field:last-child { margin-bottom: 0; }
+.ev-group .checkbox-row + .checkbox-row { margin-top: 4px; }
+.ev-reveal-pad { padding-top: 12px; }
 </style>

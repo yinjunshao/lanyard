@@ -17,6 +17,9 @@ export const STEPS = [
 ];
 export const LAST = STEPS.length;
 
+// F63: which way a step change goes, so the new step slides in from that side (empty when there is no earlier step).
+export const stepDirection = (from, to) => (!from || !to || from === to ? "" : to > from ? "fwd" : "back");
+
 export const blankForm = () => ({
   from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "",
   perksText: "", directoryOn: true, q1: "", q2: "",

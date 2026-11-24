@@ -1013,6 +1013,9 @@ button.list-row { font: inherit; }
 @keyframes m-pop-out { to { opacity: 0; transform: translateY(var(--shift)) scale(0.98); } }
 /* Something that has just loaded rises in. */
 @keyframes m-rise { from { opacity: 0; transform: translateY(var(--shift)); } }
+/* F63: a Create event step slides in from the side you are going towards (three times --shift: 24 px; a fade under reduced motion). */
+@keyframes m-step-fwd { from { opacity: 0; transform: translateX(calc(var(--shift) * 3)); } }
+@keyframes m-step-back { from { opacity: 0; transform: translateX(calc(var(--shift) * -3)); } }
 /* F52: a rotating example leaves upward and the next rises in from below (under reduced motion --shift is 0, so it is a fade). */
 @keyframes m-hint-out { to { opacity: 0; transform: translateY(calc(var(--shift) * -1.5)); } }
 @keyframes m-hint-in { from { opacity: 0; transform: translateY(calc(var(--shift) * 1.5)); } }

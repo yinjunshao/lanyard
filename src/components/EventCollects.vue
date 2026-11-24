@@ -4,6 +4,7 @@
 // collectWhy. Off until the host switches it on. The items are the fixed list the code honours
 // (src/lib/collects.js): there is no field for anything else.
 import { EXTRA_ITEMS, WHY_MAX } from "../lib/collects";
+import UiReveal from "./ui/UiReveal.vue";
 
 defineProps({
   form: { type: Object, required: true },
@@ -24,7 +25,9 @@ const KEYS = { email: "collectEmail", card: "collectCard" };
     </label>
     <p v-if="wasOn && !form.collectOn" class="notice small" role="status">Saving with this off deletes the list you have so far.</p>
 
-    <template v-if="form.collectOn">
+    <!-- F63: the options ease open and closed with the tick (UiReveal), not in and out at once. -->
+    <UiReveal :open="form.collectOn">
+      <div class="stack-2 collects-body">
       <div class="stack">
         <span class="label">Also ask for</span>
         <label v-for="i in EXTRA_ITEMS" :key="i.key" class="checkbox-row">
@@ -44,10 +47,13 @@ const KEYS = { email: "collectEmail", card: "collectCard" };
         You will hold these names, so you are responsible for keeping them safe and for using them only for the reason you give.
         Lanyard deletes the list 12 months after the event ends. People can take themselves off it at any time, and the list you see then shows only who is on it.
       </p>
-    </template>
+      </div>
+    </UiReveal>
   </section>
 </template>
 
 <style scoped>
 .collects-care { margin: 0; }
+.collects-body { padding-top: 8px; }
+.collects > :deep(.reveal) { margin-top: 0; }
 </style>
