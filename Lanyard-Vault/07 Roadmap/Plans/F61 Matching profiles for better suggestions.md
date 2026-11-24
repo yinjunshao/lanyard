@@ -11,6 +11,13 @@ needs: [F60]
 
 **Priority:** P3 · **Phase:** 10 Owner requests (2026-11-24) · **Size:** L · **Needs:** [[F60 Intention at check-in and who to meet for everyone]] · back to [[00 Master To-Do]]
 
+> [!note] Owner decisions 2026-11-24 (from section 5 of [[F61 Research Matching options]]):
+> - Path: **staged**: a fixed list of fields, goals and kinds of people, scored in code, with anonymous counts of which kinds of match led to a connection now; embeddings and tuning later, on evidence.
+> - Where the picks come from: **the app proposes a field from the card and the person confirms or changes it**; goals and kinds only if they pick them.
+> - Opt-out: the owner wrote **"global, on by default. disable in settings."**: one "Suggest me at events" setting in Settings, on by default. Still open: whether the per-event Suggest me untick on the check-in page stays as well (it is there today, from F60 and D054).
+> - Sensitive words: **screen them, and fix F60 now**. That is [[F69 Keep sensitive words out of who to meet]], built first.
+> - Still open: where the picks show (decision 3), learning from outcomes (decision 5: anonymous counts were chosen with the path), and the policy version bump and lawyer sign-off (decision 7).
+
 ## What the owner asked for (2026-11-24)
 "Perhaps later on, we can also start designing an algorithm which profiles people depending on their profile to suggest people with each other better."
 

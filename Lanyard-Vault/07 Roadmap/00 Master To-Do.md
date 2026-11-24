@@ -63,6 +63,7 @@ These block the items in brackets. Tick each one and write the answer in the lin
 - [x] What a host chooses an event's look from ([[F65 Event themes and an advanced look]]): **designed themes, plus an advanced mode with any brand colour and the company's own branding** (answered 2026-11-24)
 - [x] Lanyard's mark on a host-branded page ([[F66 Host branding on event pages]]): **a small "Check in with Lanyard" line stays** (answered 2026-11-24)
 - [x] Who gets company branding ([[F66 Host branding on event pages]]): **paid events only** (answered 2026-11-24)
+- [ ] Matching ([[F61 Matching profiles for better suggestions]], [[F61 Research Matching options]]): **staged fixed list with anonymous outcome counts; field proposed from the card and confirmed; a global "Suggest me at events" setting, on by default; sensitive words screened, F60 fixed now ([[F69 Keep sensitive words out of who to meet]])** (answered 2026-11-24). Still open: keep the per-event untick too, where picks show, and the policy bump and lawyer sign-off
 
 ## Build order
 Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a week or more. Priorities: **P0** now · **P1** next · **P2** after · **P3** only if needed.
@@ -148,12 +149,13 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F60** [[F60 Intention at check-in and who to meet for everyone]] · P1 · L · Needs: F17, F25, F52 (everyone checked in by owner decision, 2026-11-24; narrows D027; risk recorded in the plan note) (in progress: Claude subagent, 2026-11-24; built on F25 and F21 as they stand, with the owner's say-so; all tasks built and tested; waiting on the owner: the real-model check, and bumping the Terms and Privacy version for the new section 8f)
 - [ ] **F59** [[F59 Feature stages and tutorials]] · P1 · L · Needs: F24, F60 (in progress: Claude subagent, 2026-11-24; built on F24 and F60 as they stand, with the owner's say-so; all tasks built and tested; waiting on one check: the tour seen as a plain fade with reduced motion on, which the browser pane could not emulate; migration 0041 to apply)
 - [ ] **F56** [[F56 Premium materials for Plus cards]] · P2 · M · Needs: F55 (in progress: Claude subagent, 2026-11-24; built and tested, last commit F56.1; waiting on a browser look: a Plus account picks Gold, and the pointer sheen and reduced motion seen; migration 0042 to apply)
-- [ ] **F61** [[F61 Matching profiles for better suggestions]] · P3 · L · Needs: F60 (research and an owner choice before any code)
+- [ ] **F61** [[F61 Matching profiles for better suggestions]] · P3 · L · Needs: F60 (research done 2026-11-24, [[F61 Research Matching options]]; the path is chosen, three decisions still open; a draft task list waits for them; switch on only after F60 has run at real events and a lawyer has read the DPIA)
 - [ ] **F62** [[F62 Fill your profile from LinkedIn or a CV]] · P1 · L · Needs: F21, F14 (added 2026-11-24 from the owner's LinkedIn question; no scraping, the person's own PDF read on their device; F21 is still waiting on its real-key check, so building needs the owner's say-so to build on F21 as it stands)
 
 ### Phase 11: owner requests (2026-11-24, second batch)
-Build order: F68, F63, F67, F64, F65, F66. F61's research note can be written alongside, since it touches only its own note.
+Build order: F68, F69, F63, F67, F64, F65, F66. F61's research note can be written alongside, since it touches only its own note.
 - [x] **F68** [[F68 Event status on event lists]] · P1 · S · Needs: F15 (done 2026-11-24, last commit deccdf1)
+- [ ] **F69** [[F69 Keep sensitive words out of who to meet]] · P0 · S · Needs: F60 (owner decision 2026-11-24, from the F61 research; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so)
 - [ ] **F63** [[F63 Create event form refresh]] · P1 · M · Needs: F30
 - [ ] **F67** [[F67 Check-in page layout]] · P1 · S · Needs: F63
 - [ ] **F64** [[F64 New events start from the host's latest settings]] · P1 · S · Needs: F63, F31, F60 (collects copied by owner decision, 2026-11-24; narrows D038; risk recorded in the plan note; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so)
@@ -164,6 +166,7 @@ Build order: F68, F63, F67, F64, F65, F66. F61's research note can be written al
 ```mermaid
 graph LR
   F15 --> F68
+  F60 --> F69
   F30 --> F63
   F63 --> F67
   F63 --> F64
