@@ -4,7 +4,7 @@ id: F55
 priority: P1
 phase: 10
 size: M
-status: In progress
+status: Done
 needs: []
 ---
 # F55 Card colour presets and a Plus colour wheel
