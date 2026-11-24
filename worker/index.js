@@ -285,8 +285,10 @@ app.post("/api/profile", async (c) => {
   await saveTz(db, u.id, body.tz); // F45: for F49's quiet hours
   let photoKey = null;
   if (body.photoDataUrl) photoKey = await putImage(c.env, await photoAllowed(c, u, body.photoDataUrl), "avatar");
+  // F51: step 1 shows the line above Continue to someone who has not agreed to this version yet.
+  const hadTerms = await hasConsent(db, u.id, termsScope());
   await run(db, "UPDATE users SET over_18 = 1, age_confirmed_at = ? WHERE id = ?", now(), u.id);
-  await recordConsent(db, u.id, termsScope());
+  await recordConsent(db, u.id, termsScope(), hadTerms ? null : "welcome");
 
   const fields = profilePayload({ ...body });
   applyInstitution(fields, pick, null);
@@ -1027,7 +1029,7 @@ app.post("/api/connect", async (c) => {
   }
   await ensureDefaultCard(db, me.id);
   if (!consented) {
-    await recordConsent(db, me.id, termsScope());
+    await recordConsent(db, me.id, termsScope(), "connect"); // F51: by pressing Connect under the line
     await run(db, "UPDATE users SET over_18 = 1 WHERE id = ?", me.id);
   }
   await saveTz(db, me.id, body.tz); // F45: the browser's time zone, for F49's quiet hours

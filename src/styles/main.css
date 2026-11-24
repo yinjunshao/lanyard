@@ -862,7 +862,10 @@ button.list-row { font: inherit; }
 .status-pill.paid { color: var(--success, #2f7d4f); border-color: var(--success, #2f7d4f); }
 
 /* Links in "I agree to the …" lines read as links. */
-.checkbox-row a { text-decoration: underline; text-underline-offset: 2px; font-weight: 700; color: var(--strap-deep, inherit); }
+.checkbox-row a, .consent-line a { text-decoration: underline; text-underline-offset: 2px; font-weight: 700; color: var(--strap-deep, inherit); }
+/* F51: "By pressing <button>, you confirm …", small and muted, directly above a sign-up button (no tick). */
+.consent-line { margin: 0; font-size: 13px; line-height: 1.45; color: var(--graphite); }
+.thumb-bar .inner:has(> .consent-line) { flex-direction: column; gap: 6px; }
 
 /* Profile link editor: label, address, remove. */
 .link-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) 40px; gap: 8px; align-items: center; margin-bottom: 8px; }

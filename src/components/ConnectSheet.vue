@@ -45,8 +45,8 @@ const showPrivate = ref(false);
 const selfieDataUrl = ref(null);
 const selfieInput = ref(null);
 const consent = ref(false);
+// F51: someone who has not agreed yet agrees by pressing Connect, with the line above it saying so (no tick).
 const needsAgree = computed(() => !me.user?.termsAccepted);
-const agreed = ref(false);
 const flash = ref(false);
 const busy = ref(false);
 const error = ref("");
@@ -80,10 +80,6 @@ async function submit() {
     error.value = "Add your email to connect. Only we see it, and it's how you get back to your card.";
     return;
   }
-  if (needsAgree.value && !agreed.value) {
-    error.value = "Please tick the box to confirm you're 18 or over and agree to the Terms and Privacy Policy.";
-    return;
-  }
   if (selfieDataUrl.value && !consent.value) {
     error.value = "Both of you need to agree to the shared selfie.";
     return;
@@ -101,8 +97,8 @@ async function submit() {
       noteToken: props.noteToken || undefined,
       selfieDataUrl: selfieDataUrl.value || undefined,
       consent: consent.value,
-      acceptTerms: needsAgree.value ? agreed.value : undefined,
-      over18: needsAgree.value ? agreed.value : undefined,
+      acceptTerms: needsAgree.value ? true : undefined,
+      over18: needsAgree.value ? true : undefined,
       eventId: props.eventId,
       via: props.via || undefined,
       share: share.value || undefined,
@@ -224,15 +220,7 @@ onBeforeUnmount(() => {
         </div>
         <button v-else type="button" class="link-btn" @click="showPrivate = true">+ Add a private reminder</button>
 
-        <label v-if="needsAgree" class="checkbox-row">
-          <input type="checkbox" v-model="agreed" />
-          <span class="small">
-            I'm 18 or over and I agree to the
-            <router-link to="/terms" target="_blank">Terms</router-link> and
-            <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
-          </span>
-        </label>
-        <p v-else class="small muted">
+        <p v-if="!needsAgree" class="small muted">
           Connecting is covered by the <router-link to="/terms" target="_blank">Terms</router-link> and
           <router-link to="/privacy" target="_blank">Privacy Policy</router-link> you've agreed to.
         </p>
@@ -247,6 +235,11 @@ onBeforeUnmount(() => {
 
         <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
+        <p v-if="needsAgree" class="consent-line">
+          By pressing Connect, you confirm you're 18 or over and agree to the
+          <router-link to="/terms" target="_blank">Terms</router-link> and
+          <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
+        </p>
         <div class="btn-row">
           <button class="btn btn-ghost" type="button" @click="close()">Not now</button>
           <button class="btn btn-primary" :disabled="busy" @click="submit">

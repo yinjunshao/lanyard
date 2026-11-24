@@ -184,30 +184,33 @@ console.log("\n# Every consent and legal step the old onboarding had is still th
 {
   // The old first run (Edit profile "Make your card"), the connect sheet, the terms pop-up and the email form:
   //  1. one tick for 18+ and the Terms and Privacy Policy, with links, unticked, before a card is made
-  //  2. the same tick in the connect sheet for a guest, and the server refuses without it
+  //     (F51, the owner's request: now a line above Continue saying that pressing it agrees, with the same links)
+  //  2. the same tick in the connect sheet for a guest, and the server refuses without it (F51: a line above Connect)
   //  3. the Terms pop-up for anyone with a card who has not accepted the current version
   //  4. consent recorded in consents and consent_log under the Terms version; 18+ recorded with its time
   //  5. the news and offers tick in the email form, unticked, and never required
   //  6. the shared selfie consent in the connect sheet
   //  7. a promo code needs a verified email
-  const you = read("src/components/welcome/StepYou.vue");
-  check("1. step 1 has the tick: 18+, Terms and Privacy Policy, both links, not pre-ticked, new tab",
-    has(you, "I'm 18 or over, and I agree to the", 'to="/terms" target="_blank"', 'to="/privacy" target="_blank"', "const agreed = ref(false)", 'type="checkbox"'));
-  check("1. step 1 cannot continue without it, and sends both flags to the server",
-    has(you, "needsTerms.value && !agreed.value", "over18: true, acceptTerms: true"));
+  const you = read("src/components/welcome/StepYou.vue"), shellSrc = read("src/views/Welcome.vue");
+  check("1. step 1 has the line directly above Continue (F51): 18+, Terms and Privacy Policy, both links, new tab, and no tick",
+    has(shellSrc, '<p v-if="stepEl?.termsLine" class="consent-line">', "By pressing Continue, you confirm you're 18 or over and agree to the", 'to="/terms" target="_blank"', 'to="/privacy" target="_blank"')
+    && /class="consent-line">[^<]*(<router-link[^>]*>[^<]*<\/router-link>[^<]*){2}<\/p>\s*<button[^>]*btn-primary[^>]*>\{\{ busy \? "Saving…" : "Continue" \}\}/.test(shellSrc)
+    && !/type="checkbox"|agreed/.test(you) && has(you, "termsLine: needsTerms"));
+  check("1. step 1 shows it only to someone who has not agreed, and pressing Continue sends both flags to the server",
+    has(you, "const needsTerms = computed(() => !me.user?.termsAccepted)", "over18: true, acceptTerms: true"));
   check("1. step 1 asks again only for someone who has not accepted (a guest who connected has)", has(you, "!me.user?.termsAccepted"));
   check("3. someone with a card but without the current terms accepts them on step 1 through the same call as the pop-up", has(you, "Api.acceptTerms()") && has(read("src/components/TermsGate.vue"), "Api.acceptTerms()"));
   check("3. the Terms pop-up is still on every /app page (the /app frame holds it, and App.vue shows the frame for every meta.app route)",
     has(read("src/components/AppShell.vue"), "<TermsGate />") && has(read("src/App.vue"), 'v-else-if="r.meta.app && shell"') && has(read("src/router/index.js"), "to.meta.app ? loadShell()"));
   const sheet = read("src/components/ConnectSheet.vue");
-  check("2. the connect sheet still has its tick, sends both flags, and is not sent through the welcome steps",
-    has(sheet, "I'm 18 or over and I agree to the", "acceptTerms: needsAgree.value ? agreed.value : undefined", "over18: needsAgree.value ? agreed.value : undefined") && !/welcome/.test(sheet));
+  check("2. the connect sheet has the line above Connect (F51), sends both flags, and is not sent through the welcome steps",
+    has(sheet, '<p v-if="needsAgree" class="consent-line">', "By pressing Connect, you confirm you're 18 or over and agree to the", "acceptTerms: needsAgree.value ? true : undefined", "over18: needsAgree.value ? true : undefined") && !/welcome/.test(sheet));
   check("6. the shared selfie consent is unchanged", has(sheet, "Everyone in the shared selfie agrees to it", "consent: consent.value"));
   check("5. the news tick in the email form is still unticked and optional", has(read("src/components/EmailSetup.vue"), "const marketing = ref(false)", "(optional)"));
   check("7. a code still needs a card and a confirmed email", has(read("src/views/Redeem.vue"), "if (!me.user?.emailVerified) return \"email\""));
   const legal = read("worker/legal.js");
   check("the Terms version string is the one F50 set (2026-11-22)", has(legal, 'TERMS_VERSION = "2026-11-22"'));
-  check("4. the server still records consent in consents and consent_log on profile creation", /await recordConsent\(db, u\.id, termsScope\(\)\);\s*\n\s*\n?\s*const fields = profilePayload/.test(read("worker/index.js")));
+  check("4. the server still records consent in consents and consent_log on profile creation", /await recordConsent\(db, u\.id, termsScope\(\), hadTerms \? null : "welcome"\);\s*\n\s*\n?\s*const fields = profilePayload/.test(read("worker/index.js")));
   const T2 = client({ ip: "10.14.9.1" });
   await T2.post("/api/profile", { name: "Late", acceptTerms: true, over18: true });
   q("UPDATE users SET age_confirmed_at = NULL, over_18 = 0 WHERE id = (SELECT user_id FROM profiles WHERE name = 'Late')");

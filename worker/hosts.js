@@ -5,7 +5,7 @@
 // checked in, if the host switched it on, for people who left the tick on (D038, worker/attendance.js).
 import { Hono } from "hono";
 import { newId, now, one, all, run, uniqueCode, countJsonTerms, countAnswerTerms } from "./db.js";
-import { TERMS_VERSION, hostTermsScope, logConsentStmt } from "./legal.js";
+import { TERMS_VERSION, hostTermsScope, logNoticeStmt } from "./legal.js";
 import {
   HOST_SKUS, FREE_EVENTS_FOR_NEW_ORG, FREE_EVENT_DAYS, ORG_KINDS, NEEDS_APPROVAL, SOCIETY_FREE,
   checkinCapFor, skuAudience,
@@ -91,7 +91,7 @@ hostApp.post("/api/host/terms", async (c) => {
   const db = c.env.DB;
   await db.batch([
     db.prepare("UPDATE host_accounts SET terms_version = ?, terms_at = ? WHERE id = ?").bind(TERMS_VERSION, now(), me.id),
-    logConsentStmt(db, me.id, hostTermsScope(), "granted", "host_account"),
+    logNoticeStmt(db, me.id, hostTermsScope(), "host", "host_account"), // F51: by pressing Agree and continue under the line
   ]);
   return c.json({ ok: true });
 });

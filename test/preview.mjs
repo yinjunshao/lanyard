@@ -40,11 +40,11 @@ console.log("\n# F18.1 The check-in page is one component, drawn by the real pag
   const ev = { name: "Spring night", venue: "Room 4", startsAt: Date.UTC(2026, 10, 20, 18, 0), info: { access: "Step-free", food: "Pizza" },
     questions: [{ key: "extra1", label: "Course" }], directoryOn: true, feedbackOn: true };
   const html = strip(await render(EventPage, { event: ev, form: form({ answers: { extra1: "" } }), sponsors: [{ id: "s1", name: "Acme", perk: "Free pens" }], showName: true, needsAgree: true }));
-  check("it shows the name, venue, info, the host's question, a sponsor, the room tick, and the terms tick",
+  check("it shows the name, venue, info, the host's question, a sponsor, the room tick, and the terms line (F51: a line, no tick)",
     ["Spring night", "Room 4 · ", "Access", "Step-free", "Food and drink", "Pizza", ">Course<", "<strong", "Free pens", "attendee room", "Your name", "Terms"].every((t) => html.includes(t)));
   check("the button says Check in and a busy page says Checking in…", html.includes(">Check in<") && (await render(EventPage, { event: ev, form: form(), busy: true })).includes("Checking in…"));
   const bare = strip(await render(EventPage, { event: { name: "Bare", questions: [], directoryOn: false, feedbackOn: false, info: {} }, form: form() }));
-  check("empty fields leave nothing behind: no venue dot, no info panel, no room tick, no name box, no sponsors, no terms tick, no feedback line",
+  check("empty fields leave nothing behind: no venue dot, no info panel, no room tick, no name box, no sponsors, no terms line, no feedback line",
     !bare.includes(" · </span>") && !bare.includes("event-info") && !bare.includes("attendee room to other") && !bare.includes('id="name"') && !bare.includes("Sponsors") && !bare.includes("agree to the") && !bare.includes("anonymous feedback"), bare);
 }
 

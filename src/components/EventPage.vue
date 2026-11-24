@@ -8,12 +8,12 @@
 //            The theme (formal, night) and the host's strap colour show on the head of the page
 //            like a card's strap. An event with the default theme and no colour looks as it always did.
 //   sponsors [{ id, name, perk }]
-//   form     { name, answers: {key: text}, sponsorConsent: {id: bool}, directoryConsent, agreed, collect, hasEmail }
+//   form     { name, answers: {key: text}, sponsorConsent: {id: bool}, directoryConsent, collect, hasEmail }
 //            `collect` holds the ticks of an event that collects names (F31), each ticked to start with.
 //   event.collects  { organiser, why, items: [{ key, label }] }, present only when the host switched named
 //            attendance on. The words come from the Worker (src/lib/collects.js) and are shown as text.
 //   showName ask for a name (a guest with no card yet)
-//   needsAgree ask for the 18+ and Terms tick (first-timers)
+//   needsAgree show the line above Check in saying that pressing it agrees to 18+ and the Terms (first-timers, F51: no tick)
 import { computed, ref, watch } from "vue";
 const INFO_LABELS = { access: "Access", dress: "Dress code", food: "Food and drink", other: "Good to know" };
 const branded = (e) => (e.theme && e.theme !== "default") || !!e.strapColor;
@@ -155,13 +155,6 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
       </dialog>
     </section>
 
-    <label v-if="needsAgree" class="checkbox-row">
-      <input v-model="form.agreed" type="checkbox" />
-      <span class="small">
-        I'm 18 or over and I agree to the <router-link to="/terms" target="_blank">Terms</router-link> and
-        <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
-      </span>
-    </label>
     <p class="small muted">
       {{ ' ' + totalsLine(event) }}
       <template v-if="event.feedbackOn">After the event you'll be asked for quick, anonymous feedback.</template>
@@ -171,6 +164,11 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
 
     <div class="thumb-bar">
       <div class="inner">
+        <p v-if="needsAgree" class="consent-line">
+          By pressing Check in, you confirm you're 18 or over and agree to the
+          <router-link to="/terms" target="_blank">Terms</router-link> and
+          <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
+        </p>
         <button class="btn btn-primary" :disabled="busy" @click="$emit('checkin')">
           {{ busy ? "Checking in…" : "Check in" }}
         </button>

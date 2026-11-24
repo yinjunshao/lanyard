@@ -16,6 +16,8 @@ Users must be 18 or over (age confirmation, over_18 flag). No Discovery mode for
 ## Consequences
 Excludes some school and college events for now.
 
+- 2026-11-24, [[F51 Sign-up consent as a line by the button]]: at sign-up the 18+ confirmation is a line directly above the main button ("By pressing Connect, you confirm you're 18 or over and agree to the Terms and Privacy Policy."), not a tick. It is still a self-declaration and the Worker still needs `over18: true`; the history row records the line's words and the Terms version. The Terms pop-up for existing accounts keeps its tick.
+
 **Evidence:** Product plan 'Age', migrations/0001
 
 Related: [[Privacy and Data Retention]], [[Risks]] · back to [[Decision Log]]

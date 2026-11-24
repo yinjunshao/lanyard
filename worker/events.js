@@ -5,7 +5,7 @@ import { newId, now, one, all, run } from "./db.js";
 import { newCardCode, giveBack, MISS_WINDOW_MS } from "./codes.js";
 import { requireUser, HttpError } from "./session.js";
 import { bump } from "./ratelimit.js";
-import { termsScope, hasConsent, recordConsentStmt, logConsentStmt } from "./legal.js";
+import { termsScope, hasConsent, recordConsentStmt, logConsentStmt, logNoticeStmt } from "./legal.js";
 import { blockedSet } from "./blocks.js";
 import { eventInfo, feedbackOpensAt } from "./feedback.js";
 import { checkinCapFor } from "./plans.js";
@@ -143,7 +143,7 @@ eventsApp.post("/api/e/:code/checkin", async (c) => {
     stmts.push(db.prepare("UPDATE cards SET event_id = ? WHERE id = ?").bind(ev.id, card.id));
   }
   if (!agreed) {
-    stmts.push(recordConsentStmt(db, me.id, termsScope()), logConsentStmt(db, me.id, termsScope()));
+    stmts.push(recordConsentStmt(db, me.id, termsScope()), logNoticeStmt(db, me.id, termsScope(), "checkin")); // F51: by pressing Check in under the line
     stmts.push(db.prepare("UPDATE users SET over_18 = 1, age_confirmed_at = COALESCE(age_confirmed_at, ?) WHERE id = ?").bind(now(), me.id));
   }
   if (ev.directory_on) {

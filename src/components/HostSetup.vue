@@ -19,7 +19,6 @@ const error = ref("");
 const email = ref("");
 const code = ref("");
 const resent = ref(false);
-const agreed = ref(false);
 const det = ref({ fullName: "", useCase: "", frequency: "", size: "", referral: "" });
 const FREQUENCIES = ["One-off event", "A few times a year", "About once a month", "Weekly or more"];
 const SIZE_OPTIONS = [{ value: "", label: "Not sure yet" }, "Under 50 people", "50 to 200", "200 to 1,000", "Over 1,000"];
@@ -30,7 +29,6 @@ const privacyUrl = `${MAIN_ORIGIN}/privacy`;
 watch(() => props.account, (a) => {
   if (!a) return;
   det.value = { fullName: a.fullName, useCase: a.useCase, frequency: a.frequency, size: a.size, referral: a.referral };
-  agreed.value = a.termsAccepted;
 }, { immediate: true });
 watch(() => props.view, () => { error.value = ""; });
 
@@ -62,9 +60,11 @@ const saveDetails = () => step(async () => {
   await HostApi.saveDetails({ fullName: d.fullName.trim(), survey: { useCase: d.useCase, frequency: d.frequency, size: d.size, referral: d.referral } });
   emit("reload");
 });
+// F51: pressing Agree and continue is the agreement, under the line that says so (no tick). Someone who has
+// agreed to this version already (Back from the organisation step) sees no line and just carries on.
+const termsDone = computed(() => !!props.account?.termsAccepted);
 const acceptTerms = () => step(async () => {
-  if (!agreed.value) throw new Error("Please agree to the Host Terms and Privacy Policy first.");
-  await HostApi.acceptTerms();
+  if (!termsDone.value) await HostApi.acceptTerms();
   emit("reload");
 });
 // Back from the first saved step means a different email: that is signing out.
@@ -129,16 +129,17 @@ const differentEmail = () => step(() => hostSignOutAndReload("/"));
     <span class="label" style="display:block">Step 2 of 3</span>
     <h2 id="hs-terms-h">Host Terms</h2>
     <p class="muted">Hosts see totals about their events, never who connected with whom. The Host Terms say what you and we each agree to.</p>
-    <label class="checkbox-row field">
-      <input v-model="agreed" type="checkbox" />
-      <span class="small">
-        I'm 18 or over, I'm authorised to act for the organisation I set up, and I agree to the
-        <a :href="termsUrl" target="_blank" rel="noopener">Host Terms</a> and
-        <a :href="privacyUrl" target="_blank" rel="noopener">Privacy Policy</a>.
-      </span>
-    </label>
+    <p v-if="termsDone" class="small muted" style="margin:0">
+      You've agreed to the <a :href="termsUrl" target="_blank" rel="noopener">Host Terms</a> and
+      <a :href="privacyUrl" target="_blank" rel="noopener">Privacy Policy</a>.
+    </p>
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
-    <button class="btn btn-primary" :disabled="busy" @click="acceptTerms">{{ busy ? "Saving…" : "Agree and continue" }}</button>
+    <p v-if="!termsDone" class="consent-line">
+      By pressing Agree and continue, you confirm you're 18 or over, that you're authorised to act for the organisation
+      you set up, and that you agree to the <a :href="termsUrl" target="_blank" rel="noopener">Host Terms</a> and
+      <a :href="privacyUrl" target="_blank" rel="noopener">Privacy Policy</a>.
+    </p>
+    <button class="btn btn-primary" :disabled="busy" @click="acceptTerms">{{ busy ? "Saving…" : termsDone ? "Continue" : "Agree and continue" }}</button>
   </section>
 </template>
 

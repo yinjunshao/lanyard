@@ -131,7 +131,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F50** [[F50 QuantLink as the operator]] · P1 · S · Needs: F45, F48, F49 (done 2026-11-22, last commit e7b7b4e; does the one Terms and Privacy version bump for this phase)
 
 ### Phase 10: owner requests (2026-11-24)
-- [ ] **F51** [[F51 Sign-up consent as a line by the button]] · P1 · S · Needs: none
+- [ ] **F51** [[F51 Sign-up consent as a line by the button]] · P1 · S · Needs: none (in progress: Claude subagent, 2026-11-24)
 - [ ] **F52** [[F52 Rotating examples and better link examples]] · P1 · S · Needs: none
 - [ ] **F53** [[F53 Tag boxes and new suggestions]] · P1 · S · Needs: none
 - [ ] **F57** [[F57 Card editor opens with motion]] · P1 · S · Needs: F40

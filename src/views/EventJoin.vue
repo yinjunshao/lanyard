@@ -14,8 +14,8 @@ const router = useRouter();
 const state = ref("loading");
 const event = ref(null);
 const sponsors = ref([]);
-// First-timers agree to the Terms here (the server checks it too).
-const form = reactive({ name: me.profile?.name || "", answers: {}, sponsorConsent: {}, directoryConsent: false, agreed: false, collect: null, hasEmail: true });
+// First-timers agree to the Terms here by pressing Check in, under the line that says so (F51; the server checks it too).
+const form = reactive({ name: me.profile?.name || "", answers: {}, sponsorConsent: {}, directoryConsent: false, collect: null, hasEmail: true });
 const needsAgree = () => !me.user?.termsAccepted;
 const busy = ref(false);
 const error = ref("");
@@ -51,10 +51,6 @@ async function checkIn() {
     error.value = "Add your name to check in.";
     return;
   }
-  if (needsAgree() && !form.agreed) {
-    error.value = "Please tick the box to confirm you're 18 or over and agree to the Terms and Privacy Policy.";
-    return;
-  }
   busy.value = true;
   try {
     await Api.checkIn(route.params.code, {
@@ -64,7 +60,7 @@ async function checkIn() {
       directoryConsent: form.directoryConsent,
       // The ticks as they are now. Sent only for an event that collects; each is a plain true or false.
       ...(event.value.collects ? { collect: Object.fromEntries(event.value.collects.items.map((i) => [i.key, form.collect?.[i.key] === true])) } : {}),
-      ...(needsAgree() ? { acceptTerms: form.agreed, over18: form.agreed } : {}),
+      ...(needsAgree() ? { acceptTerms: true, over18: true } : {}),
     });
     router.replace(`/app/events/${event.value.id}`);
   } catch (e) {

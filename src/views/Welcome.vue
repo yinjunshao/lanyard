@@ -161,6 +161,12 @@ async function next() {
 
       <div v-if="stepNo < LAST && !stepEl?.hideContinue" class="thumb-bar">
         <div class="inner">
+          <!-- F51: step 1 for someone who has not agreed yet: pressing Continue agrees (StepYou sends both flags). -->
+          <p v-if="stepEl?.termsLine" class="consent-line">
+            By pressing Continue, you confirm you're 18 or over and agree to the
+            <router-link to="/terms" target="_blank">Terms</router-link> and
+            <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
+          </p>
           <button type="button" class="btn btn-primary" :disabled="busy || stepEl?.ready === false" @click="next">{{ busy ? "Saving…" : "Continue" }}</button>
         </div>
       </div>

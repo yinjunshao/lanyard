@@ -4,7 +4,7 @@ id: F51
 priority: P1
 phase: 10
 size: S
-status: Not started
+status: In progress
 needs: []
 ---
 # F51 Sign-up consent as a line by the button
@@ -39,7 +39,7 @@ Asked where else it applies, the owner answered (2026-11-24): "its anywhere that
 - Legal note for the owner: a clear line next to the button ("clickwrap") is a normal, accepted way to agree to terms under English law, provided the line is next to the button and the links work. The age check was already a self-declaration ([[D012 18 plus only]]). The Privacy Policy is a notice, not something consent is needed for, so nothing is lost.
 
 ## Tasks
-- [ ] F51.1 Replace the tick with the line in `ConnectSheet.vue`, `StepYou.vue`, `EventPage.vue` / `EventJoin.vue` and `HostSetup.vue`; keep the selfie tick; update guards in `test/` that read the old tick; add a test that each sign-up path still sends `acceptTerms` and `over18` true and that the Worker still refuses without them; browser check of each place at 375 and 1280 px, light and dark; vault notes ([[Screens and Routes]], [[Privacy and Data Retention]] if it describes the tick, D012 pointer line).
+- [x] F51.1 Replace the tick with the line in `ConnectSheet.vue`, `StepYou.vue`, `EventPage.vue` / `EventJoin.vue` and `HostSetup.vue`; keep the selfie tick; update guards in `test/` that read the old tick; add a test that each sign-up path still sends `acceptTerms` and `over18` true and that the Worker still refuses without them; browser check of each place at 375 and 1280 px, light and dark; vault notes ([[Screens and Routes]], [[Privacy and Data Retention]] if it describes the tick, D012 pointer line).
 
 ## Acceptance checks
 - [ ] A guest connecting from a card sees no Terms tick, sees the line above Connect with working Terms and Privacy links, and pressing Connect connects them; their account shows Terms accepted.

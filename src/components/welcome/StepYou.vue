@@ -1,6 +1,7 @@
 <script setup>
 // Step 1: name and photo. Terms and the 18+ confirmation sit here, once, for
-// anyone who has not accepted them yet, so no pop-up lands on top later.
+// anyone who has not accepted them yet, so no pop-up lands on top later. F51: there is no tick:
+// pressing Continue agrees, and Welcome.vue shows the line saying so above that button (termsLine).
 import { computed, ref } from "vue";
 import { Api } from "../../lib/api";
 import { me, refreshMe } from "../../lib/store";
@@ -14,7 +15,6 @@ const photo = ref(null); // a new photo, as a data URL, waiting to be saved
 const shownPhoto = computed(() => photo.value || me.profile?.photo || null);
 const cropFile = ref(null);
 const needsTerms = computed(() => !me.user?.termsAccepted);
-const agreed = ref(false);
 
 function pick(e) {
   const file = e.target.files?.[0];
@@ -23,11 +23,10 @@ function pick(e) {
 }
 function cropped(dataUrl) { cropFile.value = null; photo.value = dataUrl; }
 
-const ready = computed(() => !!name.value.trim() && (!needsTerms.value || agreed.value));
+const ready = computed(() => !!name.value.trim());
 
 async function save() {
   if (!name.value.trim()) throw new Error("Add your name so people know who you are.");
-  if (needsTerms.value && !agreed.value) throw new Error("Please confirm you're 18 or over and agree to the Terms and Privacy Policy.");
   if (!me.profile) {
     await Api.createProfile({
       name: name.value, photoDataUrl: photo.value || undefined, over18: true, acceptTerms: true, note: "", onboarding: true,
@@ -40,7 +39,7 @@ async function save() {
   photo.value = null;
   await refreshMe();
 }
-defineExpose({ ready, save });
+defineExpose({ ready, save, termsLine: needsTerms });
 </script>
 
 <template>
@@ -68,14 +67,5 @@ defineExpose({ ready, save });
         </div>
       </div>
     </div>
-
-    <label v-if="needsTerms" class="checkbox-row field">
-      <input v-model="agreed" type="checkbox" />
-      <span class="small">
-        I'm 18 or over, and I agree to the
-        <router-link to="/terms" target="_blank">Terms of Service</router-link> and
-        <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.
-      </span>
-    </label>
   </div>
 </template>

@@ -311,7 +311,14 @@ console.log("\n# An event without named attendance: the check-in page is the pag
     bare: await render({ event: { name: "Bare", questions: [], directoryOn: false, feedbackOn: false, info: {} }, form: pform() }),
     busy: await render({ event: { ...ev, theme: "default", strapColor: null }, form: pform({ answers: { extra1: "" } }), busy: true, error: "Oops" }),
   };
-  for (const k of Object.keys(golden)) check(`the markup for ${k} is identical to what it was before F31 (comments aside; saved from commit 0e8d599)`, norm(got[k]) === norm(golden[k]), [norm(got[k]).length, norm(golden[k]).length]);
+  // F51 (the owner's request): a first-timer's 18+ and Terms tick became a line directly above Check in. That is the
+  // one change allowed: the old tick taken out of the saved markup, and the new line out of today's, must leave the same bytes.
+  const OLD_TICK = /<label class="checkbox-row"><input type="checkbox"><span class="small"> I&#39;m 18 or over and I agree to the <a href="\/terms" target="_blank">Terms<\/a> and <a href="\/privacy" target="_blank">Privacy Policy<\/a>\. <\/span><\/label>/g;
+  const NEW_LINE = /<p class="consent-line"> By pressing Check in, you confirm you&#39;re 18 or over and agree to the <a href="\/terms" target="_blank">Terms<\/a> and <a href="\/privacy" target="_blank">Privacy Policy<\/a>\. <\/p>(?=<button class="btn btn-primary">Check in<\/button>)/g;
+  const count = (s, re) => (s.match(re) || []).length;
+  check("F51: the page that asked for the Terms had exactly one tick and now has no tick but exactly one line, right before Check in", count(norm(golden.full), OLD_TICK) === 1 && count(norm(got.full), OLD_TICK) === 0 && count(norm(got.full), NEW_LINE) === 1 && count(norm(got.full), /type="checkbox"/g) === count(norm(golden.full), /type="checkbox"/g) - 1);
+  check("F51: the pages that did not ask have no line", count(norm(got.bare), NEW_LINE) === 0 && count(norm(got.busy), NEW_LINE) === 0 && !/consent-line/.test(got.bare + got.busy));
+  for (const k of Object.keys(golden)) check(`the markup for ${k} is identical to what it was before F31 (comments aside; saved from commit 0e8d599; F51's line in place of the tick)`, norm(got[k]).replace(NEW_LINE, "") === norm(golden[k]).replace(OLD_TICK, ""), [norm(got[k]).length, norm(golden[k]).length]);
   check("…and none of them mentions what the event collects or draws a tick", Object.values(got).every((x) => !/This event collects|collect-row/.test(x)));
 }
 await vite.close();
