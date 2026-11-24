@@ -4,7 +4,7 @@ id: F67
 priority: P1
 phase: 11
 size: S
-status: In progress
+status: Done
 needs: [F63]
 ---
 # F67 Check-in page layout
@@ -61,6 +61,13 @@ needs: [F63]
   - Passes, ending with `test/budget.mjs`; `npm run build` passes.
 
 ## Log
--
+- 2026-11-24 (Claude subagent) F67.1 built (7ff00c8). The check-in page is three panels in order, About you, At this event and Sharing, each only when it has something; one gap between panels (24 px) and one between rows (12 px); every tick a full-width row, at least 48 px; no inline `style=` (the host's strap colour stays a bound `:style`); the notice sits under the head. No word, pre-tick or consent rule changed.
+- Check-in page JS: EventPage chunk 3,589 B gzip before, 3,686 B after (+97 B, limit 100); the wording chunk is unchanged at 319 B. Public pages after: Landing 44,301, PublicCard 47,655, Hosts 42,655, Privacy 50,270, Terms 46,778, Redeem 46,011, SignIn 47,123, PrivacyRequest 49,842 B (before: 44,300, 47,648, 42,652, 50,269, 46,777, 46,009, 47,121, 49,833; a few bytes of chunk names).
+- Guards changed: `test/named-attendance.mjs`: the golden markup test no longer compares the page byte for byte (the wrapping changed on purpose). It now takes out F60's Suggest me group, F67's three panel headings, F51's line and tick and F63's Access row, then pins that every word (text node) and every input (every attribute, so what starts ticked) equals the saved page's as sets, that the words and the non-tick inputs are in the saved order apart from the notice and the room tick, and that those two moved as planned; the collects-row height line now reads the shared `.tick-row, .collect-row` rule and `--tap`. New `test/checkin-layout.mjs` (39 checks) is wired before `test/budget.mjs`. Nothing weakened.
+- Decisions without the owner: the notice sits right under the head and above the info list (the plan said under the head); the group names Who to meet, Sponsors and This event collects details stay as small headings inside the three panels so no word is lost; help lines sit 6 px under their tick (half the row gap); the room tick and sponsor ticks are now bordered full-width rows like the collects row; `role=group` and `data-panel` were left out to stay under 100 B.
+- Verified in a browser (local events `/e/F67AA` with everything on and `/e/F67BB` with nothing extra): gaps and tick heights measured by script at 375 and 1280 px in light, night and midnight; Tab went questions, room tick, intention, Suggest me, both sponsors, the collects tick, its info button, then Check in; Enter on the info button opened its dialog and Escape closed it with focus back on the button; the empty event drew no panel. Not checked: a real phone, a screen reader, the host's live preview in a browser (same component, covered by `test/preview.mjs`), event themes on the head (unchanged by this item), and the browser pane's screenshot clipped the narrow width, so the look was judged from measurements and one light screenshot.
+
+## Owner steps
+- Front end only, no migration: `npm run deploy` (with the F63, F64 and F68 row in the Master To-Do). Then open one event's check-in page on a phone and a laptop and look at the spacing.
 
 Related: [[F60 Intention at check-in and who to meet for everyone]] · [[F31 Named attendance with check-in notice]] · back to [[00 Master To-Do]]
