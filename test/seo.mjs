@@ -369,7 +369,11 @@ console.log("\n# A database error still serves the page, with the generic tags")
   env.DB = slow;
   const t0 = Date.now();
   const stuck = await web.get(`/c/${ada.card}`);
-  check("a database that never answers: the page comes after about 2 seconds with the generic tags", stuck.text === GENERIC_HOME && Date.now() - t0 < 4000, Date.now() - t0);
+  // The upper bound is loose on purpose: a database that never answers would hang for ever, so any finite wait
+  // proves the give-up; under the load of the full `npm test` the 2 s timer has been seen to land past 4 s.
+  const waited = Date.now() - t0;
+  check("a database that never answers: the page comes with the generic tags", stuck.text === GENERIC_HOME);
+  check("... after the 2 second give-up, not at once and not hanging", waited >= 1500 && waited < 15000, waited);
   env.DB = counted;
   // A broken rewriter: plain page.
   const keep = globalThis.HTMLRewriter;
