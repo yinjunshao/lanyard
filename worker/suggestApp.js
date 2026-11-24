@@ -19,6 +19,7 @@ import { visibleFields } from "./presenceMatch.js";
 import { changeSuggest, mySuggestChoices, readChoice, suggestCandidates, suggestStanding } from "./suggest.js";
 import { meRow, rankSuggest } from "./suggestMatch.js";
 import { forgetSearchReplies } from "./ai/optout.js";
+import { aiOrder } from "./ai/suggestRank.js";
 import { SUGGEST_NOTICE, SUGGEST_VERSION } from "../src/lib/suggest.js";
 
 export const suggestApp = new Hono();
@@ -58,8 +59,9 @@ export async function usualOrder(db, viewerId, mine, rows) {
     one(db, "SELECT * FROM profiles WHERE user_id = ?", viewerId),
     one(db, "SELECT * FROM cards WHERE user_id = ? ORDER BY is_default DESC, created_at LIMIT 1", viewerId),
   ]);
-  const { mode, ranked } = rankSuggest({ me: meRow(profile, card), intention: mine?.intention || "", rows });
-  return { mode, people: ranked.map((r) => ({ ...r.row, reason: r.reason })) };
+  const me = meRow(profile, card);
+  const { mode, ranked } = rankSuggest({ me, intention: mine?.intention || "", rows });
+  return { mode, me, people: ranked.map((r) => ({ ...r.row, reason: r.reason })) };
 }
 
 // Your own choice. Anyone checked in may read it, even after the event (so the hub and Settings can show it).
@@ -89,7 +91,7 @@ suggestApp.put("/api/e/:id/suggest", async (c) => {
 });
 
 // Who to meet: up to five people checked in here, for someone who is checked in and suggested too, while the event is
-// on and the host's switch is on. A POST, because it may start an AI ranking (F60.3) and so must pass the same-origin check.
+// on and the host's switch is on. A POST, because it may start an AI ranking and so must pass the same-origin check.
 suggestApp.post("/api/e/:id/who-to-meet", async (c) => {
   const me = requireUser(c);
   const db = c.env.DB;
@@ -101,7 +103,8 @@ suggestApp.post("/api/e/:id/who-to-meet", async (c) => {
   if (!st.mine?.suggest) return refuse(c, "suggest_me_off");
   const rows = await suggestCandidates(db, st.ev, me.id);
   const usual = await usualOrder(db, me.id, st.mine, rows);
-  const out = { people: usual.people, ai: false };
+  // F60.3: the AI's order when it may run (at most once every 20 minutes, inside F25's allowance), else the plain one.
+  const out = await aiOrder(c.env, { ev: st.ev, mine: st.mine, viewerId: me.id, rows, usual, me: usual.me, ip: c.req.header("cf-connecting-ip") });
   return c.json({ mode: out.ai ? "ai" : usual.mode, ai: !!out.ai, people: out.people.map(entryOf) });
 });
 
