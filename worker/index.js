@@ -23,6 +23,8 @@ import { adminApp } from "./admin.js";
 import { promoApp } from "./promo.js";
 import { unsubApp } from "./unsub.js";
 import { cardFacts } from "../src/lib/cardmerge.js";
+import { strapInk } from "../src/lib/cardcolour.js";
+import { readStrap, STRAP_FREE, PLUS_NOW_SQL, plusNowArgs } from "./cardcolour.js";
 import { privacyApp } from "./privacy.js";
 import * as Alerts from "./alerts.js";
 import { sendEventEmails } from "./eventmail.js";
@@ -180,6 +182,8 @@ async function cardView(db, card, { forOwner = false, limited = false, shared = 
     note: card.note,
     theme: card.theme,
     strapColor: card.strap_color,
+    // The words on the strap, white or black, worked out here so a public page needs no code for it (F55).
+    strapInk: card.strap_color ? strapInk(card.strap_color) : null,
     eventId: card.event_id,
     ...(limited ? { limited: true } : {}),
     // The code is only ever sent to the card's owner.
@@ -600,6 +604,12 @@ app.post("/api/cards", async (c) => {
   const have = (await one(db, "SELECT COUNT(*) AS n FROM cards WHERE user_id = ?", u.id))?.n || 0;
   if (have >= plan.cards) return atLimit();
 
+  // F55: a free account saves only a preset strap colour. This is the quick answer; the write below checks it again.
+  const strap = readStrap("strapColor" in body ? body.strapColor : body.strap_color);
+  if (strap?.error) return c.json({ error: strap.error }, 400);
+  const needsPlus = !!strap && !strap.preset;
+  if (needsPlus && !plan.customStrap) return c.json({ error: STRAP_FREE, code: "plus_colour" }, 400);
+
   const id = newId();
   const cc = await newCardCode(db);
   // The count above is for a quick answer; the limit is enforced in the write itself (F35.5), so
@@ -607,8 +617,9 @@ app.post("/api/cards", async (c) => {
   // registered only if the card went in.
   const out = await db.batch([
     db.prepare(
-      `INSERT INTO cards (id, user_id, code, code_rotates_at, name, note, visible_links, tags, headline, about, theme, created_at)
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cards WHERE user_id = ?) < ?`
+      `INSERT INTO cards (id, user_id, code, code_rotates_at, name, note, visible_links, tags, headline, about, theme, strap_color, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cards WHERE user_id = ?) < ?
+         AND (? = 0 OR ${PLUS_NOW_SQL})`
     ).bind(
       id, u.id, cc.code, cc.rotatesAt,
       String(body.name || "Card").slice(0, 60),
@@ -618,12 +629,18 @@ app.post("/api/cards", async (c) => {
       String(body.headline || "").trim().slice(0, 80),
       String(body.about || "").trim().slice(0, 600),
       CARD_THEMES.includes(body.theme) ? body.theme : "default",
-      now(), u.id, plan.cards
+      strap ? strap.value : null,
+      now(), u.id, plan.cards,
+      needsPlus ? 1 : 0, ...plusNowArgs(u.id)
     ),
     db.prepare("INSERT OR REPLACE INTO card_codes (code, card_id, valid_until) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM cards WHERE id = ?)")
       .bind(cc.code, id, FOREVER, id),
   ]);
-  if (!out[0]?.meta?.changes) return atLimit();
+  if (!out[0]?.meta?.changes) {
+    // Either the card limit or the colour rule stopped the write: say which.
+    const n = (await one(db, "SELECT COUNT(*) AS n FROM cards WHERE user_id = ?", u.id))?.n || 0;
+    return n >= plan.cards ? atLimit() : c.json({ error: STRAP_FREE, code: "plus_colour" }, 400);
+  }
   return c.json({ ok: true, id, code: cc.code }, 201);
 });
 
@@ -641,15 +658,20 @@ app.put("/api/cards/:id", async (c) => {
     if (!CARD_THEMES.includes(b.theme)) return c.json({ error: "Choose one of the card themes." }, 400);
     fields.theme = b.theme;
   }
-  // Custom strap colour is a Plus personalisation. "" / null clears it.
-  const strap = b.strap_color ?? b.strapColor;
-  if (strap !== undefined) {
-    if (strap === "" || strap === null) fields.strap_color = null;
-    else if (!/^#[0-9a-fA-F]{6}$/.test(String(strap))) return c.json({ error: "Use a colour like #C4441E: a # then six letters or numbers." }, 400);
-    else {
+  // F55: the strap colour. Anyone may save one of the ten presets or clear it; any other #RRGGBB is Plus, or the
+  // colour the card already has (a lapsed Plus account keeps what it saved). The plan is read from the users row.
+  const strap = readStrap("strapColor" in b ? b.strapColor : b.strap_color);
+  const guards = [], guardArgs = [];
+  if (strap?.error) return c.json({ error: strap.error }, 400);
+  // Asking for the colour the card already has changes nothing, so nothing is written (a lapsed Plus account's colour is not rewritten).
+  if (strap && (strap.value === null ? card.strap_color !== null : (card.strap_color || "").toUpperCase() !== strap.value)) {
+    fields.strap_color = strap.value;
+    if (!strap.preset) {
       const plan = planOf(await one(c.env.DB, "SELECT plan, plan_until FROM users WHERE id = ?", u.id));
-      if (!plan.customStrap) return c.json({ error: "Custom colours are part of Lanyard Plus.", code: "plan_limit" }, 402);
-      fields.strap_color = String(strap);
+      if (!plan.customStrap) return c.json({ error: STRAP_FREE, code: "plus_colour" }, 400);
+      // The same rule again, inside the UPDATE, so a plan that lapses between the read and the write cannot slip a colour in.
+      guards.push(`AND ${PLUS_NOW_SQL}`);
+      guardArgs.push(...plusNowArgs(u.id));
     }
   }
   if (b.headline !== undefined) fields.headline = String(b.headline).trim().slice(0, 80);
@@ -658,8 +680,14 @@ app.put("/api/cards/:id", async (c) => {
   if (Array.isArray(b.tags)) fields.tags = JSON.stringify(strings(b.tags, 30, 60));
   const sets = Object.keys(fields);
   if (sets.length) {
-    await run(c.env.DB, `UPDATE cards SET ${sets.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`,
-      ...Object.values(fields), card.id);
+    const res = await run(c.env.DB, `UPDATE cards SET ${sets.map((k) => `${k} = ?`).join(", ")} WHERE id = ? ${guards.join(" ")}`,
+      ...Object.values(fields), card.id, ...guardArgs);
+    // Nothing written: the colour rule refused it (the card is still ours, we read it above), and nothing else was saved with it.
+    if (!res?.meta?.changes) {
+      const still = await one(c.env.DB, "SELECT id FROM cards WHERE id = ? AND user_id = ?", card.id, u.id);
+      if (!still) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
+      return c.json({ error: STRAP_FREE, code: "plus_colour" }, 400);
+    }
   }
   return c.json({ ok: true });
 });

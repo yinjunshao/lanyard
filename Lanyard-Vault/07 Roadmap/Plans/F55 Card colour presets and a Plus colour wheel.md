@@ -25,7 +25,7 @@ Asked what is free and what is Plus, the owner answered (2026-11-24): "static co
 
 ## Plan
 - **Presets (free, everyone):** ten strap colours that look good with the card on paper, night and midnight, each with white strap text at 4.5:1 or better (adjust any that fail):
-  Persimmon `#C4441E` (default, deepened by F55.0), Graphite `#2B3138`, Navy `#1F3A5F`, Cobalt `#2F5BD3`, Teal `#12817A`, Forest `#2E7D4F`, Ochre `#A86F12`, Rose `#C23B66`, Plum `#7A3E8E`, Slate `#55606E`.
+  Persimmon `#C4441E` (default, deepened by F55.0), Graphite `#2B3138`, Navy `#1F3A5F`, Cobalt `#2F5BD3`, Teal `#12817A`, Forest `#2E7D4F`, Ochre `#9A6410` (was `#A86F12`, 4.2:1 with white; deepened in F55.1), Rose `#C23B66`, Plum `#7A3E8E`, Slate `#55606E`.
   Shown as a row of round swatches (44 px tap targets, a ring on the chosen one, the name as its accessible label and a tooltip), with the chosen name written under the row.
 - **Plus: the whole wheel and text colour.** A hand-built colour panel (no library, a lazy chunk, opened from a "Custom" swatch at the end of the row, which free users see with a small "Plus" mark and which opens the Plus page): a saturation and brightness square, a hue slider, a hex field, and the last five custom colours used. Keyboard: arrows move the point in the square and the slider; the hex field accepts `#RGB` and `#RRGGBB`. It previews live on the card preview beside the form ([[F18 Live previews for cards and events]]).
   - **Text colour (Plus):** a second control "Text colour" with Auto (the theme's ink, the default) and the same panel. If the chosen text colour is under 4.5:1 against the card background, show a warning line ("Hard to read") and still allow it only above 3:1; below 3:1 refuse to save with a plain message.
@@ -35,18 +35,22 @@ Asked what is free and what is Plus, the owner answered (2026-11-24): "static co
 
 ## Tasks
 - [x] F55.0 Deepen the brand strap orange from `#D9502B` to `#C4441E` everywhere it is the brand accent (`--strap` in `main.css`, the browser-bar and manifest colours if they use it, the preview image if cheap, email colours); keep `--strap-deep` darker than the new value for pressed states (adjust if needed); check white on it is at least 4.5:1 and the small event line on a card's strap reaches 4.5:1 or is made larger or bolder; a test pins the value and the ratio; a pointer in [[Design System]]. Owner decision 2026-11-24 from [[F54 Midnight app theme]].
-- [ ] F55.1 Presets: the swatch row in `CardForm.vue`, the server rule that free accounts save only presets, tests (free preset OK, free custom 400, Plus custom OK), browser check.
+- [x] F55.1 Presets: the swatch row in `CardForm.vue`, the server rule that free accounts save only presets, tests (free preset OK, free custom 400, Plus custom OK), browser check.
 - [ ] F55.2 Plus colour panel (lazy) for the strap, with keyboard support and recent colours; tests for hex parsing and the keyboard model.
 - [ ] F55.3 Text colour: migration, server rule, contrast check, the card drawing it on every surface; tests (contrast refusal below 3:1, warning below 4.5:1, Plus only); vault notes ([[Data Model]], [[API Surface]], [[Features]], Plus contents line in [[Pricing]] or the F27 note); browser check at 375 and 1280 px, light, dark and midnight.
 
 ## Acceptance checks
-- [ ] A free account sees ten swatches; picking Teal changes the preview at once and saving shows a teal strap on My card and the public card page.
-- [ ] A free account's API request with `strapColor: "#123456"` is refused with 400; with a preset value it is saved.
-- [ ] A free account pressing Custom is taken to the Plus page; nothing is saved.
+- [x] A free account sees ten swatches; picking Teal changes the preview at once and saving shows a teal strap on My card and the public card page.
+  - Verified in the Browser pane at 375 px in Midnight (a local free account): ten round swatches and a Custom one in the editor; pressing Teal drew a teal strap on the live Badge preview at once with the name "Teal" under the row; Save stored `#12817A`; My card's badge computed `rgb(18, 129, 122)` with a white event line, and the public card page (`/c/<id>`) drew the teal strap.
+- [x] A free account's API request with `strapColor: "#123456"` is refused with 400; with a preset value it is saved.
+  - Verified by `test/card-colours.mjs` against the real Worker (22 non-preset shapes refused with 400 and nothing saved, all ten presets saved, the Plus rule inside the write, concurrent and replayed requests); see the Log.
+- [x] A free account pressing Custom is taken to the Plus page; nothing is saved.
+  - Verified in the Browser pane: the Custom swatch (with its Plus mark) is a link; pressing it went to `/app/settings/plan` and the card's colour in the database was unchanged.
 - [ ] A Plus account picks any colour from the square and slider, or types `#1a2b3c`, and it is saved and shown.
 - [ ] The panel works with the keyboard alone (arrows move, Enter or Done closes and keeps, Escape closes without keeping).
 - [ ] A Plus text colour of white on the Default (light) card is refused (under 3:1); a mid grey shows "Hard to read" and saves.
-- [ ] Every preset passes 4.5:1 with its strap text (test).
+- [x] Every preset passes 4.5:1 with its strap text (test).
+  - `test/card-colours.mjs` works out white on each preset (lowest Teal 4.72:1); Ochre was deepened to `#9A6410` (5.0:1) because the planned `#A86F12` was 4.2:1.
 - [ ] `npm test` passes; public pages within budget (report the card page before/after).
 
 ## Log

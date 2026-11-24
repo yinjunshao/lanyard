@@ -244,7 +244,7 @@ console.log("\n# The card preview and the real card show the same, for the same 
     const html = async (extra) => strip(await render(CardView, { view: viewOf(prof, cardOf({ ...base, ...extra }, { tags: [] })) }));
     const d = await html({ theme: "default" }), f = await html({ theme: "formal" }), ni = await html({ theme: "night" });
     check("each theme is the card's own class, as on the card page", /class="profile default"/.test(d) && /class="profile formal"/.test(f) && /class="profile night"/.test(ni));
-    check("a strap colour colours the strap on the card, and none leaves the theme colour", /class="profile-strap"[^>]*style="background:#2a6f4e;?"/.test(await html({ theme: "default", strapColor: "#2a6f4e" })) && !/background:/.test(d));
+    check("a strap colour colours the strap on the card (as CSS custom properties, F55), with white or black words, and none leaves the theme colour", /class="profile-strap"[^>]*style="--card-strap:#2a6f4e;--card-strap-ink:#fff;?"/.test(await html({ theme: "default", strapColor: "#2a6f4e" })) && /--card-strap-ink:#000/.test(await html({ theme: "default", strapColor: "#f5e663" })) && !/--card-strap/.test(d));
     check("a card with only a name says so, as a stranger sees it", /hasn(&#39;|')t filled in their card yet/.test(d) && !d.includes("Your card only shows"));
     check("no In common line, selfie or connect button is drawn in a preview", !d.includes("In common") && !d.includes("Selfie") && !d.includes("Connect with"));
   }

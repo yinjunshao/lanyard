@@ -486,11 +486,11 @@ button.list-row { font: inherit; }
 }
 .badge-strap {
   height: 76px;
-  background: var(--strap);
+  background: var(--card-strap, var(--strap)); /* F55: a card's own colour arrives as data and is applied here */
   position: relative;
   flex: none;
 }
-:root[data-theme="formal"] .badge-strap, .badge.formal .badge-strap { background: var(--formal-strap); }
+:root[data-theme="formal"] .badge-strap, .badge.formal .badge-strap { background: var(--card-strap, var(--formal-strap)); }
 .badge-slot {
   position: absolute;
   left: 50%; top: 20px;
@@ -501,12 +501,12 @@ button.list-row { font: inherit; }
 }
 .badge-strap-word {
   position: absolute; left: 22px; bottom: 12px;
-  color: #fff; font-weight: 700; font-size: 15px; letter-spacing: -0.01em;
+  color: var(--card-strap-ink, #fff); font-weight: 700; font-size: 15px; letter-spacing: -0.01em;
   max-width: 35%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .badge-strap-event {
   position: absolute; right: 22px; bottom: 13px; left: 50%;
-  color: #fff;
+  color: var(--card-strap-ink, #fff);
   font-size: 10.5px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.12em;
   text-align: right;
@@ -733,17 +733,17 @@ button.list-row { font: inherit; }
 }
 .profile-strap {
   height: 52px;
-  background: var(--strap);
+  background: var(--card-strap, var(--strap));
   display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
   padding: 0 20px 10px;
-  color: #fff;
+  color: var(--card-strap-ink, #fff);
 }
-.profile.formal .profile-strap { background: var(--formal-strap); }
+.profile.formal .profile-strap { background: var(--card-strap, var(--formal-strap)); }
 .profile-strap-word { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
 .profile-strap-card {
   min-width: 0;
   font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em;
-  color: #fff;
+  color: var(--card-strap-ink, #fff);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .profile-body { padding: 20px; display: flex; flex-direction: column; gap: 18px; }

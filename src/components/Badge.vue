@@ -33,7 +33,7 @@ async function render() {
 <template>
   <div class="badge-stage">
     <div class="badge" :class="view.theme" @contextmenu.prevent>
-      <div class="badge-strap">
+      <div class="badge-strap" :style="view.strapColor ? { '--card-strap': view.strapColor, '--card-strap-ink': view.strapInk || '#fff' } : null">
         <div class="badge-slot"></div>
         <span class="badge-strap-word">lanyard</span>
         <span class="badge-strap-event">{{ view.name || "General" }}</span>

@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { strapInk } from "./cardcolour.js";
 
 // Badge colours. These mirror the CSS custom properties on `.badge` in
 // main.css, because the PNG export is a scaled-up replica of the on-screen
@@ -104,6 +105,7 @@ export async function drawBadge(canvas, view, url) {
   const CARD_W = 352, B = 1.5, PAD = 28;
   const t = { ...(THEMES[view?.theme === "night" ? "night" : view?.theme === "formal" ? "formal" : "light"]) };
   if (view?.strapColor) t.strap = view.strapColor;
+  const strapText = view?.strapColor ? strapInk(view.strapColor) : "#fff"; // F55: white or black, whichever reads on the strap
   const p = view?.profile || {};
 
   await document.fonts.ready;
@@ -182,11 +184,11 @@ export async function drawBadge(canvas, view, url) {
   rr(ctx, ix + iw / 2 - 36, iy + 20, 72, 15, 3); ctx.fill();
   mctx.font = FONT(15, 700);
   const word = truncateTo(mctx, "lanyard", iw * 0.35, -0.15);
-  line(ctx, word, ix + 22, iy + 76 - 12 - 22.5, { size: 15, lineH: 22.5, weight: 700, color: "#FFFFFF", ls: -0.15 });
+  line(ctx, word, ix + 22, iy + 76 - 12 - 22.5, { size: 15, lineH: 22.5, weight: 700, color: strapText, ls: -0.15 });
   mctx.font = FONT(10.5, 700);
   const evW = iw - iw / 2 - 22;
   const ev = truncateTo(mctx, String(view?.name || "General").toUpperCase(), evW, 1.26);
-  line(ctx, ev, ix + iw - 22, iy + 76 - 13 - 15.75, { size: 10.5, lineH: 15.75, weight: 700, color: "#fff", ls: 1.26, align: "right" });
+  line(ctx, ev, ix + iw - 22, iy + 76 - 13 - 15.75, { size: 10.5, lineH: 15.75, weight: 700, color: strapText, ls: 1.26, align: "right" });
 
   // ---- body ----
   const bx = ix + 20;

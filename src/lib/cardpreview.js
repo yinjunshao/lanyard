@@ -3,6 +3,7 @@
 // cards and profiles and compares). Which links, tags, headline and about a card shows comes
 // from cardFacts(), the function the Worker itself uses. Only the card editors import this file.
 import { cardFacts } from "./cardmerge.js";
+import { strapInk } from "./cardcolour.js";
 
 const text = (v, n) => (typeof v === "string" ? v.trim().slice(0, n) : "");
 const strings = (arr, max, len) =>
@@ -35,6 +36,7 @@ export function cardOf(form, { tags, cardId = null, code = null, creating = fals
     note: String(form.note || "").slice(0, 300),
     theme: String(form.theme || "default").slice(0, 60),
     strapColor: form.strapColor || null,
+    strapInk: form.strapColor ? strapInk(form.strapColor) : null,
     visibleLinks: strings(form.visibleLinks, 20, 40),
     tags: strings(tags, 30, 60),
     headline: String(form.headline || "").trim().slice(0, 80),
@@ -47,7 +49,7 @@ export function cardOf(form, { tags, cardId = null, code = null, creating = fals
 export function viewOf(profile, card) {
   const f = cardFacts({ visible_links: card.visibleLinks, tags: card.tags, headline: card.headline, about: card.about }, profile);
   return {
-    cardId: card.cardId, name: card.name, note: card.note, theme: card.theme, strapColor: card.strapColor,
+    cardId: card.cardId, name: card.name, note: card.note, theme: card.theme, strapColor: card.strapColor, strapInk: card.strapInk,
     ...(card.code ? { code: card.code } : {}),
     viewer: { isOwner: false },
     profile: { ...profile, headline: f.headline, about: f.about, links: f.links, tags: f.tags },

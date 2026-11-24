@@ -83,7 +83,7 @@ async function createCard() {
   if (!form.value.name.trim()) return;
   busy.value = true;
   try {
-    const { tagsText, strapColor, ...rest } = form.value;
+    const { tagsText, ...rest } = form.value;
     await api("/api/cards", "POST", { ...rest, tags: tagList(tagsText) });
     creating.value = false;
     form.value = blank();
@@ -114,10 +114,9 @@ function startEdit(card, toCode = false) {
 
 const { working, once } = useBusy();
 const saveEdit = once(async () => {
-  const { strapColor, tagsText, ...rest } = editForm.value;
-  // Custom colours are a Plus feature; free accounts never send the field.
+  const { tagsText, ...rest } = editForm.value;
+  // The strap colour is sent as it is (empty = the theme's own). The Worker decides what this account may save (F55).
   const body = { ...rest, tags: tagList(tagsText) };
-  if (me.plan.customStrap) body.strap_color = strapColor || "";
   try {
     await api(`/api/cards/${editingId.value}`, "PUT", body);
     closeEdit();
@@ -187,7 +186,7 @@ async function remove(card) {
         <UiReveal :open="editingId === c.cardId" @opened="editorOpened(c.cardId)" @closed="editorClosed(c.cardId)">
           <div :id="`card-editor-${c.cardId}`" class="reveal-body rise" role="group" :aria-label="`Edit ${c.name}`" tabindex="-1">
             <CardPreview v-if="previewProfile" :profile="previewProfile" :card="editPreview" :url="`${origin}/c/${c.cardId}`" />
-            <CardForm v-model="editForm" show-strap />
+            <CardForm v-model="editForm" />
             <CardCode :card="c" />
             <p v-if="error" class="error-text">{{ error }}</p>
             <div class="btn-row">

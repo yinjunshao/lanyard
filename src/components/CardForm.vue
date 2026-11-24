@@ -8,11 +8,11 @@ import UiSelect from "./ui/UiSelect.vue";
 import RotatingHint from "./ui/RotatingHint.vue";
 import { headlineExamples } from "../lib/examples";
 import UiTagInput from "./ui/UiTagInput.vue";
+import CardSwatches from "./CardSwatches.vue";
 import { CARD_TAGS, joinTags, parseTags } from "../lib/tags";
 import { nextUid } from "./ui/uid";
 
 const f = defineModel({ type: Object, required: true });
-defineProps({ showStrap: { type: Boolean, default: false } });
 
 const THEMES = [
   { value: "default", label: "Default" },
@@ -82,18 +82,9 @@ function toggle(label) {
     <div class="field"><label>Note on the card</label>
       <textarea v-model="f.note" maxlength="300"></textarea></div>
 
-    <div v-if="showStrap" class="field">
-      <label>Strap colour</label>
-      <div v-if="me.plan.customStrap" class="row">
-        <input type="color" v-model="f.strapColor" aria-label="Strap colour"
-               style="width:56px;height:44px;padding:2px;flex:none" />
-        <span class="small muted" style="flex:1">{{ f.strapColor || "Using the theme colour" }}</span>
-        <button class="btn" style="width:auto;flex:none" type="button" @click="f.strapColor = ''">Reset</button>
-      </div>
-      <p v-else class="small muted" style="margin:0">
-        Custom colours are part of Lanyard Plus.
-        <router-link to="/app/settings/plan" style="text-decoration:underline">See Plus</router-link>
-      </p>
+    <div class="field">
+      <label id="strap-label">Strap colour</label>
+      <CardSwatches v-model="f.strapColor" :theme="f.theme" />
     </div>
   </div>
 </template>

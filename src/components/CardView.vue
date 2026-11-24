@@ -28,7 +28,7 @@ const host = (url) => { try { return new URL(url).hostname.replace(/^www\./, "")
 
 <template>
   <article class="profile" :class="view.theme">
-    <div class="profile-strap" :style="view.strapColor ? { background: view.strapColor } : null">
+    <div class="profile-strap" :style="view.strapColor ? { '--card-strap': view.strapColor, '--card-strap-ink': view.strapInk || '#fff' } : null">
       <span class="profile-strap-word">lanyard</span>
       <span class="profile-strap-card">{{ view.name }}</span>
     </div>
