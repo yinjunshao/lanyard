@@ -15,6 +15,7 @@ export const PLUS_PRICE = { monthlyPence: 149, yearlyPence: 1199 };
 export const PLUS_INCLUDES = [
   { title: `Up to ${USER_PLANS.plus.cards} cards`, detail: `one for each room you walk into (Free: ${USER_PLANS.free.cards})` },
   { title: "Any card colour", detail: "the whole colour wheel for the strap, and your own text colour" },
+  { title: "Strap materials", detail: "gold, silver, rose gold, copper, pearl or carbon, with a soft sheen" },
   { title: "Choose your own card code", detail: "like your name, and change it once a week" },
   { title: "Bigger AI allowances", detail: "for follow-up drafts and people search" },
 ];

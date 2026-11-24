@@ -19,7 +19,7 @@ tags: [business, pricing]
 - Societies are hard-capped at 200 check-ins per event.
 
 ## Individuals
-- Free: 3 cards. **Plus:** £1.49 a month or £11.99 a year (`PLUS_PRICE` in `worker/plans.js`; the owner's decision of 2026-11-10). What Plus includes is still a proposal: 12 cards, any card colour (the whole colour wheel; free cards choose from ten presets) and your own text colour, your own card code and bigger AI allowances (table in [[F27 Lanyard Plus and billing]]). Waitlist stage: no money is taken until the legal identity is done.
+- Free: 3 cards. **Plus:** £1.49 a month or £11.99 a year (`PLUS_PRICE` in `worker/plans.js`; the owner's decision of 2026-11-10). What Plus includes is still a proposal: 12 cards, any card colour (the whole colour wheel; free cards choose from ten presets) your own text colour, strap materials (gold, silver and more), your own card code and bigger AI allowances (table in [[F27 Lanyard Plus and billing]]). Waitlist stage: no money is taken until the legal identity is done.
 - Never paywalled: connecting, the selfie, a basic profile. See [[D001 Hosts pay, attendees free]].
 
 ## Billing mechanics now

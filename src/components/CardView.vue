@@ -4,13 +4,18 @@
 // It shows only what the view carries: the card's own links and tags, its theme and strap.
 // What belongs to the visitor (the connect button, the selfie you took together) stays in
 // PublicCard and is passed in as this component's content, drawn at the foot of the card.
-import { computed, useSlots } from "vue";
+import { computed, onMounted, ref, useSlots, watch } from "vue";
 import Avatar from "./Avatar.vue";
 import Icon from "./Icon.vue";
 import { openPhoto } from "../lib/lightbox";
 import { subtitleOf } from "../lib/profile";
 
 const props = defineProps(["view"]);
+const root = ref(null);
+// F56: a card with a strap material lets the sheen follow the pointer (a few lines, fetched only then, on a desktop).
+const startSheen = () => { if (props.view.material) import("../lib/sheen").then((m) => m.sheen(root.value)); };
+onMounted(startSheen);
+watch(() => props.view.material, startSheen, { flush: "post" });
 // Drawn by calling the slot function, as UiSheet does: a compiled <slot> adds renderSlot to the Vue chunk every public page loads.
 const slots = useSlots();
 const Foot = () => slots.default?.();
@@ -27,8 +32,8 @@ const host = (url) => { try { return new URL(url).hostname.replace(/^www\./, "")
 </script>
 
 <template>
-  <article class="profile" :class="view.theme">
-    <div class="profile-strap" :style="view.strapColor ? { '--card-strap': view.strapColor, '--card-strap-ink': view.strapInk || '#fff' } : null">
+  <article ref="root" class="profile" :class="view.theme">
+    <div class="profile-strap" :class="view.material ? 'mat mat-' + view.material : null" :style="view.strapColor && !view.material ? { '--card-strap': view.strapColor, '--card-strap-ink': view.strapInk || '#fff' } : null">
       <span class="profile-strap-word">lanyard</span>
       <span class="profile-strap-card">{{ view.name }}</span>
     </div>

@@ -38,6 +38,7 @@ export function cardOf(form, { tags, cardId = null, code = null, creating = fals
     strapColor: form.strapColor || null,
     strapInk: form.strapColor ? strapInk(form.strapColor) : null,
     textColor: form.textColor || null,
+    material: form.material || null,
     visibleLinks: strings(form.visibleLinks, 20, 40),
     tags: strings(tags, 30, 60),
     headline: String(form.headline || "").trim().slice(0, 80),
@@ -50,7 +51,7 @@ export function cardOf(form, { tags, cardId = null, code = null, creating = fals
 export function viewOf(profile, card) {
   const f = cardFacts({ visible_links: card.visibleLinks, tags: card.tags, headline: card.headline, about: card.about }, profile);
   return {
-    cardId: card.cardId, name: card.name, note: card.note, theme: card.theme, strapColor: card.strapColor, strapInk: card.strapInk, textColor: card.textColor,
+    cardId: card.cardId, name: card.name, note: card.note, theme: card.theme, strapColor: card.strapColor, strapInk: card.strapInk, textColor: card.textColor, material: card.material,
     ...(card.code ? { code: card.code } : {}),
     viewer: { isOwner: false },
     profile: { ...profile, headline: f.headline, about: f.about, links: f.links, tags: f.tags },

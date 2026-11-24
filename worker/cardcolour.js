@@ -6,12 +6,15 @@
 // a preset. The text colour must also read on the card's paper (3:1 at least); that depends on the theme, so a save that
 // changes one is written only if the other is still what it was checked against.
 import { strictHex, isPreset, textVerdict } from "../src/lib/cardcolour.js";
+import { isMaterial } from "../src/lib/cardmaterial.js";
 import { now } from "./db.js";
 
 export const STRAP_FORMAT = "Use a colour like #C4441E: a # then six letters or numbers.";
 export const STRAP_FREE = "Free cards use one of the ten preset colours. Any colour is part of Lanyard Plus.";
 export const TEXT_FREE = "A text colour is part of Lanyard Plus.";
 export const TEXT_LOW = "That text colour is too hard to read on this card. Choose one with more contrast against the card.";
+export const MATERIAL_FREE = "A strap material is part of Lanyard Plus.";
+export const MATERIAL_FORMAT = "Choose one of the six strap materials: gold, silver, rose-gold, copper, pearl or carbon.";
 export const CHANGED = "This card changed while you were saving. Reload the page and try again.";
 const THEME_NAMES = { default: "Default", formal: "Formal", night: "Night", host: "Host" };
 export const themeText = (theme) => `Your text colour would be too hard to read on the ${THEME_NAMES[theme] || "new"} theme. Set the text colour to Auto, or choose another, in the same save.`;
@@ -75,6 +78,20 @@ export function colourChanges({ card, userId, themeIn, isPlus, b }) {
       if (textVerdict(text.value, theme).level === "no") return { error: TEXT_LOW, code: "text_low" };
       // Checked against the theme the card has now: write only if it still has it.
       if (themeIn === undefined) { out.guards.push("AND theme = ?"); out.guardArgs.push(card.theme ?? "default"); }
+    }
+  }
+  // F56: the strap material (Plus only). The same rule as the text colour: a free or lapsed account may clear it, or send back the
+  // one the card already has; a new one needs Plus now, as part of the writing statement. Only the six exact ids are accepted.
+  if ("material" in b && b.material !== undefined) {
+    const had = card.material ?? null;
+    const m = b.material;
+    if (m === null || m === "") { if (had !== null) out.fields.material = null; }
+    else if (!isMaterial(m)) return { error: MATERIAL_FORMAT, code: "bad_material" };
+    else if (m !== had) {
+      if (!isPlus) return { error: MATERIAL_FREE, code: "plus_material" };
+      out.fields.material = m;
+      out.needsPlus = true;
+      plusGuard();
     }
   }
   // A new theme with a text colour already on the card (or kept by this request): it has to read there too.

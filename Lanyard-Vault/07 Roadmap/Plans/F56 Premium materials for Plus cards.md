@@ -4,7 +4,7 @@ id: F56
 priority: P2
 phase: 10
 size: M
-status: Not started
+status: In progress
 needs: [F55]
 ---
 # F56 Premium materials for Plus cards
@@ -27,16 +27,27 @@ needs: [F55]
 - Later, not in this item: Plus-only card themes and adjustable reflectiveness (the owner said "maybe later").
 
 ## Tasks
-- [ ] F56.1 Materials: CSS, the editor row, the migration and server rule, the sheen; tests (Plus only, allowed names, free 400); vault notes; browser check of each material on the card page and My card at 375 and 1280 px, light, dark and midnight, and with reduced motion.
+- [x] F56.1 Materials: CSS, the editor row, the migration and server rule, the sheen; tests (Plus only, allowed names, free 400); vault notes; browser check of each material on the card page and My card at 375 and 1280 px, light, dark and midnight, and with reduced motion.
 
 ## Acceptance checks
 - [ ] A Plus account picks Gold; the strap on My card and the card page shows the gold material with readable text.
 - [ ] Moving the pointer over the card on desktop moves the highlight; with reduced motion it does not move.
-- [ ] A free account's request with `material: "gold"` is refused with 400.
-- [ ] Each material's strap text passes 4.5:1 (test).
-- [ ] `npm test` passes; public pages within budget.
+- [x] A free account's request with `material: "gold"` is refused with 400.
+  - Verified by `test/materials.mjs` against the real Worker: all six names and 12 other shapes from a free account are 400 and nothing else in the request is saved; also with a forged plan in the body, query or header; new cards too.
+- [x] Each material's strap text passes 4.5:1 (test).
+  - `test/materials.mjs` reads the colours from `main.css` and works out the ink on the mid tone, on 101 points along each finish, and with the moving highlight added: every one is 4.5:1 or better.
+- [x] `npm test` passes; public pages within budget.
+  - `npm test` and `npm run build` exit 0. Gzip B before to after (limit 51,200): PublicCard 47,479 to 47,633; Landing 44,166 to 44,282; Hosts 42,628 to 42,636; Privacy 50,134 to 50,140; Terms 46,752 to 46,759; Redeem 45,964 to 45,992; SignIn 47,094 to 47,102; PrivacyRequest 49,811 to 49,823.
 
 ## Log
--
+- 2026-11-24 (Claude subagent) F56.1 built and tested; **not yet looked at in a browser**, so two acceptance checks and the 375/1280 px, Light/Dark/Midnight look are open (they wait on someone running the local servers with a local Plus account).
+- **How it works:** `cards.material` (migration 0042, nullable) holds one of six exact ids (`gold`, `silver`, `rose-gold`, `copper`, `pearl`, `carbon`). The rule is in `worker/cardcolour.js` beside the colours (D052): free or lapsed accounts may clear it or send back what they have; a new one is 400 `plus_material`; a wrong name or type is 400 `bad_material`; the plan comes from the `users` row and the check is inside the write. Card views carry `material`; `Badge` and `CardView` add one class (`mat mat-gold`) and CSS draws the finish, so the public card page gained 154 B and no script. The pointer sheen is `src/lib/sheen.js`, fetched by a plain `import()` only for a card with a material on a hover device.
+- **Decisions without the owner:** the one pass when a card appears is 300 ms (D045 and `test/loading.mjs` allow nothing longer; the plan said slow); a material replaces the strap colour on screen (both stay stored); ids are lower case; the card image export draws the gradient without a highlight; "Strap materials" added to the Plus list and the redeem page.
+- **Guards changed:** `test/card-colours.mjs`, `test/people-search.mjs` and `test/stages.mjs` list or expect migration 0042; nothing weakened.
+- **Not checked:** a Plus account picking Gold and seeing it on My card and the card page; the highlight following the pointer and standing still under reduced motion (the script and CSS are tested as source and as functions only).
+
+## Owner steps
+- Apply `migrations/0042_card_material.sql` (`npm run db:remote`, additive, safe before or after the deploy), then `npm run deploy`.
+- Look at the Strap material row and a gold card once on a phone and a laptop, in Light, Dark and Midnight, and move the mouse over the card.
 
 Related: [[F55 Card colour presets and a Plus colour wheel]] · [[F27 Lanyard Plus and billing]] · back to [[00 Master To-Do]]

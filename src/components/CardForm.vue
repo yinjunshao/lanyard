@@ -10,6 +10,7 @@ import { headlineExamples } from "../lib/examples";
 import UiTagInput from "./ui/UiTagInput.vue";
 import CardSwatches from "./CardSwatches.vue";
 import CardTextColour from "./CardTextColour.vue";
+import CardMaterials from "./CardMaterials.vue";
 import { CARD_TAGS, joinTags, parseTags } from "../lib/tags";
 import { nextUid } from "./ui/uid";
 
@@ -91,6 +92,11 @@ function toggle(label) {
     <div class="field">
       <label id="text-colour-label">Text colour</label>
       <CardTextColour v-model="f.textColor" :theme="f.theme" />
+    </div>
+
+    <div class="field">
+      <label id="material-label">Strap material</label>
+      <CardMaterials v-model="f.material" />
     </div>
   </div>
 </template>

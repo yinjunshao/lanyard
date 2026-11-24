@@ -11,6 +11,9 @@ const props = defineProps({
 });
 
 const qrCanvas = ref(null);
+const root = ref(null);
+// F56: a card with a strap material lets the sheen follow the pointer (a few lines, fetched only then, on a desktop).
+const startSheen = () => { if (props.view.material) import("../lib/sheen").then((m) => m.sheen(root.value)); };
 const meta = computed(() => props.subtitle);
 // Capped so the badge never grows with the data — a long tag list or
 // headline is cut (with CSS ellipsis / line-clamp), never pushed past the
@@ -20,6 +23,8 @@ const headline = computed(() => (props.view?.profile?.headline || "").slice(0, 8
 const note = computed(() => (props.view?.note || "").slice(0, 160));
 
 onMounted(render);
+onMounted(startSheen);
+watch(() => props.view.material, startSheen, { flush: "post" });
 watch(() => props.url, render);
 async function render() {
   // The QR library is a chunk of its own, loaded here so the Landing page's first load does not carry it (F28).
@@ -32,8 +37,8 @@ async function render() {
 
 <template>
   <div class="badge-stage">
-    <div class="badge" :class="view.theme" @contextmenu.prevent>
-      <div class="badge-strap" :style="view.strapColor ? { '--card-strap': view.strapColor, '--card-strap-ink': view.strapInk || '#fff' } : null">
+    <div ref="root" class="badge" :class="view.theme" @contextmenu.prevent>
+      <div class="badge-strap" :class="view.material ? 'mat mat-' + view.material : null" :style="view.strapColor && !view.material ? { '--card-strap': view.strapColor, '--card-strap-ink': view.strapInk || '#fff' } : null">
         <div class="badge-slot"></div>
         <span class="badge-strap-word">lanyard</span>
         <span class="badge-strap-event">{{ view.name || "General" }}</span>

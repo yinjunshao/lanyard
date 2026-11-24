@@ -24,6 +24,7 @@ import { promoApp } from "./promo.js";
 import { unsubApp } from "./unsub.js";
 import { cardFacts } from "../src/lib/cardmerge.js";
 import { strapInk } from "../src/lib/cardcolour.js";
+import { isMaterial } from "../src/lib/cardmaterial.js";
 import { colourChanges, PLUS_NOW_SQL, plusNowArgs, CHANGED } from "./cardcolour.js";
 import { privacyApp } from "./privacy.js";
 import * as Alerts from "./alerts.js";
@@ -189,6 +190,8 @@ async function cardView(db, card, { forOwner = false, limited = false, shared = 
     strapInk: card.strap_color ? strapInk(card.strap_color) : null,
     // A Plus card's own text colour (null: the theme's usual), applied as one CSS custom property (F55.3).
     textColor: card.text_color || null,
+    // F56: a Plus card's strap material, one of six ids (drawn with a CSS class, so the public page needs no code for it).
+    material: isMaterial(card.material) ? card.material : null,
     eventId: card.event_id,
     ...(limited ? { limited: true } : {}),
     // The code is only ever sent to the card's owner.
@@ -626,8 +629,8 @@ app.post("/api/cards", async (c) => {
   // registered only if the card went in.
   const out = await db.batch([
     db.prepare(
-      `INSERT INTO cards (id, user_id, code, code_rotates_at, name, note, visible_links, tags, headline, about, theme, strap_color, text_color, created_at)
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cards WHERE user_id = ?) < ?
+      `INSERT INTO cards (id, user_id, code, code_rotates_at, name, note, visible_links, tags, headline, about, theme, strap_color, text_color, material, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cards WHERE user_id = ?) < ?
          AND (? = 0 OR ${PLUS_NOW_SQL})`
     ).bind(
       id, u.id, cc.code, cc.rotatesAt,
@@ -638,7 +641,7 @@ app.post("/api/cards", async (c) => {
       String(body.headline || "").trim().slice(0, 80),
       String(body.about || "").trim().slice(0, 600),
       theme,
-      colours.fields.strap_color ?? null, colours.fields.text_color ?? null,
+      colours.fields.strap_color ?? null, colours.fields.text_color ?? null, colours.fields.material ?? null,
       now(), u.id, plan.cards,
       colours.needsPlus ? 1 : 0, ...plusNowArgs(u.id)
     ),

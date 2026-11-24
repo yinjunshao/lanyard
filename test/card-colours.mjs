@@ -302,7 +302,7 @@ console.log("\n# F55.3 The migration and what the reset script does with it");
 {
   const { makeDb, migrationFiles, readMigration } = await import("./harness.mjs");
   const files = migrationFiles();
-  check("0039 is the next migration after 0038 and is named for the text colour", files.indexOf("0039_card_text_color.sql") === files.indexOf("0038_profile_nudges.sql") + 1 && files.slice(files.indexOf("0039_card_text_color.sql") + 1).every((f) => ["0040_event_suggest.sql", "0041_user_stages.sql"].includes(f))); // F60's 0040 and F59's 0041 are the only later ones
+  check("0039 is the next migration after 0038 and is named for the text colour", files.indexOf("0039_card_text_color.sql") === files.indexOf("0038_profile_nudges.sql") + 1 && files.slice(files.indexOf("0039_card_text_color.sql") + 1).every((f) => ["0040_event_suggest.sql", "0041_user_stages.sql", "0042_card_material.sql"].includes(f))); // F60's 0040, F59's 0041 and F56's 0042 are the only later ones
   const sql = readMigration("0039_card_text_color.sql").replace(/--.*$/gm, "").trim();
   check("it only adds one nullable column to cards (additive, safe to apply before the new code is deployed)", sql === "ALTER TABLE cards ADD COLUMN text_color TEXT;" && !/NOT NULL|DEFAULT|DROP|UPDATE|DELETE/i.test(sql));
   const before = makeDb({ before: "0039" });

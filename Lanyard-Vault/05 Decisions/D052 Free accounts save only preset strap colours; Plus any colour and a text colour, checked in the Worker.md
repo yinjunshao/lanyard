@@ -21,7 +21,7 @@ date: 2026-11-24
 ## Consequences
 - A free account that used to see only "Custom colours are part of Lanyard Plus" now picks from ten. The older refusal was 402 `plan_limit`; it is now 400 `plus_colour`.
 - Plus can no longer be bypassed by editing the form, but a free account cannot have a brand colour that is not a preset. Hosts' event colours are separate ([[F18 Live previews for cards and events]]) and unchanged.
-- [[F56 Premium materials for Plus cards]] adds a materials choice under the same rule.
+- [[F56 Premium materials for Plus cards]] adds a materials choice under the same rule (built: `cards.material`, one of six exact ids, Plus only, the check inside the write like the colours; a free or lapsed account may clear it or send back what it has; a material replaces the strap colour on the page).
 
 **Evidence:** `src/lib/cardcolour.js`, `worker/cardcolour.js`, `worker/index.js` (`/api/cards`), `src/components/CardSwatches.vue`, `test/card-colours.mjs`
 

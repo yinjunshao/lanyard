@@ -31,6 +31,7 @@ Still a proposal. The Plan page shows the list from `PLUS_INCLUDES` in `worker/p
 | Cards | 3 | 12 |
 | Strap colour ([[F55 Card colour presets and a Plus colour wheel]], [[D052 Free accounts save only preset strap colours; Plus any colour and a text colour, checked in the Worker]]) | ten presets | any colour on the wheel |
 | Card text colour | no | yes |
+| Strap material ([[F56 Premium materials for Plus cards]]) | none | Gold, Silver, Rose gold, Copper, Pearl, Carbon |
 | AI follow-up drafts ([[F22 AI follow-up drafts]]) | 3 a day / 15 a month | 15 a day / 150 a month |
 | "Do I know someone who…" ([[F24 Do I know someone who]]) | 5 a day | 30 a day |
 | Never paywalled | connecting, selfies, profile, notes, People, events | same |

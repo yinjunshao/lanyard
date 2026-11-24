@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { strapInk, strictHex } from "./cardcolour.js";
+import { materialOf, MATERIAL_AT } from "./cardmaterial.js";
 
 // Badge colours. These mirror the CSS custom properties on `.badge` in
 // main.css, because the PNG export is a scaled-up replica of the on-screen
@@ -106,7 +107,8 @@ export async function drawBadge(canvas, view, url) {
   const t = { ...(THEMES[view?.theme === "night" ? "night" : view?.theme === "formal" ? "formal" : "light"]) };
   if (view?.strapColor) t.strap = view.strapColor;
   t.text = strictHex(view?.textColor) || t.ink; // F55.3: a Plus card's own text colour for the words (the borders stay the theme's ink)
-  const strapText = view?.strapColor ? strapInk(view.strapColor) : "#fff"; // F55: white or black, whichever reads on the strap
+  const mat = materialOf(view?.material); // F56: a Plus card's strap material replaces the colour
+  const strapText = mat ? mat.ink : view?.strapColor ? strapInk(view.strapColor) : "#fff"; // F55: white or black, whichever reads on the strap
   const p = view?.profile || {};
 
   await document.fonts.ready;
@@ -180,7 +182,15 @@ export async function drawBadge(canvas, view, url) {
   const ix = cx + B, iy = cy + B, iw = CARD_W - 2 * B;
 
   // ---- strap ----
-  ctx.fillStyle = t.strap; ctx.fillRect(ix, iy, iw, 76);
+  ctx.fillStyle = t.strap;
+  if (mat) {
+    // The same 115 degree gradient as the CSS, drawn along the strap's gradient line (no moving highlight in a picture).
+    const dx = Math.sin((115 * Math.PI) / 180), dy = -Math.cos((115 * Math.PI) / 180), half = (Math.abs(iw * dx) + Math.abs(76 * dy)) / 2;
+    const g = ctx.createLinearGradient(ix + iw / 2 - dx * half, iy + 38 - dy * half, ix + iw / 2 + dx * half, iy + 38 + dy * half);
+    mat.stops.forEach((c, i) => g.addColorStop(MATERIAL_AT[i] / 100, c));
+    ctx.fillStyle = g;
+  }
+  ctx.fillRect(ix, iy, iw, 76);
   ctx.fillStyle = "rgba(0,0,0,0.32)";
   rr(ctx, ix + iw / 2 - 36, iy + 20, 72, 15, 3); ctx.fill();
   mctx.font = FONT(15, 700);
