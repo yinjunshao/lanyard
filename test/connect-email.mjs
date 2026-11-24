@@ -7,6 +7,7 @@ import { setSetting } from "../worker/ai/store.js";
 import { findUserByEmail } from "../worker/email-auth.js";
 import { mailableAddress, releaseMail, confirmLink, validTz, setPending, PENDING_MAIL_CAP, CONFIRM_TTL, PENDING_KEEP } from "../worker/pending-email.js";
 import { withConfirm, confirmEmail } from "../worker/mail-templates.js";
+import { emailLayout } from "../worker/mail-layout.js";
 import { purgeExpired } from "../worker/purge.js";
 
 const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
@@ -370,7 +371,7 @@ console.log("\n# Bar 6: mailableAddress and the two-email cap");
   const got = await Promise.all(Array.from({ length: 8 }, () => mailableAddress(slow, gid)));
   check("with one already sent, eight calls at once give exactly one", got.filter(Boolean).length === 1);
   const link = await confirmLink(env.DB, "https://lanyard.test", gid, "gwen@example.com");
-  const msg = withConfirm({ subject: "Time to follow up", text: "Body", html: "<p>Body</p>" }, link);
+  const msg = withConfirm({ subject: "Time to follow up", text: "Body", html: emailLayout({ title: "Time to follow up", bodyHtml: "<p>Body</p>" }) }, link); // F58: the HTML is a finished email
   check("withConfirm adds the Confirm it's you button and link to an email for F48 and F49", msg.text.includes(link) && msg.html.includes("Confirm it&#39;s you") && msg.subject === "Time to follow up");
   check("withConfirm leaves an email for a confirmed address as it is", JSON.stringify(withConfirm({ subject: "s", text: "t", html: "h" }, null)) === JSON.stringify({ subject: "s", text: "t", html: "h" }));
   check("the confirm email itself is plain text and HTML, UK English, no emoji", /Confirm it's you: https:/.test(confirmEmail({ url: "https://x/y", reason: "card" }).text) && !/\p{Extended_Pictographic}/u.test(JSON.stringify(confirmEmail({ url: "u", reason: "connect" }))));

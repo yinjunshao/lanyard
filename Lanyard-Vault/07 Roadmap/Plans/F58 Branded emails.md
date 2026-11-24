@@ -4,7 +4,7 @@ id: F58
 priority: P1
 phase: 10
 size: M
-status: Not started
+status: In progress
 needs: [F45, F48, F49]
 ---
 # F58 Branded emails
@@ -33,7 +33,7 @@ needs: [F45, F48, F49]
 - Tests: every template goes through the layout, user text is escaped (try `<script>` and `"` in a name and event name), no `http` image sources, the stop link and List-Unsubscribe headers are kept where they were, plain text present.
 
 ## Tasks
-- [ ] F58.1 Build `emailLayout` and the preview script; move the templates in `mail-templates.js` onto it.
+- [x] F58.1 Build `emailLayout` and the preview script; move the templates in `mail-templates.js` onto it.
 - [ ] F58.2 Move every other email (sign-in, magic link, confirm email, host, invites, privacy, security) onto it; tests; vault notes ([[Codebase Map]], [[Design System]] email section); open the preview pages at 375 and 1280 px in a browser, light and dark.
 
 ## Acceptance checks

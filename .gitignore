@@ -57,6 +57,9 @@ brag-output-*/
 *.tar.gz
 *.exe
 
+# Email preview output (F58): written by npm run mail:preview, never committed
+scratch/
+
 # Local tool state
 .claude/settings.local.json
 Lanyard-Vault/.obsidian/workspace*.json

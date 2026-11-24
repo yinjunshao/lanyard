@@ -1,9 +1,6 @@
 // Wording for event and security emails (the sending itself lives in mail.js).
-import { escapeHtml } from "./mail.js";
-
-const paragraphs = (text) => String(text).split(/\n{2,}/).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("");
-const button = (url, label) => `<p><a href="${escapeHtml(url)}" style="display:inline-block;padding:10px 18px;background:#1B1A17;color:#fff;border-radius:8px;text-decoration:none">${escapeHtml(label)}</a></p>`;
-const small = (html) => `<p style="color:#6B675F;font-size:12px">${html}</p>`;
+// F58: every HTML part is made by emailLayout (worker/mail-layout.js); this file holds the words and the plain text.
+import { escapeHtml, emailLayout, paragraphs, para, panel, bullets, link, small, button, addToBody } from "./mail-layout.js";
 
 // To someone who checked in but hasn't answered. Sent once, a day after the event.
 export function feedbackReminderEmail({ eventName, url, stopUrl }) {
@@ -11,7 +8,13 @@ export function feedbackReminderEmail({ eventName, url, stopUrl }) {
   return {
     subject: `How was ${eventName}?`,
     text: `${body}\n\nGive feedback: ${url}\n\nThis is the only reminder we'll send for this event. Stop these emails: ${stopUrl}`,
-    html: `${paragraphs(body)}${button(url, "Give feedback")}${small(`This is the only reminder we'll send for this event. <a href="${escapeHtml(stopUrl)}">Stop these emails</a>`)}`,
+    html: emailLayout({
+      title: `How was ${eventName}?`,
+      preheader: "It takes under a minute, and your answers are anonymous.",
+      bodyHtml: paragraphs(body),
+      button: { url, label: "Give feedback" },
+      footerHtml: small(`This is the only reminder we'll send for this event. ${link(stopUrl, "Stop these emails")}`),
+    }),
     headers: { "List-Unsubscribe": `<${stopUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
   };
 }
@@ -31,11 +34,17 @@ export function followupReminderEmail({ people, total, stopUrl, listUrl }) {
   const one = shown.length === 1 && more === 0;
   const intro = `It's time to follow up with ${who}.`;
   const foot = "You set this reminder in Lanyard.";
-  const rows = shown.map((p) => `<p style="margin:4px 0"><a href="${escapeHtml(p.url)}">${escapeHtml(p.first)}</a>${escapeHtml(met(p))}</p>`).join("");
+  const rows = para(shown.map((p) => `${link(p.url, p.first)}${escapeHtml(met(p))}`).join("<br>"));
   return {
     subject: `Time to follow up with ${who}`,
     text: `${intro}\n\n${shown.map((p) => `${p.first}${met(p)}: ${p.url}`).join("\n")}${more > 0 ? `\n\nThe rest are in your People list: ${listUrl}` : ""}\n\n${foot} Stop these emails: ${stopUrl}`,
-    html: `${paragraphs(intro)}${rows}${button(one ? shown[0].url : listUrl, one ? `Open ${shown[0].first}'s page` : "Open your People list")}${small(`${foot} <a href="${escapeHtml(stopUrl)}">Stop these emails</a>`)}`,
+    html: emailLayout({
+      title: "Time to follow up",
+      preheader: intro,
+      bodyHtml: `${paragraphs(intro)}${rows}`,
+      button: { url: one ? shown[0].url : listUrl, label: one ? `Open ${shown[0].first}'s page` : "Open your People list" },
+      footerHtml: small(`${escapeHtml(foot)} ${link(stopUrl, "Stop these emails")}`),
+    }),
     headers: { "List-Unsubscribe": `<${stopUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
   };
 }
@@ -56,7 +65,13 @@ export function profileNudgeEmail({ second, names, score, max, missing, url, sto
   return {
     subject,
     text: `${intro}\n\nStill to add:\n${items.map((m) => `- ${m}`).join("\n")}\n\nFinish your card: ${url}\n\n${foot} Stop these emails: ${stopUrl}`,
-    html: `${paragraphs(intro)}<p style="margin:4px 0">Still to add:</p><ul style="margin:4px 0 12px">${items.map((m) => `<li>${escapeHtml(m)}</li>`).join("")}</ul>${button(url, "Finish your card")}${small(`${escapeHtml(foot)} <a href="${escapeHtml(stopUrl)}">Stop these emails</a>`)}`,
+    html: emailLayout({
+      title: second ? "Your card is still unfinished" : "Finish your Lanyard card",
+      preheader: intro,
+      bodyHtml: `${paragraphs(intro)}${paragraphs("Still to add:")}${bullets(items)}`,
+      button: { url, label: "Finish your card" },
+      footerHtml: small(`${escapeHtml(foot)} ${link(stopUrl, "Stop these emails")}`),
+    }),
     headers: { "List-Unsubscribe": `<${stopUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
   };
 }
@@ -73,7 +88,13 @@ export function hostSummaryEmail({ eventName, checkins, connections, responses, 
   // F23: a summary the organiser already asked for. Always labelled, and always with the answers a click away.
   if (aiSummary?.paragraph) lines.push(`Written by AI from ${aiSummary.answers} written answers (check it against the answers before you share it):\n${aiSummary.paragraph}`);
   const text = `${lines.join("\n\n")}\n\nOpen the report: ${url}`;
-  return { subject: `How ${eventName} went`, text, html: `${paragraphs(lines.join("\n\n"))}${button(url, "Open the report")}` };
+  const html = emailLayout({
+    title: `How ${eventName} went`,
+    preheader: `${checkins} checked in, ${connections} connections, ${responses} feedback answers so far.`,
+    bodyHtml: `${paragraphs(lines[0])}${panel(lines[1])}${paragraphs(lines.slice(2).join("\n\n"))}`,
+    button: { url, label: "Open the report" },
+  });
+  return { subject: `How ${eventName} went`, text, html };
 }
 
 // F23: sent once to the person who runs the event, after its feedback window has closed, when the summary has been written.
@@ -84,7 +105,13 @@ export function feedbackSummaryEmail({ eventName, paragraph, answers, url }) {
     `Written by AI from ${answers} written answers. It can be wrong, so read the answers before you share it. The report has the counts, a few quotes taken word for word, and all the answers.`,
   ];
   const nn = "\n\n";
-  return { subject: `Feedback summary for ${eventName}`, text: `${lines.join(nn)}${nn}Open the report: ${url}`, html: `${paragraphs(lines.join(nn))}${button(url, "Open the report")}` };
+  const html = emailLayout({
+    title: "Feedback summary",
+    preheader: `The written answers for ${eventName}, summarised.`,
+    bodyHtml: paragraphs(lines.join(nn)),
+    button: { url, label: "Open the report" },
+  });
+  return { subject: `Feedback summary for ${eventName}`, text: `${lines.join(nn)}${nn}Open the report: ${url}`, html };
 }
 
 // "New sign-in": sent to the account's verified email when someone signs in with a passkey, code or key.
@@ -99,7 +126,13 @@ export function signInAlertEmail({ how, device, where, at, revokeUrl, settingsUr
   return {
     subject: "New sign-in to your Lanyard account",
     text,
-    html: `${paragraphs(lines.join("\n\n"))}${button(revokeUrl, "This wasn't me: sign out everywhere")}${small(`The link works for 7 days. <a href="${escapeHtml(settingsUrl)}">Review sign-in options</a>`)}`,
+    html: emailLayout({
+      title: "New sign-in to your account",
+      preheader: "If this was you, there's nothing to do.",
+      bodyHtml: `${paragraphs(lines[0])}${panel(lines[1])}${paragraphs(lines[2])}`,
+      button: { url: revokeUrl, label: "This wasn't me: sign out everywhere" },
+      footerHtml: small(`The link works for 7 days. ${link(settingsUrl, "Review sign-in options")}`),
+    }),
   };
 }
 
@@ -116,7 +149,13 @@ export function passkeyRemovedEmail({ name, device, where, at, revokeUrl, settin
   return {
     subject: "A passkey was removed from your Lanyard account",
     text,
-    html: `${paragraphs(lines.join(nn))}${button(revokeUrl, "This wasn't me: sign out everywhere")}${small(`The link works for 7 days. <a href="${escapeHtml(settingsUrl)}">Review sign-in options</a>`)}`,
+    html: emailLayout({
+      title: "A passkey was removed",
+      preheader: "If this was you, there's nothing to do. Your other ways to sign in still work.",
+      bodyHtml: `${paragraphs(lines[0])}${panel(lines[1])}${paragraphs(lines[2])}`,
+      button: { url: revokeUrl, label: "This wasn't me: sign out everywhere" },
+      footerHtml: small(`The link works for 7 days. ${link(settingsUrl, "Review sign-in options")}`),
+    }),
   };
 }
 
@@ -128,7 +167,13 @@ export function inactiveEmail({ origin, days }) {
   ];
   const nn = "\n\n";
   const text = lines.join(nn) + nn + `Sign in: ${origin}/signin`;
-  return { subject: "Your Lanyard account will be deleted soon", text, html: paragraphs(lines.join(nn)) + button(`${origin}/signin`, "Keep my account") };
+  const html = emailLayout({
+    title: "Your account will be deleted soon",
+    preheader: "To keep it, just sign in once.",
+    bodyHtml: paragraphs(lines.join(nn)),
+    button: { url: `${origin}/signin`, label: "Keep my account" },
+  });
+  return { subject: "Your Lanyard account will be deleted soon", text, html };
 }
 
 // F45: the first email to an address a new person typed (connecting, or step 5 of making a card). It names no one
@@ -144,7 +189,13 @@ export function confirmEmail({ url, reason }) {
   return {
     subject: "Confirm your email for Lanyard",
     text: `${lines.join(nn)}${nn}Confirm it's you: ${url}${nn}${foot}`,
-    html: `${paragraphs(lines.join(nn))}${button(url, "Confirm it's you")}${small(escapeHtml(foot))}`,
+    html: emailLayout({
+      title: "Confirm your email",
+      preheader: "Confirm it's you, so you can sign in with this email on any device.",
+      bodyHtml: paragraphs(lines.join(nn)),
+      button: { url, label: "Confirm it's you" },
+      footerHtml: small(escapeHtml(foot)),
+    }),
   };
 }
 
@@ -156,6 +207,28 @@ export function withConfirm(message, url) {
   return {
     ...message,
     text: `${message.text}\n\n${line}\nConfirm it's you: ${url}`,
-    html: `${message.html}${small(escapeHtml(line))}${button(url, "Confirm it's you")}`,
+    html: addToBody(message.html, `${small(escapeHtml(line))}${button(url, "Confirm it's you", { secondary: true })}`),
   };
+}
+
+// Privacy requests and complaints (worker/privacy.js): the acknowledgement sent straight away.
+export function privacyAckEmail({ kind, id }) {
+  const what = kind === "complaint" ? "complaint" : "request";
+  const text = `We have received your ${what} (reference ${id}). We will deal with it without undue delay and tell you the outcome within 30 days.\n\nIf you need to add something, send another message at lanyd.fyi/privacy-request and quote the reference.`;
+  const html = emailLayout({
+    title: `We got your ${what}`,
+    preheader: `Reference ${id}. We will tell you the outcome within 30 days.`,
+    bodyHtml: paragraphs(text),
+  });
+  return { subject: `We got your ${what} (${id})`, text, html };
+}
+
+// The admin's warning that AI spend has passed a share of its budget (worker/ai/alerts.js).
+export function aiBudgetAlertEmail({ pct, label, text }) {
+  const html = emailLayout({
+    title: `AI spend at ${pct}% of the budget`,
+    preheader: `Spend for ${label} has passed ${pct}% of the budget.`,
+    bodyHtml: paragraphs(text),
+  });
+  return { subject: `Lanyard AI spend at ${pct}% of the budget ${label}`, text, html };
 }
