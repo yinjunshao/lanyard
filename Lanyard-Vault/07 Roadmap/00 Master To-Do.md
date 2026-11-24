@@ -59,6 +59,11 @@ These block the items in brackets. Tick each one and write the answer in the lin
 - [x] White text on the strap orange `#D9502B` is 4.09:1, under 4.5:1 ([[F54 Midnight app theme]], [[F55 Card colour presets and a Plus colour wheel]]): **deepen it slightly to `#C4441E` everywhere** (answered 2026-11-24)
 - [x] Profile import from a PDF ([[F62 Fill your profile from LinkedIn or a CV]]): **text read on the device, only text sent to the AI; LinkedIn PDF and any CV; on the first welcome step and Edit profile; 3 AI imports a month for everyone, plain parser past that** (answered 2026-11-24)
 
+- [x] Copying the latest event's settings into a new event ([[F64 New events start from the host's latest settings]]): **copy "What this event collects" too, with a "From your last event" line and a Review row** (answered 2026-11-24; narrows [[D038 Named attendance is per event, shown on the check-in page and pre-ticked by the owner's choice]]; risk recorded in the plan note)
+- [x] What a host chooses an event's look from ([[F65 Event themes and an advanced look]]): **designed themes, plus an advanced mode with any brand colour and the company's own branding** (answered 2026-11-24)
+- [x] Lanyard's mark on a host-branded page ([[F66 Host branding on event pages]]): **a small "Check in with Lanyard" line stays** (answered 2026-11-24)
+- [x] Who gets company branding ([[F66 Host branding on event pages]]): **paid events only** (answered 2026-11-24)
+
 ## Build order
 Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a week or more. Priorities: **P0** now · **P1** next · **P2** after · **P3** only if needed.
 
@@ -146,9 +151,27 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F61** [[F61 Matching profiles for better suggestions]] · P3 · L · Needs: F60 (research and an owner choice before any code)
 - [ ] **F62** [[F62 Fill your profile from LinkedIn or a CV]] · P1 · L · Needs: F21, F14 (added 2026-11-24 from the owner's LinkedIn question; no scraping, the person's own PDF read on their device; F21 is still waiting on its real-key check, so building needs the owner's say-so to build on F21 as it stands)
 
+### Phase 11: owner requests (2026-11-24, second batch)
+Build order: F68, F63, F67, F64, F65, F66. F61's research note can be written alongside, since it touches only its own note.
+- [ ] **F68** [[F68 Event status on event lists]] · P1 · S · Needs: F15
+- [ ] **F63** [[F63 Create event form refresh]] · P1 · M · Needs: F30
+- [ ] **F67** [[F67 Check-in page layout]] · P1 · S · Needs: F63
+- [ ] **F64** [[F64 New events start from the host's latest settings]] · P1 · S · Needs: F63, F31, F60 (collects copied by owner decision, 2026-11-24; narrows D038; risk recorded in the plan note; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so)
+- [ ] **F65** [[F65 Event themes and an advanced look]] · P1 · M · Needs: F63, F55
+- [ ] **F66** [[F66 Host branding on event pages]] · P2 · L · Needs: F65 (paid events only, with a "Check in with Lanyard" line, by owner decision, 2026-11-24)
+
 ## Dependency map
 ```mermaid
 graph LR
+  F15 --> F68
+  F30 --> F63
+  F63 --> F67
+  F63 --> F64
+  F31 --> F64
+  F60 --> F64
+  F63 --> F65
+  F55 --> F65
+  F65 --> F66
   F21 --> F62
   F14 --> F62
   F40 --> F57
@@ -228,6 +251,8 @@ graph LR
 | F58 | Worker only, no migration: with the F45 to F50 row (or alone) `npm run deploy`. Then one real email of each main kind (sign-in code, confirm your email, follow-up reminder, finish your profile, a host email) in Gmail on the web and a phone and in Outlook, light and dark. To look first: `npm run mail:preview`, then open `scratch/mail-preview/index.html` | [[F58 Branded emails]] |
 | F37 | `npm run deploy` (no migration, no secret; keep `https://lanyd.fyi` first in `APP_ORIGIN`). Then check real previews of `/`, `/hosts`, a card and an event in the LinkedIn Post Inspector, opengraph.xyz, the Facebook Sharing Debugger, WhatsApp and Slack; optional Search Console (submit the sitemap, inspect a card: "noindex"). Decide whether the Privacy Policy should say that a shared card link previews the name, headline and photo | [[F37 SEO and link previews]], [[Deployment]] |
 | F62 | After F21 is on (no migration): `npm run deploy`. Then, with your own address on the allow-list, fill a test profile from your own LinkedIn "Save to PDF" file and from one real two-column CV, and judge the fields. Decide whether the new Privacy Policy line needs a Terms and Privacy version bump | [[F62 Fill your profile from LinkedIn or a CV]] |
+| F63, F64, F67, F68 | Front end and Worker only, no migration expected: `npm run deploy`. Then create one event on the host site on a phone and a laptop, and look at the check-in page and both event lists | [[F63 Create event form refresh]], [[F64 New events start from the host's latest settings]], [[F67 Check-in page layout]], [[F68 Event status on event lists]] |
+| F66 | `npm run db:remote` (the F66 migration, additive) before `npm run deploy`. Upload your own test logo on a paid test event and look at Present, the check-in page and print. Decide whether the new Terms line on names and logos needs a version bump | [[F66 Host branding on event pages]] |
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
