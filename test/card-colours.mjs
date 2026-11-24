@@ -219,11 +219,83 @@ console.log("\n# F55.1 Where the colour is drawn, and the page's code");
   const qr = read("src/lib/qr.js");
   check("the card image export draws the strap and its words in the card's colours", /strapInk\(view\.strapColor\)/.test(qr) && /color: strapText, ls: -0\.15/.test(qr) && /color: strapText, ls: 1\.26/.test(qr));
   const sw = read("src/components/CardSwatches.vue"), form = read("src/components/CardForm.vue"), cards = read("src/views/Cards.vue");
-  check("the swatches are a radio group of round buttons 44 px square with a ring on the chosen one and the name as the label", /role="radiogroup"/.test(sw) && /role="radio"/.test(sw) && /width: 44px; height: 44px/.test(sw) && /border-radius: 50%/.test(sw) && /\.swatch\[aria-checked="true"\] \.sw-ring \{ opacity: 1/.test(sw) && /:aria-label="p\.name" :title="p\.name"/.test(sw));
+  check("the swatches are a radio group of round buttons 44 px square with a ring on the chosen one and the name as the label", /role="radiogroup"/.test(sw) && /role="radio"/.test(sw) && /width: 44px; height: 44px/.test(sw) && /border-radius: 50%/.test(sw) && /\.swatch\[aria-checked="true"\] \.sw-ring, \.swatch\.on \.sw-ring \{ opacity: 1/.test(sw) && /:aria-label="p\.name" :title="p\.name"/.test(sw));
   check("the swatches move with the arrow keys, Home and End, with one tab stop", /ArrowRight/.test(sw) && /ArrowLeft/.test(sw) && /Home: 0/.test(sw) && /:tabindex="tabbable\(p, i\) \? 0 : -1"/.test(sw));
   check("a free account's Custom swatch is a link to the Plus page that saves nothing", /v-if="!me\.plan\.customStrap" class="swatch swatch-custom" to="\/app\/settings\/plan"/.test(sw) && /Plus<\/span>/.test(sw));
   check("the swatch motion uses the tokens, moves only transform and opacity, and stops under reduced motion", /transition: transform var\(--dur-fast\) var\(--ease-out\)/.test(sw) && /transition: opacity var\(--dur-fast\) var\(--ease-out\), transform var\(--dur-fast\) var\(--ease-out\)/.test(sw) && /prefers-reduced-motion: reduce/.test(sw) && !/\d+ms/.test(sw));
   check("the card form shows the swatches for a new card and an edited one, and My cards sends the colour as it is", /<CardSwatches v-model="f\.strapColor" :theme="f\.theme" \/>/.test(form) && !/show-strap|showStrap/.test(form + cards) && /"POST", \{ \.\.\.rest, tags: tagList\(tagsText\) \}/.test(cards) && !/me\.plan\.customStrap\) body/.test(cards));
+}
+
+console.log("\n# F55.2 The colour panel: hex reading, the colour sums and the keyboard model (pure functions)");
+{
+  const { hexToHsv, hsvToHex, squareKey, hueKey, pointToSv, pointToHue, readHexBox, pushRecent, cleanRecent } = await import("../src/lib/colourpanel.js");
+  let bad = 0, n = 0;
+  for (let r = 0; r < 256; r += 15) for (let g = 0; g < 256; g += 15) for (let b = 0; b < 256; b += 15) {
+    const hex = "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase(); n++;
+    if (hsvToHex(hexToHsv(hex)) !== hex) bad++;
+  }
+  check(`hex to hue/saturation/brightness and back gives the same colour for ${n} colours across the cube`, bad === 0, bad);
+  const red = hexToHsv("#FF0000"), green = hexToHsv("#00FF00"), blue = hexToHsv("#0000FF"), grey = hexToHsv("#808080", 200);
+  check("red, green and blue are hue 0, 120 and 240 at full saturation and brightness", red.h === 0 && green.h === 120 && blue.h === 240 && [red, green, blue].every((c) => c.s === 1 && c.v === 1));
+  check("grey has no saturation and keeps the hue it was given (typing 808080 does not throw the slider to red)", grey.s === 0 && grey.h === 200 && Math.abs(grey.v - 128 / 255) < 1e-9);
+  check("black and white come out as #000000 and #FFFFFF from any hue", hsvToHex({ h: 123, s: 0, v: 0 }) === "#000000" && hsvToHex({ h: 300, s: 0, v: 1 }) === "#FFFFFF" && hsvToHex({ h: 360, s: 1, v: 1 }) === "#FF0000");
+
+  const at = { h: 100, s: 0.5, v: 0.5 };
+  check("in the square, Right and Left change saturation by 1%, Up and Down brightness by 1%, and the hue is never touched", squareKey(at, "ArrowRight").s === 0.51 && squareKey(at, "ArrowLeft").s === 0.49 && squareKey(at, "ArrowUp").v === 0.51 && squareKey(at, "ArrowDown").v === 0.49 && ["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].every((k) => squareKey(at, k).h === 100));
+  check("with Shift the steps are 10%", squareKey(at, "ArrowRight", true).s === 0.6 && squareKey(at, "ArrowDown", true).v === 0.4);
+  check("Home and End are no and full saturation; Page Down and Page Up are the darkest and the brightest", squareKey(at, "Home").s === 0 && squareKey(at, "End").s === 1 && squareKey(at, "PageDown").v === 0 && squareKey(at, "PageUp").v === 1);
+  check("the square stops at its edges (never below 0 or above 1)", squareKey({ h: 0, s: 1, v: 1 }, "ArrowRight").s === 1 && squareKey({ h: 0, s: 1, v: 1 }, "ArrowUp").v === 1 && squareKey({ h: 0, s: 0, v: 0 }, "ArrowLeft", true).s === 0 && squareKey({ h: 0, s: 0, v: 0 }, "ArrowDown", true).v === 0);
+  check("the square leaves every other key to the page (Tab, Enter, Escape, Space, letters give null)", ["Tab", "Enter", "Escape", " ", "a", "Shift", "Backspace"].every((k) => squareKey(at, k) === null));
+  let p = { h: 10, s: 0, v: 0 };
+  for (let i = 0; i < 33; i++) p = squareKey(p, "ArrowRight");
+  for (let i = 0; i < 100; i++) p = squareKey(p, "ArrowUp");
+  check("33 presses of Right give exactly 33% (no drift), and 100 of Up reach the top", p.s === 0.33 && p.v === 1);
+  let q = { h: 0, s: 0.5, v: 0.5 };
+  const seen = new Set();
+  for (let i = 0; i < 100; i++) { q = squareKey(q, "ArrowRight"); seen.add(hsvToHex(q)); }
+  check("keys alone can reach any point: from the middle, 50 presses of Right reach full saturation, and every step is a different colour", q.s === 1 && seen.size >= 50);
+
+  const hu = { h: 100, s: 0.4, v: 0.7 };
+  check("on the hue slider, Right and Up go on one degree, Left and Down back one, and saturation and brightness are untouched", hueKey(hu, "ArrowRight").h === 101 && hueKey(hu, "ArrowUp").h === 101 && hueKey(hu, "ArrowLeft").h === 99 && hueKey(hu, "ArrowDown").h === 99 && hueKey(hu, "ArrowRight").s === 0.4 && hueKey(hu, "ArrowRight").v === 0.7);
+  check("with Shift the hue goes 15 degrees; Page Up and Page Down 30; Home is red (0) and End is 359", hueKey(hu, "ArrowRight", true).h === 115 && hueKey(hu, "ArrowLeft", true).h === 85 && hueKey(hu, "PageUp").h === 130 && hueKey(hu, "PageDown").h === 70 && hueKey(hu, "Home").h === 0 && hueKey(hu, "End").h === 359);
+  check("the slider stops at its ends and leaves other keys to the page", hueKey({ ...hu, h: 0 }, "ArrowLeft").h === 0 && hueKey({ ...hu, h: 359 }, "ArrowRight").h === 359 && ["Tab", "Enter", "Escape", "a"].every((k) => hueKey(hu, k) === null));
+
+  check("a press at a point in the square is saturation across and brightness up, and a press outside is held to the edge", JSON.stringify(pointToSv(0, 0, 200, 100)) === '{"s":0,"v":1}' && JSON.stringify(pointToSv(200, 100, 200, 100)) === '{"s":1,"v":0}' && pointToSv(100, 50, 200, 100).s === 0.5 && pointToSv(-30, 500, 200, 100).s === 0 && pointToSv(-30, 500, 200, 100).v === 0 && pointToSv(900, -5, 200, 100).s === 1 && pointToSv(900, -5, 200, 100).v === 1);
+  check("a press on the hue slider is the position along it (0 to 359) and never divides by nothing", pointToHue(0, 200) === 0 && pointToHue(100, 200) === 180 && pointToHue(200, 200) === 359 && pointToHue(-4, 200) === 0 && pointToHue(5, 0) === 0 && pointToSv(5, 5, 0, 0).s === 0);
+
+  check("the hex box takes #RRGGBB, RRGGBB, #RGB and RGB, in any case, with spaces around", ["#1A2B3C", "1a2b3c", " #1a2b3c ", "#1a2b3c"].every((t) => readHexBox(t).hex === "#1A2B3C") && readHexBox("#abc").hex === "#AABBCC" && readHexBox("F0a").hex === "#FF00AA");
+  const nots = ["", "#", "12", "#12", "12345", "#12345", "1234567", "#12345g", "red", "rgb(0,0,0)", "#12 34 56"].map(readHexBox);
+  check("anything else is refused with words for the field (type a colour like 1A2B3C)", nots.every((r) => r.hex === null && /1A2B3C/.test(r.why)));
+
+  const keep = ["#111111", "#222222"];
+  const a1 = pushRecent(keep, "#333333");
+  check("the recent list puts the newest first and does not change the list it was given", JSON.stringify(a1) === '["#333333","#111111","#222222"]' && keep.length === 2);
+  check("a colour used again moves to the front rather than appearing twice, and it is stored in capitals", JSON.stringify(pushRecent(["#111111", "#222222", "#333333"], "#2222222".slice(0, 7))) === '["#222222","#111111","#333333"]' && pushRecent([], "abc")[0] === "#AABBCC");
+  let list = [];
+  for (let i = 1; i <= 8; i++) list = pushRecent(list, "#00000" + i);
+  check("only the last five are kept, newest first", list.length === 5 && list[0] === "#000008" && list[4] === "#000004");
+  check("a colour that is not one is not added", JSON.stringify(pushRecent(["#111111"], "nope")) === '["#111111"]');
+  check("what is read back from storage keeps only real colours, no repeats, five at most", JSON.stringify(cleanRecent(["#111111", "#111111", "red", 5, null, "#abcdef", "#222222", "#333333", "#444444", "#555555", "#666666"])) === '["#111111","#222222","#333333","#444444","#555555"]' && cleanRecent("nope").length === 0 && cleanRecent(null).length === 0 && cleanRecent({}).length === 0);
+}
+
+console.log("\n# F55.2 The colour panel: what the page does (source)");
+{
+  const panel = read("src/components/CardColourPanel.vue"), sw = read("src/components/CardSwatches.vue"), form = read("src/components/CardForm.vue");
+  check("the panel is a lazy chunk, fetched when Custom is first pressed (a hand-made dynamic import, drawn only once loaded; defineAsyncComponent would add 0.8 KB to the Vue code every public page loads)", /Panel\.value = \(await import\("\.\/CardColourPanel\.vue"\)\)\.default/.test(sw) && /v-if="Panel && me\.plan\.customStrap"/.test(sw) && !/defineAsyncComponent/.test(sw) && !/^import .*CardColourPanel/m.test(sw) && !/^import .*colourpanel/m.test(sw));
+  const pub = ["Landing", "PublicCard", "Hosts", "Privacy", "Terms", "Redeem", "SignIn", "PrivacyRequest", "EventJoin"].map((p) => read(`src/views/${p}.vue`)).join("\n") + read("src/components/CardView.vue") + read("src/components/Badge.vue") + read("src/main.js");
+  check("no public page, CardView, Badge or the entry imports the swatches, the panel or the colour sums", !/CardSwatches|CardColourPanel|colourpanel|cardcolour/.test(pub));
+  check("only CardForm imports the swatches, and only the swatches load the panel", /import CardSwatches from/.test(form) && !/CardColourPanel/.test(form + read("src/views/Cards.vue")));
+  check("the panel is the shared sheet: a popover from 600 px and a bottom sheet on a phone, with Escape, a press outside and Close all cancelling", /<UiSheet :open="open" :anchor="anchor" :label="label" focus="\.colp-square" @close="cancel">/.test(panel) && /function cancel\(\) \{\s*emit\("update:modelValue", before\);\s*emit\("close"\);/.test(panel));
+  check("it remembers what the colour was when it opened, and cancel puts that back (the card preview follows live)", /before = props\.modelValue;/.test(panel) && /emit\("update:modelValue", hsvToHex\(next\)\);/.test(panel));
+  check("Done keeps and remembers a custom colour (never a preset), and Enter anywhere but on a button is Done", /function done\(\) \{[\s\S]*?if \(!isPreset\(r\.hex\)\) \{ recent\.value = pushRecent\(readRecent\(\), r\.hex\); writeRecent\(recent\.value\); \}\s*emit\("done", r\.hex\);/.test(panel) && /e\.key === "Enter" && !\(e\.target instanceof HTMLButtonElement\)/.test(panel) && /<button type="button" class="btn btn-primary" @click="done">Done<\/button>/.test(panel));
+  check("a bad hex box answers in words and does not close", /if \(!r\.hex\) \{ hexError\.value = r\.why; return; \}/.test(panel) && /role="alert"/.test(panel));
+  check("the square and the hue slider are sliders with names, values in words, one tab stop each, and the keys come from the tested functions", /class="colp-square" role="slider" tabindex="0" aria-label="Saturation and brightness"/.test(panel) && /aria-valuetext="sText"|:aria-valuetext="sText"/.test(panel) && /class="colp-hue" role="slider" tabindex="0" aria-label="Hue"/.test(panel) && /squareKey\(hsv\.value, e\.key, e\.shiftKey\)/.test(panel) && /hueKey\(hsv\.value, e\.key, e\.shiftKey\)/.test(panel));
+  check("the keys the square does not use are not swallowed (preventDefault only when a move was made)", /if \(n\) \{ e\.preventDefault\(\); set\(n\); \}/.test(panel) && (panel.match(/if \(n\) \{ e\.preventDefault\(\); set\(n\); \}/g) || []).length === 2);
+  check("a press or drag on the square and slider works with a mouse, a finger and a pen (pointer events, captured, no scrolling while dragging)", /@pointerdown="onSquare"/.test(panel) && /setPointerCapture/.test(panel) && /touch-action: none/.test(panel));
+  check("the hex box has a name, takes three or six digits, and applies at once on six", /aria-label="Hex colour, three or six letters or numbers"/.test(panel) && /\[0-9a-fA-F\]\{6\}/.test(panel) && /@blur="leaveHex"/.test(panel));
+  check("the last five custom colours are kept in this browser only, safely (try and catch), as 44 px buttons with the colour as their name", /const RECENT_KEY = "lanyard-recent-colours"/.test(panel) && /try \{ localStorage\.setItem/.test(panel) && /\.colp-r \{ width: 44px; height: 44px;/.test(panel) && /:aria-label="`Recent colour \$\{c\}`"/.test(panel));
+  check("the panel's motion uses tokens only and stops under reduced motion; no colour library and no native colour input in the card form", /transition: transform var\(--dur-fast\) var\(--ease-out\)/.test(panel) && /prefers-reduced-motion: reduce/.test(panel) && !/\d+ms/.test(panel) && !/type="color"/.test(form + sw + panel) && !/^import .* from "(?!vue"|\.)/m.test(panel));
+  check("for Plus the Custom swatch opens the panel (a button that says it opens a dialog) and shows its own colour with the ring when the card has one that is not a preset", /aria-haspopup="dialog" :aria-expanded="panelOpen"/.test(sw) && /const isCustom = computed\(\(\) => !!strictHex\(model\.value\) && !presetOf\(model\.value\)\)/.test(sw) && /:class="\{ 'sw-wheel': !isCustom \}"/.test(sw));
 }
 
 summary();

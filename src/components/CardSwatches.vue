@@ -3,10 +3,13 @@
 // then "Custom" at the end: Plus has the colour wheel there (F55.2), a free account is taken to the Plus page and
 // nothing is saved. The server decides what an account may save (worker/cardcolour.js); this only decides what to
 // show. v-model is "#RRGGBB" or "" for the theme's own colour.
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, ref, shallowRef } from "vue";
 import { me } from "../lib/store";
 import { STRAP_PRESETS, presetOf, strictHex } from "../lib/cardcolour";
 
+// The colour panel is its own chunk, fetched the first time Custom is pressed. (Not the Vue async-component helper: it adds
+// about 0.8 KB gzip to the Vue code every public page loads, so the import is made by hand.)
+const Panel = shallowRef(null);
 const model = defineModel({ type: String, default: "" });
 const props = defineProps({ theme: { type: String, default: "default" } });
 
@@ -14,6 +17,14 @@ const props = defineProps({ theme: { type: String, default: "default" } });
 const themeHex = computed(() => (props.theme === "formal" ? "#2B3138" : "#C4441E"));
 const shown = computed(() => strictHex(model.value) || themeHex.value);
 const chosen = computed(() => presetOf(shown.value));
+// A colour that is not one of the ten (Plus made it): the Custom swatch shows it, with the ring.
+const isCustom = computed(() => !!strictHex(model.value) && !presetOf(model.value));
+const panelOpen = ref(false);
+const customBtn = ref(null);
+async function openPanel() {
+  if (!Panel.value) Panel.value = (await import("./CardColourPanel.vue")).default;
+  panelOpen.value = true;
+}
 const caption = computed(() => {
   if (!model.value) return `Theme colour: ${presetOf(themeHex.value).name}`;
   return chosen.value ? chosen.value.name : `Custom ${shown.value}`;
@@ -48,19 +59,27 @@ const tabbable = (p, i) => (chosen.value ? chosen.value.hex === p.hex : i === 0)
           <span class="sw-ring" aria-hidden="true"></span>
         </button>
       </div>
-      <!-- Free: the Plus page, nothing is saved. Plus: the wheel (F55.2). -->
+      <!-- Free: the Plus page, nothing is saved. Plus: the colour panel. -->
       <router-link v-if="!me.plan.customStrap" class="swatch swatch-custom" to="/app/settings/plan"
                    aria-label="Custom colour, part of Lanyard Plus" title="Custom colours are part of Lanyard Plus">
         <span class="sw-dot sw-wheel"></span>
         <span class="sw-plus" aria-hidden="true">Plus</span>
       </router-link>
+      <button v-else ref="customBtn" type="button" class="swatch swatch-custom" :class="{ on: isCustom }"
+              aria-haspopup="dialog" :aria-expanded="panelOpen"
+              :aria-label="isCustom ? `Custom colour ${shown}, change it` : 'Custom colour'" title="Custom colour" @click="openPanel">
+        <span class="sw-dot" :class="{ 'sw-wheel': !isCustom }" :style="isCustom ? { background: shown } : null"></span>
+        <span class="sw-ring" aria-hidden="true"></span>
+      </button>
     </div>
     <p class="small muted swatch-name" aria-live="polite">{{ caption }}</p>
+    <component :is="Panel" v-if="Panel && me.plan.customStrap" v-model="model" :open="panelOpen" :anchor="customBtn" :fallback="shown"
+                     label="Strap colour" @done="panelOpen = false" @close="panelOpen = false" />
   </div>
 </template>
 
 <style scoped>
-.swatch-row { display: flex; flex-wrap: wrap; align-items: center; }
+.swatch-row { display: flex; flex-wrap: wrap; align-items: center; margin-left: -8px; } /* the first dot lines up with the label above it */
 .swatch-group { display: contents; }
 .swatch {
   position: relative; flex: none;
@@ -84,7 +103,7 @@ const tabbable = (p, i) => (chosen.value ? chosen.value.hex === p.hex : i === 0)
   transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
   pointer-events: none;
 }
-.swatch[aria-checked="true"] .sw-ring { opacity: 1; transform: scale(1); }
+.swatch[aria-checked="true"] .sw-ring, .swatch.on .sw-ring { opacity: 1; transform: scale(1); }
 .swatch:focus-visible { outline: 2.5px solid var(--strap); outline-offset: 0; }
 .sw-wheel { background: conic-gradient(#e5483b, #f0b429, #5fbf4a, #2cb5c9, #3b5bdb, #b648c9, #e5483b); }
 .sw-plus {
