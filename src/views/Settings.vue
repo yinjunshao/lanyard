@@ -61,7 +61,7 @@ const rows = computed(() => [
     summary: u.value?.emailVerified ? `Feedback reminders ${u.value.eventEmails ? "on" : "off"}, follow-ups ${u.value.reminderEmails ? "on" : "off"}, news ${u.value.marketingOptin ? "on" : "off"}` : u.value?.pendingEmail ? `Follow-up reminders ${u.value.reminderEmails ? "on" : "off"}` : "Add an email first" },
   { key: "privacy", to: "/app/settings/privacy", title: "Privacy and data", summary: "Your data, consents, delete account" },
   { key: "plan", to: "/app/settings/plan", title: "Plan", summary: me.plan.label },
-  { key: "appearance", to: "/app/settings/appearance", title: "Appearance and app", summary: `Theme: ${{ auto: "auto", light: "light", dark: "dark" }[themePref.value] || "auto"}` },
+  { key: "appearance", to: "/app/settings/appearance", title: "Appearance and app", summary: `Theme: ${{ auto: "auto", light: "light", dark: "dark", midnight: "midnight" }[themePref.value] || "auto"}` },
   { key: "help", to: "/app/settings/help", title: "Help and legal", summary: "Contact, terms, about Lanyard" },
 ]);
 

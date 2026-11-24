@@ -29,6 +29,7 @@
     <link rel="preload" href="/fonts/atkinson-latin.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#F4F1EA" />
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="app"><div class="boot" aria-hidden="true">lanyard<b>.</b></div></div>
@@ -39,6 +40,9 @@
               background: #f4f1ea; color: #15130f; border-top: 6px solid #D9502B; }
       .boot b { color: #D9502B; }
       @media (prefers-color-scheme: dark) { .boot { background: #141311; color: #f4f1ea; } }
+      :root[data-theme="night"] .boot { background: #141311; color: #f4f1ea; }
+      :root[data-theme="midnight"] .boot { background: #000; color: #f4f1ea; }
+      :root[data-theme="light"] .boot { background: #f4f1ea; color: #15130f; }
     </style>
     <script type="module" src="/src/main.js"></script>
   </body>
