@@ -46,7 +46,7 @@ needs: [F15]
 - [x] No screen says "Ongoing" any more (test searches the source).
   - Verified: `test/event-status.mjs` reads every `.vue`, `.js` and `.html` under `src` and `worker` (comments removed) and finds no capital-O "Ongoing"; the event hub's status word now reads "In progress" too.
 - [x] Chip text passes 4.5:1 in light, dark and midnight (test).
-  - Verified: the test works out each chip colour from the tokens in `main.css` on `--paper` and `--paper-raised` (lowest 4.6 to 4.7 in Light, 6.5 or more in Midnight), and the computed colours in the browser matched the tokens in all three themes.
+  - Verified: the test works out each chip colour from the tokens in `main.css` on `--paper` and `--paper-raised` (lowest 4.99 in Light, 6.5 or more in Midnight), and the computed colours in the browser matched the tokens in all three themes.
 - [x] `npm test` passes; public pages within budget.
   - `npm test` exit 0 and `npm run build` exit 0. First-load gzip B before to after: Landing 44,282 to 44,299; PublicCard 47,633 to 47,650; Hosts 42,636 to 42,650; Privacy 50,140 to 50,158; Terms 46,759 to 46,774; Redeem 45,992 to 46,010; SignIn 47,102 to 47,116; PrivacyRequest 49,823 to 49,835 (limit 51,200).
 
