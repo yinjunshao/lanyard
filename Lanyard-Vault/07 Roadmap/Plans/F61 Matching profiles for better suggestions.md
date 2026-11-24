@@ -4,7 +4,7 @@ id: F61
 priority: P3
 phase: 10
 size: L
-status: Not started
+status: In progress
 needs: [F60]
 ---
 # F61 Matching profiles for better suggestions
@@ -25,12 +25,13 @@ Not to be built until F60 has run at real events. First a short research note, t
 - Cost and safety per [[AI Safety and Cost Plan]].
 
 ## Tasks
-- [ ] F61.1 Research note with options, costs and the privacy assessment, for the owner to choose from (no code).
+- [x] F61.1 Research note with options, costs and the privacy assessment, for the owner to choose from (no code).
+  - Written as [[F61 Research Matching options]]: four options (a fixed list scored in code, embeddings, learning from outcomes, a staged mix), costs at 50, 300 and 1,000 attendees, a UK GDPR assessment with a DPIA outline, and seven owner decisions.
 
 ## Acceptance checks
 - [ ] The owner has chosen an option, recorded as a decision note, before any code.
 
 ## Log
--
+- 2026-11-24 (Claude subagent): F61.1 research note written ([[F61 Research Matching options]]). It recommends a staged path: first a fixed list of fields, goals and kinds of people, scored in code, with anonymous counts of which kinds of match led to a connection; embeddings only once events regularly pass about 150 people. A DPIA is needed. It found that nothing screens special category words (faith, health, sexuality, politics) out of F60's matching today, and recommends a screen first whatever is chosen. Waiting on the owner's seven decisions in section 5 of the note; no code until then.
 
 Related: [[F60 Intention at check-in and who to meet for everyone]] · back to [[00 Master To-Do]]
