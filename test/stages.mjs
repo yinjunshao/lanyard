@@ -334,6 +334,10 @@ console.log("\n# The tour: where it loads, and what it promises (source guards; 
   check("Escape skips, from anywhere (a capture listener on the document), and does nothing else", /e\.key === "Escape"[^}]*finish\("skipped"\)/.test(tour) && /document\.addEventListener\("keydown", onKey, true\)/.test(tour) && /stopPropagation\(\)/.test(tour));
   check("Tab and Shift+Tab stay inside the card, so it works with the keyboard alone", /e\.key !== "Tab"/.test(tour) && /f\[f\.length - 1\]\.focus\(\)/.test(tour) && /f\[0\]\.focus\(\)/.test(tour));
   check("every button is a real button: Skip, Back, Next, Try it and Got it", ["Skip", "Back", "Next", "Try it", "Got it"].every((l) => new RegExp(`<button[^<]*?type="button"[^<]*?>${l}</button>`).test(tour)));
+  check("when the pressed button goes (Next becomes Got it on the last step), focus is put back inside the card, so the keyboard is never dropped", /async function go\(d\)/.test(tour) && /if \(!card\.value\?\.contains\(document\.activeElement\)\) \(card\.value\?\.querySelector\("\[data-primary\]"\)/.test(tour));
+  check("Try it presses a button or link but only focuses a field or a tick, so trying it never changes a choice (it does not untick Suggest me)", /el\.matches\("button, a\[href\]"\) \? el : el\.querySelector\("input, textarea, select, button, a\[href\]"\)/.test(tour) && /if \(ctl\.matches\("button, a\[href\]"\)\) ctl\.click\(\);/.test(tour) && !/el\.click\(\)/.test(tour));
+  check("the host does not start a tip within 1.5 s of a press, a key or a scroll, so it cannot land on top of something the person is opening", /QUIET_MS = 1500/.test(host) && /\["pointerdown", "keydown", "wheel", "touchstart"\]/.test(host) && /Date\.now\(\) - touched > QUIET_MS/.test(host) && /removeEventListener\(e, touch/.test(host));
+  check("the always-open My card editors count as busy but the closed card summary does not (the Cards page would never get its tip)", /\.reveal\.open \[id\^="card-editor-"\]/.test(host));
   check("the last step can press the real control: Try it, or a press on the control itself", /canPress/.test(tour) && /function tryIt/.test(tour) && /addEventListener\("click", pressedTarget, true\)/.test(tour) && /\.tour > \.tour-hole\.open/.test(tour));
   check("a control that is no longer there leaves the card without a ring (no crash)", /if \(!r \|\| \(!r\.width && !r\.height\)\) \{ rect\.value = null/.test(tour) && /v-if="rect"/.test(tour));
   check("listeners are removed when it goes", /removeEventListener\("keydown", onKey, true\)/.test(tour) && /removeEventListener\("scroll", follow\)/.test(tour) && /onBeforeUnmount/.test(tour));
@@ -352,6 +356,84 @@ console.log("\n# The tour: where it loads, and what it promises (source guards; 
   const people = read("src/views/People.vue");
   check("the AI Finder tutorial points at the real row on People (data-tip=ai-ask)", /class="ask-row" data-tip="ai-ask"/.test(people) && STAGES.find((s) => s.id === "ai_finder").steps.every((s) => s.tip === "ai-ask"));
   check("the frame names the page a tip may run on, and My card, People, Cards and one event page are the only ones", /return p\.startsWith\("\/app\/events\/"\)/.test(shell) && /"home"/.test(shell) && /"people"/.test(shell) && /"cards"/.test(shell));
+}
+
+// ------------------------------------------------------------------ F59.3
+console.log("\n# The acceptance walk on the Worker: 2 connections, then a third, then finished, on another device too");
+{
+  const W = await signup("Wren Walker");
+  const P1 = await signup("Pax One"), P2 = await signup("Pax Two"), P3 = await signup("Pax Three");
+  await connect(P1, W); await connect(P2, W);
+  const s2 = (await W.c.get("/api/stages")).json;
+  check("with 2 connections and AI on, People starts no tour", s2.progress.connections === 2 && s2.progress.aiFinder === true && dueStage(s2, "people") === null, s2.progress);
+  await connect(P3, W);
+  const s3 = (await W.c.get("/api/stages")).json;
+  check("after a third, opening People starts the AI Finder tour", dueStage(s3, "people")?.id === "ai_finder");
+  fixed = midnight + 40 * DAY;
+  check("it is recorded as it starts", (await seen(W, "ai_finder")).json.first === true);
+  check("finishing it is recorded", (await seen(W, "ai_finder", { outcome: "finished" })).status === 200 && rows(W)[0].outcome === "finished");
+  const again = (await W.c.get("/api/stages")).json;
+  check("reloading does not show it again", dueStage(again, "people") === null && again.seen.includes("ai_finder"));
+  const code = (await W.c.post("/api/auth/link")).json.code;
+  const other = client({ ip: "10.59.252.1" });
+  await other.post("/api/auth/redeem", { code });
+  const otherState = (await other.get("/api/stages")).json;
+  check("another browser does not show it either", otherState.eligible === true && dueStage(otherState, "people") === null);
+  for (let n = 0; n < 3; n++) await connect(await signup(`Extra ${n}`), W);
+  check("and more connections never bring it back", dueStage((await W.c.get("/api/stages")).json, "people") === null);
+  fixed = null;
+}
+
+console.log("\n# The admin funnel is counts only");
+{
+  const A2 = client({ ip: "10.59.253.1" });
+  const adminEnv = await makeEnv({ ADMIN_TOKEN: "stages-admin-token", UNSUB_SECRET: "x" });
+  const get = (token) => adminEnv.client({ ip: "10.59.253.2" }).get("/api/admin/stages", token ? { authorization: `Bearer ${token}` } : {});
+  check("the page is for the admin token only", (await get()).status === 401 && (await get("wrong")).status === 401);
+  const empty = (await get("stages-admin-token")).json;
+  check("with nothing seen yet, every stage is there with zeros", empty.stages.length === 6 && empty.stages.every((s) => s.shown === 0 && s.finished === 0 && s.skipped === 0), empty);
+  adminEnv.env.DB.raw.prepare("INSERT INTO stage_stats (day, stage, shown, finished, skipped) VALUES (?, 'ai_finder', 4, 3, 1)").run(new Date(realNow()).toISOString().slice(0, 10));
+  const body = (await get("stages-admin-token")).json;
+  check("it adds up, and the response holds no id, name or time of a person", body.stages.find((s) => s.stage === "ai_finder").shown === 4 && Object.keys(body).sort().join() === "days,since,stages" && body.stages.every((s) => Object.keys(s).sort().join() === "finished,shown,skipped,stage"), body);
+  const adm = read("src/views/Admin.vue");
+  check("the admin page shows it, with a name for each tip", /\/api\/admin\/stages/.test(adm) && /id="adm-tips-h"/.test(adm) && Object.keys({ ai_finder: 1, followup_reminder: 1, draft_message: 1, who_to_meet: 1, more_cards: 1, add_to_home: 1 }).every((k) => adm.includes(k)));
+  check("no host route reads it (hosts only ever see aggregates of their events)", !/stage_stats|user_stages|stageFunnel/.test(read("worker/hosts.js") + read("worker/events.js") + read("worker/host-auth.js") + read("worker/myevents.js")));
+  void A2;
+}
+
+console.log("\n# Every tutorial points at a real control, and nothing else claims one");
+{
+  const sources = {
+    "src/views/People.vue": ["ai-ask"],
+    "src/components/CardConnection.vue": ["followup", "note", "draft"],
+    "src/components/EventWhoToMeet.vue": ["who-to-meet", "intention", "suggest-me"],
+    "src/views/Cards.vue": ["new-card", "card-edit"],
+    "src/views/MyCard.vue": ["install"],
+  };
+  const text = Object.fromEntries(Object.keys(sources).map((f) => [f, read(f)]));
+  const wanted = [...new Set(STAGES.flatMap((s) => s.steps.map((st) => st.tip)))].sort();
+  const found = Object.entries(sources).flatMap(([f, tips]) => tips.map((t) => [f, t]));
+  check("every control a step names has a data-tip in the page source", wanted.every((t) => found.some(([f, tip]) => tip === t && new RegExp(`data-tip="${t}"|:data-tip="[^"]*'${t}'`).test(text[f]))), wanted.filter((t) => !found.some(([, tip]) => tip === t)));
+  check("and the pages claim no data-tip that no step uses", found.every(([, t]) => wanted.includes(t)) && wanted.length === found.length, [wanted, found.map((x) => x[1])]);
+  const stray = ["src/views", "src/components"].flatMap((d) => readdirSync(new URL("../" + d, import.meta.url)).filter((f) => f.endsWith(".vue")).map((f) => `${d}/${f}`)).filter((f) => /data-tip=/.test(read(f)) && !sources[f] && !/\/Stage(Host|Tour)\.vue$/.test(f)); // those two only look the attribute up
+  check("no other file carries a data-tip", stray.length === 0, stray);
+  const walk = (d) => readdirSync(new URL("../" + d, import.meta.url)).flatMap((f) => (statSync(new URL("../" + d + "/" + f, import.meta.url)).isDirectory() ? walk(d + "/" + f) : [d + "/" + f]));
+  const mounts = walk("src").filter((f) => /\.vue$/.test(f) && /<StageHost/.test(read(f)) && !/StageHost\.vue$/.test(f)).sort();
+  check("the host is mounted by exactly two files: the frame and a connection's panel", mounts.join() === "src/components/AppShell.vue,src/components/CardConnection.vue", mounts);
+  const cn = read("src/components/CardConnection.vue");
+  check("a person's panel runs the 'person' tips and tells the registry whether you met at an event", /<StageHost page="person" :ctx="\{ metAtEvent: !!connection\.event \}"/.test(cn));
+  check("the connection panel is still fetched lazily by the card page, so a person who is not connected never loads the host", /import\("\.\.\/components\/CardConnection\.vue"\)/.test(read("src/views/PublicCard.vue")) && !/StageHost/.test(read("src/views/PublicCard.vue")));
+  const shell = read("src/components/AppShell.vue");
+  check("the frame maps My card, People, Cards and one event page to their tips", /p === "\/app"\) return "home"/.test(shell) && /"\/app\/people"\) return "people"/.test(shell) && /"\/app\/cards"\) return "cards"/.test(shell) && /"event"/.test(shell));
+  check("the Cards tip points at the first card's Edit button only", /:data-tip="n === 0 \? 'card-edit' : null"/.test(text["src/views/Cards.vue"]));
+  check("the home-screen tip points at the panel that only shows on a phone that has not added Lanyard", /aria-label="Add to home screen" data-tip="install"/.test(text["src/views/MyCard.vue"]) && /v-else-if="showInstall"/.test(text["src/views/MyCard.vue"]));
+}
+
+console.log("\n# The Privacy Policy says it, and the Terms version is not bumped");
+{
+  const pv = read("src/views/Privacy.vue");
+  check("what is stored and why is in section 2, and how long is in section 6", /Which short app tips you have been shown, and whether you finished or skipped each/.test(pv) && /To show each tip once and no more than one a day/.test(pv) && /Which app tips you have been shown<\/td><td>Until you delete your account, or press Show tips again/.test(pv));
+  check("the Terms and Privacy version is still 2026-11-22", /TERMS_VERSION = "2026-11-22"/.test(read("worker/legal.js")));
 }
 
 globalThis.fetch = realFetch;

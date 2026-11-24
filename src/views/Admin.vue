@@ -105,6 +105,12 @@ const STEP_NAMES = ["Name and photo", "Student or working", "What you can help w
 async function loadFunnel() {
   try { funnel.value = await call("/api/admin/onboarding"); } catch (e) { error.value = e.message; }
 }
+// The tips funnel (F59): per tutorial, how many were shown, finished and skipped. Counts only: nothing about who.
+const tips = ref(null);
+const TIP_NAMES = { ai_finder: "AI Finder", followup_reminder: "Follow-up reminders", draft_message: "Draft a message", who_to_meet: "Who to meet", more_cards: "More than one card", add_to_home: "Add to home screen" };
+async function loadTips() {
+  try { tips.value = await call("/api/admin/stages"); } catch (e) { error.value = e.message; }
+}
 const pct = (n, of) => (of ? `${Math.round((n / of) * 100)}%` : "–");
 
 // Promo codes (/redeem)
@@ -151,6 +157,7 @@ async function load() {
   loadPromos();
   loadHosts();
   loadFunnel();
+  loadTips();
   try { queue.value = await call("/api/admin/queue"); }
   catch (e) {
     queue.value = null;
@@ -372,6 +379,20 @@ const EMAIL = { education: "university or school address", free: "webmail addres
               <th scope="row">{{ s.step }}. {{ STEP_NAMES[s.step - 1] }}</th>
               <td class="num tnum">{{ s.reached }}</td><td class="num tnum">{{ s.completed }}</td>
               <td class="num tnum">{{ pct(s.reached, funnel.steps[0]?.reached) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="stack-2" aria-labelledby="adm-tips-h">
+        <span id="adm-tips-h" class="label">Tips, last {{ tips?.days || 30 }} days</span>
+        <p class="small muted">How many times each short tutorial started, was finished and was skipped. Counts only: nothing about who. A tip that was left without a choice is in neither of the last two.</p>
+        <table v-if="tips" class="funnel small">
+          <thead><tr><th scope="col">Tip</th><th scope="col" class="num">Shown</th><th scope="col" class="num">Finished</th><th scope="col" class="num">Skipped</th></tr></thead>
+          <tbody>
+            <tr v-for="t in tips.stages" :key="t.stage">
+              <th scope="row">{{ TIP_NAMES[t.stage] || t.stage }}</th>
+              <td class="num tnum">{{ t.shown }}</td><td class="num tnum">{{ t.finished }}</td><td class="num tnum">{{ t.skipped }}</td>
             </tr>
           </tbody>
         </table>

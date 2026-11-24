@@ -11,6 +11,7 @@ import { newId } from "./db.js";
 import { peek, bump, HOUR } from "./ratelimit.js";
 import { emailProblem, emailKind, openTransfer, normEmail } from "./hostorg.js";
 import { funnel } from "./onboarding.js";
+import { stageFunnel } from "./stages.js";
 import { ORG_KINDS } from "./plans.js";
 import { settleStatements } from "./host-promo.js";
 import { registerAiAdmin } from "./ai/admin.js";
@@ -261,6 +262,8 @@ adminApp.post("/api/admin/users/:id/signin-code", async (c) => {
 // Promo codes (/redeem). Codes are upper-case letters and numbers.
 // The welcome-steps funnel (F14): counts per step for the last 30 days. Nothing about who.
 adminApp.get("/api/admin/onboarding", async (c) => c.json(await funnel(c.env.DB, 30)));
+// The tips funnel (F59): per tutorial, how many were shown, finished and skipped in the last 30 days. Nothing about who.
+adminApp.get("/api/admin/stages", async (c) => c.json(await stageFunnel(c.env.DB, 30)));
 
 // One list for both audiences. Host codes (F20) also carry totals: how many
 // organisations took the code, how many are held until approval, and how many

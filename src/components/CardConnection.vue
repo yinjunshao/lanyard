@@ -8,6 +8,7 @@ import { useRouter } from "vue-router";
 import { Api } from "../lib/api";
 import { me } from "../lib/store";
 import { morningIn, fmtDay, relativeDay } from "../lib/time";
+import StageHost from "./StageHost.vue"; // F59: tutorials for Follow up and Draft a message; the tutorial itself is a chunk fetched only when one is due
 
 const props = defineProps({
   connection: { type: Object, required: true },
@@ -146,7 +147,7 @@ async function sendReport() {
       </div>
     </div>
 
-    <div class="stack">
+    <div class="stack" data-tip="followup">
       <span class="label">Follow up</span>
       <p v-if="followedUpAt" class="small" style="margin:0">
         Followed up {{ fmtDay(followedUpAt) }} ·
@@ -185,10 +186,10 @@ async function sendReport() {
     <div class="stack">
       <span class="label">Write to {{ first }}</span>
       <p class="small muted" style="margin:0">Get a first draft for email, LinkedIn or WhatsApp. You edit it and send it yourself.</p>
-      <button type="button" class="btn btn-primary" aria-haspopup="dialog" @click="openDraft">Draft a message</button>
+      <button type="button" class="btn btn-primary" aria-haspopup="dialog" data-tip="draft" @click="openDraft">Draft a message</button>
     </div>
 
-    <div class="field" style="margin-bottom:0">
+    <div class="field" style="margin-bottom:0" data-tip="note">
       <label for="private-note">Your private note</label>
       <textarea id="private-note" v-model="note" maxlength="600" @input="noteDirty = true" @blur="saveNote"
                 placeholder="Where you met, what to follow up on…"></textarea>
@@ -225,6 +226,7 @@ async function sendReport() {
       <button class="btn btn-primary" type="submit" :disabled="reportBusy">{{ reportBusy ? "Sending…" : "Send report" }}</button>
     </form>
     <p v-if="reportMsg" class="small" role="status">{{ reportMsg }}</p>
+    <StageHost page="person" :ctx="{ metAtEvent: !!connection.event }" />
     <component :is="Composer" v-if="drafting && Composer" :connection-id="connection.id" :links="p.links" :first="first"
                @close="drafting = false" @followed-up="draftedFollowUp" />
   </section>

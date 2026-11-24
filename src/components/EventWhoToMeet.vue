@@ -87,7 +87,7 @@ async function flag(block) {
 
 <template>
   <section v-if="show" class="stack" aria-labelledby="meet-h" data-who-to-meet>
-    <div class="spread">
+    <div class="spread" data-tip="who-to-meet">
       <h2 id="meet-h" class="label">Who to meet</h2>
       <button v-if="me.suggest" type="button" class="btn-quiet" :disabled="busy || listBusy" @click="refresh">Refresh</button>
     </div>
@@ -114,14 +114,14 @@ async function flag(block) {
     <p v-else class="small muted">You're not suggested to people here, so you don't see suggestions either. Tick Suggest me below to see who to meet.</p>
 
     <div class="panel stack-2">
-      <div class="field" style="margin:0">
+      <div class="field" style="margin:0" data-tip="intention">
         <label for="meet-intention">{{ INTENTION_LABEL }} <span class="muted">(optional)</span></label>
         <RotatingHint :pool="INTENTION_EXAMPLES" :empty="!intention" v-slot="{ placeholder }">
           <input id="meet-intention" v-model="intention" type="text" :maxlength="INTENTION_MAX" autocomplete="off" :placeholder="placeholder" @keydown.enter.prevent="changed && saveIntention()" />
         </RotatingHint>
       </div>
       <button v-if="changed" type="button" class="btn" :disabled="busy" @click="saveIntention">Save</button>
-      <label class="checkbox-row meet-tick">
+      <label class="checkbox-row meet-tick" data-tip="suggest-me">
         <input type="checkbox" :checked="!!me.suggest" :disabled="busy" data-suggest-me @change="toggle" />
         <span class="small"><strong>{{ HEAD }}.</strong> {{ REST.join(". ") }}</span>
       </label>

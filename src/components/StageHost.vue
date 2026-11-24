@@ -16,12 +16,12 @@ const props = defineProps({
 const Tour = shallowRef(null);
 const active = shallowRef(null);
 let run = 0;
-let timer = 0;
+const QUIET_MS = 1500; // no press, key or scroll for this long before a tip may start
 
 // A sheet, a dialog or a photo viewer is open, an editor is open, or a field has focus: not a moment to interrupt.
 function busy() {
   // The photo viewer (.lb) is always in the page and is a dialog only while it has .open.
-  if (document.querySelector('[role="dialog"]:not(.lb), [aria-modal="true"]:not(.lb), .lb.open, .sheet-backdrop, .crop-backdrop, .reveal.open')) return true;
+  if (document.querySelector('[role="dialog"]:not(.lb), [aria-modal="true"]:not(.lb), .lb.open, .sheet-backdrop, .crop-backdrop, .reveal.open [id^="card-editor-"]')) return true;
   const a = document.activeElement;
   return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || !!a?.isContentEditable;
 }
@@ -30,22 +30,28 @@ const there = (tip) => {
   const r = el?.getBoundingClientRect();
   return !!r && (r.width > 0 || r.height > 0);
 };
-const sleep = (ms) => new Promise((ok) => { timer = setTimeout(ok, ms); });
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms)); // a newer page or a leave ends the wait at the next look (mine() turns false)
 
-// The first control has to be there, and the page still, for two looks in a row; waits up to about 15 seconds.
+// The first control has to be there, and the page still, for two looks in a row, and the person must not have pressed, typed
+// or scrolled for a moment (they may be opening something, and a sheet takes a moment to arrive); waits up to about 15 seconds.
 async function ready(stage, mine) {
   let still = 0;
-  for (let n = 0; n < 38 && mine(); n++) {
-    if (document.visibilityState === "visible" && !busy() && there(stage.steps[0].tip)) { if (++still >= 2) return true; }
-    else still = 0;
-    await sleep(400);
-  }
-  return false;
+  let touched = Date.now();
+  const touch = () => { touched = Date.now(); };
+  const EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"];
+  EVENTS.forEach((e) => addEventListener(e, touch, { passive: true, capture: true }));
+  try {
+    for (let n = 0; n < 38 && mine(); n++) {
+      if (document.visibilityState === "visible" && !busy() && there(stage.steps[0].tip) && Date.now() - touched > QUIET_MS) { if (++still >= 2) return true; }
+      else still = 0;
+      await sleep(400);
+    }
+    return false;
+  } finally { EVENTS.forEach((e) => removeEventListener(e, touch, { capture: true })); }
 }
 
 async function consider() {
   const mine = ++run;
-  clearTimeout(timer);
   active.value = null;
   if (!props.page || !me.profile) return;
   let state;
@@ -64,7 +70,7 @@ async function consider() {
 }
 
 watch(() => [props.page, props.ctx?.metAtEvent, !!me.profile], consider, { immediate: true });
-onBeforeUnmount(() => { run++; clearTimeout(timer); });
+onBeforeUnmount(() => { run++; });
 </script>
 
 <template>

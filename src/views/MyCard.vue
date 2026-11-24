@@ -188,7 +188,7 @@ async function share() {
       <button type="button" class="link-btn small" style="text-align:left" @click="snoozeFinish">Remind me later</button>
     </section>
 
-    <section v-else-if="showInstall" class="panel" aria-label="Add to home screen">
+    <section v-else-if="showInstall" class="panel" aria-label="Add to home screen" data-tip="install">
       <InstallGuide heading="Open Lanyard in one tap" @done="hideInstall" />
       <button type="button" class="link-btn small" style="margin-top:8px" @click="hideInstall">Not now</button>
     </section>

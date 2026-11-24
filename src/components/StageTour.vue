@@ -74,11 +74,13 @@ async function show() {
   listen();
   setTimeout(follow, 400); // after a smooth scroll has settled
 }
-function go(d) {
+async function go(d) {
   const n = i.value + d;
   if (n < 0 || n >= props.stage.steps.length) return;
   i.value = n;
-  show();
+  await show();
+  // The button that was pressed may be gone (Next is Got it on the last step, Back goes on the first): focus stays in the card.
+  if (!card.value?.contains(document.activeElement)) (card.value?.querySelector("[data-primary]") || card.value)?.focus({ preventScroll: true });
 }
 
 function finish(outcome, restore = true) {
@@ -89,11 +91,17 @@ function finish(outcome, restore = true) {
   if (restore && opener && opener.isConnected) opener.focus({ preventScroll: true });
   timer = setTimeout(() => emit("done"), EXIT_MS);
 }
-// "Try it": the tutorial ends, then the real control is pressed (so a sheet opens, or a field takes focus).
+// "Try it": the tutorial ends, then the real control is used. A button or link is pressed (a sheet opens); a field or a tick
+// only takes focus, so trying it never changes a choice for the person.
 function tryIt() {
   const el = targetEl();
   finish("finished", false);
-  if (el) { el.scrollIntoView?.({ block: "center", behavior: "auto" }); el.focus?.({ preventScroll: true }); el.click?.(); }
+  if (!el) return;
+  const ctl = el.matches("button, a[href]") ? el : el.querySelector("input, textarea, select, button, a[href]");
+  if (!ctl) return;
+  ctl.scrollIntoView?.({ block: "center", behavior: "auto" });
+  ctl.focus?.({ preventScroll: true });
+  if (ctl.matches("button, a[href]")) ctl.click();
 }
 
 function focusables() {

@@ -143,7 +143,7 @@ async function remove(card) {
         <h1>My cards</h1>
         <p class="small muted" style="margin:2px 0 0">{{ me.cards.length }} of {{ me.plan.cards }} cards · {{ me.plan.label }}</p>
       </div>
-      <button id="new-card-btn" class="btn" style="width:auto" :disabled="atLimit" @click="toggleCreating">New card</button>
+      <button id="new-card-btn" class="btn" style="width:auto" data-tip="new-card" :disabled="atLimit" @click="toggleCreating">New card</button>
     </div>
 
     <div v-if="atLimit" class="notice small">
@@ -168,7 +168,7 @@ async function remove(card) {
     </UiReveal>
 
     <div class="list">
-      <div v-for="c in me.cards" :key="c.cardId" class="list-row" style="flex-direction:column;align-items:stretch;gap:0">
+      <div v-for="(c, n) in me.cards" :key="c.cardId" class="list-row" style="flex-direction:column;align-items:stretch;gap:0">
         <UiReveal keep :open="editingId !== c.cardId">
           <div class="reveal-body">
             <div class="spread">
@@ -178,7 +178,7 @@ async function remove(card) {
             <p v-if="c.note" class="small muted">{{ c.note }}</p>
             <div class="btn-row">
               <router-link class="btn" :to="`/c/${c.cardId}`" target="_blank">View</router-link>
-              <button :id="`card-edit-${c.cardId}`" class="btn" @click="startEdit(c)">Edit</button>
+              <button :id="`card-edit-${c.cardId}`" class="btn" :data-tip="n === 0 ? 'card-edit' : null" @click="startEdit(c)">Edit</button>
               <button class="btn" :disabled="busy || (c.theme === 'default' && me.cards.length === 1)"
                       style="color:var(--strap-deep)" @click="remove(c)">Delete</button>
             </div>
