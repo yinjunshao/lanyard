@@ -25,7 +25,7 @@ defineExpose({ ready: true, save });
   <div class="stack-2">
     <h1>What can people come to you for?</h1>
     <p class="muted" style="margin:0">Pick a few, or add your own.</p>
-    <TagFields :form="f" label="Add your own, separated by commas" />
+    <TagFields :form="f" label="Add your own" />
     <div class="field"><label for="headline">What you do, in one line</label>
       <RotatingHint :pool="headlineExamples(f.mode)" :empty="!f.headline" v-slot="{ placeholder }">
         <input id="headline" v-model="f.headline" type="text" :maxlength="HEADLINE_MAX" :placeholder="placeholder" />

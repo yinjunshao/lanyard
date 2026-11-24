@@ -1,32 +1,28 @@
 <script setup>
-// "Come to me for": the tags field with suggestion chips by mode, shared by Edit
-// profile and the welcome steps (F14). `form.tags` is a comma separated string, as
-// it always was on Edit profile; the first 4 show on the badge.
+// "Come to me for": tag boxes (press Enter after each) with five suggestions by mode, shared by Edit profile
+// and the welcome steps (F14, F53). `form.tags` is still one string, tags with commas between them, as it
+// always was, so what the forms save does not change; the first 4 show on the badge.
 import { computed } from "vue";
+import UiTagInput from "./ui/UiTagInput.vue";
+import { PROFILE_TAGS, addTags, hasTag, joinTags, parseTags, suggestionsFor } from "../lib/tags";
 
 const props = defineProps({
   form: { type: Object, required: true },
-  label: { type: String, default: "Come to me for — comma separated" },
+  label: { type: String, default: "Come to me for" },
 });
 
-const SUGGESTED_STUDENT = ["CV reviews", "internships", "hackathons", "startups", "coding help", "design", "finding a team", "research"];
-const SUGGESTED_CAREER = ["Hiring", "Referrals", "Industry advice", "Mentoring", "Side projects"];
-const SUGGESTED = computed(() => (props.form.mode === "career" ? SUGGESTED_CAREER : SUGGESTED_STUDENT));
-const tagList = computed(() => (props.form.tags || "").split(",").map((t) => t.trim()).filter(Boolean));
-function toggleTag(t) {
-  const have = tagList.value;
-  const i = have.findIndex((x) => x.toLowerCase() === t.toLowerCase());
-  props.form.tags = (i >= 0 ? have.filter((_, j) => j !== i) : [...have, t]).join(", ");
-}
-const hasTag = (t) => tagList.value.some((x) => x.toLowerCase() === t.toLowerCase());
+const tags = computed({ get: () => parseTags(props.form.tags), set: (v) => { props.form.tags = joinTags(v); } });
+const SUGGESTED = computed(() => suggestionsFor(props.form.mode));
+const left = computed(() => SUGGESTED.value.filter((t) => !hasTag(tags.value, t)));
+const full = computed(() => tags.value.length >= PROFILE_TAGS.max);
+function add(t) { tags.value = addTags(tags.value, t, PROFILE_TAGS).tags; }
 </script>
 
 <template>
   <div class="field"><label for="tags">{{ label }}</label>
-    <input id="tags" v-model="form.tags" type="text" placeholder="hackathons, CV reviews, CAD" />
-    <div class="chip-row" role="group" aria-label="Suggestions" style="margin-top:6px">
-      <button v-for="t in SUGGESTED" :key="t" type="button" class="chip chip-toggle"
-              :aria-pressed="hasTag(t)" :class="{ on: hasTag(t) }" @click="toggleTag(t)">{{ hasTag(t) ? "✓ " : "+ " }}{{ t }}</button>
+    <UiTagInput id="tags" v-model="tags" :max="PROFILE_TAGS.max" :max-length="PROFILE_TAGS.maxLength" />
+    <div v-if="left.length && !full" class="chip-row" role="group" aria-label="Suggestions" style="margin-top:6px">
+      <button v-for="t in left" :key="t" type="button" class="chip chip-toggle" @click="add(t)">+ {{ t }}</button>
     </div>
-    <span class="small muted">The first 4 show on your badge — keep each one short, e.g. "CV reviews"</span></div>
+    <span class="small muted">Press Enter after each one. The first 4 show on your badge, so keep them short.</span></div>
 </template>

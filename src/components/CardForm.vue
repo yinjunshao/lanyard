@@ -7,6 +7,9 @@ import { me } from "../lib/store";
 import UiSelect from "./ui/UiSelect.vue";
 import RotatingHint from "./ui/RotatingHint.vue";
 import { headlineExamples } from "../lib/examples";
+import UiTagInput from "./ui/UiTagInput.vue";
+import { CARD_TAGS, joinTags, parseTags } from "../lib/tags";
+import { nextUid } from "./ui/uid";
 
 const f = defineModel({ type: Object, required: true });
 defineProps({ showStrap: { type: Boolean, default: false } });
@@ -16,6 +19,10 @@ const THEMES = [
   { value: "formal", label: "Formal" },
   { value: "night", label: "Night" },
 ];
+
+// This card's own tags: boxes in the form, the same text in `f.tagsText` that Cards.vue turns into the list it sends.
+const tagsId = nextUid();
+const cardTags = computed({ get: () => parseTags(f.value.tagsText), set: (v) => { f.value.tagsText = joinTags(v); } });
 
 const labels = computed(() => Object.keys(me.profile?.links || {}));
 const shown = computed(() => (f.value.visibleLinks.length ? f.value.visibleLinks.length : labels.value.length));
@@ -42,9 +49,10 @@ function toggle(label) {
         <RotatingHint :pool="headlineExamples(me.profile?.mode)" :empty="!f.headline" :off="!!me.profile?.headline" v-slot="{ placeholder }">
           <input v-model="f.headline" type="text" maxlength="80" :placeholder="me.profile?.headline || placeholder" />
         </RotatingHint></div>
-      <div class="field"><label>Come to me for — comma separated</label>
-        <input v-model="f.tagsText" type="text" :placeholder="(me.profile?.tags || []).join(', ') || 'hackathons, CV reviews'" />
-        <span class="small muted">The first 4 show on the badge. All of them show on the full card.</span></div>
+      <div class="field"><label :for="tagsId">Come to me for</label>
+        <UiTagInput :id="tagsId" v-model="cardTags" :max="CARD_TAGS.max" :max-length="CARD_TAGS.maxLength" />
+        <span v-if="!cardTags.length && me.profile?.tags?.length" class="small muted">Empty: your profile's tags show instead ({{ me.profile.tags.join(", ") }}).</span>
+        <span class="small muted">Press Enter after each one. The first 4 show on the badge. All of them show on the full card.</span></div>
       <div class="field"><label>About</label>
         <textarea v-model="f.about" maxlength="600" :placeholder="me.profile?.about || ''"></textarea></div>
     </div>
