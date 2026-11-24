@@ -3,6 +3,7 @@
 import CopiedFacts from "./CopiedFacts.vue";
 import EventCollects from "./EventCollects.vue";
 import EventFood from "./EventFood.vue";
+import PerkRows from "./PerkRows.vue";
 import { SUGGEST_HOST_HELP } from "../lib/eventform.js";
 
 defineProps({
@@ -18,11 +19,7 @@ defineProps({
   <template v-if="!form.from">
     <section class="ev-group" aria-labelledby="ev-g-perks">
       <h3 id="ev-g-perks" class="label ev-group-h">Perks</h3>
-      <div class="field"><label for="ev-perks">Perks — one per line</label>
-        <textarea id="ev-perks" v-model="form.perksText" placeholder="Free coffee (Show this at the bar before 11am)&#10;Raffle entry"
-                  :aria-invalid="errors.perksText ? 'true' : null" :aria-describedby="errors.perksText ? 'ev-perks-e' : 'ev-perks-h'"></textarea>
-        <span id="ev-perks-h" class="small muted">Put details in brackets and attendees get a button for the perk that opens them: Free lunch (Collect it from the foyer at 1pm).</span>
-        <span v-if="errors.perksText" id="ev-perks-e" class="error-text" role="alert">{{ errors.perksText }}</span></div>
+      <PerkRows :form="form" :errors="errors" prefix="ev" />
     </section>
     <section class="ev-group" aria-labelledby="ev-g-info">
       <h3 id="ev-g-info" class="label ev-group-h">Food and drink</h3>

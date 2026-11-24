@@ -8,6 +8,7 @@
 
 import { noticeOf } from "./collects.js";
 import { cleanInfo } from "./eventinfoclean.js";
+import { perkLines } from "./perkrows.js";
 
 export const THEME_OPTIONS = [
   { value: "default", label: "Default — Persimmon" },
@@ -21,7 +22,6 @@ export const HEX = /^#[0-9a-fA-F]{6}$/;
 export const SUGGEST_HOST_HELP = "People checked in see up to five others to go and meet, from what their cards show and what they hope to get from the event. Each person can say no on the check-in page or later. You only see counts.";
 
 const time = (v) => (v === null || v === undefined || v === "" ? null : Number.isFinite(Number(v)) ? Math.round(Number(v)) : null);
-const lines = (text) => String(text || "").split("\n").map((s) => s.trim()).filter(Boolean);
 
 // F31: what the host switched on under "What this event collects", as the request carries it.
 // `f` is the Create form or the Details form (they share these four keys). Null when the list is
@@ -48,7 +48,7 @@ export function createBody(f) {
     theme: f.theme,
     strapColor: f.strapColor || "",
     directoryOn: f.directoryOn,
-    perks: lines(f.perksText),
+    perks: perkLines(f),
     questions: [
       { key: "extra1", label: f.q1 },
       { key: "extra2", label: f.q2 },
@@ -91,7 +91,7 @@ export function eventFromBody(b, questions, organiser) {
 // The Details form of a saved event (HostLive) in the same shape.
 export function detailsBody(d) {
   return { name: d.name, venue: d.venue, startsAt: d.startsAt, endsAt: d.endsAt, theme: d.theme, strapColor: d.strapColor || "",
-    directoryOn: d.directoryOn, suggestOn: d.suggestOn !== false, perks: lines(d.perksText), rsvpCount: d.rsvpCount === "" ? null : Number(d.rsvpCount),
+    directoryOn: d.directoryOn, suggestOn: d.suggestOn !== false, perks: perkLines(d), rsvpCount: d.rsvpCount === "" ? null : Number(d.rsvpCount),
     info: { access: d.access || "", dress: d.dress, other: d.other, ...foodBody(d) },
     // Sent when the list is on, and once when it was on and is being switched off; an event that never had it sends nothing.
     ...(d.collectWas || d.collectOn ? { collect: collectBody(d) || { attendance: false } } : {}) };

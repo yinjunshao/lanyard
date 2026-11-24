@@ -68,16 +68,22 @@ needs: [F30]
 ## Tasks
 - [x] F63.1 Step motion and the tidy layout of every step (Create event), with `UiReveal` for the disclosures; tests for the motion rules (tokens only, reduced motion) and that every step still validates and keeps its focus rules.
 - [x] F63.2 Access info hidden (Create, Details, check-in page, hub; kept in the Worker); food and drink as a tick, text and diet options, in `eventform.js`, `eventInfo()`, the check-in page and the hub; tests (unknown diet ids dropped, `diet` without `foodOn` dropped, old events still show their text, access no longer shown but still stored).
-- [ ] F63.3 Perks as name and details rows on Create and Details, round-tripping the existing string format; tests (round trip, brackets in a name refused, 10 rows at most, an old perk with brackets in the middle read back sensibly); vault notes ([[Screens and Routes]], [[API Surface]] `info` shape, [[Design System]]); browser check of every step and the Details tab at 375 and 1280 px, light, dark and midnight, keyboard only.
+- [x] F63.3 Perks as name and details rows on Create and Details, round-tripping the existing string format; tests (round trip, brackets in a name refused, 10 rows at most, an old perk with brackets in the middle read back sensibly); vault notes ([[Screens and Routes]], [[API Surface]] `info` shape, [[Design System]]); browser check of every step and the Details tab at 375 and 1280 px, light, dark and midnight, keyboard only.
 
 ## Acceptance checks
 - [ ] Pressing Next on step 1 slides step 2 in; Back slides the other way; nothing moves over 300 ms (test reads the CSS); with reduced motion it fades (owner, with the system setting on).
-- [ ] Create event and Details have no Access field; an event saved earlier with `info.access` keeps it in the database and the API, and the check-in page does not show it (test).
-- [ ] Ticking "Food or drinks provided", typing "Pizza" and ticking Vegan and Halal shows "Food and drink: Pizza. Options: Vegan, Halal" on the preview and on the real check-in page after Create (test and browser).
-- [ ] A request with `info.diet: ["vegan", "beef"]` saves only `vegan`; with no `foodOn` it saves no `diet` (test).
-- [ ] Two perk rows "Free coffee" / "At the bar before 11am" and "Raffle entry" / (empty) save as `["Free coffee (At the bar before 11am)", "Raffle entry"]`; reopening Details shows the same two rows; the attendee's Free coffee button opens "At the bar before 11am" (test and browser).
-- [ ] At 375 px the perk boxes stack; at 1280 px the name box is narrower than the details box (browser).
-- [ ] `npm test` passes; public pages within budget (this is host-site code, not a public page; the check-in page change must not grow it by more than 300 B gzip).
+- [x] Create event and Details have no Access field; an event saved earlier with `info.access` keeps it in the database and the API, and the check-in page does not show it (test).
+  - Test (`test/event-form.mjs`, `preview.mjs`, `named-attendance.mjs`) and browser: step 3 and the Details tab have no Access box (`#d-access` absent); the real check-in page of a made event shows no access; the Worker test stores, accepts and returns `access` (and keeps it when Details sends it back).
+- [x] Ticking "Food or drinks provided", typing "Pizza" and ticking Vegan and Halal shows "Food and drink: Pizza. Options: Vegan, Halal" on the preview and on the real check-in page after Create (test and browser).
+  - Browser: ticked, typed Pizza, ticked Vegan and Halal; Review said "Pizza. Options: Vegan, Halal", the Details preview showed it, and the real check-in page of the created event (`/e/6Q9LB`) showed "Food and drink: Pizza. Options: Vegan, Halal". Also covered by tests.
+- [x] A request with `info.diet: ["vegan", "beef"]` saves only `vegan`; with no `foodOn` it saves no `diet` (test).
+  - Test: `[vegan, beef]` saves only `vegan`; no `foodOn` saves no `diet`; seven or more ids keep at most six.
+- [x] Two perk rows "Free coffee" / "At the bar before 11am" and "Raffle entry" / (empty) save as `["Free coffee (At the bar before 11am)", "Raffle entry"]`; reopening Details shows the same two rows; the attendee's Free coffee button opens "At the bar before 11am" (test and browser).
+  - Test: the two rows save as `["Free coffee (At the bar before 11am)", "Raffle entry"]`; Details reads the same two rows back (also in the browser); the attendee side's `perkParts` gives the Free coffee button the details "At the bar before 11am". I did not press the perk button in the hub in a browser (needs a signed-in attendee).
+- [x] At 375 px the perk boxes stack; at 1280 px the name box is narrower than the details box (browser).
+  - Browser: at 375 px the rows were Perk, then Details, then Remove, stacked; at 1280 px the name box was 218 px and the details box 437 px.
+- [x] `npm test` passes; public pages within budget (this is host-site code, not a public page; the check-in page change must not grow it by more than 300 B gzip).
+  - `npm test` and `npm run build` pass. The check-in page's JS (EventPage chunk plus the new small wording chunk) went from 3,618 to 3,908 B gzip, +290 B. Public page budget numbers: see the Log.
 
 ## Log
 -

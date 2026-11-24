@@ -16,7 +16,7 @@ const styles = (src) => [...src.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].ma
 const ms = (v) => (v?.endsWith("ms") ? parseFloat(v) : v?.endsWith("s") ? parseFloat(v) * 1000 : NaN);
 
 const css = read("src/styles/main.css");
-const FORM_FILES = ["EventCreate", "EventStepBasics", "EventStepLook", "EventStepAtEvent", "EventStepQuestions", "EventCollects"].map((n) => `src/components/${n}.vue`);
+const FORM_FILES = ["EventCreate", "EventStepBasics", "EventStepLook", "EventStepAtEvent", "EventStepQuestions", "EventCollects", "EventFood", "PerkRows"].map((n) => `src/components/${n}.vue`);
 const create = read("src/components/EventCreate.vue");
 const createCss = styles(create);
 
@@ -166,6 +166,75 @@ try {
   const plain = await make({});
   await main.post(`/api/e/${await codeOf(plain.json.id)}/checkin`, {});
   check("an event with no notes answers the hub with no info key, as it did before", !("info" in (await main.get(`/api/my/events/${plain.json.id}`)).json.event));
+
+  // ---------------------------------------------------------------------------------------------------------
+  console.log("\n# F63.3 Perks as name and details rows, saved in the string format they always had");
+  const { perkParts } = await import("../src/lib/eventtext.js");
+  const { PERK_MAX, NAME_MAX, DETAILS_MAX, perkRows, perkLines, perkProblems, blankPerk } = await import("../src/lib/perkrows.js");
+  const row = (name, details = "") => ({ name, details });
+  check("the limits are 10 rows, a name of 60 and details of 230", PERK_MAX === 10 && NAME_MAX === 60 && DETAILS_MAX === 230);
+  check("a row becomes 'Name (Details)', or 'Name' with no details", JSON.stringify(perkLines({ perks: [row("Free coffee", "At the bar before 11am"), row("Raffle entry")] })) === '["Free coffee (At the bar before 11am)","Raffle entry"]');
+  check("spaces are trimmed, a row with no name sends nothing, and blank rows are dropped", JSON.stringify(perkLines({ perks: [row("  Tea  ", "  hot  "), row(""), row("", ""), row("Cake", "   ")] })) === '["Tea (hot)","Cake"]');
+  check("a form with no rows sends no perks", JSON.stringify(perkLines({ perks: [] })) === "[]" && JSON.stringify(perkLines({})) === "[]");
+  check("at most ten are sent", perkLines({ perks: Array.from({ length: 14 }, (_, i) => row(`p${i}`)) }).length === 10);
+  check("reading a saved perk back gives the same rows (the round trip)", JSON.stringify(perkRows(["Free coffee (At the bar before 11am)", "Raffle entry"])) === '[{"name":"Free coffee","details":"At the bar before 11am"},{"name":"Raffle entry","details":""}]');
+  const trips = [row("Free coffee", "At the bar before 11am"), row("Raffle entry"), row("Lunch", "Foyer (ground floor) at 1pm"), row("Pass", "(nested (twice))"), row("Drink", "a, b; c: d!")];
+  check("a row survives being written and read again, even with brackets inside the details", JSON.stringify(perkRows(perkLines({ perks: trips }))) === JSON.stringify(trips), perkRows(perkLines({ perks: trips })));
+  check("the attendee's button for the first perk opens 'At the bar before 11am'", (() => { const p = perkParts("Free coffee (At the bar before 11am)"); return p.label === "Free coffee" && p.detail === "At the bar before 11am"; })());
+  check("an old perk with brackets in the middle splits on the last group at the very end only", JSON.stringify(perkParts("Free (large) coffee (At the bar)")) === '{"label":"Free (large) coffee","detail":"At the bar"}' && JSON.stringify(perkParts("Free (large) coffee")) === '{"label":"Free (large) coffee","detail":""}' && JSON.stringify(perkParts("Tea (a) and (b) too")) === '{"label":"Tea (a) and (b) too","detail":""}');
+  check("an unclosed or empty bracket, or brackets with no name, stay a plain line", ["Tea (hot", "Tea hot)", "Tea ()", "(only details)", "Tea ( )", "))"].every((t) => perkParts(t).detail === "" && perkParts(t).label === t), ["Tea (hot", "Tea hot)", "Tea ()", "(only details)"].map(perkParts));
+  check("a name with brackets in the middle of an old perk opens as a row, and the step then asks for it to be fixed", (() => { const rows = perkRows(["Free (large) coffee"]); return rows[0].name === "Free (large) coffee" && !!perkProblems(rows)["perk0-name"]; })());
+  check("the old button parsing is unchanged for the plain cases", perkParts("Free coffee (Show this at the bar before 11am)").detail === "Show this at the bar before 11am" && perkParts("Raffle entry").label === "Raffle entry" && perkParts("Raffle entry").detail === "" && perkParts("").label === "");
+
+  const prob = (rows) => perkProblems(rows);
+  check("a name with ( or ) is refused with a plain message that names the perk and says what to do", /^Perk 1: the name can't have brackets\. Put extra words in Details\.$/.test(prob([row("Coffee (hot)")])["perk0-name"]) && !!prob([row("Fine"), row("Bad)")])["perk1-name"] && !!prob([row("(x")])["perk0-name"]);
+  check("details with no name are refused; a row with nothing in it is not", /needs a name/.test(prob([row("", "At the bar")])["perk0-name"]) && Object.keys(prob([row(""), row("", "  ")])).length === 0);
+  check("a name over 60 characters and details over 230 are refused; exactly 60 and 230 are fine", !!prob([row("x".repeat(61))])["perk0-name"] && !!prob([row("a", "y".repeat(231))])["perk0-details"] && Object.keys(prob([row("x".repeat(60), "y".repeat(230))])).length === 0);
+  check("details whose brackets do not match are refused, because reading them back would split in the wrong place", !!prob([row("a", "see (here")])["perk0-details"] && !!prob([row("a", "here) or (there")])["perk0-details"] && Object.keys(prob([row("a", "see (here) and (there)")])).length === 0);
+  check("eleven rows with names are refused, ten are fine, and empty rows do not count", prob(Array.from({ length: 11 }, (_, i) => row(`p${i}`))).perks === "Ten perks at most. Remove a few." && Object.keys(prob(Array.from({ length: 10 }, (_, i) => row(`p${i}`)))).length === 0 && Object.keys(prob([...Array.from({ length: 10 }, (_, i) => row(`p${i}`)), row("")])).length === 0);
+  check("a refused name stops step 3 (Next) and the problem is named by row and box so focus can go to it", validateStep(3, blank({ perks: [row("A"), row("B)", "x")] }))["perk1-name"] && Object.keys(validateStep(3, blank({ perks: [row("A", "x")] }))).length === 0);
+  check("a refused perk does not need the server: the longest allowed perk is 293 characters, inside the Worker's 300", perkLines({ perks: [row("n".repeat(60), "d".repeat(230))] })[0].length === 293);
+  check("a draft saved before F63 with the perks as one text opens as rows", JSON.stringify(formFromDraft({ perksText: "Free coffee (At the bar)\nRaffle entry\n\n" }).perks) === '[{"name":"Free coffee","details":"At the bar"},{"name":"Raffle entry","details":""}]');
+  check("a saved draft's rows are strings of name and details only, ten at most, and a wrong type is nothing", (() => { const d = formFromDraft({ perks: [{ name: "A", details: "b", junk: 1 }, null, 5, { name: 7 }, ...Array.from({ length: 20 }, () => ({ name: "x" }))] }); return d.perks.length === 10 && JSON.stringify(d.perks[0]) === '{"name":"A","details":"b"}' && d.perks[1].name === "7"; })() && formFromDraft({ perks: "x" }).perks.length === 0);
+  check("Review lists the perks as they will be sent", reviewGroups(fb({ perks: [row("Tea", "hot"), row("Cake")] }), null)[2].rows[0].join("|") === "Perks|Tea (hot), Cake");
+
+  console.log("\n# F63.3 The perk rows on the screens");
+  const PerkRows = await load("src/components/PerkRows.vue");
+  const none = await render(PerkRows, { form: blank(), prefix: "ev" });
+  check("no rows: a plain line saying so and an Add a perk button, no boxes", /No perks yet/.test(none) && />Add a perk</.test(none) && !/<input/.test(none));
+  const two = await render(PerkRows, { form: blank({ perks: [row("Free coffee", "At the bar before 11am"), row("Raffle entry")] }), prefix: "d" });
+  check("a row is a narrow 'Perk' box then a wide 'Details (optional)' box, name first, each labelled for its own input", /<label for="d-perk0-name">Perk<\/label>[\s\S]*<label for="d-perk0-details">Details \(optional\)<\/label>/.test(two) && /id="d-perk1-name"/.test(two) && /value="Free coffee"/.test(two) && /value="At the bar before 11am"/.test(two));
+  check("each row has a Remove button with its own accessible name, and the list has an Add a perk button", /aria-label="Remove Free coffee"/.test(two) && /aria-label="Remove Raffle entry"/.test(two) && /aria-label="Remove perk 2"/.test(await render(PerkRows, { form: blank({ perks: [row("A"), row("")] }), prefix: "d" })) && />Add a perk</.test(two));
+  const ten = await render(PerkRows, { form: blank({ perks: Array.from({ length: 10 }, (_, i) => row(`p${i}`)) }), prefix: "ev" });
+  check("at ten rows Add a perk is disabled and says why", /<button[^>]*disabled[^>]*>Ten perks is the most</.test(ten) || /<button[^>]*class="btn perk-add"[^>]*disabled/.test(ten));
+  const bad = await render(PerkRows, { form: blank({ perks: [row("A"), row("B)", "x")] }), errors: { "perk1-name": "Perk 2: the name can't have brackets. Put extra words in Details." }, prefix: "ev" });
+  check("a problem shows beside its box, marks only that box invalid, and is announced", /id="ev-perk1-name"[^>]*aria-invalid="true"/.test(bad) && !/id="ev-perk0-name"[^>]*aria-invalid/.test(bad) && /id="ev-perk1-name-e"[^>]*role="alert"[^>]*>Perk 2: the name can&#39;t have brackets/.test(bad));
+  const prSrc = read("src/components/PerkRows.vue");
+  const prCss = styles(prSrc);
+  check("under 480 px the two boxes stack with the name first; from 480 px the name is the narrow box and the details the wide one (1fr and 2fr)", /\.perk-row \{ display: grid; grid-template-columns: minmax\(0, 1fr\);/.test(prCss) && /@container \(min-width: 480px\) \{\s*\.perk-row \{ grid-template-columns: minmax\(0, 1fr\) minmax\(0, 2fr\) auto; \}/.test(prCss) && /container-type: inline-size/.test(prCss) && prSrc.indexOf('class="field perk-name"') < prSrc.indexOf('class="field perk-details"'));
+  check("a new row eases in and a removed row fades out first, on the tokens", /\.perk-row\.fresh \{ animation: m-rise var\(--dur\) var\(--ease-out\) backwards; \}/.test(prCss) && /\.perk-row\.gone \{ animation: m-fade-out var\(--dur-out\) var\(--ease-in\) forwards;/.test(prCss) && /clearTimeout\(timer\)/.test(prSrc) && /:inert="leaving === i/.test(prSrc));
+  check("the boxes stop a long entry (maxlength a little over the limit, so a paste is caught by the message, not cut silently)", /:maxlength="NAME_MAX \+ 20"/.test(prSrc) && /:maxlength="DETAILS_MAX \+ 20"/.test(prSrc));
+  check("focus stays in the list when a row is added or removed", /focusName\(fresh\.value\)/.test(prSrc) && /addBtn\.value\?\.focus\(\)/.test(prSrc));
+  const at3 = await render(AtEvent, { form: blank({ perks: [row("A", "b")] }), errors: {} });
+  check("Create event step 3 uses the rows, and the old textarea is gone", /data-perk-rows/.test(at3) && /id="ev-perk0-name"/.test(at3) && !/id="ev-perks"|<textarea/.test(at3));
+  check("the Details tab uses the rows with its own ids, shows problems only after Save, and stops a save with a problem", /<PerkRows :form="d" :errors="perkErrors" prefix="d" \/>/.test(live) && !/d-perks"|<textarea id="d-perks/.test(live) && /perkTried\.value \? perkProblems\(d\.value\.perks\) : \{\}/.test(live) && /const pp = perkProblems\(d\.value\.perks\);\s*if \(Object\.keys\(pp\)\.length\) \{ detailsErr\.value = Object\.values\(pp\)\[0\]; return; \}/.test(live) && /perks: perkRows\(e\.perks\)/.test(live));
+  check("nothing reads the old perksText any more", !/perksText/.test(read("src/lib/eventform.js") + read("src/components/EventStepAtEvent.vue") + live + read("src/components/PerkRows.vue")) && !/perksText/.test(read("src/lib/eventsteps.js").replace(/d\.perksText/g, "")));
+
+  console.log("\n# F63.3 The Worker keeps the string format, and the attendee's button opens the details");
+  const p1 = await host.post("/api/host/events", createBody(fb({ perks: [row("Free coffee", "At the bar before 11am"), row("Raffle entry")] })));
+  const storedPerks = (id) => JSON.parse(T.q1("SELECT perks FROM events WHERE id = ?", id).perks);
+  check("two rows 'Free coffee' / 'At the bar before 11am' and 'Raffle entry' / (empty) save as the two strings", p1.status === 201 && JSON.stringify(storedPerks(p1.json.id)) === '["Free coffee (At the bar before 11am)","Raffle entry"]', storedPerks(p1.json.id));
+  const live1 = (await host.get(`/api/host/events/${p1.json.id}/live`)).json.event;
+  check("reopening Details shows the same two rows", JSON.stringify(perkRows(live1.perks)) === '[{"name":"Free coffee","details":"At the bar before 11am"},{"name":"Raffle entry","details":""}]');
+  const pubPerks = (await main.get(`/api/e/${live1.code}`)).json.event.perks;
+  check("the attendee's Free coffee button opens 'At the bar before 11am' and Raffle entry is a plain line", perkParts(pubPerks[0]).label === "Free coffee" && perkParts(pubPerks[0]).detail === "At the bar before 11am" && perkParts(pubPerks[1]).detail === "" && perkParts(pubPerks[1]).label === "Raffle entry");
+  check("the check-in page's preview of a body is the same strings", JSON.stringify(eventFromBody(createBody(fb({ perks: [row("Free coffee", "At the bar before 11am"), row("Raffle entry")] }))).perks) === JSON.stringify(pubPerks));
+  const p2 = await host.put(`/api/host/events/${p1.json.id}`, detailsBody({ name: "Night", venue: "", startsAt: null, endsAt: null, theme: "default", directoryOn: true, rsvpCount: "", perks: perkRows(live1.perks).concat([row("Tote bag", "Collect from the desk")]) }));
+  check("saving Details with the rows read back, plus one more, keeps the others and adds the new string", p2.status === 200 && JSON.stringify(storedPerks(p1.json.id)) === '["Free coffee (At the bar before 11am)","Raffle entry","Tote bag (Collect from the desk)"]', storedPerks(p1.json.id));
+  const longest = await host.post("/api/host/events", createBody(fb({ perks: [row("n".repeat(60), "d".repeat(230))] })));
+  check("the longest allowed perk is saved whole", storedPerks(longest.json.id)[0].length === 293);
+  const dupP = await host.post(`/api/host/events/${p1.json.id}/duplicate`, {});
+  check("a copy of the event carries the same perk strings", dupP.status === 201 && JSON.stringify(storedPerks(dupP.json.id)) === JSON.stringify(storedPerks(p1.json.id)));
 
 } finally {
   await vite.close();

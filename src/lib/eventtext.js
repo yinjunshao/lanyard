@@ -20,13 +20,23 @@ export function statusText(status, ev) {
   return STATUS_LABEL[status] || "";
 }
 
-// A perk the host typed as "Free coffee (Show this at the bar before 11am)": the words before the brackets are the
-// button, the words inside them open when it is pressed. With no brackets (or nothing before them) it is just a line.
+// A perk the host wrote as "Free coffee (Show this at the bar before 11am)": the words before the brackets are the
+// button, the words inside them open when it is pressed. Only the last bracketed group, at the very end, counts, so
+// "Free (large) coffee (At the bar)" is the button "Free (large) coffee" and its details "At the bar". With no group at
+// the end (or nothing before it or inside it) it is just a line. F63 writes perks from rows in the same format.
 export function perkParts(text) {
   const t = String(text || "").trim();
-  const m = /^(.*?)\s*\(([^]*)\)\s*$/.exec(t);
-  if (!m || !m[1].trim() || !m[2].trim()) return { label: t, detail: "" };
-  return { label: m[1].trim(), detail: m[2].trim() };
+  if (t.endsWith(")")) {
+    let depth = 0;
+    for (let i = t.length - 1; i >= 0; i -= 1) {
+      if (t[i] === ")") depth += 1;
+      else if (t[i] === "(" && --depth === 0) {
+        const label = t.slice(0, i).trim(), detail = t.slice(i + 1, -1).trim();
+        return label && detail ? { label, detail } : { label: t, detail: "" };
+      }
+    }
+  }
+  return { label: t, detail: "" };
 }
 
 // F68: the order of every event list: In progress first, then Upcoming (soonest first), then Ended (newest first).

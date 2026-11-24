@@ -7,6 +7,9 @@
 import { collectBody, createBody, THEME_OPTIONS } from "./eventform.js";
 import { cleanWhy, whyProblem } from "./collects.js";
 import { DIET_IDS, foodLine } from "./eventinfo.js";
+import { PERK_MAX, perkLines, perkProblems, perkRows } from "./perkrows.js";
+
+const lines = (t) => String(t || "").split("\n").map((s) => s.trim()).filter(Boolean);
 
 // Basics, Look, At the event, Questions, Review. Step 3 also takes F31's "What this event collects".
 export const STEPS = [
@@ -23,7 +26,7 @@ export const stepDirection = (from, to) => (!from || !to || from === to ? "" : t
 
 export const blankForm = () => ({
   from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "",
-  perksText: "", directoryOn: true, q1: "", q2: "",
+  perks: [], directoryOn: true, q1: "", q2: "", // F63: perks are rows of { name, details } (lib/perkrows.js), sent as "Name (Details)"
   rsvpCount: "", access: "", food: "", feedbackOn: true, feedbackQuestions: [],
   // F31: "What this event collects". Off until the host switches it on.
   collectOn: false, collectEmail: false, collectCard: false, collectWhy: "",
@@ -43,11 +46,14 @@ export function formFromDraft(d) {
     const v = d[k], was = b[k];
     if (k === "startsAt" || k === "endsAt") b[k] = Number.isFinite(v) ? v : null;
     else if (k === "rsvpCount") b[k] = typeof v === "number" || typeof v === "string" ? v : "";
+    else if (k === "perks") b[k] = Array.isArray(v) ? v.filter((p) => p && typeof p === "object").slice(0, PERK_MAX).map((p) => ({ name: String(p.name ?? ""), details: String(p.details ?? "") })) : was;
     else if (k === "diet") b[k] = Array.isArray(v) ? DIET_IDS.filter((id) => v.includes(id)) : was; // F63: ids only
     else if (typeof was === "string") b[k] = typeof v === "string" ? v : was;
     else if (typeof was === "boolean") b[k] = typeof v === "boolean" ? v : was;
     else if (Array.isArray(was)) b[k] = Array.isArray(v) ? v.filter((q) => q && typeof q === "object").map((q) => ({ ...q })) : was;
   }
+  // A draft saved before F63 holds the perks as one text, a line each: read it as rows.
+  if (!("perks" in d) && typeof d.perksText === "string") b.perks = perkRows(lines(d.perksText));
   return b;
 }
 
@@ -74,7 +80,7 @@ export function validateStep(n, f) {
   if (n === 3 && !f.from) {
     const r = f.rsvpCount;
     if (r !== "" && r !== null && !(Number.isInteger(Number(r)) && Number(r) >= 0)) e.rsvpCount = "Use a whole number, or leave it empty.";
-    if (String(f.perksText || "").split("\n").map((s) => s.trim()).filter(Boolean).length > 10) e.perksText = "Ten perks at most. Remove a few.";
+    Object.assign(e, perkProblems(f.perks));
   }
   if (n === 4 && !f.from && f.feedbackOn) {
     // The server drops a question with no text, or a pick list with fewer than two options, without a word.
@@ -148,7 +154,6 @@ const collectRows = (f) => {
   ];
 };
 const when = (ms) => (ms ? new Date(ms).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Not set");
-const lines = (t) => String(t || "").split("\n").map((s) => s.trim()).filter(Boolean);
 export function reviewGroups(f, facts) {
   const basics = [
     ["Event name", f.name.trim() || (f.from ? "Same name as the earlier event" : "Not set")],
@@ -164,7 +169,7 @@ export function reviewGroups(f, facts) {
       { step: 4, title: "Questions", rows: c.questions || [["Questions, feedback and sponsors", "Copied from the earlier event"]] },
     ];
   }
-  const perks = lines(f.perksText);
+  const perks = perkLines(f);
   const own = (f.feedbackQuestions || []).filter((q) => String(q.label || "").trim());
   return [
     { step: 1, title: "Basics", rows: [...basics, ["Venue", f.venue.trim() || "None"]] },

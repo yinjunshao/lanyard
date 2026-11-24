@@ -35,23 +35,27 @@ const F31_OFF = { collectOn: false, collectEmail: false, collectCard: false, col
 // F60 adds one key, on by default; a form with it on sends exactly what the old form sent (checked below), off adds `suggestOn: false`.
 const F60_ON = { suggestOn: true };
 // F63 adds the food tick and the diet ticks, off. A form with food typed now needs the tick on (an unticked form sends no food).
-const F63_OFF = { foodOn: false, diet: [] };
-const blank = (o = {}) => ({ ...OLD_BLANK(), ...F31_OFF, ...F60_ON, ...F63_OFF, ...o });
+const F63_OFF = { perks: [], foodOn: false, diet: [] };
+// F63: the perks are rows of { name, details } (sent as "Name (Details)"), not one text; `rows` makes them from lines.
+const rows = (t) => t.split("\n").map((s) => s.trim()).filter(Boolean).map((name) => ({ name, details: "" }));
+const { perksText: _oldPerks, ...OLD_NO_PERKS } = OLD_BLANK();
+const blank = (o = {}) => ({ ...OLD_NO_PERKS, ...F31_OFF, ...F60_ON, ...F63_OFF, ...o });
 const FORMS = {
   "blank except a name": blank({ name: "Only a name" }),
   "everything filled in (theme, colour, perks, questions)": blank({
     name: "  Spring night ", venue: "Room 4", startsAt: Date.UTC(2026, 10, 20, 18, 0), endsAt: Date.UTC(2026, 10, 20, 21, 0), theme: "formal", strapColor: "#2a6f4e",
-    perksText: "Free coffee\n  Raffle entry  \n\n", q1: "Course", q2: "What are you looking for?", access: "Step-free", food: "Pizza", foodOn: true, diet: ["vegan"], rsvpCount: "40", directoryOn: false,
+    perks: rows("Free coffee\n  Raffle entry  \n\n"), q1: "Course", q2: "What are you looking for?", access: "Step-free", food: "Pizza", foodOn: true, diet: ["vegan"], rsvpCount: "40", directoryOn: false,
     feedbackOn: true, feedbackQuestions: [{ type: "rating", label: "How easy was it to meet people?" }, { type: "single", label: "How did you hear?", options: ["Instagram", "A friend"] }],
   }),
   "night with a brand colour, feedback off": blank({ name: "Late one", theme: "night", strapColor: "#FFAA00", feedbackOn: false }),
   "only the second check-in question": blank({ name: "Q2", q2: "Only two" }),
   "zero sign-ups": blank({ name: "Zero", rsvpCount: 0 }),
   "a copy of an earlier event, nothing else": blank({ name: "", from: "ev-old" }),
-  "a copy with a new name and times": blank({ name: " Copy night ", from: "ev-old", startsAt: Date.UTC(2026, 11, 1, 18, 0), endsAt: Date.UTC(2026, 11, 1, 20, 0), theme: "night", perksText: "ignored", q1: "ignored" }),
-  "markup in the words": blank({ name: "<b>Bold</b> & co", venue: "\"Quoted\" <i>room</i>", perksText: "<script>x</script>" }),
+  "a copy with a new name and times": blank({ name: " Copy night ", from: "ev-old", startsAt: Date.UTC(2026, 11, 1, 18, 0), endsAt: Date.UTC(2026, 11, 1, 20, 0), theme: "night", perks: rows("ignored"), q1: "ignored" }),
+  "markup in the words": blank({ name: "<b>Bold</b> & co", venue: "\"Quoted\" <i>room</i>", perks: rows("<script>x</script>") }),
 };
-check("the blank form is the old blank form, key for key, plus F31's four keys, all off, F60's switch, on, and F63's food tick and diet list, off", JSON.stringify(blankForm()) === JSON.stringify({ ...OLD_BLANK(), ...F31_OFF, ...F60_ON, ...F63_OFF }));
+const sorted = (o) => JSON.stringify(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1)));
+check("the blank form is the old blank form, key for key, plus F31's four keys, all off, F60's switch, on, and F63's food tick and diet list, off", sorted(blankForm()) === sorted({ ...OLD_NO_PERKS, ...F31_OFF, ...F60_ON, ...F63_OFF }));
 check("F60: with suggestions switched off, Create sends the same body plus suggestOn: false, and nothing else", JSON.stringify(createBody(blank({ name: "Off", suggestOn: false }))) === JSON.stringify({ ...createBody(blank({ name: "Off" })), suggestOn: false }));
 for (const [label, f] of Object.entries(FORMS)) {
   const a = submitPlan(f), b = oldCreate(f);
@@ -123,7 +127,7 @@ console.log("\n# F30.2 Checks per step (a convenience; the server stays the sour
   check("step 3: sign-ups must be a whole number, or empty", !!validateStep(3, blank({ rsvpCount: "-1" })).rsvpCount && !!validateStep(3, blank({ rsvpCount: "2.5" })).rsvpCount
     && !validateStep(3, blank({ rsvpCount: "" })).rsvpCount && !validateStep(3, blank({ rsvpCount: "0" })).rsvpCount && !validateStep(3, blank({ rsvpCount: 12 })).rsvpCount);
   check("step 3: more than ten perks is a problem; ten is not (the server keeps ten and drops the rest without a word)",
-    !!validateStep(3, blank({ perksText: Array.from({ length: 11 }, (_, i) => `p${i}`).join("\n") })).perksText && !validateStep(3, blank({ perksText: Array.from({ length: 10 }, (_, i) => `p${i}`).join("\n\n") })).perksText);
+    !!validateStep(3, blank({ perks: rows(Array.from({ length: 11 }, (_, i) => `p${i}`).join("\n")) })).perks && !validateStep(3, blank({ perks: rows(Array.from({ length: 10 }, (_, i) => `p${i}`).join("\n")) })).perks);
   check("step 4: a feedback question with no text, or a pick list with under two options, is a problem (the server drops them silently)",
     !!validateStep(4, blank({ feedbackQuestions: [{ type: "rating", label: " " }] })).feedback0
     && !!validateStep(4, blank({ feedbackQuestions: [{ type: "single", label: "Pick", options: ["a", "a", ""] }] })).feedback0
@@ -161,10 +165,10 @@ console.log("\n# F30.2 The draft survives a refresh, and belongs to one host and
   const mem = new Map();
   const fake = { get length() { return mem.size; }, key: (i) => [...mem.keys()][i] ?? null, getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => { mem.set(k, String(v)); }, removeItem: (k) => { mem.delete(k); } };
   globalThis.sessionStorage = fake;
-  const f = blank({ name: "Draft night", startsAt: 1700000000000, perksText: "a\nb", feedbackQuestions: [{ type: "single", label: "Q", options: ["x", "y"] }], theme: "night" });
+  const f = blank({ name: "Draft night", startsAt: 1700000000000, perks: rows("a\nb"), feedbackQuestions: [{ type: "single", label: "Q", options: ["x", "y"] }], theme: "night" });
   saveDraft("Me@Host.com", "org1", f);
   const back = formFromDraft(loadDraft("me@host.com", "org1"));
-  check("what was typed comes back after a refresh (the email's case does not matter)", JSON.stringify(back) === JSON.stringify(f), back);
+  check("what was typed comes back after a refresh (the email's case does not matter)", sorted(back) === sorted(f), back);
   check("another organisation of the same host sees no draft, and its read removed this one", loadDraft("me@host.com", "org2") === null && mem.size === 0);
   saveDraft("a@host.com", "org1", f);
   check("another host on the same tab sees no draft", loadDraft("b@host.com", "org1") === null);
@@ -182,7 +186,7 @@ console.log("\n# F30.2 The draft survives a refresh, and belongs to one host and
   check("a draft from another version is no draft", loadDraft("x@y.com", "o") === null);
   const odd = formFromDraft({ name: 5, startsAt: "soon", endsAt: NaN, theme: null, directoryOn: "yes", perksText: ["x"], feedbackQuestions: "nope", extra: 1, rsvpCount: { a: 1 }, q1: "ok" });
   check("a draft with the wrong types falls back field by field and drops unknown keys", odd.name === "" && odd.startsAt === null && odd.endsAt === null && odd.theme === "default" && odd.directoryOn === true
-    && odd.perksText === "" && Array.isArray(odd.feedbackQuestions) && odd.feedbackQuestions.length === 0 && !("extra" in odd) && odd.rsvpCount === "" && odd.q1 === "ok", odd);
+    && odd.perks.length === 0 && Array.isArray(odd.feedbackQuestions) && odd.feedbackQuestions.length === 0 && !("extra" in odd) && odd.rsvpCount === "" && odd.q1 === "ok", odd);
   check("no draft at all gives the blank form", JSON.stringify(formFromDraft(null)) === JSON.stringify(blankForm()) && JSON.stringify(formFromDraft("x")) === JSON.stringify(blankForm()));
   // Storage that is off, full or blocked must not break the form.
   const boom = () => { throw new Error("blocked"); };
@@ -238,11 +242,11 @@ try {
   const P = { 1: await page(1), 2: await page(2), 3: await page(3), 4: await page(4), 5: await page(5) };
   const has = (n, list) => list.every((i) => ids(P[n]).includes(i));
   const none = (n, list) => list.every((i) => !ids(P[n]).includes(i));
-  check("step 1 has the earlier-event picker, name, start, end and venue, and nothing from later steps", has(1, ["ev-from", "ev-name", "ev-start", "ev-end", "ev-venue"]) && none(1, ["ev-theme", "ev-strap", "ev-perks", "ev-q1", "ev-rsvp"]));
-  check("step 2 has the theme and the brand colour only", has(2, ["ev-theme", "ev-strap"]) && none(2, ["ev-name", "ev-perks", "ev-q1"]));
-  check("step 3 has perks, the food tick, sign-ups and the attendee room tick only (no access field since F63)", has(3, ["ev-perks", "ev-food-on", "ev-rsvp"]) && none(3, ["ev-access"]) && /attendee room/.test(P[3]) && none(3, ["ev-name", "ev-theme", "ev-q1"]));
-  check("step 4 has both check-in questions, the feedback tick and the feedback editor only", has(4, ["ev-q1", "ev-q2"]) && /anonymous feedback/.test(P[4]) && /Everyone is asked/.test(P[4]) && none(4, ["ev-name", "ev-perks", "ev-theme"]));
-  check("every old field is on exactly one step (nothing was dropped)", ["ev-from", "ev-name", "ev-start", "ev-end", "ev-venue", "ev-theme", "ev-strap", "ev-perks", "ev-food-on", "ev-rsvp", "ev-q1", "ev-q2"].every((i) => [1, 2, 3, 4].filter((n) => ids(P[n]).includes(i)).length === 1));
+  check("step 1 has the earlier-event picker, name, start, end and venue, and nothing from later steps", has(1, ["ev-from", "ev-name", "ev-start", "ev-end", "ev-venue"]) && none(1, ["ev-theme", "ev-strap", "ev-perks-h", "ev-q1", "ev-rsvp"]));
+  check("step 2 has the theme and the brand colour only", has(2, ["ev-theme", "ev-strap"]) && none(2, ["ev-name", "ev-perks-h", "ev-q1"]));
+  check("step 3 has perks, the food tick, sign-ups and the attendee room tick only (no access field since F63)", has(3, ["ev-perks-h", "ev-food-on", "ev-rsvp"]) && none(3, ["ev-access"]) && /attendee room/.test(P[3]) && none(3, ["ev-name", "ev-theme", "ev-q1"]));
+  check("step 4 has both check-in questions, the feedback tick and the feedback editor only", has(4, ["ev-q1", "ev-q2"]) && /anonymous feedback/.test(P[4]) && /Everyone is asked/.test(P[4]) && none(4, ["ev-name", "ev-perks-h", "ev-theme"]));
+  check("every old field is on exactly one step (nothing was dropped)", ["ev-from", "ev-name", "ev-start", "ev-end", "ev-venue", "ev-theme", "ev-strap", "ev-perks-h", "ev-food-on", "ev-rsvp", "ev-q1", "ev-q2"].every((i) => [1, 2, 3, 4].filter((n) => ids(P[n]).includes(i)).length === 1));
   const dashSrc = read("src/views/HostDashboard.vue");
   check("every option list is kept: the theme picker has Default, Formal and Night; the earlier-event picker has a blank event and one entry per event",
     /THEME_OPTIONS/.test(read("src/components/EventStepLook.vue")) && /:options="THEME_OPTIONS"/.test(read("src/components/EventStepLook.vue")) && /export const THEME_OPTIONS = \[\s*\{ value: "default"[\s\S]*"formal"[\s\S]*"night"/.test(read("src/lib/eventform.js"))
@@ -261,7 +265,7 @@ try {
   check("F31 fills the slot on step 3 (What this event collects, off until switched on), and no other step has it", /data-slot="f31-collects"/.test(read("src/components/EventStepAtEvent.vue")) && /<EventCollects\b/.test(read("src/components/EventStepAtEvent.vue"))
     && ["EventStepBasics", "EventStepLook", "EventStepQuestions", "EventCreate"].every((n) => !/f31-collects|EventCollects/.test(read(`src/components/${n}.vue`))) && P[3].includes("What this event collects") && !P[3].includes("collect-why") && [1, 2, 4].every((n) => !P[n].includes("What this event collects")));
   // Review.
-  const rev = await page(5, blank({ name: "Review night", venue: "Hall", theme: "formal", strapColor: "#2a6f4e", perksText: "Tea\nCake", foodOn: true, food: "Soup", diet: ["vegan", "halal"], rsvpCount: "12", q1: "Course", directoryOn: false,
+  const rev = await page(5, blank({ name: "Review night", venue: "Hall", theme: "formal", strapColor: "#2a6f4e", perks: rows("Tea\nCake"), foodOn: true, food: "Soup", diet: ["vegan", "halal"], rsvpCount: "12", q1: "Course", directoryOn: false,
     feedbackQuestions: [{ type: "rating", label: "Good?" }, { type: "text", label: "" }] }), { createLabel: "Create event (uses 1 credit)", needsCredits: true });
   check("Review lists every choice by group, each group has a Change link back to its step", ["Basics", "Look", "At the event", "Questions"].every((t) => rev.includes(`>${t}</h3>`)) && (rev.match(/>Change</g) || []).length === 4
     && ["Review night", "Hall", "Formal", "#2a6f4e", "Tea, Cake", "Soup. Options: Vegan, Halal", "12", "Course", "Asked, with 1 of your own question"].every((t) => rev.includes(t)) && rev.includes("Attendee room:</span> No"));

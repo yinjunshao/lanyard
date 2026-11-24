@@ -39,6 +39,6 @@ const id = (s) => `${props.prefix}-${s}`;
 .food-more { padding-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .diet { border: 0; margin: 0; padding: 0; min-width: 0; }
 .diet legend { padding: 0; margin-bottom: 4px; }
-.diet-row { display: flex; flex-wrap: wrap; gap: 0 20px; }
-.diet-row .checkbox-row { width: auto; }
+.diet-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 0 12px; }
+.diet-row .checkbox-row { width: auto; align-items: center; }
 </style>

@@ -55,17 +55,19 @@ const host = T.client({ ip: "10.18.0.1", site: "host" });
 const info = await becomeHost(host, { kind: "company", name: "Preview Co" });
 T.env.DB.raw.prepare("INSERT INTO credits (id, org_id, events_granted, events_used, reason, created_at) VALUES (?, ?, 80, 0, ?, ?)").run("cr-pv", info.org.json.id, "test", Date.now());
 const main = T.client({ ip: "10.18.0.2" });
-const blank = () => ({ from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "", perksText: "", directoryOn: true, q1: "", q2: "", rsvpCount: "", access: "", food: "", foodOn: false, diet: [], feedbackOn: true, feedbackQuestions: [] });
+const blank = () => ({ from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "", perks: [], directoryOn: true, q1: "", q2: "", rsvpCount: "", access: "", food: "", foodOn: false, diet: [], feedbackOn: true, feedbackQuestions: [] });
 const long = (n, c = "x") => c.repeat(n);
+// F63: perks are rows of { name, details } (sent as "Name (Details)"); `rows` makes them from lines of text.
+const rows = (t) => t.split("\n").map((s) => s.trim()).filter(Boolean).map((name) => ({ name, details: "" }));
 const FORMS = {
-  "everything filled in": { ...blank(), name: "Spring night", venue: "Room 4", startsAt: Date.UTC(2026, 10, 20, 18, 0), theme: "formal", strapColor: "#2a6f4e", perksText: "Free coffee\n  Raffle entry  \n\n", q1: "Course", q2: "What are you looking for?", access: "Step-free", food: "Pizza", foodOn: true, diet: ["halal", "beef", "vegan"], directoryOn: true },
+  "everything filled in": { ...blank(), name: "Spring night", venue: "Room 4", startsAt: Date.UTC(2026, 10, 20, 18, 0), theme: "formal", strapColor: "#2a6f4e", perks: rows("Free coffee\n  Raffle entry  \n\n"), q1: "Course", q2: "What are you looking for?", access: "Step-free", food: "Pizza", foodOn: true, diet: ["halal", "beef", "vegan"], directoryOn: true },
   "only a name": { ...blank(), name: "Only a name" },
   "a name with spaces round it": { ...blank(), name: "   Padded name   ", venue: "  Hall  " },
-  "too long: name, venue, perks, notes, questions": { ...blank(), name: long(200), venue: long(200), perksText: Array.from({ length: 14 }, (_, i) => `perk ${i} ${long(100)}`).join("\n"), access: long(300), food: long(300), foodOn: true, diet: ["kosher", "kosher"], q1: long(90), q2: "ok" },
+  "too long: name, venue, perks, notes, questions": { ...blank(), name: long(200), venue: long(200), perks: Array.from({ length: 14 }, (_, i) => ({ name: `perk ${i} ${long(100)}`, details: "" })), access: long(300), food: long(300), foodOn: true, diet: ["kosher", "kosher"], q1: long(90), q2: "ok" },
   "an unknown theme and a bad colour": { ...blank(), name: "Odd", theme: "neon", strapColor: "red" },
   "night with a brand colour": { ...blank(), name: "Late one", theme: "night", strapColor: "#FFAA00" },
   "directory and feedback off": { ...blank(), name: "Quiet", directoryOn: false, feedbackOn: false },
-  "markup in the words": { ...blank(), name: "<b>Bold</b> & co", venue: "\"Quoted\" <i>room</i>", perksText: "<script>x</script>", access: "a < b" },
+  "markup in the words": { ...blank(), name: "<b>Bold</b> & co", venue: "\"Quoted\" <i>room</i>", perks: rows("<script>x</script>"), access: "a < b" },
 };
 const SHAPE = ["name", "venue", "startsAt", "theme", "strapColor", "perks", "directoryOn", "questions", "info", "feedbackOn"];
 const pick = (e) => Object.fromEntries(SHAPE.map((k) => [k, e[k]]));
@@ -102,7 +104,7 @@ for (const [label, c] of Object.entries(created)) {
 console.log("\n# Editing: what Details saves is what the page then shows");
 {
   const c = created["only a name"];
-  const d = { name: "  Renamed  ", venue: "Main hall", startsAt: Date.UTC(2026, 11, 1, 9, 0), endsAt: Date.UTC(2026, 11, 1, 17, 0), rsvpCount: "", access: "Lift", dress: "Smart", food: "", other: "Quiet room", theme: "night", strapColor: "#123456", perksText: "Tea\n Biscuits ", directoryOn: false };
+  const d = { name: "  Renamed  ", venue: "Main hall", startsAt: Date.UTC(2026, 11, 1, 9, 0), endsAt: Date.UTC(2026, 11, 1, 17, 0), rsvpCount: "", access: "Lift", dress: "Smart", food: "", other: "Quiet room", theme: "night", strapColor: "#123456", perks: rows("Tea\n Biscuits "), directoryOn: false };
   const put = await host.put(`/api/host/events/${c.id}`, detailsBody(d));
   const real = (await main.get(`/api/e/${c.code}`)).json;
   const live = (await host.get(`/api/host/events/${c.id}/live`)).json;

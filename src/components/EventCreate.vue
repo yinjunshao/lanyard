@@ -126,8 +126,8 @@ defineExpose({ heading });
 
 <style scoped>
 .ev-steps { display: flex; flex-direction: column; gap: 16px; }
-.ev-names { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--graphite); }
-.ev-names li { display: flex; align-items: flex-start; min-height: 44px; padding-top: 6px; border-top: 3px solid var(--rule); line-height: 1.25; overflow-wrap: anywhere; }
+.ev-names { display: grid; grid-template-columns: repeat(5, minmax(min-content, max-content)); justify-content: space-between; gap: 6px; list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--graphite); }
+.ev-names li { display: flex; align-items: flex-start; min-height: 44px; padding-top: 6px; border-top: 3px solid var(--rule); line-height: 1.25; }
 .ev-names li.done { border-top-color: var(--strap); }
 .ev-names li.on { color: var(--ink); font-weight: 700; border-top-color: var(--strap); }
 .ev-names .link-btn { font-size: 13px; padding: 0; min-height: 0; font-weight: 400; text-align: left; line-height: 1.25; }

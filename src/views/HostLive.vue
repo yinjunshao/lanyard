@@ -16,6 +16,8 @@ import UiSelect from "../components/ui/UiSelect.vue";
 import EventPreview from "../components/EventPreview.vue";
 import EventCollects from "../components/EventCollects.vue";
 import EventFood from "../components/EventFood.vue";
+import PerkRows from "../components/PerkRows.vue";
+import { perkProblems, perkRows } from "../lib/perkrows";
 import { foodTicked } from "../lib/eventinfoclean";
 import HostAttendees from "../components/HostAttendees.vue";
 import HostDrops from "../components/HostDrops.vue";
@@ -136,7 +138,7 @@ function fillDetails() {
     // access is not on the form (F63) but is kept here so saving sends the stored value back unchanged.
     access: e.info?.access || "", dress: e.info?.dress || "", other: e.info?.other || "",
     food: e.info?.food || "", foodOn: foodTicked(e.info), diet: Array.isArray(e.info?.diet) ? [...e.info.diet] : [],
-    theme: e.theme || "default", strapColor: e.strapColor || "", perksText: (e.perks || []).join("\n"), directoryOn: e.directoryOn !== false,
+    theme: e.theme || "default", strapColor: e.strapColor || "", perks: perkRows(e.perks), directoryOn: e.directoryOn !== false,
     suggestOn: e.suggestOn !== false, // F60: the live route says suggestOn only when it is off
     // F31: what the event collects (the live route sends it only when the list is on).
     collectWas: !!e.collect, collectOn: !!e.collect, collectEmail: !!e.collect?.items?.includes("email"),
@@ -155,6 +157,9 @@ const collectErrors = computed(() => {
   return w ? { collectWhy: w } : {};
 });
 // What attendees will see on the check-in page, from the form as it stands (F18).
+// F63: problems with the perk rows are shown beside them once Save has been pressed, then follow what is typed.
+const perkTried = ref(false);
+const perkErrors = computed(() => (perkTried.value ? perkProblems(d.value.perks) : {}));
 const previewEvent = computed(() => {
   const e = eventFromBody(detailsBody(d.value), live.value?.event?.questions || [], live.value?.event?.collect?.organiser || organiser.value);
   return { ...e, name: e.name || "Your event name" };
@@ -163,6 +168,9 @@ const { working, once } = useBusy();
 const saveDetails = once(async () => {
   detailsMsg.value = ""; detailsErr.value = "";
   if (Object.keys(collectErrors.value).length) { detailsErr.value = collectErrors.value.collectWhy; return; }
+  perkTried.value = true;
+  const pp = perkProblems(d.value.perks);
+  if (Object.keys(pp).length) { detailsErr.value = Object.values(pp)[0]; return; }
   try {
     await HostApi.hostUpdateEvent(id.value, detailsBody(d.value));
     live.value = await HostApi.hostLive(id.value);
@@ -316,9 +324,7 @@ async function copyFeedbackLink() {
             <button v-if="d.strapColor" class="btn" style="width:auto;flex:none" type="button" @click="d.strapColor = ''">Reset</button>
           </div>
         </div>
-        <div class="field"><label for="d-perks">Perks (one per line)</label>
-          <textarea id="d-perks" v-model="d.perksText" placeholder="Free coffee (Show this at the bar before 11am)&#10;Raffle entry" aria-describedby="d-perks-h"></textarea>
-          <span id="d-perks-h" class="small muted">Put details in brackets and attendees get a button for the perk that opens them.</span></div>
+        <div class="field"><span class="label">Perks</span><PerkRows :form="d" :errors="perkErrors" prefix="d" /></div>
         <label class="checkbox-row">
           <input type="checkbox" v-model="d.directoryOn" />
           <span class="small">Show the live attendee room to checked-in people</span>
