@@ -3,6 +3,7 @@
 import { onBeforeUnmount, reactive, ref } from "vue";
 import { Api } from "./api";
 import { eventStatus } from "./eventstatus.js";
+import { statusAt } from "./eventtext.js";
 
 export const live = reactive({ ongoing: false, at: 0 });
 
@@ -24,7 +25,7 @@ export function refreshLive(maxAgeMs = 120000) {
 }
 
 // The status of an event on this page, worked out with the server's clock (so a wrong phone
-// clock changes nothing) and re-worked every minute, so "Ongoing" turns to "Ended" on the page.
+// clock changes nothing) and re-worked every minute, so "In progress" turns to "Ended" on the page.
 export function useEventClock() {
   const skew = ref(0);
   const tick = ref(Date.now());
@@ -32,6 +33,7 @@ export function useEventClock() {
   onBeforeUnmount(() => clearInterval(timer));
   return {
     setServerNow(serverNow) { if (serverNow) skew.value = serverNow - Date.now(); },
-    statusOf: (ev) => eventStatus(ev, ev.checkedInAt, tick.value + skew.value),
+    statusOf: (ev) => statusAt(ev, tick.value + skew.value), // F68: the same rule on the host's list
+
   };
 }

@@ -181,16 +181,16 @@ console.log("\n# Words and dates on the pages");
   check("the check-in time is 24-hour", tx.timeOfDay(checkedIn) === "18:04", tx.timeOfDay(checkedIn));
   check("no time reads as nothing, not 'Invalid Date'", tx.dateOf(null) === "" && tx.timeOfDay(undefined) === "");
   check("connections are counted in words, 1 and 0 included", tx.connectionsText(1) === "1 connection" && tx.connectionsText(0) === "0 connections" && tx.connectionsText(5) === "5 connections" && tx.connectionsText(undefined) === "0 connections");
-  check("the status is a word, not only a colour", tx.statusText("ongoing", {}) === "Ongoing" && tx.statusText("ended", {}) === "Ended");
+  check("the status is a word, not only a colour", tx.statusText("ongoing", {}) === "In progress" && tx.statusText("ended", {}) === "Ended");
   const soon = Date.now() + 3600e3;
   check("an upcoming event reads 'Starts 18:00', with the day if it is not today", /^Starts \d\d:\d\d$/.test(tx.statusText("upcoming", { startsAt: Date.now() + 1000 })) && /^Starts \w{3} \d+ \w{3} \d{4}, \d\d:\d\d$/.test(tx.statusText("upcoming", { startsAt: soon + 3 * 86400e3 })), tx.statusText("upcoming", { startsAt: soon + 3 * 86400e3 }));
 }
 
 console.log("\n# Events page (source guards)");
 {
-  const page = read("src/views/Events.vue");
-  check("it has Happening now and Past events", page.includes("Happening now") && page.includes("Past events"));
-  check("a past event shows 'Attended <date>', its connection count and the word Ended", /Attended \{\{ dateOf\(e\.checkedInAt\) \}\}/.test(page) && /connectionsText\(e\.connectionCount\)/.test(page) && />Ended</.test(page));
+  const page = read("src/views/Events.vue"), tx0 = await import("../src/lib/eventtext.js");
+  check("it has In progress, Upcoming and Past events groups (F68)", page.includes('title: "In progress"') && page.includes('title: "Upcoming"') && page.includes("Past events"));
+  check("a past event shows 'Attended <date>', its connection count and the word Ended", /Attended \{\{ dateOf\(e\.checkedInAt\) \}\}/.test(page) && /connectionsText\(e\.connectionCount\)/.test(page) && /<EventStatusChip :status="status"/.test(page) && tx0.STATUS_LABEL.ended === "Ended");
   check("an event that is on says so in words from the one status helper", /statusText\(status, e\)/.test(page) && /useEventClock/.test(page) && !/from "\.\.\/lib\/eventstatus/.test(page));
   check("the empty state still says to scan an event QR", page.includes("Scan an event QR to check in"));
   check("status text colours use tokens", !/#[0-9a-f]{3,8}\b/i.test(page.slice(page.indexOf("<style"))));

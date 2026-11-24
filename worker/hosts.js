@@ -235,6 +235,7 @@ hostApp.get("/api/host/me", async (c) => {
     : 0;
   return c.json({
     step: "ready",
+    now: now(), // F68: the server's clock, so the list's In progress, Upcoming and Ended agree with the attendees' lists
     role: membership?.role || "owner",
     account, pendingTransfers,
     org: orgJson(org),
@@ -248,7 +249,7 @@ hostApp.get("/api/host/me", async (c) => {
       id: e.id, code: e.code, name: e.name, startsAt: e.starts_at,
       venue: e.venue, theme: e.theme, strapColor: e.strap_color,
       perks: e.perks || [], directoryOn: !!e.directory_on, isPaid: !!e.is_paid,
-      endsAt: e.ends_at || null, ended: !!e.ended_at, rsvpCount: e.rsvp_count ?? null,
+      endsAt: e.ends_at || null, ended: !!e.ended_at, endedAt: e.ended_at || null, rsvpCount: e.rsvp_count ?? null,
       info: eventInfo(e.info), feedbackOn: !!e.feedback_on,
     })),
   });

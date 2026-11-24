@@ -3,7 +3,8 @@
 import { computed, onMounted, ref } from "vue";
 import { Api } from "../lib/api";
 import { setLive, useEventClock } from "../lib/eventlive";
-import { connectionsText, dateOf, statusText, timeOfDay } from "../lib/eventtext";
+import { connectionsText, dateOf, groupByStatus, statusText, timeOfDay } from "../lib/eventtext";
+import EventStatusChip from "../components/EventStatusChip.vue";
 import Waiting from "../components/Waiting.vue";
 
 const events = ref([]);
@@ -27,11 +28,9 @@ async function load() {
 onMounted(load);
 
 const rows = computed(() => events.value.map((e) => ({ e, status: statusOf(e) })));
-// Ongoing first, then the ones that start later (soonest first); past events newest attended first.
-const now = computed(() => rows.value
-  .filter((r) => r.status !== "ended")
-  .sort((a, b) => (a.status === b.status ? (a.status === "upcoming" ? a.e.startsAt - b.e.startsAt : b.e.checkedInAt - a.e.checkedInAt) : a.status === "ongoing" ? -1 : 1)));
-const past = computed(() => rows.value.filter((r) => r.status === "ended").sort((a, b) => b.e.checkedInAt - a.e.checkedInAt));
+// In progress first, then upcoming (soonest first), then past events (newest attended first).
+const groups = computed(() => groupByStatus(rows.value, (e) => e.checkedInAt));
+const live = computed(() => [{ id: "now", title: "In progress", list: groups.value.ongoing }, { id: "soon", title: "Upcoming", list: groups.value.upcoming }].filter((g) => g.list.length));
 </script>
 
 <template>
@@ -54,26 +53,26 @@ const past = computed(() => rows.value.filter((r) => r.status === "ended").sort(
     </div>
 
     <template v-else>
-      <section v-if="now.length" class="stack" aria-labelledby="events-now">
-        <h2 id="events-now" class="label">Happening now</h2>
-        <router-link v-for="{ e, status } in now" :key="e.id" :to="`/app/events/${e.id}`" class="panel event-card">
-          <span class="event-status label" :class="status">{{ statusText(status, e) }}</span>
+      <section v-for="g in live" :key="g.id" class="stack" :aria-labelledby="`events-${g.id}`">
+        <h2 :id="`events-${g.id}`" class="label">{{ g.title }}</h2>
+        <router-link v-for="{ e, status } in g.list" :key="e.id" :to="`/app/events/${e.id}`" class="panel event-card">
+          <span class="event-status"><EventStatusChip :status="status" /><span v-if="status === 'upcoming'" class="small muted">{{ statusText(status, e) }}</span></span>
           <strong class="event-name">{{ e.name }}</strong>
           <span v-if="e.venue" class="small muted">{{ e.venue }}</span>
           <span class="small muted">Checked in {{ timeOfDay(e.checkedInAt) }} · {{ connectionsText(e.connectionCount) }}</span>
         </router-link>
       </section>
 
-      <section v-if="past.length" class="stack" aria-labelledby="events-past">
+      <section v-if="groups.ended.length" class="stack" aria-labelledby="events-past">
         <h2 id="events-past" class="label">Past events</h2>
         <div class="list">
-          <router-link v-for="{ e } in past" :key="e.id" :to="`/app/events/${e.id}`" class="list-row spread">
+          <router-link v-for="{ e, status } in groups.ended" :key="e.id" :to="`/app/events/${e.id}`" class="list-row spread">
             <span style="min-width:0">
               <strong>{{ e.name }}</strong>
               <span class="small muted" style="display:block">Attended {{ dateOf(e.checkedInAt) }}</span>
               <span class="small muted" style="display:block">{{ connectionsText(e.connectionCount) }}</span>
             </span>
-            <span class="event-status label ended">Ended</span>
+            <EventStatusChip :status="status" />
           </router-link>
         </div>
       </section>
@@ -84,6 +83,5 @@ const past = computed(() => rows.value.filter((r) => r.status === "ended").sort(
 <style scoped>
 .event-card { display: flex; flex-direction: column; gap: 4px; color: inherit; }
 .event-name { font-size: 18px; }
-.event-status.ongoing, .event-status.upcoming { color: var(--strap-deep); }
-.event-status.ended { color: var(--graphite); }
+.event-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 </style>

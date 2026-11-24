@@ -4,7 +4,7 @@ id: F68
 priority: P1
 phase: 11
 size: S
-status: Not started
+status: In progress
 needs: [F15]
 ---
 # F68 Event status on event lists
@@ -36,7 +36,7 @@ needs: [F15]
 - **"Stickied on top"** means the In progress group always comes first. The page header is not made sticky.
 
 ## Tasks
-- [ ] F68.1 Shared status chip and ordering for the host dashboard list and the Events tab; "Ongoing" to "In progress"; tests (ordering with a fixed clock, the host list uses `statusOf`, the words, contrast); vault notes ([[Screens and Routes]]); browser check at 375 and 1280 px, light, dark and midnight, on a host with one event of each status.
+- [x] F68.1 Shared status chip and ordering for the host dashboard list and the Events tab; "Ongoing" to "In progress"; tests (ordering with a fixed clock, the host list uses `statusOf`, the words, contrast); vault notes ([[Screens and Routes]]); browser check at 375 and 1280 px, light, dark and midnight, on a host with one event of each status.
 
 ## Acceptance checks
 - [ ] A host with an ended, an in-progress and an upcoming event sees them in the order In progress, Upcoming, Ended, each with its chip (test with a fixed clock, and browser).

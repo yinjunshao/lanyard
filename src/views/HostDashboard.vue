@@ -18,6 +18,9 @@ import { UiCombobox } from "../components/ui/UiSelect.vue";
 import { blankForm, copyFacts, firstBadStep, formFromDraft, serverErrorField, stepFromQuery, submitPlan } from "../lib/eventsteps";
 import { clearDraft, loadDraft, saveDraft } from "../lib/eventdraft";
 import { useBusy } from "../components/Waiting.vue";
+import { useEventClock } from "../lib/eventlive";
+import { groupByStatus } from "../lib/eventtext";
+import EventStatusChip from "../components/EventStatusChip.vue";
 document.title = "Your events | Lanyard hosts";
 
 // loading | email | code (signed out) | details | terms | org (setup) | ready
@@ -29,6 +32,13 @@ const pendingTransfers = ref([]);
 const limits = ref({ freePerWeek: 0, freeLeftThisWeek: 0, checkinCap: 300 });
 const credits = ref({ granted: 0, used: 0, remaining: 0, nextExpiry: null });
 const events = ref([]);
+const { setServerNow, statusOf } = useEventClock();
+// F68: the same status rule as the attendees' Events tab. Live, Open and Report open the same page.
+const ACTION = { ongoing: "Live ›", upcoming: "Open ›", ended: "Report ›" };
+const groups = computed(() => {
+  const g = groupByStatus(events.value.map((e) => ({ e, status: statusOf(e) })), (e) => e.startsAt);
+  return [{ id: "now", title: "In progress", list: g.ongoing }, { id: "soon", title: "Upcoming", list: g.upcoming }, { id: "past", title: "Ended", list: g.ended }].filter((x) => x.list.length);
+});
 const error = ref("");
 const busy = ref(false);
 const createdCode = ref(null);
@@ -86,6 +96,7 @@ async function load() {
     pendingTransfers.value = d.pendingTransfers || [];
     if (d.limits) limits.value = d.limits;
     if (d.credits) credits.value = d.credits;
+    setServerNow(d.now);
     events.value = d.events || [];
     if (d.step === "ready") loadDraftOnce();
     view.value = d.step;
@@ -355,22 +366,29 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         <span class="label">No events yet</span>
         <p>Create your first event and display its QR at the door.</p>
       </div>
-      <div v-else class="list">
-        <router-link
-          v-for="e in events"
-          :key="e.id"
-          :to="`/events/${e.id}`"
-          class="list-row spread"
-        >
-          <span>
-            <strong>{{ e.name }}</strong>
-            <span class="small muted" style="display:block">
-              <span class="tnum">{{ e.code }}</span>{{ e.venue ? " · " + e.venue : "" }}{{ e.startsAt ? " · " + fmtDate(e.startsAt) : "" }}
-            </span>
-          </span>
-          <span class="label">{{ e.ended ? "Report ›" : "Live ›" }}</span>
-        </router-link>
-      </div>
+      <template v-else>
+        <section v-for="g in groups" :key="g.id" class="stack" :aria-labelledby="`host-events-${g.id}`">
+          <h2 :id="`host-events-${g.id}`" class="label">{{ g.title }}</h2>
+          <div class="list">
+            <router-link v-for="{ e, status } in g.list" :key="e.id" :to="`/events/${e.id}`" class="list-row spread">
+              <span style="min-width:0">
+                <strong>{{ e.name }}</strong>
+                <span class="small muted" style="display:block">
+                  <span class="tnum">{{ e.code }}</span>{{ e.venue ? " · " + e.venue : "" }}{{ e.startsAt ? " · " + fmtDate(e.startsAt) : "" }}
+                </span>
+              </span>
+              <span class="event-side">
+                <EventStatusChip :status="status" />
+                <span class="label">{{ ACTION[status] }}</span>
+              </span>
+            </router-link>
+          </div>
+        </section>
+      </template>
     </template>
   </div>
 </template>
+
+<style scoped>
+.event-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+</style>
