@@ -554,4 +554,19 @@ console.log("\n# Where the code sits");
 }
 Date.now = realNow;
 
+// ------------------------------------------------------------------ F60.4
+console.log("\n# The Privacy Policy says it (and the Terms version is not bumped)");
+{
+  const pol = read("src/views/Privacy.vue");
+  const f = pol.slice(pol.indexOf("<h2>8f."), pol.indexOf("<h2>9."));
+  check("a section 8f on Who to meet at an event, between 8e and 9", pol.indexOf("<h2>8e.") < pol.indexOf("<h2>8f. Who to meet at an event</h2>") && pol.indexOf("<h2>8f.") < pol.indexOf("<h2>9."));
+  check("…it says what is shown, to whom, how long, the lawful basis and how to say no", /What others see/.test(f) && /first name and last initial/.test(f) && /up to three of its tags/.test(f) && /Be easy to find/.test(f) && /<b>Who<\/b>/.test(f) && /blocked/.test(f) && /48 hours after the event ends/.test(f) && /legitimate interests/i.test(f) && /Untick at check-in, on the event's page or in Settings/.test(f) && /Suggest me to people here/.test(f));
+  check("…and the AI part: no names, photos or ids, not for anyone who unticked or switched off AI search", /without names, photos or ids/.test(f) && /unticked or switched off AI search/.test(f));
+  check("the data table, the retention table and the lawful bases have it, and 8c names the exception to tap-only", /what you hope to get from it, if you write it/.test(pol) && /your "Suggest me" choice<\/td><td>48 hours after the event ends/.test(pol) && /suggesting people at an event to each other, as the check-in page says \(section 8f/.test(pol) && /Who to meet at an event, ordered when you open it, at most every 20 minutes/.test(pol));
+  check("8b now says the photo is for Who to meet", /add a photo of your face to your entry in Who to meet \(section 8f\)/.test(pol));
+  const { TERMS_VERSION } = await import("../worker/legal.js");
+  check("the Terms and Privacy version is not bumped by this feature (owner's decision)", TERMS_VERSION === "2026-11-22");
+  check("the consent history names the choice", /event_suggest:[^\n]*Being suggested to people at an event/.test(read("src/components/ConsentHistory.vue")));
+}
+
 summary();

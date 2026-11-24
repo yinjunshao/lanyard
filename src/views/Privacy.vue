@@ -5,7 +5,7 @@ import { HELP_EMAIL, LEGAL_EMAIL, OPERATOR } from "../lib/contact";
 document.title = "Privacy policy | Lanyard";
 const CONTACT = LEGAL_EMAIL;
 const HELP = HELP_EMAIL;
-const UPDATED = "22 November 2026";
+const UPDATED = "24 November 2026";
 </script>
 
 <template>
@@ -31,6 +31,7 @@ const UPDATED = "22 November 2026";
         <tr><td>Users</td><td>Connections you make, which card was scanned, how you met (QR code, typed code or link) and when, optional note, private notes, messages, and shared selfies</td><td>To keep your connections and let both people see them</td></tr>
         <tr><td>Users</td><td>Event check-ins, answers to optional questions, and your optional directory and sponsor choices</td><td>To join events and respect your choices</td></tr>
         <tr><td>Users</td><td>If you choose "Be easy to find" at an event: a photo of your face, a short line about you, and what kind of person you would like to meet</td><td>To let other people at that event who chose the same spot you in the room. Optional and off unless you turn it on</td></tr>
+        <tr><td>Users</td><td>When you check in to an event: what you hope to get from it, if you write it, and whether you leave "Suggest me to people here" ticked</td><td>To suggest people at that event to each other; see section 8f</td></tr>
         <tr><td>Users</td><td>If AI features are on and you tap one: what you type, and details about the people involved that you can already see (never email addresses, links or photos), sent to our AI provider; a count of how often you used it; and the reply, kept for a few days</td><td>To draft messages, find people you already know and suggest people to meet, and to keep the cost and the limits under control. See section 8c</td></tr>
         <tr><td>Hosts</td><td>If AI features are on: the written answers to your event feedback, without names, sent to our AI provider to write a summary, and a count of how often you used it</td><td>To summarise anonymous feedback for you. See section 8c</td></tr>
         <tr><td>Users</td><td>Your private follow-up reminders and the tags you put on your connections</td><td>So you can remember who to follow up with; only you see them</td></tr>
@@ -53,7 +54,7 @@ const UPDATED = "22 November 2026";
     <ul>
       <li><b>Contract</b>: running your account, card, connections and events, which you asked us to provide.</li>
       <li><b>Consent</b>: news and offers by email (a separate tick box, off by default), shared selfies, appearing in an event directory, being easy to find at an event (your face photo, line and wish), and sharing details with a named sponsor. You can withdraw these at any time and it is as easy to withdraw as to give.</li>
-      <li><b>Legitimate interests</b>: keeping the service secure, preventing abuse, counting usage in aggregate, letting people you have connected with find you using AI search from what you already show them (you can switch this off at any time in Settings), and an event organiser's list of who came, where the organiser has switched it on and told you on the check-in page (section 8d; you can untick it there or later). We weigh this against your rights and you can object.</li>
+      <li><b>Legitimate interests</b>: keeping the service secure, preventing abuse, counting usage in aggregate, letting people you have connected with find you using AI search from what you already show them (you can switch this off at any time in Settings), an event organiser's list of who came, where the organiser has switched it on and told you on the check-in page (section 8d; you can untick it there or later), and suggesting people at an event to each other, as the check-in page says (section 8f; untick it there or later). We weigh this against your rights and you can object.</li>
       <li><b>Legal obligation</b>: keeping financial records, and responding to lawful requests.</li>
     </ul>
 
@@ -82,6 +83,7 @@ const UPDATED = "22 November 2026";
         <tr><td>Shared selfies</td><td>7 days if the other person has not accepted it, then deleted. Once accepted, until either person removes it or the connection, and no more than 12 months after it was taken</td></tr>
         <tr><td>An organiser's list of who checked in, and what you share on it</td><td>Until you untick it (then it is deleted at once), and no later than 12 months after the event ends</td></tr>
         <tr><td>Keys, codes and vouchers an organiser gave you, and each voucher use</td><td>30 days after the event ends, or until you delete your account</td></tr>
+        <tr><td>What you hope to get from an event, and your "Suggest me" choice</td><td>48 hours after the event ends, or until you delete your account</td></tr>
         <tr><td>"Be easy to find" photo, line and wish</td><td>Until you turn it off, when they are deleted at once, and no later than 48 hours after the event ends</td></tr>
         <tr><td>An AI reply (a draft or a search result)</td><td>7 days, so asking again costs nothing, then deleted. We do not keep what was sent to the model</td></tr>
         <tr><td>An AI summary of an event's written feedback</td><td>With that feedback: deleted when the event is deleted or its written answers are removed after 12 months. It holds no names and no account</td></tr>
@@ -142,8 +144,8 @@ const UPDATED = "22 November 2026";
 
     <h2>8b. Be easy to find at an event</h2>
     <p>
-      At an event that is on, you can choose to show a photo of your face, a short line and your first name and last initial to
-      other people checked in to the same event who have made the same choice, so you can spot each other in the room. It is off
+      At an event that is on, you can choose to add a photo of your face to your entry in Who to meet (section 8f), so people
+      there can spot you in the room. Only people who are shown you in Who to meet see it. It is off
       until you turn it on, for that event only. They do not see your card, links or contact details, and organisers only see how
       many people used it. We suggest people to meet from what each of you already shows on your cards. If AI features are on, someone at the event can ask an AI model to re-order that list. The model is then sent your line and the fields of your card used for suggestions (headline, tags, role or course, university), without your name or photo, unless you have switched off AI search in Settings. See section 8c. Nobody outside the event, and
       nobody once the event has ended, can see it. Turning it off deletes your photo and line at once; otherwise they are deleted
@@ -153,7 +155,7 @@ const UPDATED = "22 November 2026";
     <h2>8c. AI features</h2>
     <p>
       Some features use an AI model: drafting a follow-up message, finding someone you already know, suggesting people to meet at an
-      event, and summarising anonymous feedback for hosts. Nothing runs unless you tap it (the one exception is a host's feedback summary, which is written once automatically after an event's feedback closes), a person reads every result and nothing is
+      event, and summarising anonymous feedback for hosts. Nothing runs unless you tap it (the exceptions are a host's feedback summary, written once after an event's feedback closes, and Who to meet at an event, ordered when you open it, at most every 20 minutes), a person reads every result and nothing is
       sent for you, and each feature has a version without AI. We can switch them all off at any time, and they have daily and monthly limits.
     </p>
     <ul>
@@ -186,6 +188,19 @@ const UPDATED = "22 November 2026";
       <li><b>What we keep</b>: what the organiser loaded, scrambled with a secret key so that a copy of our database cannot read it; which item went to you and when; and, for a voucher, when each use was marked.</li>
       <li><b>Who sees it</b>: you. The organiser sees counts, such as 120 loaded and 37 given, never what you were given. At an event that also keeps a list of who checked in (section 8d), they see which item number went to each person on that list.</li>
       <li><b>How long</b>: 30 days after the event ends, or sooner if the organiser deletes it or you delete your account. Yours is in your data download.</li>
+    </ul>
+
+    <h2>8f. Who to meet at an event</h2>
+    <p>
+      While an event is on, its page in the app suggests up to five other people checked in there to go and meet. Everyone checked
+      in can be suggested unless they untick "Suggest me to people here", which the check-in page shows, ticked, before you check in.
+    </p>
+    <ul>
+      <li><b>What others see</b>: your first name and last initial, your card's headline and up to three of its tags, what you hope to get from the event if you write it, and one reason. Your photo only if you turn on Be easy to find (8b). Never your surname, card, links or contact details.</li>
+      <li><b>Who</b>: only people checked in to the same event who are suggested too, while it is on, and never someone you blocked or who blocked you. The organiser can switch it off, and sees only how many wrote what they hope for or unticked.</li>
+      <li><b>AI</b>: if AI features are on, a model orders the list from what you and the others hope for and show, without names, photos or ids, and without anyone who unticked or switched off AI search (8c).</li>
+      <li><b>Our basis and how to say no</b>: legitimate interests, helping people at an event meet. Untick at check-in, on the event's page or in Settings, Privacy and data; it works at once. Each choice and the words you saw go in your consent history.</li>
+      <li><b>How long</b>: what you wrote and your choice are deleted 48 hours after the event ends, or with your account.</li>
     </ul>
 
     <h2>9. Children</h2>

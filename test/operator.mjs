@@ -65,7 +65,7 @@ for (const [name, s] of Object.entries(pages)) {
 console.log("\n# One Terms and Privacy version for F45 to F50");
 const legal = read("worker/legal.js");
 check("TERMS_VERSION is 2026-11-22", /TERMS_VERSION = "2026-11-22"/.test(legal));
-check("both pages say Last updated 22 November 2026", /UPDATED = "22 November 2026"/.test(privacy) && /UPDATED = "22 November 2026"/.test(terms));
+check("both pages say when they were last updated (Terms 22 November 2026; the Privacy Policy 24 November 2026, F60's section 8f, version not bumped)", /UPDATED = "24 November 2026"/.test(privacy) && /UPDATED = "22 November 2026"/.test(terms));
 
 const T = await makeEnv();
 const { client, q1, env } = T;

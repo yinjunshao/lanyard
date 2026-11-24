@@ -20,6 +20,8 @@ date: 2026-11-10
 - **Matching without AI:** +3 for each wish word found in what a person shows, +1 per F16 shared-ground fact, ties to the later check-in, top five; with nothing in common, three random people as "Say hi to someone new". [[F25 AI who-to-meet ranking]] starts from `presenceCandidates()` and `visibleFields()`.
 - **Consent record:** scope `event_presence:<eventId>` in `consents` and `consent_log`, with `photo` lines for each selfie added or deleted. The Terms and Privacy version is **not** bumped by the agent; see the owner step.
 
+> [!note] Narrowed 2026-11-24 by [[D054 Everyone checked in can be suggested unless they untick Suggest me, shown only what their card shows]]. By the owner's decision everyone checked in can be suggested to the others at an event, in Who to meet, unless they untick "Suggest me" (on by default, told on the check-in page), shown only what their card already shows. Be easy to find stays opt-in and off by default; since F60 it only adds the face photo to the person's entry, shown to the people who may see them in Who to meet. Everything else above still holds.
+
 ## Consequences
 A selfie can be fetched by any other opted-in person at the event while it is on, so it must be treated as shown to the whole room. Someone could screenshot it; the copy says who sees it. Reports and blocks work from the list. Rate limits: 30 changes an hour, 10 selfies a day, 120 list requests an hour.
 

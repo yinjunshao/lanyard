@@ -50,7 +50,7 @@ Normal use is cheap. The real risk is abuse or a bug in a loop, so every limit b
 ## 4. Ten layers that keep the bill low
 | # | Layer | Rule | Where |
 | --- | --- | --- | --- |
-| 1 | **Explicit tap only** | No AI call on page load or on typing. One button. Disabled while running. Shows "2 of 3 left today". | client |
+| 1 | **Explicit tap only** | No AI call on page load or on typing. One button. Disabled while running. Shows "2 of 3 left today". **Exceptions:** the host feedback summary (F23, once after feedback closes) and Who to meet for everyone ([[F60 Intention at check-in and who to meet for everyone]], [[D054 Everyone checked in can be suggested unless they untick Suggest me, shown only what their card shows]]), which ranks by itself when the list opens, at most once per person per event every 20 minutes (one conditional write), inside F25's per-event quota and every other layer below. | client |
 | 2 | **Eligibility** | Attendees: a saved account with a **verified email** (no guests). Hosts: a signed-in host account. Owner-only allow-list during the first rollout. | Worker |
 | 3 | **Per-person quota** | Daily and monthly limits per feature, by plan (table below). Counted in D1 `ai_usage`. A refused call costs nothing. | Worker + D1 |
 | 4 | **Burst limit** | 1 call per 5 s per person; 30 per hour per IP; reuses `bump()` in `worker/ratelimit.js`. | Worker |
