@@ -74,7 +74,7 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
 </script>
 
 <template>
-  <div class="stack-3">
+  <div class="checkin">
     <div v-if="branded(event)" class="profile event-brand" :class="event.theme">
       <div class="profile-strap" :style="event.strapColor ? { background: event.strapColor } : null">
         <span class="profile-strap-word">lanyard</span>
@@ -97,6 +97,11 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
       </p>
     </div>
 
+    <div class="notice">
+      Checking in unlocks perks and the event album. If you choose to, you can also appear in the attendee room.
+      {{ hostsLine(event) + ' ' }}
+    </div>
+
     <dl v-if="rows.length" class="panel event-info">
       <template v-for="r in rows" :key="r[0]">
         <dt class="label">{{ r[0] }}</dt>
@@ -104,84 +109,87 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
       </template>
     </dl>
 
-    <div class="notice">
-      Checking in unlocks perks and the event album. If you choose to, you can also appear in the attendee room.
-      {{ hostsLine(event) + ' ' }}
-    </div>
-
-    <label v-if="event.directoryOn" class="checkbox-row" style="margin:4px 0">
-      <input type="checkbox" v-model="form.directoryConsent" />
-      <span class="small">
-        Show me in this event's attendee room to other checked-in people.
-      </span>
-    </label>
-
-    <div v-if="showName" class="field">
-      <label for="name">Your name</label>
-      <input id="name" v-model="form.name" type="text" autocomplete="name" />
-    </div>
-
-    <div v-for="q in event.questions" :key="q.key" class="field">
-      <label :for="q.key">{{ q.label }}</label>
-      <input :id="q.key" v-model="form.answers[q.key]" type="text" />
-    </div>
-
-    <div v-if="sponsors.length" class="panel stack-2">
-      <span class="label">Sponsors</span>
-      <label v-for="s in sponsors" :key="s.id" class="checkbox-row">
-        <input type="checkbox" v-model="form.sponsorConsent[s.id]" />
-        <span class="small">
-          Share my name, course and tags with <strong>{{ s.name }}</strong>
-          <span v-if="s.perk"> — {{ s.perk }}</span>
-        </span>
-      </label>
-      <p class="small muted">Each sponsor is a separate, optional choice. Never pre-ticked.</p>
-    </div>
-
-    <section v-if="event.suggestOn !== false" class="panel stack-2" aria-labelledby="suggest-h" data-suggest>
-      <h2 id="suggest-h" class="label">Who to meet</h2>
-      <div class="field" style="margin:0">
-        <label for="ev-intention">{{ INTENTION_LABEL }} <span class="muted">(optional)</span></label>
-        <RotatingHint :pool="INTENTION_EXAMPLES" :empty="!form.intention" v-slot="{ placeholder }">
-          <input id="ev-intention" v-model="form.intention" type="text" :maxlength="INTENTION_MAX" autocomplete="off" :placeholder="placeholder" />
-        </RotatingHint>
+    <!-- Three panels, each there only when it has something to show: About you, At this event, Sharing. -->
+    <section v-if="showName || event.questions?.length" class="panel checkin-panel" aria-labelledby="ci-about">
+      <h2 id="ci-about" class="label">About you</h2>
+      <div v-if="showName" class="field">
+        <label for="name">Your name</label>
+        <input id="name" v-model="form.name" type="text" autocomplete="name" />
       </div>
-      <label class="checkbox-row suggest-tick">
-        <input type="checkbox" v-model="form.suggest" data-suggest-me />
-        <span class="small"><strong>{{ SUGGEST_HEAD }}.</strong> {{ SUGGEST_REST.join(". ") }}</span>
-      </label>
-      <p class="small muted" style="margin:0">{{ SUGGEST_DETAIL }}</p>
+      <div v-for="q in event.questions" :key="q.key" class="field">
+        <label :for="q.key">{{ q.label }}</label>
+        <input :id="q.key" v-model="form.answers[q.key]" type="text" />
+      </div>
     </section>
 
-    <section v-if="event.collects && form.collect" class="panel stack-2" aria-labelledby="collects-h" data-collects>
-      <h2 id="collects-h" class="label">This event collects details</h2>
-      <!-- One tick for everything the host asks for; the button beside it opens exactly what that is. -->
-      <div class="collect-row">
-        <label class="checkbox-row collect-tick">
-          <input type="checkbox" :checked="isOn('attendance')" data-item="all" @change="tickAll($event.target.checked)" />
-          <span class="small">I agree to share {{ shareWhat }} with <strong>{{ event.collects.organiser }}</strong>.</span>
-        </label>
-        <button type="button" class="collect-info" aria-haspopup="dialog" :aria-label="`What ${event.collects.organiser} collects`" @click="infoOpen">
-          <span aria-hidden="true">i</span>
-        </button>
-      </div>
-      <p class="small muted" style="margin:0">Optional: untick it and you can still check in. Change your mind any time on this event's page.</p>
-
-      <dialog ref="info" class="collect-dialog" aria-labelledby="collect-d-h" @click.self="infoClose" data-collect-info>
-        <div class="collect-d-body">
-          <div class="collect-d-head">
-            <h3 id="collect-d-h">What {{ event.collects.organiser }} collects</h3>
-            <button type="button" class="icon-btn collect-d-x" aria-label="Close" @click="infoClose">×</button>
-          </div>
-          <ul class="collect-d-list">
-            <li v-for="it in event.collects.items" :key="it.key" :data-item="it.key">{{ it.label }}<span v-if="noEmail(it.key)" class="muted" style="display:block">You have no verified email on your account, so none is shared.</span></li>
-          </ul>
-          <p class="small" style="margin:0"><span class="muted">Why:</span> {{ event.collects.why }}</p>
-          <p class="small muted" style="margin:0">Organisers never see who you connect with. Lanyard deletes the list 12 months after the event. See the
-            <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.</p>
-          <button type="button" class="btn btn-primary" @click="infoClose">Got it</button>
+    <section v-if="event.directoryOn || event.suggestOn !== false" class="panel checkin-panel" aria-labelledby="ci-event">
+      <h2 id="ci-event" class="label">At this event</h2>
+      <label v-if="event.directoryOn" class="checkbox-row tick-row">
+        <input type="checkbox" v-model="form.directoryConsent" />
+        <span class="small">
+          Show me in this event's attendee room to other checked-in people.
+        </span>
+      </label>
+      <div v-if="event.suggestOn !== false" class="checkin-group" data-suggest>
+        <h3 id="suggest-h" class="label">Who to meet</h3>
+        <div class="field">
+          <label for="ev-intention">{{ INTENTION_LABEL }} <span class="muted">(optional)</span></label>
+          <RotatingHint :pool="INTENTION_EXAMPLES" :empty="!form.intention" v-slot="{ placeholder }">
+            <input id="ev-intention" v-model="form.intention" type="text" :maxlength="INTENTION_MAX" autocomplete="off" :placeholder="placeholder" />
+          </RotatingHint>
         </div>
-      </dialog>
+        <label class="checkbox-row tick-row">
+          <input type="checkbox" v-model="form.suggest" data-suggest-me />
+          <span class="small"><strong>{{ SUGGEST_HEAD }}.</strong> {{ SUGGEST_REST.join(". ") }}</span>
+        </label>
+        <p class="small muted help">{{ SUGGEST_DETAIL }}</p>
+      </div>
+    </section>
+
+    <section v-if="sponsors.length || (event.collects && form.collect)" class="panel checkin-panel" aria-labelledby="ci-share">
+      <h2 id="ci-share" class="label">Sharing</h2>
+      <div v-if="sponsors.length" class="checkin-group">
+        <h3 class="label">Sponsors</h3>
+        <label v-for="s in sponsors" :key="s.id" class="checkbox-row tick-row">
+          <input type="checkbox" v-model="form.sponsorConsent[s.id]" />
+          <span class="small">
+            Share my name, course and tags with <strong>{{ s.name }}</strong>
+            <span v-if="s.perk"> — {{ s.perk }}</span>
+          </span>
+        </label>
+        <p class="small muted help">Each sponsor is a separate, optional choice. Never pre-ticked.</p>
+      </div>
+
+      <div v-if="event.collects && form.collect" class="checkin-group" data-collects>
+        <h3 id="collects-h" class="label">This event collects details</h3>
+        <!-- One tick for everything the host asks for; the button beside it opens exactly what that is. -->
+        <div class="collect-row">
+          <label class="checkbox-row collect-tick">
+            <input type="checkbox" :checked="isOn('attendance')" data-item="all" @change="tickAll($event.target.checked)" />
+            <span class="small">I agree to share {{ shareWhat }} with <strong>{{ event.collects.organiser }}</strong>.</span>
+          </label>
+          <button type="button" class="collect-info" aria-haspopup="dialog" :aria-label="`What ${event.collects.organiser} collects`" @click="infoOpen">
+            <span aria-hidden="true">i</span>
+          </button>
+        </div>
+        <p class="small muted help">Optional: untick it and you can still check in. Change your mind any time on this event's page.</p>
+
+        <dialog ref="info" class="collect-dialog" aria-labelledby="collect-d-h" @click.self="infoClose" data-collect-info>
+          <div class="collect-d-body">
+            <div class="collect-d-head">
+              <h3 id="collect-d-h">What {{ event.collects.organiser }} collects</h3>
+              <button type="button" class="icon-btn collect-d-x" aria-label="Close" @click="infoClose">×</button>
+            </div>
+            <ul class="collect-d-list">
+              <li v-for="it in event.collects.items" :key="it.key" :data-item="it.key">{{ it.label }}<span v-if="noEmail(it.key)" class="muted collect-d-note">You have no verified email on your account, so none is shared.</span></li>
+            </ul>
+            <p class="small collect-d-p"><span class="muted">Why:</span> {{ event.collects.why }}</p>
+            <p class="small muted collect-d-p">Organisers never see who you connect with. Lanyard deletes the list 12 months after the event. See the
+              <router-link to="/privacy" target="_blank">Privacy Policy</router-link>.</p>
+            <button type="button" class="btn btn-primary" @click="infoClose">Got it</button>
+          </div>
+        </dialog>
+      </div>
     </section>
 
     <p class="small muted">
@@ -207,7 +215,18 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
 </template>
 
 <style scoped>
-.collect-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 52px; padding: 6px 6px 6px 12px; border: var(--border); border-radius: var(--radius); background: var(--paper-raised); }
+/* One rhythm (F67): the same gap between panels, the same gap between rows, and every tick a full-width row at least 48 px (--tap) tall. */
+.checkin { --panel-gap: 24px; --row-gap: 12px; display: flex; flex-direction: column; gap: var(--panel-gap); }
+.checkin > .page-head { margin: 0; }
+.checkin-panel, .checkin-group { display: flex; flex-direction: column; gap: var(--row-gap); }
+.checkin-panel > .label { color: var(--ink); }
+.checkin-group > .label { font-weight: 400; }
+.checkin-panel .field { margin: 0; }
+.help { margin: calc(var(--row-gap) / -2) 0 0; }
+.tick-row, .collect-row { width: 100%; min-height: var(--tap); align-items: center; padding: 6px 12px; border: var(--border); border-radius: var(--radius); background: var(--paper-raised); }
+.tick-row { cursor: pointer; }
+.tick-row input[type="checkbox"] { margin-top: 0; }
+.collect-row { display: flex; gap: 8px; padding: 2px 4px 2px 12px; }
 .collect-tick { flex: 1; min-width: 0; align-items: center; cursor: pointer; padding: 6px 0; }
 .collect-tick input[type="checkbox"] { margin-top: 0; }
 .collect-info {
@@ -230,11 +249,11 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
 .collect-d-head h3 { margin: 6px 0 0; font-size: 20px; line-height: 1.25; }
 .collect-d-x { flex: none; width: 44px; height: 44px; margin: -4px -10px 0 0; font-size: 28px; line-height: 1; background: none; border: 0; color: var(--ink); cursor: pointer; }
 .collect-d-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
-.suggest-tick { min-height: 44px; align-items: flex-start; }
+.collect-d-note { display: block; }
+.collect-d-p { margin: 0; }
 .event-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
 .event-info dt { padding-top: 2px; }
 .event-info dd { margin: 0; }
-.event-brand { margin-bottom: calc(var(--space) * 3); } /* what .page-head gives the plain head; the info panel below has no margin of its own */
 .event-brand .page-head { margin: 0; }
 .event-brand .page-head h1 { margin: 0; overflow-wrap: anywhere; }
 </style>

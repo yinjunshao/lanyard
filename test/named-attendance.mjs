@@ -282,7 +282,7 @@ let html;
   check("there is one tick for all of it, and the details list every item in order, each with its exact label", rows.length === 1 && inputs.length === 1 && wordings.items.every((i) => html.includes(i.label)) && html.indexOf(wordings.items[0].label) < html.indexOf(wordings.items[1].label) && html.indexOf(wordings.items[1].label) < html.indexOf(wordings.items[2].label));
   check("the one tick starts ticked (owner's decision, D038), is not disabled, and says it agrees to share with the organiser", /checked/.test(inputs[0]) && !/disabled/.test(inputs[0]) && /I agree to share/.test(html), inputs);
   const src = readFileSync(new URL("../src/components/EventPage.vue", import.meta.url), "utf8");
-  check("the row is the full width and at least 44 px tall (a rule in the page's own styles)", /\.collect-row\s*\{[^}]*width:\s*100%/.test(src) && /\.collect-row\s*\{[^}]*min-height:\s*(4[4-9]|[5-9]\d)px/.test(src));
+  check("the row is the full width and at least 44 px tall (F67: one rule in the page's own styles shared with the other tick rows, at the --tap height, 48 px)", /\.tick-row, \.collect-row\s*\{[^}]*width:\s*100%/.test(src) && /\.tick-row, \.collect-row\s*\{[^}]*min-height:\s*var\(--tap\)/.test(src) && /--tap:\s*(4[4-9]|[5-9]\d)px/.test(readFileSync(new URL("../src/styles/main.css", import.meta.url), "utf8")));
   check("an info button beside the tick opens a dialog that lists what is collected and why", /aria-haspopup="dialog"/.test(html) && /<dialog[^>]*data-collect-info/.test(html) && /showModal/.test(src));
   check("the page says the tick is optional and that you can still check in", /untick it/.test(html) && /still check in/.test(html));
   check("the old sentence that says hosts see only totals is not on a page that keeps a list", !html.includes("anonymous totals") && !html.includes("aggregate numbers only") && html.includes("never who you connect with"));
@@ -321,14 +321,51 @@ console.log("\n# An event without named attendance: the check-in page is the pag
   // change: taken out of the saved markup it must leave today's bytes, and today's page must not have it.
   const OLD_ACCESS = /<dt class="label">Access<\/dt><dd>Step-free<\/dd>/g;
   check("F63: the saved page showed Access once and today's page shows it nowhere", count(norm(golden.full), OLD_ACCESS) === 1 && Object.values(got).every((x) => count(norm(x), OLD_ACCESS) === 0 && !/>Access</.test(x)));
-  // F60 (the owner's request): the page now asks what you hope to get from the event and shows the Suggest me tick, in one
-  // section of its own, exactly once on every page. That section taken out of today's markup must leave the old bytes.
-  const SUGGEST = /<section class="panel stack-2" aria-labelledby="suggest-h" data-suggest>[\s\S]*?<\/section>/g;
-  check("F60: each page has the intention and Suggest me section exactly once", Object.values(got).every((x) => count(norm(x), SUGGEST) === 1));
-  for (const k of Object.keys(got)) got[k] = norm(got[k]).replace(SUGGEST, "");
+  // F67 (the owner's request): the page is regrouped into panels (About you, At this event, Sharing) and evenly spaced. The
+  // words and the inputs do not change, so this compares what is said and what can be ticked, not the wrapping markup:
+  //  1. today's page takes out only what F60 and F67 added (the Suggest me group and the three panel headings, F51's line);
+  //  2. the words (every text node) and the inputs (every attribute, so which start ticked) must then be the same as the saved page's,
+  //     with F51's tick and F63's Access row taken out of the saved one, as multisets;
+  //  3. the order is pinned too: with the two things F67 moved taken out of both (the notice and the attendee room tick), the words
+  //     and the inputs come in exactly the saved order; and the two moves are pinned (the notice right after the head, the room tick
+  //     after the name and the questions).
+  // Take one balanced <div ...> block out of the markup.
+  const takeBlock = (html, start) => {
+    const i = html.indexOf(start);
+    if (i < 0) return [html, ""];
+    let depth = 0, j = i;
+    for (const m of html.slice(i).matchAll(/<div\b|<\/div>/g)) { depth += m[0] === "</div>" ? -1 : 1; if (depth === 0) { j = i + m.index + 6; break; } }
+    return [html.slice(0, i) + html.slice(j), html.slice(i, j)];
+  };
+  const SUGGEST_START = '<div class="checkin-group" data-suggest>';
+  check("F60: each page has the intention and Suggest me group exactly once", Object.values(got).every((x) => count(norm(x), /data-suggest>/g) === 1 && count(norm(x), /data-suggest-me/g) === 1));
+  const HEADINGS = /<h2 id="ci-(about|event|share)" class="label">[^<]*<\/h2>/g;
+  check("F67: the panel headings are About you, At this event and Sharing and no page has one twice", Object.values(got).every((x) => count(norm(x), /id="ci-about"/g) <= 1 && count(norm(x), /id="ci-event"/g) <= 1 && count(norm(x), /id="ci-share"/g) <= 1) && count(norm(got.full), HEADINGS) === 3);
+  for (const k of Object.keys(got)) got[k] = takeBlock(norm(got[k]), SUGGEST_START)[0].replace(HEADINGS, "");
   check("F51: the page that asked for the Terms had exactly one tick and now has no tick but exactly one line, right before Check in", count(norm(golden.full), OLD_TICK) === 1 && count(norm(got.full), OLD_TICK) === 0 && count(norm(got.full), NEW_LINE) === 1 && count(norm(got.full), /type="checkbox"/g) === count(norm(golden.full), /type="checkbox"/g) - 1);
   check("F51: the pages that did not ask have no line", count(norm(got.bare), NEW_LINE) === 0 && count(norm(got.busy), NEW_LINE) === 0 && !/consent-line/.test(got.bare + got.busy));
-  for (const k of Object.keys(golden)) check(`the markup for ${k} is identical to what it was before F31 (comments aside; saved from commit 0e8d599; F51's line in place of the tick; F63's Access row gone)`, norm(got[k]).replace(NEW_LINE, "") === norm(golden[k]).replace(OLD_TICK, "").replace(OLD_ACCESS, ""), [norm(got[k]).length, norm(golden[k]).length]);
+  const texts = (html) => html.replace(/<[^>]*>/g, "\n").split("\n").map((t) => t.replace(/&#39;/g, "'").replace(/\s+/g, " ").trim()).filter(Boolean);
+  const inputs = (html) => [...html.matchAll(/<input\b[^>]*>/g)].map((m) => m[0].replace(/\s+/g, " "));
+  const ROOM = "Show me in this event's attendee room to other checked-in people.";
+  const NOTICE = "Checking in unlocks perks and the event album. If you choose to, you can also appear in the attendee room.";
+  const isNotice = (t) => t === NOTICE || /^(The organiser only sees anonymous totals|Hosts see aggregate numbers only)/.test(t);
+  for (const k of Object.keys(golden)) {
+    const old = norm(golden[k]).replace(OLD_TICK, "").replace(OLD_ACCESS, "");
+    const now = got[k].replace(NEW_LINE, "");
+    const [tOld, tNew, iOld, iNew] = [texts(old), texts(now), inputs(old), inputs(now)];
+    const noNotice = (t) => t !== NOTICE && !t.startsWith("Checking in unlocks");
+    check(`the words for ${k} are the saved page's, every one (saved from commit 0e8d599; F51's line in place of the tick; F63's Access row gone; F60's Suggest me group and F67's panel headings aside)`, JSON.stringify([...tNew].sort()) === JSON.stringify([...tOld].sort()), [tNew.length, tOld.length]);
+    check(`the inputs for ${k} are the saved page's, every attribute of every one, so the same ones start ticked`, JSON.stringify([...iNew].sort()) === JSON.stringify([...iOld].sort()), [iNew.length, iOld.length]);
+    // Order: take the notice (a text node of its own) and the attendee room tick out of both, and what is left is in the saved order.
+    const oldRest = tOld.filter((t) => noNotice(t) && t !== ROOM), newRest = tNew.filter((t) => noNotice(t) && t !== ROOM);
+    check(`the order of the words for ${k} is the saved order, apart from the notice and the attendee room tick, which F67 moved`, JSON.stringify(newRest) === JSON.stringify(oldRest), [newRest.length, oldRest.length]);
+    const at = now.indexOf('class="notice"');
+    check(`${k}: the notice is right under the head, before the info list, every panel and every input`, at > 0 && !/<(dl|section|input|label)/.test(now.slice(0, at)) && (!now.includes("event-info") || at < now.indexOf("event-info")), at);
+    const roomAt = tNew.indexOf(ROOM), lastAbout = tNew.indexOf("Course");
+    check(`${k}: the attendee room tick comes after the name and the questions (it moved into At this event)`, roomAt < 0 || (roomAt > lastAbout && (lastAbout >= 0 || !tNew.includes("Your name"))), [roomAt, lastAbout]);
+    const roomIn = iNew.findIndex((t) => /type="checkbox"/.test(t));
+    check(`${k}: the inputs are in the saved order, the name and questions first and then the attendee room tick (sponsors after)`, iNew.length === iOld.length && JSON.stringify(iNew.filter((t) => !/type="checkbox"/.test(t))) === JSON.stringify(iOld.filter((t) => !/type="checkbox"/.test(t))) && (roomIn < 0 || iNew.slice(0, roomIn).every((t) => !/type="checkbox"/.test(t))), [roomIn]);
+  }
   check("…and none of them mentions what the event collects or draws a tick", Object.values(got).every((x) => !/This event collects|collect-row/.test(x)));
 }
 await vite.close();

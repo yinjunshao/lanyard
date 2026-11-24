@@ -4,7 +4,7 @@ id: F67
 priority: P1
 phase: 11
 size: S
-status: Not started
+status: In progress
 needs: [F63]
 ---
 # F67 Check-in page layout
@@ -46,14 +46,19 @@ needs: [F63]
 - Same component, so the host's preview changes too.
 
 ## Tasks
-- [ ] F67.1 Regroup and space `EventPage.vue`; tests (order of panels, no inline styles left, every tick a 44 px row, existing consent and pre-tick tests unchanged); vault notes ([[Screens and Routes]], [[Design System]]); browser check of an event with everything on and one with nothing extra, at 375 and 1280 px, light, dark and midnight, keyboard only.
+- [x] F67.1 Regroup and space `EventPage.vue`; tests (order of panels, no inline styles left, every tick a 44 px row, existing consent and pre-tick tests unchanged); vault notes ([[Screens and Routes]], [[Design System]]); browser check of an event with everything on and one with nothing extra, at 375 and 1280 px, light, dark and midnight, keyboard only.
 
 ## Acceptance checks
-- [ ] On an event with questions, sponsors, suggestions and collects on, the page shows the panels About you, At this event and Sharing in that order, with equal gaps (browser, measured by script).
-- [ ] Every tick row is at least 44 px tall (browser, measured by script).
-- [ ] Sponsors are still never pre-ticked; Suggest me and collects still are (existing tests pass unchanged).
-- [ ] The check-in page's gzip JS grows by 100 B or less (budget numbers).
-- [ ] `npm test` passes.
+- [x] On an event with questions, sponsors, suggestions and collects on, the page shows the panels About you, At this event and Sharing in that order, with equal gaps (browser, measured by script).
+  - Browser, local event `/e/F67AA`, by script: the panels were About you, At this event, Sharing; every gap (notice to info, info to panel, panel to panel, panel to the muted line) was 24 px, and every gap between rows inside a panel 12 px; at 375 and 1280 px, in light, night (dark) and midnight; no sideways scroll. Also `test/checkin-layout.mjs` (order and presence).
+- [x] Every tick row is at least 44 px tall (browser, measured by script).
+  - Browser: the five tick rows measured 54, 95, 54, 54, 78 px at 375 px and 54, 74, 54, 48, 58 px at 1280 px, in all three themes, each as wide as its panel's inside; the CSS rule is `min-height: var(--tap)` (48 px), pinned in the test.
+- [x] Sponsors are still never pre-ticked; Suggest me and collects still are (existing tests pass unchanged).
+  - The consent, Who to meet, preview, steps and event-form tests pass unchanged; `test/named-attendance.mjs` changed only in its golden markup comparison and the row-height line (see the Log); `test/checkin-layout.mjs` pins the pre-ticks again.
+- [x] The check-in page's gzip JS grows by 100 B or less (budget numbers).
+  - EventPage chunk 3,589 B before, 3,686 B after (+97 B); the wording chunk `eventinfo` is unchanged at 319 B. Public page budgets: see the Log.
+- [x] `npm test` passes.
+  - Passes, ending with `test/budget.mjs`; `npm run build` passes.
 
 ## Log
 -
