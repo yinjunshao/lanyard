@@ -4,19 +4,14 @@
 import { Hono } from "hono";
 import { newId, now, one, run } from "./db.js";
 import { bump, DAY } from "./ratelimit.js";
-import { sendMail, escapeHtml } from "./mail.js";
+import { sendMail } from "./mail.js";
+import { privacyAckEmail } from "./mail-templates.js";
 import { ensureSession } from "./session.js";
 
 export const privacyApp = new Hono();
 
 const KINDS = new Set(["complaint", "access", "erasure", "other"]);
 const RESPOND_WITHIN_MS = 30 * DAY;
-
-function ackEmail({ kind, id }) {
-  const what = kind === "complaint" ? "complaint" : "request";
-  const text = `We have received your ${what} (reference ${id}). We will deal with it without undue delay and tell you the outcome within 30 days.\n\nIf you need to add something, send another message at lanyd.fyi/privacy-request and quote the reference.`;
-  return { subject: `We got your ${what} (${id})`, text, html: `<p>${escapeHtml(text).replace(/\n\n/g, "</p><p>")}</p>` };
-}
 
 privacyApp.post("/api/privacy-request", async (c) => {
   const db = c.env.DB;
@@ -40,7 +35,7 @@ privacyApp.post("/api/privacy-request", async (c) => {
   // A request is always recorded, but one address gets at most 3 acknowledgements a day (F35.6), so
   // the form cannot be used from many networks to fill a stranger's inbox. The admin still sees it.
   const ackOk = (await bump(db, `day:privacy:to:${email}`, DAY)) <= 3;
-  const sent = ackOk && await sendMail(c.env, "accounts", { to: email, ...ackEmail({ kind, id }) }).then(() => true, (e) => { console.error(e); return false; });
+  const sent = ackOk && await sendMail(c.env, "accounts", { to: email, ...privacyAckEmail({ kind, id }) }).then(() => true, (e) => { console.error(e); return false; });
   if (sent) await run(db, "UPDATE privacy_requests SET acknowledged_at = ? WHERE id = ?", now(), id);
   return c.json({ ok: true, id, acknowledged: sent });
 });

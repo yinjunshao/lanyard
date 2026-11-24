@@ -4,6 +4,7 @@
 // the figures.
 import { all, run } from "../db.js";
 import { sendMail } from "../mail.js";
+import { aiBudgetAlertEmail } from "../mail-templates.js";
 import { dayOf } from "./config.js";
 
 const BITS = { day50: 1, day90: 2, month50: 4, month90: 8 };
@@ -30,7 +31,7 @@ export async function checkBudgetAlerts(env, cfg, db, spend, ts = Date.now()) {
     }
     if (!claimed) continue;
     const text = `AI spend for ${d.label} has passed ${d.pct}% of the budget: ${usd(d.used)} of ${usd(d.budget)}.\n\nAt 100% every AI feature switches to its non-AI version until the budget resets. Details are on the admin page.`;
-    try { await sendMail(env, "accounts", { to: cfg.alertEmail, subject: `Lanyard AI spend at ${d.pct}% of the budget ${d.label}`, text, html: `<p>${text.replace(/\n\n/g, "</p><p>")}</p>` }); }
+    try { await sendMail(env, "accounts", { to: cfg.alertEmail, ...aiBudgetAlertEmail({ pct: d.pct, label: d.label, text }) }); }
     catch (e) { console.error("ai budget alert not sent"); }
   }
 }

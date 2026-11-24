@@ -1,17 +1,28 @@
 // Outbound email through Resend. Two API keys, two jobs: account mail (sign-in
 // codes) and host decisions (application approved / rejected). Keys are Worker
 // secrets (RESEND_ACCOUNTS_KEY, RESEND_DECISIONS_KEY), never in the repo.
+import { escapeHtml, emailLayout, paragraphs, para, link, small, codeBox, isBranded } from "./mail-layout.js";
+export { escapeHtml }; // the one escaper lives in mail-layout.js; the rest of the Worker still imports it from here
+
 const FROM = {
   accounts: (env) => env.MAIL_FROM_ACCOUNTS || "Lanyard <accounts@lanyd.fyi>",
   decisions: (env) => env.MAIL_FROM_DECISIONS || "Lanyard Hosts <hosts@lanyd.fyi>",
 };
 const KEY = { accounts: "RESEND_ACCOUNTS_KEY", decisions: "RESEND_DECISIONS_KEY" };
 
-const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-export const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (ch) => ESC[ch]);
+// F58: every email's HTML comes from emailLayout (worker/mail-layout.js). Anything else is a bug: tests and local
+// runs (MAIL_OUTBOX, MAIL_LOG) throw so it is caught before a deploy; a live send logs and goes anyway, because a
+// plain email is better than a lost sign-in code.
+function checkBranded(env, html, to) {
+  if (isBranded(html)) return;
+  const msg = `Email to ${to} was not made with emailLayout`;
+  if (Array.isArray(env.MAIL_OUTBOX) || env.MAIL_LOG) throw new Error(msg);
+  console.error(msg);
+}
 
 /** Sends one email. `kind` is "accounts" or "decisions". Throws if it can't be sent. */
 export async function sendMail(env, kind, { to, subject, text, html }) {
+  checkBranded(env, html, to);
   // Replies go to a person, not the sending address.
   const msg = { from: FROM[kind](env), to: [to], reply_to: env.MAIL_REPLY_TO || "help@lanyd.fyi", subject, text, html };
   if (Array.isArray(env.MAIL_OUTBOX)) { env.MAIL_OUTBOX.push({ kind, ...msg }); return; } // tests
@@ -27,11 +38,14 @@ ${text}`); return; } // local dev
   if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
 
-export function codeEmail(code, link) {
-  const text = `Your Lanyard sign-in code is ${code}\n\nIt works for 10 minutes. Or open this link on the device you want to sign in on:\n${link}\n\nIf you did not ask for this, ignore this email. Nobody can get in without the code.`;
-  const html = `<p>Your Lanyard sign-in code:</p><p style="font-size:32px;font-weight:800;letter-spacing:6px;margin:8px 0">${escapeHtml(code)}</p>
-<p>It works for 10 minutes. Or <a href="${escapeHtml(link)}">tap here to sign in</a> on this device.</p>
-<p style="color:#6B675F;font-size:13px">If you did not ask for this, ignore this email. Nobody can get in without the code.</p>`;
+export function codeEmail(code, signInLink) {
+  const text = `Your Lanyard sign-in code is ${code}\n\nIt works for 10 minutes. Or open this link on the device you want to sign in on:\n${signInLink}\n\nIf you did not ask for this, ignore this email. Nobody can get in without the code.`;
+  const html = emailLayout({
+    title: "Your sign-in code",
+    preheader: "It works for 10 minutes. Nobody can get in without the code.",
+    bodyHtml: `${paragraphs("Your Lanyard sign-in code:")}${codeBox(code)}${para(`It works for 10 minutes. Or ${link(signInLink, "tap here to sign in")} on this device.`)}`,
+    footerHtml: small("If you did not ask for this, ignore this email. Nobody can get in without the code."),
+  });
   return { subject: `${code} is your Lanyard code`, text, html };
 }
 
@@ -44,9 +58,12 @@ Type it on the page where you asked for it. It works for 10 minutes and only onc
 If you did not ask for this, ignore this email. Nobody can get in without the code.
 
 ${hostOrigin}/signin`;
-  const html = `<p>Your Lanyard host portal code:</p><p style="font-size:32px;font-weight:800;letter-spacing:6px;margin:8px 0">${escapeHtml(code)}</p>
-<p>Type it on the page where you asked for it. It works for 10 minutes and only once.</p>
-<p style="color:#6B675F;font-size:13px">If you did not ask for this, ignore this email. Nobody can get in without the code.</p>`;
+  const html = emailLayout({
+    title: "Your host portal code",
+    preheader: "Type it on the page where you asked for it. It works for 10 minutes.",
+    bodyHtml: `${paragraphs("Your Lanyard host portal code:")}${codeBox(code)}${paragraphs("Type it on the page where you asked for it. It works for 10 minutes and only once.")}`,
+    footerHtml: small("If you did not ask for this, ignore this email. Nobody can get in without the code."),
+  });
   return { subject: `${code} is your Lanyard host portal code`, text, html };
 }
 
@@ -58,12 +75,18 @@ export function decisionEmail({ orgName, approved, note, origin }) {
     ? "Your host application has been approved. You can now create and run events."
     : `We couldn't approve this application.${note ? `\n\nReason: ${note}` : ""}\n\nYou can reply to this email or send a new application with the details fixed.`;
   const text = `${body}\n\n${origin}/`;
-  const html = `<p>${escapeHtml(body).replace(/\n\n/g, "</p><p>")}</p><p><a href="${escapeHtml(origin)}/">Open the host portal</a></p>`;
+  const html = emailLayout({
+    title: approved ? "Your application is approved" : "About your application",
+    preheader: head,
+    bodyHtml: paragraphs(body),
+    button: { url: `${origin}/`, label: "Open the host portal" },
+  });
   return { subject: head, text, html };
 }
 
 /** Sends many messages (Resend batch, 100 per call). Each is { to, subject, text, html, headers }. */
 export async function sendBatch(env, kind, messages) {
+  for (const m of messages) checkBranded(env, m.html, m.to);
   for (let i = 0; i < messages.length; i += 100) {
     const chunk = messages.slice(i, i + 100).map((m) => ({ from: FROM[kind](env), to: [m.to], reply_to: env.MAIL_REPLY_TO || "help@lanyd.fyi", subject: m.subject, text: m.text, html: m.html, headers: m.headers }));
     if (Array.isArray(env.MAIL_OUTBOX)) { for (const m of chunk) env.MAIL_OUTBOX.push({ kind, ...m }); continue; }
@@ -79,17 +102,26 @@ export async function sendBatch(env, kind, messages) {
   }
 }
 
-const paragraphs = (text) => String(text).split(/\n{2,}/).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("");
-
 export function welcomeEmail(origin) {
   const text = `Welcome to Lanyard. Your email is saved, so you can sign in on any device with a code we email you.\n\nTip: add a passkey in Settings to sign in with Face ID or a fingerprint instead.\n\n${origin}/app/settings/security`;
-  const html = `${paragraphs(text.split("\n\n").slice(0, 2).join("\n\n"))}<p><a href="${escapeHtml(origin)}/app/settings/security">Open Settings</a></p>`;
+  const html = emailLayout({
+    title: "Your account is saved",
+    preheader: "You can sign in on any device with a code we email you.",
+    bodyHtml: paragraphs(text.split("\n\n").slice(0, 2).join("\n\n")),
+    button: { url: `${origin}/app/settings/security`, label: "Open Settings" },
+  });
   return { subject: "Your Lanyard account is saved", text, html };
 }
 
 export function applicationEmail({ orgName, origin }) {
   const text = `We have your application for ${orgName}. We check each one by hand and will email you as soon as it is decided.\n\nYou can follow its status at ${origin}/`;
-  return { subject: `We got your Lanyard application for ${orgName}`, text, html: `${paragraphs(text)}` };
+  const html = emailLayout({
+    title: "We have your application",
+    preheader: "We check each one by hand and will email you when it is decided.",
+    bodyHtml: paragraphs(text, { links: [`${origin}/`] }),
+    button: { url: `${origin}/`, label: "Open the host portal" },
+  });
+  return { subject: `We got your Lanyard application for ${orgName}`, text, html };
 }
 
 export function ticketEmail({ orgName, approved, note, origin }) {
@@ -97,19 +129,38 @@ export function ticketEmail({ orgName, approved, note, origin }) {
     ? `Your request for ${orgName} has been approved.${note ? `\n\n${note}` : ""}`
     : `We couldn't approve your request for ${orgName}.${note ? `\n\nReason: ${note}` : ""}`;
   const text = `${body}\n\n${origin}/`;
-  return { subject: approved ? `Request approved for ${orgName}` : `Update on your request for ${orgName}`, text, html: paragraphs(text) };
+  const subject = approved ? `Request approved for ${orgName}` : `Update on your request for ${orgName}`;
+  const html = emailLayout({
+    title: approved ? "Request approved" : "About your request",
+    preheader: subject,
+    bodyHtml: paragraphs(body),
+    button: { url: `${origin}/`, label: "Open the host portal" },
+  });
+  return { subject, text, html };
 }
 
 // A colleague invited you to their organisation on the host portal.
 export function teamInviteEmail({ orgName, fromName, code, origin }) {
   const text = `${fromName || "A colleague"} invited you to help run events for ${orgName} on Lanyard.\n\nSign in to the host portal with this email address, then enter the invite code ${code} under Account and team > Join a team. It works for 7 days.\n\n${origin}/account#join\n\nIf you weren't expecting this, ignore this email.`;
-  return { subject: `Join ${orgName} on Lanyard`, text, html: paragraphs(text) };
+  const html = emailLayout({
+    title: "You are invited to a team",
+    preheader: `${orgName} invited you to help run events. The code works for 7 days.`,
+    bodyHtml: paragraphs(text, { links: [`${origin}/account#join`] }),
+    button: { url: `${origin}/account#join`, label: "Join the team" },
+  });
+  return { subject: `Join ${orgName} on Lanyard`, text, html };
 }
 
 // An organisation is waiting for you to accept it.
 export function transferEmail({ orgName, fromName, origin }) {
   const text = `${fromName || "Its owner"} wants to hand ${orgName} to your Lanyard host account. Nothing changes until you accept.\n\nSign in to the host portal with this email address to accept or decline:\n${origin}/\n\nIf you weren't expecting this, you can decline it there or ignore this email.`;
-  return { subject: `${orgName} is waiting for you on Lanyard`, text, html: paragraphs(text) };
+  const html = emailLayout({
+    title: "An organisation is waiting for you",
+    preheader: `Nothing changes until you accept ${orgName}.`,
+    bodyHtml: paragraphs(text, { links: [`${origin}/`] }),
+    button: { url: `${origin}/`, label: "Open the host portal" },
+  });
+  return { subject: `${orgName} is waiting for you on Lanyard`, text, html };
 }
 
 // Marketing mail always names who sends it and carries a one-click unsubscribe.
@@ -118,7 +169,12 @@ export function marketingEmail({ subject, body, unsubUrl }) {
   return {
     subject,
     text: `${body}\n\n--\n${footer}`,
-    html: `${paragraphs(body)}<hr><p style="color:#6B675F;font-size:12px">You're getting this because you opted in to news from Lanyard (lanyd.fyi). <a href="${escapeHtml(unsubUrl)}">Unsubscribe</a></p>`,
+    html: emailLayout({
+      title: subject,
+      preheader: body,
+      bodyHtml: paragraphs(body),
+      footerHtml: small(`You're getting this because you opted in to news from Lanyard (lanyd.fyi). ${link(unsubUrl, "Unsubscribe")}`),
+    }),
     headers: { "List-Unsubscribe": `<${unsubUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
   };
 }

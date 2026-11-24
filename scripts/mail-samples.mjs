@@ -54,7 +54,7 @@ export const SAMPLES = [
   { id: "inactive", from: "purge.js", kind: "accounts", user: [], build: () => inactiveEmail({ origin: APP, days: 30 }) },
   { id: "privacy-request", from: "privacy.js", kind: "accounts", user: [], build: () => privacyAckEmail({ kind: "access", id: "01HXSAMPLE0000" }) },
   { id: "privacy-complaint", from: "privacy.js", kind: "accounts", user: [], build: () => privacyAckEmail({ kind: "complaint", id: "01HXSAMPLE0001" }) },
-  { id: "application", from: "hosts.js", kind: "decisions", user: ["orgName"], build: (x = "Cambridge Robotics Club") => applicationEmail({ orgName: x, origin: HOST }) },
+  { id: "application", from: "hosts.js", kind: "decisions", user: ["orgName"], build: (x = "Riverside Robotics Club") => applicationEmail({ orgName: x, origin: HOST }) },
   { id: "decision-approved", from: "admin.js", kind: "decisions", user: ["orgName"], build: (x = "Robotics Club") => decisionEmail({ orgName: x, approved: true, note: "", origin: HOST }) },
   { id: "decision-rejected", from: "admin.js", kind: "decisions", user: ["orgName", "note"], build: (x = "Robotics Club") => decisionEmail({ orgName: x, approved: false, note: x === "Robotics Club" ? "We could not match your email to the organisation." : x, origin: HOST }) },
   { id: "ticket-approved", from: "admin.js", kind: "decisions", user: ["orgName", "note"], build: (x = "Robotics Club") => ticketEmail({ orgName: x, approved: true, note: x === "Robotics Club" ? "The new name is live." : x, origin: HOST }) },

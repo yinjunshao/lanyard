@@ -75,12 +75,13 @@ check("local dev: host.localhost:5173 is allowed and is HOST_ORIGIN", /^APP_ORIG
 check("local dev prints email instead of sending it; production does not", /^MAIL_LOG = "1"$/m.test(local) && !/MAIL_LOG/.test(prod));
 check("passkeys never accept the host portal's origin", read("worker/passkeys.js").includes(String.raw`filter((o) => o && !/^https?:\/\/host\./.test(o))`));
 const { sendMail } = await import("../worker/mail.js");
+const { emailLayout } = await import("../worker/mail-layout.js"); // F58: every email is made with the layout, even this one
 let calls = 0;
 const realFetch = globalThis.fetch;
 globalThis.fetch = async () => { calls++; return new Response("{}"); };
 const log = console.log; let printed = "";
 console.log = (m) => { printed += m; };
-await sendMail({ MAIL_LOG: "1", RESEND_DECISIONS_KEY: "re_not_real" }, "decisions", { to: "a@example.com", subject: "123456 is your code", text: "code 123456" });
+await sendMail({ MAIL_LOG: "1", RESEND_DECISIONS_KEY: "re_not_real" }, "decisions", { to: "a@example.com", subject: "123456 is your code", text: "code 123456", html: emailLayout({ title: "code 123456" }) });
 console.log = log; globalThis.fetch = realFetch;
 check("with MAIL_LOG on, mail is printed and nothing is sent, even with a key set", calls === 0 && printed.includes("123456"));
 
