@@ -9,6 +9,7 @@ import AccountBanner from "./AccountBanner.vue";
 import { SessionLost } from "../lib/errors"; // F39: also sets plain words for failed requests
 import TermsGate from "./TermsGate.vue";
 import { live, refreshLive } from "../lib/eventlive";
+import StageHost from "./StageHost.vue"; // F59: tutorials; the tutorial itself is a chunk fetched only when one is due
 
 const r = useRoute();
 const showChrome = computed(() => r.meta.app && me.profile);
@@ -63,6 +64,15 @@ watch(
   { immediate: true }
 );
 
+// Which page a tutorial may run on (F59). A person's own page (/c/:id) is not in this frame; its panel runs its own.
+const stagePage = computed(() => {
+  const p = r.path;
+  if (p === "/app") return "home";
+  if (p === "/app/people") return "people";
+  if (p === "/app/cards") return "cards";
+  return p.startsWith("/app/events/") && !p.slice(12).includes("/") ? "event" : "";
+});
+
 // A small dot on Events while an event you checked in to is on. Asked when the frame first shows,
 // again when you open an events page, and otherwise at most every two minutes.
 watch(
@@ -106,4 +116,5 @@ watch(
     </div>
   </nav>
   <TermsGate />
+  <StageHost v-if="showChrome" :page="stagePage" />
 </template>

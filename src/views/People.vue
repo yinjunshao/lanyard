@@ -108,7 +108,7 @@ const fmt = (t) =>
              aria-label="Search people" autocomplete="off" spellcheck="false" />
     </div>
 
-    <button v-if="rows.length" type="button" class="ask-row" @click="openAsk">
+    <button v-if="rows.length" type="button" class="ask-row" data-tip="ai-ask" @click="openAsk">
       <Icon name="people" :size="18" />
       <span style="flex:1;min-width:0">
         <strong>Do I know someone who…</strong>

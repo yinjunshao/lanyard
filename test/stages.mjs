@@ -313,6 +313,47 @@ console.log("\n# Settings > Help and the registry stay out of public pages");
   check("the me response and the store carry no tutorial progress (it has its own route)", !/stage|tutorial/i.test(read("src/lib/store.js")) && !/progressOf|stages/.test(/app\.get\("\/api\/me"[\s\S]*?\n\}\);/.exec(read("worker/index.js"))?.[0] || ""));
 }
 
+// ------------------------------------------------------------------ F59.2
+console.log("\n# The tour: where it loads, and what it promises (source guards; the browser walk is in the plan note's Log)");
+{
+  const tour = read("src/components/StageTour.vue").replace(/\r\n/g, "\n");
+  const host = read("src/components/StageHost.vue").replace(/\r\n/g, "\n");
+  const shell = read("src/components/AppShell.vue");
+  const walk = (d) => readdirSync(new URL("../" + d, import.meta.url)).flatMap((f) => (statSync(new URL("../" + d + "/" + f, import.meta.url)).isDirectory() ? walk(d + "/" + f) : [d + "/" + f]));
+  const files = walk("src").filter((f) => /\.(vue|js)$/.test(f));
+  const strip = (t) => t.replace(/\/\/.*$/gm, "").replace(/<!--[\s\S]*?-->/g, "");
+  check("the tour is fetched with a plain import() from StageHost, and nothing imports it statically", /import\("\.\/StageTour\.vue"\)/.test(host) && files.filter((f) => /^\s*import .*StageTour/m.test(strip(read(f)))).length === 0 && !/defineAsyncComponent/.test(host));
+  const mounts = files.filter((f) => /StageHost/.test(strip(read(f))) && !/StageHost\.vue$/.test(f)).sort();
+  check("only the signed-in frame (and, from F59.3, a connection's panel) mount the host: both load only for signed-in people", mounts.includes("src/components/AppShell.vue") && mounts.every((f) => ["src/components/AppShell.vue", "src/components/CardConnection.vue"].includes(f)) && /<StageHost v-if="showChrome"/.test(shell), mounts);
+  check("the host fetches the tour before it records the tip (a failed download loses nothing), and shows nothing if the page changed meanwhile", host.indexOf('import("./StageTour.vue")') < host.indexOf("await markSeen") && /if \(mine !== run\) return;/.test(host));
+  check("the host waits: no tip while a sheet, dialog, open editor or a focused field is there, and the first control must be on the page and still", /\.sheet-backdrop/.test(host) && /\.reveal\.open/.test(host) && /INPUT\|TEXTAREA\|SELECT/.test(host) && /isContentEditable/.test(host) && /still >= 2/.test(host) && /document\.visibilityState === "visible"/.test(host));
+  check("the always-present photo viewer does not count as an open dialog until it is open", /:not\(\.lb\)/.test(host) && /\.lb\.open/.test(host));
+  check("it never runs for someone with no card", /!me\.profile\) return/.test(host));
+  check("the card is a dialog with a name and a description", /role="dialog"/.test(tour) && /aria-modal="true"/.test(tour) && /aria-labelledby="tour-title"/.test(tour) && /aria-describedby="tour-text"/.test(tour));
+  check("focus moves into the card when it opens (on the main button) and goes back to where it was when it ends", /opener = document\.activeElement/.test(tour) && /\[data-primary\]/.test(tour) && /opener\.focus\(/.test(tour));
+  check("Escape skips, from anywhere (a capture listener on the document), and does nothing else", /e\.key === "Escape"[^}]*finish\("skipped"\)/.test(tour) && /document\.addEventListener\("keydown", onKey, true\)/.test(tour) && /stopPropagation\(\)/.test(tour));
+  check("Tab and Shift+Tab stay inside the card, so it works with the keyboard alone", /e\.key !== "Tab"/.test(tour) && /f\[f\.length - 1\]\.focus\(\)/.test(tour) && /f\[0\]\.focus\(\)/.test(tour));
+  check("every button is a real button: Skip, Back, Next, Try it and Got it", ["Skip", "Back", "Next", "Try it", "Got it"].every((l) => new RegExp(`<button[^<]*?type="button"[^<]*?>${l}</button>`).test(tour)));
+  check("the last step can press the real control: Try it, or a press on the control itself", /canPress/.test(tour) && /function tryIt/.test(tour) && /addEventListener\("click", pressedTarget, true\)/.test(tour) && /\.tour > \.tour-hole\.open/.test(tour));
+  check("a control that is no longer there leaves the card without a ring (no crash)", /if \(!r \|\| \(!r\.width && !r\.height\)\) \{ rect\.value = null/.test(tour) && /v-if="rect"/.test(tour));
+  check("listeners are removed when it goes", /removeEventListener\("keydown", onKey, true\)/.test(tour) && /removeEventListener\("scroll", follow\)/.test(tour) && /onBeforeUnmount/.test(tour));
+  check("how it ended is sent for the funnel and a failure there changes nothing", /endStage\(props\.stage\.id, outcome\)/.test(tour) && /\.catch\(\(\) => \{\}\)/.test(read("src/lib/stagesState.js")));
+  const css = (tour.match(/<style[^>]*>([\s\S]*?)<\/style>/) || [])[1] || "";
+  const main = read("src/styles/main.css");
+  check("motion comes from the tokens only: no hard-coded duration or easing, and no transition", !/\b\d+(\.\d+)?m?s\b/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")) && !/cubic-bezier|transition/.test(css) && /var\(--dur\)/.test(css) && /var\(--ease-out\)/.test(css));
+  const keyframes = [...css.matchAll(/animation: (m-[\w-]+)/g)].map((m) => m[1]);
+  check("it uses only the shared keyframes, which exist in main.css (slides become fades under reduced motion; nothing here scales)", keyframes.length >= 4 && keyframes.every((k) => new RegExp(`@keyframes ${k} `).test(main)) && keyframes.every((k) => ["m-fade", "m-fade-out", "m-rise", "m-sheet-in", "m-sheet-out"].includes(k)), keyframes);
+  check("it leaves faster than it arrives, and the wait before it is removed is under 300 ms and over the slowest exit", /--dur-out/.test(css) && Number(/EXIT_MS = (\d+)/.exec(tour)?.[1]) <= 300 && Number(/EXIT_MS = (\d+)/.exec(tour)?.[1]) >= 200);
+  check("while leaving it takes no presses", /\.tour\.is-leaving > \* \{ pointer-events: none; \}/.test(css));
+  check("it follows the control while the page scrolls and the window changes, and brings it into view without a smooth scroll under reduced motion", /addEventListener\("scroll", follow/.test(tour) && /addEventListener\("resize", follow\)/.test(tour) && /calm\(\) \? "auto" : "smooth"/.test(tour));
+  check("on a phone the card is a sheet at the bottom; elsewhere it sits beside the control", /\.tour-card\.phone/.test(css) && /max-width: 599px/.test(tour));
+  check("it shows no colour of its own beyond the dim layer: the theme's paper, ink, strap and shadow (Light, Dark and Midnight follow)", !/#[0-9a-f]{3,8}\b/i.test(css) && /var\(--paper\)/.test(css) && /var\(--strap\)/.test(css) && /var\(--shadow-2\)/.test(css));
+  check("the card says which tip of how many, and updates politely for a screen reader", /Tip \{\{ i \+ 1 \}\} of \{\{ stage\.steps\.length \}\}/.test(tour) && /aria-live="polite"/.test(tour));
+  const people = read("src/views/People.vue");
+  check("the AI Finder tutorial points at the real row on People (data-tip=ai-ask)", /class="ask-row" data-tip="ai-ask"/.test(people) && STAGES.find((s) => s.id === "ai_finder").steps.every((s) => s.tip === "ai-ask"));
+  check("the frame names the page a tip may run on, and My card, People, Cards and one event page are the only ones", /return p\.startsWith\("\/app\/events\/"\)/.test(shell) && /"home"/.test(shell) && /"people"/.test(shell) && /"cards"/.test(shell));
+}
+
 globalThis.fetch = realFetch;
 Date.now = realNow;
 summary();
