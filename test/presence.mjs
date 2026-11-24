@@ -575,9 +575,11 @@ console.log("\n# The hub card and list (source guards)");
   check("the card says who sees it, what they see and when it is deleted (48 hours)", /Who sees it/.test(ui) && /What they see/.test(ui) && /When it is deleted/.test(ui) && /48 hours/.test(ui) && /only see[s]? how many/.test(ui));
   check("it is off until the box is ticked, and ticking it is what sends consent", /type="checkbox" :checked="me\.on"/.test(ui) && /change\(\{ consent: true \}/.test(ui));
   check("turning it off calls DELETE, which removes the row and the photo", /"DELETE"/.test(ui));
-  check("a person in the list is a button that opens a sheet, with no link to a card or contact detail", !/router-link|\/c\/|href=|mailto|cardId|userId/.test(ui) && /Find them in the room and scan their badge to connect\./.test(ui));
-  check("the list can be reported or blocked", /Report or block/.test(ui) && /presence\/\$\{encodeURIComponent\(p\.presenceId\)\}\/report/.test(ui));
-  check("the hub shows it above the tabs, only while the event is not upcoming and the room is on", /<EventPresence v-if="event\.directoryOn && status !== 'upcoming'"/.test(hub) && hub.indexOf("<EventPresence") < hub.indexOf('role="tablist"'));
+  // F60: the people list moved to Who to meet (EventWhoToMeet.vue); the card here is the photo for it. The same rules hold there.
+  const meet = read("src/components/EventWhoToMeet.vue");
+  check("a person in the list (now Who to meet) is a button that opens a sheet, with no link to a card or contact detail", !/router-link|\/c\/|href=|mailto|cardId|userId/.test(ui + meet) && /Find them in the room and scan their badge to connect\./.test(meet));
+  check("the list can be reported or blocked", /Report or block/.test(meet) && /who-to-meet\/\$\{encodeURIComponent\(p\.id\)\}\/report/.test(meet));
+  check("the hub shows it above the tabs, only while the event is not upcoming, the room is on and suggestions are on", /<EventPresence v-if="event\.directoryOn && status !== 'upcoming' && !suggestOff"/.test(hub) && hub.indexOf("<EventPresence") < hub.indexOf('role="tablist"'));
   check("when the event is over the card offers to delete now and says nobody can see it", /Delete my photo and line now/.test(ui) && /nobody can see your photo or line any more/.test(ui));
   check("colours are tokens only", !/#[0-9a-f]{3,8}\b/i.test(ui.slice(ui.indexOf("<style"))));
   const entry = ["src/main.js", "src/App.vue", "src/router/index.js", "src/lib/store.js", "src/lib/api.js", "src/lib/profile.js", "src/lib/shell.js", "src/components/Icon.vue"].filter((f) => /EventPresence|presence/i.test(read(f)));

@@ -10,6 +10,7 @@ import EventChoices from "../components/EventChoices.vue";
 import EventDrops from "../components/EventDrops.vue";
 import EventAttendanceChoices from "../components/EventAttendanceChoices.vue";
 import EventPresence from "../components/EventPresence.vue";
+import EventWhoToMeet from "../components/EventWhoToMeet.vue";
 import Icon from "../components/Icon.vue";
 import Waiting from "../components/Waiting.vue";
 import UiSheet from "../components/ui/UiSheet.vue";
@@ -99,6 +100,8 @@ async function leave() {
   }
 }
 
+// F60: Who to meet says when the host switched suggestions off; then Be easy to find (a photo for Who to meet) has nothing to add to.
+const suggestOff = ref(false);
 const choicesOpen = ref(false);
 const choicesTrigger = ref(null);
 
@@ -147,6 +150,9 @@ function openPerk(p, e) { perkTrigger.value = e.currentTarget; perkOpen.value = 
         </div>
       </dl>
 
+      <!-- Who to meet (F60): everyone checked in, while the event is on, unless the host switched suggestions off. -->
+      <EventWhoToMeet v-if="status === 'ongoing'" :event-id="eventId" :status="status" @state="(s) => (suggestOff = s.hostOff)" />
+
       <router-link v-if="feedback?.status === 'open'" :to="`/app/feedback/${eventId}`" class="panel spread" style="color:inherit">
         <span><strong>How was it?</strong><br /><span class="small muted">Anonymous feedback for the organisers. One minute.</span></span>
         <span class="btn btn-primary" style="width:auto">Give feedback</span>
@@ -179,8 +185,8 @@ function openPerk(p, e) { perkTrigger.value = e.currentTarget; perkOpen.value = 
         </div>
       </section>
 
-      <!-- Be easy to find and who to meet (F17): only while the event is on, and only if the host has the room on. -->
-      <EventPresence v-if="event.directoryOn && status !== 'upcoming'" :event-id="eventId" :status="status" />
+      <!-- Be easy to find (F17; since F60 a photo beside your entry in Who to meet): only while the event is on, only if the host has the room on, and not when suggestions are off. -->
+      <EventPresence v-if="event.directoryOn && status !== 'upcoming' && !suggestOff" :event-id="eventId" :status="status" />
 
       <div class="btn-row" role="tablist" aria-label="Event" style="margin-bottom:8px">
         <button class="btn" role="tab" :aria-selected="tab === 'room'" :class="{ 'btn-primary': tab === 'room' }" @click="switchTab('room')">Room</button>

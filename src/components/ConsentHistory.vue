@@ -16,6 +16,7 @@ function name(scope) {
   if (scope.startsWith("host_terms:")) return `Host Terms (${scope.slice(11)})`;
   if (scope.startsWith("event_directory:")) return "Showing me in an event's room";
   if (scope.startsWith("event_presence:")) return "Being easy to find at an event (photo and line)";
+  if (scope.startsWith("event_suggest:")) return "Being suggested to people at an event";
   if (scope.startsWith("event_sponsor:")) return "Sharing my details with an event sponsor";
   if (scope.startsWith("event_attendance:")) return "Being on an event's list of who checked in";
   if (scope.startsWith("event_share_email:")) return "Sharing my email with an event's organisers";

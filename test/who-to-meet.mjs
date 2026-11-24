@@ -468,11 +468,13 @@ console.log("\n# Where the code sits");
 console.log("\n# The page (source guards; the pane check is in the plan note)");
 {
   const ui = read("src/components/EventPresence.vue");
-  check("the AI button is pressed by the person: nothing calls the AI route on load, on typing or on a timer", /async function rankWithAi/.test(ui) && (ui.match(/\/api\/ai\/who-to-meet\/[^\n]*"POST"/g) || []).length === 1 && !/watch\([^)]*wish/.test(ui) && !/setInterval|setTimeout/.test(ui) && /@click="rankWithAi"/.test(ui));
-  check("the button is disabled while it runs and when none are left, and says how many are left for this event", /:disabled="busy \|\| aiBusy \|\| aiLeft < 1"/.test(ui) && /left for this event/.test(ui));
-  check("F17's list is the one shown first and is the fallback: every fallback path refreshes it and shows the message", /if \(r\.fallback\) \{[\s\S]*await refresh\(\)/.test(ui) && /catch \(e\) \{[\s\S]*await refresh\(\)/.test(ui));
-  check("the label is 'Improved with AI', plain words, and model text is only ever shown as text", /Improved with AI/.test(ui) && !/v-html|innerHTML/.test(ui));
-  check("no sparkle or magic styling in the AI controls", !/sparkle|magic|✨/i.test(ui) && !/<Icon/.test(ui));
+  // F60 (the owner's request, 2026-11-24): the hub's Who to meet ranks with AI itself, at most once every 20 minutes, inside this
+  // feature's allowance, and the "Rank with AI" button and F17's list left the page. This route stays for now; no page calls it.
+  const meet = read("src/components/EventWhoToMeet.vue");
+  check("no page calls F25's route any more (Who to meet uses POST /api/e/:id/who-to-meet, test/who-to-meet-all.mjs)", !/\/api\/ai\/who-to-meet/.test(ui + meet + read("src/views/EventDetail.vue")) && /who-to-meet"\), "POST"/.test(meet));
+  check("the Be easy to find card has no AI control and no timer", !/rankWithAi|Rank with AI/.test(ui) && !/setInterval|setTimeout/.test(ui + meet));
+  check("the hub labels an AI order 'Ranked with AI', plain words, and model text is only ever shown as text", /Ranked with AI/.test(meet) && !/v-html|innerHTML/.test(ui + meet));
+  check("no sparkle or magic styling in the AI controls", !/sparkle|magic|✨/i.test(ui + meet) && !/<Icon/.test(ui + meet));
   for (const f of ["src/lib/api.js", "src/lib/store.js", "src/lib/profile.js", "src/components/Icon.vue", "src/components/Badge.vue", "src/components/CardView.vue", "src/main.js", "src/router/routes.attendee.js", "src/router/index.js"]) {
     check(`${f} (public or shared code) does not know about this feature`, !/who-to-meet|whoToMeet|who_to_meet/.test(read(f)));
   }

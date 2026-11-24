@@ -57,13 +57,15 @@ check("reduced motion needs no rule of its own: the tokens it redefines (--shift
 
 console.log("\n# F52 Where it is used");
 const uses = [["src/components/welcome/StepFor.vue", "the welcome headline"], ["src/views/EditProfile.vue", "Edit profile's headline"],
-  ["src/components/CardForm.vue", "a card's headline"], ["src/components/EventPresence.vue", "the presence wish"]];
+  ["src/components/CardForm.vue", "a card's headline"],
+  // F60 replaced the presence wish with "What are you hoping to get from this event?" on the check-in page and the hub.
+  ["src/components/EventPage.vue", "the check-in intention"], ["src/components/EventWhoToMeet.vue", "the hub's intention"]];
 for (const [f, what] of uses) {
   const t = read(f);
   check(`${what} uses RotatingHint with the placeholder it hands over`, /<RotatingHint /.test(t) && /v-slot="\{ placeholder \}"/.test(t) && /:placeholder="[^"]*placeholder"/.test(t));
 }
 check("a card shows an example only when the profile has no headline (the profile's own line stays the placeholder)", /:off="!!me\.profile\?\.headline"/.test(read("src/components/CardForm.vue")) && /me\.profile\?\.headline \|\| placeholder/.test(read("src/components/CardForm.vue")));
-check("the presence wish uses the wish pool and keeps its 120 limit", /:pool="WISH_EXAMPLES"/.test(read("src/components/EventPresence.vue")) && /:maxlength="WISH_MAX"/.test(read("src/components/EventPresence.vue")));
+check("the intention fields (F60, in place of the presence wish) use the intention pool and keep their 120 limit", ["src/components/EventPage.vue", "src/components/EventWhoToMeet.vue"].every((f) => /:pool="INTENTION_EXAMPLES"/.test(read(f)) && /:maxlength="INTENTION_MAX"/.test(read(f))) && !/<input id="presence-wish"/.test(read("src/components/EventPresence.vue")));
 check("no public page imports the examples or the hint", ["Landing", "PublicCard", "Hosts", "Privacy", "Terms", "Redeem", "SignIn", "PrivacyRequest", "EventJoin"]
   .every((n) => !/examples|RotatingHint/.test(read(`src/views/${n}.vue`))));
 check("no old fixed headline example is left", !/Building robots and Roblox|e\.g\. Building robots/.test(["StepFor.vue", "../CardForm.vue", "../../views/EditProfile.vue"].map((f) => read("src/components/welcome/" + f)).join("")));

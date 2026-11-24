@@ -1,7 +1,7 @@
 // F60: intention at check-in and "Who to meet" for everyone checked in (D054). Each line of the plan's privacy and
 // safety bar is a check here, with its negative cases. Run: node test/who-to-meet-all.mjs
 import { readFileSync } from "node:fs";
-import { makeEnv, makeDb, check, summary, becomeHost } from "./harness.mjs";
+import { makeEnv, makeDb, check, summary, becomeHost, PNG } from "./harness.mjs";
 import { purgeExpired, eraseUser } from "../worker/purge.js";
 import { eventEndsAt } from "../worker/presence.js";
 import { SUGGEST_KEEP_MS, readChoice } from "../worker/suggest.js";
@@ -173,6 +173,187 @@ console.log("\n# The host reset wipes the rows with the events");
 {
   const { WIPED, SCHEMA_SQL } = await import("../scripts/reset-hosts.mjs");
   check("event_suggest is wiped before the events, and the script needs 0040", WIPED.indexOf("event_suggest") !== -1 && WIPED.indexOf("event_suggest") < WIPED.indexOf("events") && /event_suggest/.test(SCHEMA_SQL) && makeDb({ before: "0040" }).raw.prepare(SCHEMA_SQL).get().n === 8 && makeDb().raw.prepare(SCHEMA_SQL).get().n === 9);
+}
+
+// ------------------------------------------------------------------ F60.2
+console.log("\n# F60.2 setup: a live event and the people around it");
+const meet = await mkEvent({ name: "Meet night", directoryOn: true });
+const other = await mkEvent({ name: "Other night", directoryOn: true });
+const A = await signup("Amy Asker", { tags: ["Design"], headline: "Product designer" });
+const B = await signup("Ben Banker", { tags: ["Finance"], headline: "Analyst in training" });
+const C = await signup("Cat Quiet", { tags: ["Finance"], headline: "Finance person who unticked" });
+const D = await signup("Dan Blocked", { tags: ["Finance"] });
+const E = await signup("Eli Blocker", { tags: ["Finance"] });
+const F = await signup("Fay Elsewhere", { tags: ["Finance"] });
+const G = await signup("Gus Hidden", { mode: "career", company: "Acme", role: "Analyst", course: "SecretCourse", tags: ["HiddenTag"], headline: "Gus line" });
+const N = await signup("Nia Nowhere"); // never checks in here
+await checkIn(A, meet, { suggest: true, intention: "Meet people in finance" });
+await checkIn(B, meet, { suggest: true }); // wrote no intention
+await checkIn(C, meet, { suggest: false });
+await checkIn(D, meet); await checkIn(E, meet); await checkIn(G, meet);
+await checkIn(F, other);
+const gCard = q1("SELECT id FROM cards WHERE user_id = ? AND is_default = 1", G.id).id;
+raw.prepare("UPDATE cards SET tags = ? WHERE id = ?").run(JSON.stringify(["Chess"]), gCard); // the card G shares hides the profile tag
+raw.prepare("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)").run(A.id, D.id, Date.now());
+raw.prepare("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)").run(E.id, A.id, Date.now());
+const list = (p, ev = meet) => p.c.post(`/api/e/${ev.id}/who-to-meet`, {});
+const names = (r) => (r.json?.people || []).map((x) => x.name);
+
+console.log("\n# Who may see the list");
+{
+  const anon = client({ ip: "10.60.252.1" });
+  const a1 = await anon.post(`/api/e/${meet.id}/who-to-meet`, {});
+  check("signed out: refused (401 or, once a guest exists, 403 not checked in), never a list", [401, 403].includes(a1.status) && !a1.json.people, a1.status);
+  check("signed out: reading your choice is 401", (await client({ ip: "10.60.252.2" }).get(`/api/e/${meet.id}/suggest`)).status === 401);
+  const n = await list(N);
+  check("signed in but not checked in: 403 not_checked_in", n.status === 403 && n.json.code === "not_checked_in", n.json);
+  const f = await list(F);
+  check("checked in to another event only: 403", f.status === 403 && f.json.code === "not_checked_in");
+  const fOwn = await list(F, other);
+  check("another event's list never has this event's people", fOwn.status === 200 && !names(fOwn).some((x) => /Amy|Ben|Cat|Dan|Eli|Gus/.test(x)), names(fOwn));
+  const c = await list(C);
+  check("someone who unticked Suggest me sees no list either (403 suggest_me_off)", c.status === 403 && c.json.code === "suggest_me_off" && !c.json.people);
+  check("an event that does not exist: 404", (await A.c.post("/api/e/nope/who-to-meet", {})).status === 404);
+  const ended = await mkEvent({ name: "Done night", startsAt: t0 - 5 * H, endsAt: t0 - H });
+  await checkIn(A, ended); await checkIn(B, ended);
+  const e = await list(A, ended);
+  check("an ended event shows none (403 not_ongoing)", e.status === 403 && e.json.code === "not_ongoing" && !e.json.people);
+  const soon = await mkEvent({ name: "Soon night", startsAt: t0 + 3 * H, endsAt: t0 + 6 * H });
+  await checkIn(A, soon); await checkIn(B, soon);
+  check("an event that has not started shows none", (await list(A, soon)).json.code === "not_ongoing");
+  const off = await mkEvent({ name: "Off night", suggestOn: false });
+  await checkIn(A, off); await checkIn(B, off);
+  raw.prepare("INSERT INTO event_suggest (id, event_id, user_id, suggest, intention, notice_version, created_at, updated_at) VALUES ('sx1', ?, ?, 1, 'Meet people', 'v', 1, 1), ('sx2', ?, ?, 1, '', 'v', 1, 1)").run(off.id, A.id, off.id, B.id);
+  const o = await list(A, off);
+  check("host switch off: 403 suggest_off and no people, even with rows in the table", o.status === 403 && o.json.code === "suggest_off" && !o.json.people);
+  check("…and the hub's own state says so, so the section does not show", (await A.c.get(`/api/e/${off.id}/suggest`)).json.why === "suggest_off");
+}
+
+console.log("\n# The list: everyone suggested, without AI, and nothing they do not show");
+{
+  const r = await list(A);
+  check("A, who wrote 'Meet people in finance', sees Ben (tag Finance, no intention) with a reason about finance", r.status === 200 && r.json.ai === false && names(r).includes("Ben B.") && r.json.people.find((p) => p.name === "Ben B.").reason === "Into Finance", r.json);
+  check("…and never Cat, who unticked", !names(r).some((x) => x.startsWith("Cat")));
+  check("…never the viewer", !names(r).some((x) => x.startsWith("Amy")));
+  check("blocks both ways: not Dan (A blocked him) nor Eli (he blocked A)", !names(r).some((x) => /^(Dan|Eli)/.test(x)));
+  check("…and Amy is not in Dan's or Eli's list either", !names(await list(D)).includes("Amy A.") && !names(await list(E)).includes("Amy A."));
+  const keys = r.json.people.map((p) => Object.keys(p).sort().join());
+  check("each entry has exactly id, name, headline, tags, intention and reason (photo only with Be easy to find)", keys.length > 0 && keys.every((k) => k === "headline,id,intention,name,reason,tags"), keys);
+  check("the top-level answer is { mode, ai, people } and nothing else", Object.keys(r.json).sort().join() === "ai,mode,people");
+  const blob = JSON.stringify(r.json);
+  check("no user id, card id, email, surname or link anywhere in the answer", ![A, B, C, D, E, G].some((p) => blob.includes(p.id)) && !q("SELECT id FROM cards").some((x) => blob.includes(x.id)) && !/@|https?:|Banker|Hidden\b|\/c\//.test(blob), blob.slice(0, 300));
+  check("names are first name and last initial", names(r).every((n) => /^[A-Z][a-z]+ [A-Z]\.$/.test(n)), names(r));
+  check("tags: at most three each", r.json.people.every((p) => Array.isArray(p.tags) && p.tags.length <= 3));
+  const all = JSON.stringify([(await list(B)).json, (await list(D)).json, r.json]);
+  check("a kept-but-hidden field never shows in anyone's list: Gus's course and the profile tag his card hides", !all.includes("SecretCourse") && !all.includes("HiddenTag"));
+  const b = await list(B);
+  check("Ben, who wrote no intention, still sees suggestions himself, with Amy in them", b.status === 200 && names(b).includes("Amy A."), names(b));
+  const amyForBen = b.json.people.find((p) => p.name === "Amy A.");
+  check("…and sees Amy's intention, and a reason drawn from it and his own card", amyForBen.intention === "Meet people in finance" && /finance/i.test(amyForBen.reason), amyForBen);
+}
+
+console.log("\n# A photo only for Be easy to find, and only to the people the list may show");
+{
+  const on = await B.c.put(`/api/e/${meet.id}/presence`, { consent: true, selfieDataUrl: PNG });
+  check("(Ben turns on Be easy to find with a photo)", on.status === 200 && !!on.json.selfie, on.json);
+  const r = await list(A);
+  const ben = r.json.people.find((p) => p.name === "Ben B.");
+  check("Ben's entry now has a photo; nobody else's does", ben.photo === on.json.selfie && r.json.people.filter((p) => p.name !== "Ben B.").every((p) => !("photo" in p)));
+  check("Amy (Be easy to find off herself) may load it, because Ben is in her list now", (await A.c.get(ben.photo)).status === 200);
+  check("Cat (unticked) may not; nor someone not checked in; nor signed out", (await C.c.get(ben.photo)).status === 404 && (await N.c.get(ben.photo)).status === 404 && (await client({ ip: "10.60.252.9" }).get(ben.photo)).status === 404);
+  await B.c.put(`/api/e/${meet.id}/suggest`, { suggest: false });
+  check("once Ben unticks Suggest me, Amy cannot load his photo through Who to meet", (await A.c.get(ben.photo)).status === 404);
+  await B.c.put(`/api/e/${meet.id}/suggest`, { suggest: true });
+  raw.prepare("UPDATE events SET directory_on = 0 WHERE id = ?").run(meet.id);
+  check("the host's room off: no photo in entries", !(await list(A)).json.people.some((p) => "photo" in p));
+  raw.prepare("UPDATE events SET directory_on = 1 WHERE id = ?").run(meet.id);
+}
+
+console.log("\n# Changing your mind: the hub and Settings, on the very next request");
+{
+  check("(Ben is in Amy's list)", names(await list(A)).includes("Ben B."));
+  const off = await B.c.put(`/api/e/${meet.id}/suggest`, { suggest: false });
+  check("Ben unticks on the hub: his own state says so", off.status === 200 && off.json.suggest === false);
+  check("…and he is in nobody's list on the next request", !names(await list(A)).includes("Ben B.") && !names(await list(G)).includes("Ben B."));
+  const l = log(meet, B);
+  check("…recorded as withdrawn from the hub, with the words and version", l.at(-1).action === "withdrawn" && l.at(-1).ref === "hub" && l.at(-1).wording === SUGGEST_NOTICE && l.at(-1).version === SUGGEST_VERSION, l);
+  const s = await B.c.get("/api/account/suggest");
+  check("Settings lists the event with the tick off", s.json.events.some((e) => e.id === meet.id && e.suggest === false && e.name === "Meet night"));
+  const n0 = log(meet, B).length;
+  const back = await B.c.put(`/api/e/${meet.id}/suggest`, { suggest: true, from: "settings" });
+  check("ticking it again from Settings puts him back, recorded as granted from settings", back.json.suggest === true && names(await list(A)).includes("Ben B.") && log(meet, B).at(-1).action === "granted" && log(meet, B).at(-1).ref === "settings");
+  const same = await B.c.put(`/api/e/${meet.id}/suggest`, { suggest: true });
+  check("a save that changes nothing writes no history row", same.status === 200 && log(meet, B).length === n0 + 1);
+  const i = await A.c.put(`/api/e/${meet.id}/suggest`, { intention: "Find a summer internship" });
+  check("editing the intention on the hub changes it, cleaned, with no consent row", i.json.intention === "Find a summer internship" && row(meet, A).intention === "Find a summer internship" && log(meet, A).length === 1);
+  check("bad shapes are refused and change nothing", (await A.c.put(`/api/e/${meet.id}/suggest`, { suggest: "no" })).status === 400 && (await A.c.put(`/api/e/${meet.id}/suggest`, { intention: "x".repeat(121) })).status === 400 && row(meet, A).suggest === 1);
+  check("not checked in: changing a choice is 403", (await N.c.put(`/api/e/${meet.id}/suggest`, { suggest: true })).status === 403 && !row(meet, N));
+  // Someone who checked in without the notice (before F60): no row; the hub shows the notice and they choose.
+  const P = await signup("Pre Fsixty");
+  await checkIn(P, meet, {});
+  check("someone with no choice yet reads suggest: null and is in nobody's list", (await P.c.get(`/api/e/${meet.id}/suggest`)).json.suggest === null && !names(await list(A)).includes("Pre F."));
+  check("…an intention alone without a tick is refused, because they are being shown the notice now", (await P.c.put(`/api/e/${meet.id}/suggest`, { intention: "Hi" })).status === 400 && !row(meet, P));
+  await P.c.put(`/api/e/${meet.id}/suggest`, { suggest: true });
+  check("…ticking it from the hub puts them in, recorded as granted", names(await list(A)).includes("Pre F.") && log(meet, P)[0].action === "granted");
+  await A.c.put(`/api/e/${meet.id}/suggest`, { intention: "Meet people in finance" });
+}
+
+console.log("\n# Report and block from the list");
+{
+  const r = await list(G);
+  const amy = r.json.people.find((p) => p.name === "Amy A.");
+  check("(Gus sees Amy)", !!amy, names(r));
+  check("an id that is not in your list right now is 404 (an unticked person's id, a user id)", (await G.c.post(`/api/e/${meet.id}/who-to-meet/${row(meet, C).id}/report`, { block: true })).status === 404 && (await G.c.post(`/api/e/${meet.id}/who-to-meet/${A.id}/report`, { block: true })).status === 404);
+  const someone = r.json.people.find((p) => p.name !== "Amy A.");
+  check("a report needs a reason", (await G.c.post(`/api/e/${meet.id}/who-to-meet/${someone.id}/report`, {})).status === 400);
+  const b = await G.c.post(`/api/e/${meet.id}/who-to-meet/${amy.id}/report`, { block: true });
+  check("blocking works from the list, and both stop seeing each other on the next request", b.status === 200 && !names(await list(G)).includes("Amy A.") && !names(await list(A)).includes("Gus H."));
+}
+
+console.log("\n# Limits like F17's");
+{
+  const R = await signup("Rae Rate");
+  await checkIn(R, meet);
+  let last;
+  for (let i = 0; i < 31; i++) last = await R.c.put(`/api/e/${meet.id}/suggest`, { intention: `Try ${i}` });
+  check("30 changes an hour, then 429", last.status === 429 && row(meet, R).intention === "Try 29");
+  for (let i = 0; i < 121; i++) last = await list(R);
+  check("120 lists an hour, then 429", last.status === 429);
+}
+
+console.log("\n# Hosts see counts only, hidden under 3");
+{
+  const s = (await host.get(`/api/host/events/${meet.id}/live`)).json.suggestions;
+  check("the live view has two counts, each a number from 3 up or null", Object.keys(s).sort().join() === "intentions,unticked" && (s.intentions === null || s.intentions >= 3) && (s.unticked === null || s.unticked >= 3), s);
+  const tiny = await mkEvent({ name: "Tiny night" });
+  const t1 = await signup("Tia One"), t2 = await signup("Tom Two");
+  await checkIn(t1, tiny, { suggest: false, intention: "Meet people" }); await checkIn(t2, tiny, { suggest: true, intention: "Find a co-founder" });
+  check("two intentions and one untick show as null", JSON.stringify((await host.get(`/api/host/events/${tiny.id}/live`)).json.suggestions) === '{"intentions":null,"unticked":null}');
+  const t3 = await signup("Tess Three");
+  await checkIn(t3, tiny, { suggest: true, intention: "Learn about careers in law" });
+  check("three intentions show as 3", (await host.get(`/api/host/events/${tiny.id}/live`)).json.suggestions.intentions === 3);
+  const hostBlob = [(await host.get(`/api/host/events/${tiny.id}/live`)).text, (await host.get(`/api/host/events/${tiny.id}/report`)).text, (await host.get(`/api/host/events/${tiny.id}/report.csv`)).text, (await host.get("/api/host/account/export")).text].join("\n");
+  check("no intention, name or suggestion id reaches a host (live, report, CSV, host export)", !/Meet people|co-founder|careers in law|Tia|Tom Two|Tess/.test(hostBlob) && !q("SELECT id FROM event_suggest").some((x) => hostBlob.includes(x.id)));
+  const hostFiles = ["worker/hosts.js", "worker/events.js", "worker/host-auth.js", "worker/hostorg.js", "worker/admin.js", "worker/feedback.js", "worker/integrations.js", "worker/eventmail.js", "worker/myevents.js", "worker/attendance.js"];
+  const bad = hostFiles.filter((f) => /event_suggest|suggestCandidates|suggestApp|exportSuggest|\.intention\b|intention\s*FROM/i.test(read(f)));
+  check("no host-facing file reads the table or an intention per person (events.js only writes at check-in; hosts.js only counts)", bad.length === 0 && /import \{ suggestCounts \} from "\.\/suggest\.js"/.test(read("worker/hosts.js")) && /import \{ readChoice, checkinSuggestStatements \} from "\.\/suggest\.js"/.test(read("worker/events.js")), bad);
+  check("the counts are worked out in SQL and only counts leave suggestCounts", /SUM\(CASE WHEN intention != '' THEN 1 ELSE 0 END\)/.test(read("worker/suggest.js")) && /n >= 3 \? n : null/.test(read("worker/suggest.js")));
+}
+
+console.log("\n# The hub, the section and Settings (source guards)");
+{
+  const ui = read("src/components/EventWhoToMeet.vue"), hub = read("src/views/EventDetail.vue"), set = read("src/views/settings/SettingsPrivacy.vue") + read("src/views/settings/SuggestSetting.vue");
+  check("the hub shows Who to meet near the top, above the people you met, only while the event is on", /<EventWhoToMeet v-if="status === 'ongoing'"/.test(hub) && hub.indexOf("<EventWhoToMeet") < hub.indexOf('id="hub-people"'));
+  check("the section has the intention field with rotating examples, the same tick words and the small print", /<RotatingHint :pool="INTENTION_EXAMPLES"/.test(ui) && /SUGGEST_NOTICE/.test(ui) && /SUGGEST_DETAIL/.test(ui) && /data-suggest-me/.test(ui));
+  check("an entry is a button that opens a sheet with no link to a card or contact detail", !/router-link|\/c\/|href=|mailto|cardId|userId/.test(ui) && /Find them in the room and scan their badge to connect\./.test(ui) && /Report or block/.test(ui));
+  check("a photo only when the entry has one", /<Avatar v-if="p\.photo"/.test(ui));
+  check("'Ranked with AI' only when the answer says ai", /v-if="list\?\.ai"[^>]*>[\s\S]{0,60}Ranked with AI/.test(ui));
+  check("Settings, Privacy and data has the block", /<SuggestSetting \/>/.test(set) && /\/api\/account\/suggest/.test(set) && /from: "settings"/.test(set));
+  check("no v-html for what people wrote", !/v-html|innerHTML/.test(ui + set));
+  check("Be easy to find is now the photo only, and hides when suggestions are off", /Show my photo to people here/.test(read("src/components/EventPresence.vue")) && /!suggestOff/.test(hub));
+  const entry = ["src/main.js", "src/App.vue", "src/router/index.js", "src/lib/store.js", "src/lib/api.js", "src/lib/profile.js", "src/lib/shell.js", "src/components/Icon.vue"].filter((f) => /WhoToMeet|who-to-meet|suggestApp|lib\/suggest|event_suggest/.test(read(f)));
+  check("no shared or entry file knows about it (it stays in the hub chunk)", entry.length === 0, entry);
+  check("the routes all need a signed-in person", (read("worker/suggestApp.js").match(/suggestApp\.(get|put|post|delete)\(/g) || []).length === (read("worker/suggestApp.js").match(/requireUser\(c\)/g) || []).length);
 }
 
 summary();

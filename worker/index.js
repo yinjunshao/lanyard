@@ -43,6 +43,7 @@ import { sharedGround } from "./inCommon.js";
 import { exportPresence, canViewPresenceSelfie } from "./presence.js";
 import { exportSuggest, canViewSuggestPhoto } from "./suggest.js";
 import { presenceApp } from "./presenceApp.js";
+import { suggestApp } from "./suggestApp.js";
 import { attendanceApp } from "./attendanceApp.js";
 import { dropsApp, exportDrops } from "./dropsApp.js";
 import { exportNamedAttendance } from "./attendance.js";
@@ -1433,6 +1434,7 @@ app.route("/", eventsApp);
 app.route("/", myEventsApp);
 app.route("/", leaveEventApp);
 app.route("/", presenceApp);
+app.route("/", suggestApp); // F60: Who to meet for everyone checked in
 app.route("/", attendanceApp);
 app.route("/", dropsApp);
 app.route("/", aiApp);

@@ -6,6 +6,7 @@ import { Api } from "../../lib/api";
 import ConsentHistory from "../../components/ConsentHistory.vue";
 import AiSearchSetting from "./AiSearchSetting.vue";
 import AttendanceSetting from "./AttendanceSetting.vue";
+import SuggestSetting from "./SuggestSetting.vue";
 import Icon from "../../components/Icon.vue";
 import { useBusy } from "../../components/Waiting.vue";
 
@@ -33,6 +34,8 @@ const erase = once(async () => {
     <AiSearchSetting />
 
     <AttendanceSetting />
+
+    <SuggestSetting />
 
     <ConsentHistory />
 
