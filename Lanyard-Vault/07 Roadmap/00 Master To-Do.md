@@ -57,6 +57,7 @@ These block the items in brackets. Tick each one and write the answer in the lin
 - [x] Card colours and Plus ([[F55 Card colour presets and a Plus colour wheel]], [[F56 Premium materials for Plus cards]]): **free users choose from presets; Plus gets the whole colour wheel, the text colour and materials (gold, silver and others)**; Plus-only themes and reflectiveness later (answered 2026-11-24)
 - [x] When the AI Finder tutorial starts ([[F59 Feature stages and tutorials]]): **after 3 connections** (answered 2026-11-24)
 - [x] White text on the strap orange `#D9502B` is 4.09:1, under 4.5:1 ([[F54 Midnight app theme]], [[F55 Card colour presets and a Plus colour wheel]]): **deepen it slightly to `#C4441E` everywhere** (answered 2026-11-24)
+- [x] Profile import from a PDF ([[F62 Fill your profile from LinkedIn or a CV]]): **text read on the device, only text sent to the AI; LinkedIn PDF and any CV; on the first welcome step and Edit profile; 3 AI imports a month for everyone, plain parser past that** (answered 2026-11-24)
 
 ## Build order
 Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a week or more. Priorities: **P0** now · **P1** next · **P2** after · **P3** only if needed.
@@ -143,10 +144,13 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F59** [[F59 Feature stages and tutorials]] · P1 · L · Needs: F24, F60
 - [ ] **F56** [[F56 Premium materials for Plus cards]] · P2 · M · Needs: F55
 - [ ] **F61** [[F61 Matching profiles for better suggestions]] · P3 · L · Needs: F60 (research and an owner choice before any code)
+- [ ] **F62** [[F62 Fill your profile from LinkedIn or a CV]] · P1 · L · Needs: F21, F14 (added 2026-11-24 from the owner's LinkedIn question; no scraping, the person's own PDF read on their device; F21 is still waiting on its real-key check, so building needs the owner's say-so to build on F21 as it stands)
 
 ## Dependency map
 ```mermaid
 graph LR
+  F21 --> F62
+  F14 --> F62
   F40 --> F57
   F45 --> F58
   F48 --> F58
@@ -222,6 +226,7 @@ graph LR
 | F45 to F50 | Together, in order: `npm run db:remote` (0036, 0037, 0038, after 0018 to 0035), then `npm run deploy`. Then the real-world checks in the F45, F48 and F49 Logs (one real guest connect and its confirm link, a reminder email and its stop link, a finish-your-profile email and its stop link). **Everyone, hosts included, will be asked to agree to the Terms again** on next use (F50 set the version to `2026-11-22`). Still open for the lawyer: a UK representative and the ICO fee | [[F45 Email when someone new connects]], [[F48 Follow-up reminder emails]], [[F49 Profile score and finish-your-profile emails]], [[F50 QuantLink as the operator]] |
 | Reminder emails not arriving (owner question 2026-11-24) | Nothing is wrong in the code: the F48 reminder emails are in the commits not yet pushed. Do the F45 to F50 row above (push, `npm run db:remote` for 0036 to 0038, `npm run deploy`). Reminders go only to a confirmed email address | [[F48 Follow-up reminder emails]], [[F58 Branded emails]] |
 | F37 | `npm run deploy` (no migration, no secret; keep `https://lanyd.fyi` first in `APP_ORIGIN`). Then check real previews of `/`, `/hosts`, a card and an event in the LinkedIn Post Inspector, opengraph.xyz, the Facebook Sharing Debugger, WhatsApp and Slack; optional Search Console (submit the sitemap, inspect a card: "noindex"). Decide whether the Privacy Policy should say that a shared card link previews the name, headline and photo | [[F37 SEO and link previews]], [[Deployment]] |
+| F62 | After F21 is on (no migration): `npm run deploy`. Then, with your own address on the allow-list, fill a test profile from your own LinkedIn "Save to PDF" file and from one real two-column CV, and judge the fields. Decide whether the new Privacy Policy line needs a Terms and Privacy version bump | [[F62 Fill your profile from LinkedIn or a CV]] |
 
 ## Done log
 Agents add one line per finished feature: `2026-11-12 · F02 · abc1234 · one-line summary`.
