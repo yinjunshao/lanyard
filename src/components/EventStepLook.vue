@@ -18,7 +18,7 @@ defineProps({
     </div>
     <div class="field"><label for="ev-strap">Brand colour (optional)</label>
       <div class="row">
-        <input id="ev-strap" type="color" :value="form.strapColor || '#d9502b'" style="width:56px;height:44px;padding:2px;flex:none" @input="form.strapColor = $event.target.value" />
+        <input id="ev-strap" type="color" :value="form.strapColor || '#c4441e'" style="width:56px;height:44px;padding:2px;flex:none" @input="form.strapColor = $event.target.value" />
         <span class="small muted" style="flex:1">{{ form.strapColor || "Using the theme colour" }}</span>
         <button v-if="form.strapColor" class="btn" style="width:auto;flex:none" type="button" @click="form.strapColor = ''">Reset</button>
       </div>

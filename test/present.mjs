@@ -227,7 +227,7 @@ console.log("\n# The poster (F19.4): A4, paper and ink, no counter and no contro
   check("the only colours on the paper are black, white and the event's strap (a rule 1.6 cqw thick)", [...colours].every((c) => ["#fff", "#000"].includes(c)) && /border-top: 1\.6cqw solid var\(--event-strap\)/.test(poster), [...colours]);
   check("no filled area: the one background on the sheet is white, nothing else is filled", (poster.match(/background[a-z-]*:/g) || []).length === 1 && /background: #fff/.test(poster), poster.match(/background[a-z-]*:[^;]*/g));
   check("the paper is white and black whatever the theme (no theme variable sets its colours)", /\.poster-sheet \{[^}]*background: #fff; color: #000/.test(poster) && !/var\(--(ink|paper|graphite)/.test(poster));
-  check("the strap is the host's colour, else Formal's, else the Lanyard strap", pr.includes('ev.value?.strapColor || (ev.value?.theme === "formal" ? "#2b3138" : "#d9502b")'));
+  check("the strap is the host's colour, else Formal's, else the Lanyard strap", pr.includes('ev.value?.strapColor || (ev.value?.theme === "formal" ? "#2b3138" : "#c4441e")'));
   // The poster QR is the same path the screen draws, so it reads back the same address (decoded above); here with the poster's own black on white.
   check("the poster's QR reads back as the check-in address", decode(joinUrl("ABCDE"), 8) === joinUrl("ABCDE"));
   check("event codes only change when the host asks (no schedule), so a poster stays valid until New check-in code",

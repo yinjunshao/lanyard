@@ -304,7 +304,7 @@ async function copyFeedbackLink() {
           <UiSelect id="d-theme" v-model="d.theme" labelledby="d-theme-l" :options="THEME_OPTIONS" /></div>
         <div class="field"><label for="d-strap">Brand colour (optional)</label>
           <div class="row">
-            <input id="d-strap" type="color" :value="d.strapColor || '#d9502b'" style="width:56px;height:44px;padding:2px;flex:none" @input="d.strapColor = $event.target.value" />
+            <input id="d-strap" type="color" :value="d.strapColor || '#c4441e'" style="width:56px;height:44px;padding:2px;flex:none" @input="d.strapColor = $event.target.value" />
             <span class="small muted" style="flex:1">{{ d.strapColor || "Using the theme colour" }}</span>
             <button v-if="d.strapColor" class="btn" style="width:auto;flex:none" type="button" @click="d.strapColor = ''">Reset</button>
           </div>

@@ -7,7 +7,7 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
-const PAPER = "#F4F1EA", INK = "#15130F", STRAP = "#D9502B", MUTED = "#5E5A50";
+const PAPER = "#F4F1EA", INK = "#15130F", STRAP = "#C4441E", MUTED = "#5E5A50";
 const out = fileURLToPath(new URL("../public/og-image.png", import.meta.url));
 
 // Each letter is a stroke path on a 100 x 140 box (x-height from y=40 to y=120, ascenders from y=0).

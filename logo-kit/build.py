@@ -21,7 +21,7 @@ L = "M88 96H116V176H168V204H88Z"
 SYM = BADGE + SLOT + L
 def sym(fill, extra=''): return f'<path fill-rule="evenodd" fill="{fill}" d="{SYM}"{extra}/>'
 def svg(vb, body, title): return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}" role="img"><title>{title}</title>{body}</svg>\n'
-INK, ORG, CRM = '#1B1A17', '#D9502B', '#F4F1EA'
+INK, ORG, CRM = '#1B1A17', '#C4441E', '#F4F1EA'
 wp, ww = word('lanyard', 150, -2)
 # horizontal: baseline so x-height centre ~ badge centre (128); x-height ~ 0.5*size
 bl = 128 + 150*0.255

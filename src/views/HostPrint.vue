@@ -32,7 +32,7 @@ onMounted(async () => {
 const ev = computed(() => live.value?.event || null);
 const qr = computed(() => (ev.value ? qrPath(joinUrl(ev.value.code)) : null));
 // The event's own strap colour is the only colour on the paper.
-const strap = computed(() => ev.value?.strapColor || (ev.value?.theme === "formal" ? "#2b3138" : "#d9502b"));
+const strap = computed(() => ev.value?.strapColor || (ev.value?.theme === "formal" ? "#2b3138" : "#c4441e"));
 const when = computed(() => (ev.value?.startsAt
   ? new Date(ev.value.startsAt).toLocaleString(undefined, { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })
   : ""));

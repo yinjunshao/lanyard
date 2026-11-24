@@ -110,7 +110,7 @@ function onKey(e) {
                   :aria-pressed="theme === t[0]" @click="theme = t[0]">{{ t[1] }}</button>
           <label class="pv-brand chip" :class="{ on: !!strap }">
             <span>Brand colour</span>
-            <input type="color" :value="strap || '#d9502b'" aria-label="Brand colour for the strap" @input="strap = $event.target.value" />
+            <input type="color" :value="strap || '#c4441e'" aria-label="Brand colour for the strap" @input="strap = $event.target.value" />
           </label>
           <button v-if="strap" type="button" class="link-btn small" @click="strap = ''">Reset colour</button>
         </div>

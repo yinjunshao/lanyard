@@ -14,7 +14,7 @@
 ## Colour
 | Role | Name | HEX | RGB |
 |---|---|---|---|
-| Primary | Lanyard Orange | `#D9502B` | 217 80 43 |
+| Primary | Lanyard Orange | `#C4441E` | 196 68 30 |
 | Text / ink | Ink | `#1B1A17` | 27 26 23 |
 | Background | Cream | `#F4F1EA` | 244 241 234 |
 

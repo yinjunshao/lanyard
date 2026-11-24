@@ -137,7 +137,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F53** [[F53 Tag boxes and new suggestions]] · P1 · S · Needs: none (done 2026-11-24, last commit 39965bf)
 - [ ] **F57** [[F57 Card editor opens with motion]] · P1 · S · Needs: F40 (in progress: Claude subagent, 2026-11-24; built and tested, waiting on one check: the editor seen as a plain fade with reduced motion on, which the browser pane could not emulate)
 - [ ] **F54** [[F54 Midnight app theme]] · P1 · S · Needs: none (in progress: Claude subagent, 2026-11-24; built and tested, waiting on F55.0: the owner chose on 2026-11-24 to deepen the strap orange to `#C4441E`, 5.0:1 with white)
-- [ ] **F55** [[F55 Card colour presets and a Plus colour wheel]] · P1 · M · Needs: none (what Plus includes, partly answered 2026-11-24)
+- [ ] **F55** [[F55 Card colour presets and a Plus colour wheel]] · P1 · M · Needs: none (what Plus includes, partly answered 2026-11-24) (in progress: Claude subagent, 2026-11-24)
 - [ ] **F58** [[F58 Branded emails]] · P1 · M · Needs: F45, F48, F49
 - [ ] **F60** [[F60 Intention at check-in and who to meet for everyone]] · P1 · L · Needs: F17, F25, F52 (everyone checked in by owner decision, 2026-11-24; narrows D027; risk recorded in the plan note)
 - [ ] **F59** [[F59 Feature stages and tutorials]] · P1 · L · Needs: F24, F60

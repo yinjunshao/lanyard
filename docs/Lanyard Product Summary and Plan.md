@@ -137,7 +137,7 @@ The card should look like a real lanyard badge: portrait shape, a punched slot a
 | Text | Ink | #1B1A17 |
 | Secondary text | Graphite | #6B675F |
 | Lines and borders | Rule | #DAD5CA |
-| Single accent (the strap) | Persimmon | #D9502B |
+| Single accent (the strap) | Persimmon | #C4441E (was #D9502B, deepened 2026-11-24) |
 
 Paper and ink are neutral and timeless and don't look like LinkedIn. The accent is used only for the primary action and the strap. For dark venues and socials, swap paper and ink. Event themes change only the strap colour.
 

@@ -5,9 +5,9 @@ import QRCode from "qrcode";
 // badge (same measurements in CSS px, drawn at 3x), not a separate design.
 const C = { ink: "#1B1A17" };
 const THEMES = {
-  light: { bg: "#FFFDF8", ink: "#1B1A17", graphite: "#6B675F", rule: "#D8D2C5", strap: "#D9502B" },
+  light: { bg: "#FFFDF8", ink: "#1B1A17", graphite: "#6B675F", rule: "#D8D2C5", strap: "#C4441E" },
   formal: { bg: "#FFFDF8", ink: "#1B1A17", graphite: "#6B675F", rule: "#D8D2C5", strap: "#2B3138" },
-  night: { bg: "#1F1D1A", ink: "#F4F1EA", graphite: "#A29D92", rule: "#38352F", strap: "#D9502B" },
+  night: { bg: "#1F1D1A", ink: "#F4F1EA", graphite: "#A29D92", rule: "#38352F", strap: "#C4441E" },
 };
 const PAPER = "#F4F1EA";
 
@@ -186,7 +186,7 @@ export async function drawBadge(canvas, view, url) {
   mctx.font = FONT(10.5, 700);
   const evW = iw - iw / 2 - 22;
   const ev = truncateTo(mctx, String(view?.name || "General").toUpperCase(), evW, 1.26);
-  line(ctx, ev, ix + iw - 22, iy + 76 - 13 - 15.75, { size: 10.5, lineH: 15.75, weight: 700, color: "rgba(255,255,255,.82)", ls: 1.26, align: "right" });
+  line(ctx, ev, ix + iw - 22, iy + 76 - 13 - 15.75, { size: 10.5, lineH: 15.75, weight: 700, color: "#fff", ls: 1.26, align: "right" });
 
   // ---- body ----
   const bx = ix + 20;

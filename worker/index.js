@@ -645,7 +645,7 @@ app.put("/api/cards/:id", async (c) => {
   const strap = b.strap_color ?? b.strapColor;
   if (strap !== undefined) {
     if (strap === "" || strap === null) fields.strap_color = null;
-    else if (!/^#[0-9a-fA-F]{6}$/.test(String(strap))) return c.json({ error: "Use a colour like #D9502B: a # then six letters or numbers." }, 400);
+    else if (!/^#[0-9a-fA-F]{6}$/.test(String(strap))) return c.json({ error: "Use a colour like #C4441E: a # then six letters or numbers." }, 400);
     else {
       const plan = planOf(await one(c.env.DB, "SELECT plan, plan_until FROM users WHERE id = ?", u.id));
       if (!plan.customStrap) return c.json({ error: "Custom colours are part of Lanyard Plus.", code: "plan_limit" }, 402);

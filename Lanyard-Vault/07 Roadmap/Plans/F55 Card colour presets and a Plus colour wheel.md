@@ -4,7 +4,7 @@ id: F55
 priority: P1
 phase: 10
 size: M
-status: Not started
+status: In progress
 needs: []
 ---
 # F55 Card colour presets and a Plus colour wheel
@@ -34,7 +34,7 @@ Asked what is free and what is Plus, the owner answered (2026-11-24): "static co
 - Design: follow [[Design System]] (one accent, 1px borders, 6px radius). The panel is a popover on wide screens and a sheet on phones, using the motion tokens.
 
 ## Tasks
-- [ ] F55.0 Deepen the brand strap orange from `#D9502B` to `#C4441E` everywhere it is the brand accent (`--strap` in `main.css`, the browser-bar and manifest colours if they use it, the preview image if cheap, email colours); keep `--strap-deep` darker than the new value for pressed states (adjust if needed); check white on it is at least 4.5:1 and the small event line on a card's strap reaches 4.5:1 or is made larger or bolder; a test pins the value and the ratio; a pointer in [[Design System]]. Owner decision 2026-11-24 from [[F54 Midnight app theme]].
+- [x] F55.0 Deepen the brand strap orange from `#D9502B` to `#C4441E` everywhere it is the brand accent (`--strap` in `main.css`, the browser-bar and manifest colours if they use it, the preview image if cheap, email colours); keep `--strap-deep` darker than the new value for pressed states (adjust if needed); check white on it is at least 4.5:1 and the small event line on a card's strap reaches 4.5:1 or is made larger or bolder; a test pins the value and the ratio; a pointer in [[Design System]]. Owner decision 2026-11-24 from [[F54 Midnight app theme]].
 - [ ] F55.1 Presets: the swatch row in `CardForm.vue`, the server rule that free accounts save only presets, tests (free preset OK, free custom 400, Plus custom OK), browser check.
 - [ ] F55.2 Plus colour panel (lazy) for the strap, with keyboard support and recent colours; tests for hex parsing and the keyboard model.
 - [ ] F55.3 Text colour: migration, server rule, contrast check, the card drawing it on every surface; tests (contrast refusal below 3:1, warning below 4.5:1, Plus only); vault notes ([[Data Model]], [[API Surface]], [[Features]], Plus contents line in [[Pricing]] or the F27 note); browser check at 375 and 1280 px, light, dark and midnight.

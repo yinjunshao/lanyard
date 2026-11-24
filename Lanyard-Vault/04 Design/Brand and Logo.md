@@ -7,7 +7,7 @@ tags: [design, brand]
 
 | Role | Name | Hex |
 | --- | --- | --- |
-| Primary | Lanyard Orange (Persimmon) | `#D9502B` |
+| Primary | Lanyard Orange (Persimmon) | `#C4441E` (was `#D9502B` until 2026-11-24, F55.0) |
 | Text | Ink | `#1B1A17` |
 | Background | Cream (Paper) | `#F4F1EA` |
 

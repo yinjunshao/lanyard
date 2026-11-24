@@ -170,7 +170,7 @@ function confirm() {
     linear-gradient(to right, transparent 33.2%, rgba(255,255,255,.35) 33.3%, rgba(255,255,255,.35) 33.6%, transparent 33.7%, transparent 66.2%, rgba(255,255,255,.35) 66.3%, rgba(255,255,255,.35) 66.6%, transparent 66.7%),
     linear-gradient(to bottom, transparent 33.2%, rgba(255,255,255,.35) 33.3%, rgba(255,255,255,.35) 33.6%, transparent 33.7%, transparent 66.2%, rgba(255,255,255,.35) 66.3%, rgba(255,255,255,.35) 66.6%, transparent 66.7%);
 }
-.crop-zoom { width: 100%; accent-color: var(--strap, #d9502b); }
+.crop-zoom { width: 100%; accent-color: var(--strap, #c4441e); }
 .crop-actions { display: flex; gap: 10px; width: 100%; }
 .crop-actions .btn { flex: 1; }
 </style>

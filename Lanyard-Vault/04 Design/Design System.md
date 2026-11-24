@@ -8,7 +8,7 @@ tags: [design]
 ## Tokens
 ```css
 --paper: #F4F1EA; --ink: #1B1A17; --graphite: #6B675F;
---rule: #DAD5CA; --strap: #D9502B;  /* Persimmon */
+--rule: #DAD5CA; --strap: #C4441E;  /* Persimmon, deepened 2026-11-24 (F55.0): white on it is 5.0:1 */
 --radius: 6px; --space: 8px;
 --font: "Atkinson Hyperlegible Next", system-ui, sans-serif;
 ```
