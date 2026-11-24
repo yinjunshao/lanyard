@@ -44,6 +44,7 @@ import { exportPresence, canViewPresenceSelfie } from "./presence.js";
 import { exportSuggest, canViewSuggestPhoto } from "./suggest.js";
 import { presenceApp } from "./presenceApp.js";
 import { suggestApp } from "./suggestApp.js";
+import { stagesApp, exportStages } from "./stages.js";
 import { attendanceApp } from "./attendanceApp.js";
 import { dropsApp, exportDrops } from "./dropsApp.js";
 import { exportNamedAttendance } from "./attendance.js";
@@ -84,7 +85,7 @@ const isDropRoute = (path) => /^\/api\/e\/[^/]+\/drops(\/|$)/.test(path);
 // F45: connecting makes a guest only once the request is known to be good (in the route), so a refused connect leaves
 // nothing behind; saving a pending email needs a card already.
 const noGuest = (path) => isDropRoute(path) || path.startsWith("/api/billing/") || path.startsWith("/api/passkeys")
-  || path === "/api/connect" || path === "/api/account/pending-email";
+  || path === "/api/connect" || path === "/api/account/pending-email" || path.startsWith("/api/stages"); // F59: tips need a signed-in person; signed out is a 401
 app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/webhooks/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/email/confirm" || c.req.path === "/api/privacy-request" ? next() : (noGuest(c.req.path) ? withSessionNoGuest : withSession)(c, next)));
 app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
 
@@ -535,6 +536,7 @@ app.get("/api/account/export", async (c) => {
   const eventPresence = await exportPresence(db, u.id); // F17
   const namedAttendance = await exportNamedAttendance(db, u.id); // F31: only for a person who was ever offered a list
   const eventSuggestions = await exportSuggest(db, u.id); // F60: only for a person who was ever shown the Suggest me notice
+  const stageTips = await exportStages(db, u.id).catch(() => null); // F59: which tips were shown (none until one was)
   const drops = await exportDrops(c.env, u.id); // F32: what organisers gave this person (opened, theirs only)
   const ai = await exportAi(db, "user", u.id); // F21
   const billingOrders = await exportBillingOrders(db, "user", u.id); // F36: card orders (none until billing is on)
@@ -569,6 +571,7 @@ app.get("/api/account/export", async (c) => {
     eventPresence,
     ...(namedAttendance ? { namedAttendance } : {}),
     ...(eventSuggestions ? { eventSuggestions } : {}),
+    ...(stageTips ? { stageTips } : {}),
     ...(drops ? { drops } : {}),
     ai,
     consents,
@@ -1435,6 +1438,7 @@ app.route("/", myEventsApp);
 app.route("/", leaveEventApp);
 app.route("/", presenceApp);
 app.route("/", suggestApp); // F60: Who to meet for everyone checked in
+app.route("/", stagesApp); // F59: feature stages and tutorials
 app.route("/", attendanceApp);
 app.route("/", dropsApp);
 app.route("/", aiApp);

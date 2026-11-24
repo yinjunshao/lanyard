@@ -4,7 +4,7 @@ id: F59
 priority: P1
 phase: 10
 size: L
-status: Not started
+status: In progress
 needs: [F24, F60]
 ---
 # F59 Feature stages and tutorials
@@ -40,7 +40,7 @@ Building it:
 - Copy: UK English, plain words, no emoji, no named universities.
 
 ## Tasks
-- [ ] F59.1 Registry, progress in "me", the `user_stages` table and seen route, Settings > Help "Show tips again"; tests (trigger rules, once per account, one a day, unknown id 400, signed out 401, deletion and export).
+- [x] F59.1 Registry, progress in "me", the `user_stages` table and seen route, Settings > Help "Show tips again"; tests (trigger rules, once per account, one a day, unknown id 400, signed out 401, deletion and export).
 - [ ] F59.2 `StageTour.vue` (lazy) with the ring, card, keyboard and focus rules; the AI Finder stage at 3 connections; tests.
 - [ ] F59.3 Stages 2 to 6, each with `data-tip` targets; the admin funnel; vault notes ([[Features]], [[Data Model]], [[API Surface]], [[Screens and Routes]]); browser check of every stage at 375 and 1280 px, light, dark and midnight, keyboard only and with reduced motion.
 
@@ -54,6 +54,7 @@ Building it:
 - [ ] `npm test` passes.
 
 ## Log
--
+- 2026-11-24 (Claude subagent): F59 needs F24 and F60. Both are built and tested with a stub but unticked (each waits on a real-model check that needs a key production does not have). Built on F24 and F60 as they stand, with the owner's say-so (2026-11-11, the same for every AI item since). No real model was called; `.dev.vars` was not opened.
+- F59.1: `migrations/0041_user_stages.sql` (additive: `user_stages` and the counts-only `stage_stats`); `src/lib/stages.js` (the six stages, their trigger rules and `dueStage()`, no imports, so the Worker reads the id list from it); `worker/stages.js` (`GET /api/stages`, `POST /api/stages/:id/seen`, `DELETE /api/stages`, the export, the funnel and the clean-up); `src/lib/stagesState.js`; Settings > Help "Show tips again". Decision made without the owner: progress is **not** in the "me" response or the store. It has its own route, so no public page or the offline copy of "me" carries it, and the shared store did not change. "One a day" is the UTC calendar day, enforced by one conditional insert (two devices asking at once: one wins). Progress is counts plus two yes/no answers (AI on for the AI Finder, AI on for Draft a message) worked out by `aiOnFor()`, the same checks `callModel` makes before it spends anything, and it never calls a model. `test/stages.mjs` (before the budget check); the two lists of migrations pinned in `test/card-colours.mjs` and `test/people-search.mjs` now name 0041.
 
 Related: [[F14 Onboarding revamp]] · [[F24 Do I know someone who]] · back to [[00 Master To-Do]]

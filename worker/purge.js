@@ -12,6 +12,7 @@ import { eraseAi, purgeAi } from "./ai/data.js";
 import { forgetSearchReplies } from "./ai/optout.js";
 import { purgeSummaries } from "./ai/feedbackSummary.js";
 import { purgePending } from "./pending-email.js";
+import { purgeStageStats } from "./stages.js";
 
 const DAY = 86400_000;
 export const SELFIE_MAX_AGE = 365 * DAY;
@@ -104,6 +105,7 @@ export async function purgeExpired(env, ts = Date.now()) {
   await run(db, "DELETE FROM privacy_requests WHERE status = 'closed' AND closed_at < ?", ts - REQUEST_KEEP);
   await run(db, "DELETE FROM event_mail_log WHERE sent_at < ?", ts - 365 * DAY);
   await run(db, "DELETE FROM onboarding_stats WHERE day < ?", new Date(ts - FUNNEL_KEEP).toISOString().slice(0, 10));
+  await purgeStageStats(db, ts); // F59: the daily tip counts, as long as the welcome-step counts
   Object.assign(out, await expireInactive(env, ts));
 
   await run(db, "DELETE FROM sessions WHERE expires_at < ?", ts);

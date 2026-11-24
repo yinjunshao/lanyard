@@ -60,7 +60,7 @@ const canonical = (v) => {
 };
 
 /** Who is asking, read from the database. The tier says which limits apply. */
-async function resolveActor(db, actor) {
+export async function resolveActor(db, actor) {
   if (!actor || typeof actor.id !== "string" || !actor.id) return null;
   if (actor.kind === "user") {
     const u = await one(db, "SELECT id, is_guest, email_verified, recovery_email, plan, plan_until FROM users WHERE id = ?", actor.id);
@@ -77,7 +77,7 @@ async function resolveActor(db, actor) {
   return null;
 }
 
-function allowedByRollout(settings, who) {
+export function allowedByRollout(settings, who) {
   if (who.kind === "admin") return true;
   if (who.email && settings.allow.includes(who.email)) return true;
   if (settings.rollout === "everyone") return true;
