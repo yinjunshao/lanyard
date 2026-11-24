@@ -37,12 +37,13 @@ console.log("\n# F18.1 The check-in page is one component, drawn by the real pag
   check("EventJoin still fetches the event and checks in", /Api\.event\(/.test(join) && /Api\.checkIn\(/.test(join));
 
   const EventPage = await load("src/components/EventPage.vue");
-  const ev = { name: "Spring night", venue: "Room 4", startsAt: Date.UTC(2026, 10, 20, 18, 0), info: { access: "Step-free", food: "Pizza" },
+  const ev = { name: "Spring night", venue: "Room 4", startsAt: Date.UTC(2026, 10, 20, 18, 0), info: { access: "Step-free", food: "Pizza", foodOn: true, diet: ["vegan", "halal"], dress: "Smart" },
     questions: [{ key: "extra1", label: "Course" }], directoryOn: true, feedbackOn: true };
   const html = strip(await render(EventPage, { event: ev, form: form({ answers: { extra1: "" } }), sponsors: [{ id: "s1", name: "Acme", perk: "Free pens" }], showName: true, needsAgree: true }));
   check("it shows the name, venue, info, the host's question, a sponsor, the room tick, and the terms line (F51: a line, no tick)",
-    ["Spring night", "Room 4 · ", "Access", "Step-free", "Food and drink", "Pizza", ">Course<", "<strong", "Free pens", "attendee room", "Your name", "Terms"].every((t) => html.includes(t)));
-  check("the button says Check in and a busy page says Checking in…", html.includes(">Check in<") && (await render(EventPage, { event: ev, form: form(), busy: true })).includes("Checking in…"));
+    ["Spring night", "Room 4 · ", "Dress code", "Smart", "Food and drink", "Pizza. Options: Vegan, Halal", ">Course<", "<strong", "Free pens", "attendee room", "Your name", "Terms"].every((t) => html.includes(t)));
+  check("F63: Access is not shown on the check-in page even when the event has it", !html.includes("Step-free") && !/>Access</.test(html));
+check("the button says Check in and a busy page says Checking in…", html.includes(">Check in<") && (await render(EventPage, { event: ev, form: form(), busy: true })).includes("Checking in…"));
   const bare = strip(await render(EventPage, { event: { name: "Bare", questions: [], directoryOn: false, feedbackOn: false, info: {} }, form: form() }));
   check("empty fields leave nothing behind: no venue dot, no info panel, no room tick, no name box, no sponsors, no terms line, no feedback line",
     !bare.includes(" · </span>") && !bare.includes("event-info") && !bare.includes("attendee room to other") && !bare.includes('id="name"') && !bare.includes("Sponsors") && !bare.includes("agree to the") && !bare.includes("anonymous feedback"), bare);
@@ -54,13 +55,13 @@ const host = T.client({ ip: "10.18.0.1", site: "host" });
 const info = await becomeHost(host, { kind: "company", name: "Preview Co" });
 T.env.DB.raw.prepare("INSERT INTO credits (id, org_id, events_granted, events_used, reason, created_at) VALUES (?, ?, 80, 0, ?, ?)").run("cr-pv", info.org.json.id, "test", Date.now());
 const main = T.client({ ip: "10.18.0.2" });
-const blank = () => ({ from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "", perksText: "", directoryOn: true, q1: "", q2: "", rsvpCount: "", access: "", food: "", feedbackOn: true, feedbackQuestions: [] });
+const blank = () => ({ from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "", perksText: "", directoryOn: true, q1: "", q2: "", rsvpCount: "", access: "", food: "", foodOn: false, diet: [], feedbackOn: true, feedbackQuestions: [] });
 const long = (n, c = "x") => c.repeat(n);
 const FORMS = {
-  "everything filled in": { ...blank(), name: "Spring night", venue: "Room 4", startsAt: Date.UTC(2026, 10, 20, 18, 0), theme: "formal", strapColor: "#2a6f4e", perksText: "Free coffee\n  Raffle entry  \n\n", q1: "Course", q2: "What are you looking for?", access: "Step-free", food: "Pizza", directoryOn: true },
+  "everything filled in": { ...blank(), name: "Spring night", venue: "Room 4", startsAt: Date.UTC(2026, 10, 20, 18, 0), theme: "formal", strapColor: "#2a6f4e", perksText: "Free coffee\n  Raffle entry  \n\n", q1: "Course", q2: "What are you looking for?", access: "Step-free", food: "Pizza", foodOn: true, diet: ["halal", "beef", "vegan"], directoryOn: true },
   "only a name": { ...blank(), name: "Only a name" },
   "a name with spaces round it": { ...blank(), name: "   Padded name   ", venue: "  Hall  " },
-  "too long: name, venue, perks, notes, questions": { ...blank(), name: long(200), venue: long(200), perksText: Array.from({ length: 14 }, (_, i) => `perk ${i} ${long(100)}`).join("\n"), access: long(300), food: long(300), q1: long(90), q2: "ok" },
+  "too long: name, venue, perks, notes, questions": { ...blank(), name: long(200), venue: long(200), perksText: Array.from({ length: 14 }, (_, i) => `perk ${i} ${long(100)}`).join("\n"), access: long(300), food: long(300), foodOn: true, diet: ["kosher", "kosher"], q1: long(90), q2: "ok" },
   "an unknown theme and a bad colour": { ...blank(), name: "Odd", theme: "neon", strapColor: "red" },
   "night with a brand colour": { ...blank(), name: "Late one", theme: "night", strapColor: "#FFAA00" },
   "directory and feedback off": { ...blank(), name: "Quiet", directoryOn: false, feedbackOn: false },

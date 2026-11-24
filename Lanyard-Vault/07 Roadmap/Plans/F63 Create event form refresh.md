@@ -67,7 +67,7 @@ needs: [F30]
 
 ## Tasks
 - [x] F63.1 Step motion and the tidy layout of every step (Create event), with `UiReveal` for the disclosures; tests for the motion rules (tokens only, reduced motion) and that every step still validates and keeps its focus rules.
-- [ ] F63.2 Access info hidden (Create, Details, check-in page, hub; kept in the Worker); food and drink as a tick, text and diet options, in `eventform.js`, `eventInfo()`, the check-in page and the hub; tests (unknown diet ids dropped, `diet` without `foodOn` dropped, old events still show their text, access no longer shown but still stored).
+- [x] F63.2 Access info hidden (Create, Details, check-in page, hub; kept in the Worker); food and drink as a tick, text and diet options, in `eventform.js`, `eventInfo()`, the check-in page and the hub; tests (unknown diet ids dropped, `diet` without `foodOn` dropped, old events still show their text, access no longer shown but still stored).
 - [ ] F63.3 Perks as name and details rows on Create and Details, round-tripping the existing string format; tests (round trip, brackets in a name refused, 10 rows at most, an old perk with brackets in the middle read back sensibly); vault notes ([[Screens and Routes]], [[API Surface]] `info` shape, [[Design System]]); browser check of every step and the Details tab at 375 and 1280 px, light, dark and midnight, keyboard only.
 
 ## Acceptance checks

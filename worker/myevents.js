@@ -8,6 +8,7 @@ import { blockedSet } from "./blocks.js";
 import { eventStatus } from "./eventstatus.js";
 import { selfieView } from "./selfie.js";
 import { SHARED_CARD_SQL } from "./shares.js";
+import { cleanInfo } from "../src/lib/eventinfoclean.js";
 
 export const myEventsApp = new Hono();
 
@@ -54,7 +55,7 @@ myEventsApp.get("/api/my/events/:id", async (c) => {
   const e = await one(
     db,
     `SELECT e.id, e.code, e.name, e.starts_at, e.ends_at, e.ended_at, e.venue, e.theme, e.strap_color,
-            e.perks, e.directory_on, e.collect_attendance, ch.created_at AS checked_in_at
+            e.perks, e.directory_on, e.collect_attendance, e.info, ch.created_at AS checked_in_at
      FROM checkins ch JOIN events e ON e.id = ch.event_id
      WHERE ch.user_id = ?1 AND e.id = ?2`,
     me.id, c.req.param("id")
@@ -96,6 +97,8 @@ myEventsApp.get("/api/my/events/:id", async (c) => {
       id: e.id, code: e.code, name: e.name, venue: e.venue, startsAt: e.starts_at || null,
       endsAt: e.ends_at || null, endedAt: e.ended_at || null,
       theme: e.theme, strapColor: e.strap_color, perks: e.perks || [], directoryOn: !!e.directory_on,
+      // F63: the notes the host wrote (dress code, food and options, good to know), only when there are any, so an event without them answers as before.
+      ...(Object.keys(cleanInfo(e.info)).length ? { info: cleanInfo(e.info) } : {}),
       hasChoices: !!e.directory_on || sponsors.n > 0 || !!e.collect_attendance,
       // F31: the organisers keep a list of who checked in (named only when they do; absent otherwise).
       ...(e.collect_attendance ? { namedAttendance: true } : {}),

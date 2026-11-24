@@ -2,6 +2,7 @@
 // F30 step 3: what people find at the event. Perks, notes, sign-ups and the attendee room.
 import CopiedFacts from "./CopiedFacts.vue";
 import EventCollects from "./EventCollects.vue";
+import EventFood from "./EventFood.vue";
 import { SUGGEST_HOST_HELP } from "../lib/eventform.js";
 
 defineProps({
@@ -24,11 +25,8 @@ defineProps({
         <span v-if="errors.perksText" id="ev-perks-e" class="error-text" role="alert">{{ errors.perksText }}</span></div>
     </section>
     <section class="ev-group" aria-labelledby="ev-g-info">
-      <h3 id="ev-g-info" class="label ev-group-h">Good to know</h3>
-      <div class="field"><label for="ev-access">Access info for attendees (optional)</label>
-        <input id="ev-access" v-model="form.access" type="text" maxlength="200" placeholder="Step-free entrance at the side door" /></div>
-      <div class="field"><label for="ev-food">Food and drink (optional)</label>
-        <input id="ev-food" v-model="form.food" type="text" maxlength="200" /></div>
+      <h3 id="ev-g-info" class="label ev-group-h">Food and drink</h3>
+      <EventFood :form="form" prefix="ev" />
     </section>
     <section class="ev-group" aria-labelledby="ev-g-room">
       <h3 id="ev-g-room" class="label ev-group-h">The room</h3>

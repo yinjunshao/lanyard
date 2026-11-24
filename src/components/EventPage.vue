@@ -20,8 +20,8 @@
 import { computed, ref, watch } from "vue";
 import RotatingHint from "./ui/RotatingHint.vue";
 import { INTENTION_EXAMPLES } from "../lib/examples";
+import { infoRows } from "../lib/eventinfo";
 import { INTENTION_LABEL, INTENTION_MAX, SUGGEST_DETAIL, SUGGEST_NOTICE } from "../lib/suggest";
-const INFO_LABELS = { access: "Access", dress: "Dress code", food: "Food and drink", other: "Good to know" };
 const branded = (e) => (e.theme && e.theme !== "default") || !!e.strapColor;
 const fmtDate = (t) =>
   t ? new Date(t).toLocaleString(undefined, {
@@ -38,6 +38,8 @@ const props = defineProps({
   busy: { type: Boolean, default: false },
 });
 defineEmits(["checkin"]);
+// The practical notes: dress code, food and drink (with the options), good to know. Access is not shown (F63).
+const rows = computed(() => infoRows(props.event.info));
 
 // F31: an event that collects shows one row per item, every one ticked to start with (the owner's
 // decision, D038): the person unticks what they do not want to share. The caller normally sets
@@ -95,10 +97,10 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
       </p>
     </div>
 
-    <dl v-if="event.info && Object.keys(event.info).length" class="panel event-info">
-      <template v-for="(v, k) in event.info" :key="k">
-        <dt class="label">{{ INFO_LABELS[k] || k }}</dt>
-        <dd>{{ v }}</dd>
+    <dl v-if="rows.length" class="panel event-info">
+      <template v-for="r in rows" :key="r[0]">
+        <dt class="label">{{ r[0] }}</dt>
+        <dd>{{ r[1] }}</dd>
       </template>
     </dl>
 

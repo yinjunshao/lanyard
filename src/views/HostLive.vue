@@ -15,6 +15,8 @@ import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import EventPreview from "../components/EventPreview.vue";
 import EventCollects from "../components/EventCollects.vue";
+import EventFood from "../components/EventFood.vue";
+import { foodTicked } from "../lib/eventinfoclean";
 import HostAttendees from "../components/HostAttendees.vue";
 import HostDrops from "../components/HostDrops.vue";
 import { THEME_OPTIONS, detailsBody, eventFromBody, SUGGEST_HOST_HELP } from "../lib/eventform";
@@ -131,7 +133,9 @@ function fillDetails() {
     name: e.name, venue: e.venue || "",
     startsAt: e.startsAt || null, endsAt: e.endsAt || null,
     rsvpCount: e.rsvpCount ?? "",
-    access: e.info?.access || "", dress: e.info?.dress || "", food: e.info?.food || "", other: e.info?.other || "",
+    // access is not on the form (F63) but is kept here so saving sends the stored value back unchanged.
+    access: e.info?.access || "", dress: e.info?.dress || "", other: e.info?.other || "",
+    food: e.info?.food || "", foodOn: foodTicked(e.info), diet: Array.isArray(e.info?.diet) ? [...e.info.diet] : [],
     theme: e.theme || "default", strapColor: e.strapColor || "", perksText: (e.perks || []).join("\n"), directoryOn: e.directoryOn !== false,
     suggestOn: e.suggestOn !== false, // F60: the live route says suggestOn only when it is off
     // F31: what the event collects (the live route sends it only when the list is on).
@@ -326,8 +330,7 @@ async function copyFeedbackLink() {
         </label>
         <EventCollects :form="d" :errors="collectErrors" :was-on="d.collectWas" />
         <span class="label">Shown to attendees</span>
-        <div class="field"><label for="d-access">Access</label><input id="d-access" v-model="d.access" type="text" maxlength="200" placeholder="Step-free entrance at the side door" /></div>
-        <div class="field"><label for="d-food">Food and drink</label><input id="d-food" v-model="d.food" type="text" maxlength="200" placeholder="Pizza, vegan options, soft drinks" /></div>
+        <div class="field"><EventFood :form="d" prefix="d" /></div>
         <div class="field"><label for="d-dress">Dress code</label><input id="d-dress" v-model="d.dress" type="text" maxlength="200" /></div>
         <div class="field"><label for="d-other">Good to know</label><input id="d-other" v-model="d.other" type="text" maxlength="200" placeholder="Quiet room in 106" /></div>
         <p v-if="detailsErr" class="error-text" role="alert">{{ detailsErr }}</p>

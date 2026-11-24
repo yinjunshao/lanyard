@@ -317,6 +317,10 @@ console.log("\n# An event without named attendance: the check-in page is the pag
   const OLD_TICK = /<label class="checkbox-row"><input type="checkbox"><span class="small"> I&#39;m 18 or over and I agree to the <a href="\/terms" target="_blank">Terms<\/a> and <a href="\/privacy" target="_blank">Privacy Policy<\/a>\. <\/span><\/label>/g;
   const NEW_LINE = /<p class="consent-line"> By pressing Check in, you confirm you&#39;re 18 or over and agree to the <a href="\/terms" target="_blank">Terms<\/a> and <a href="\/privacy" target="_blank">Privacy Policy<\/a>\. <\/p>(?=<button class="btn btn-primary">Check in<\/button>)/g;
   const count = (s, re) => (s.match(re) || []).length;
+  // F63 (the owner's request): Access info is hidden from attendees, so the saved page's Access row is the other allowed
+  // change: taken out of the saved markup it must leave today's bytes, and today's page must not have it.
+  const OLD_ACCESS = /<dt class="label">Access<\/dt><dd>Step-free<\/dd>/g;
+  check("F63: the saved page showed Access once and today's page shows it nowhere", count(norm(golden.full), OLD_ACCESS) === 1 && Object.values(got).every((x) => count(norm(x), OLD_ACCESS) === 0 && !/>Access</.test(x)));
   // F60 (the owner's request): the page now asks what you hope to get from the event and shows the Suggest me tick, in one
   // section of its own, exactly once on every page. That section taken out of today's markup must leave the old bytes.
   const SUGGEST = /<section class="panel stack-2" aria-labelledby="suggest-h" data-suggest>[\s\S]*?<\/section>/g;
@@ -324,7 +328,7 @@ console.log("\n# An event without named attendance: the check-in page is the pag
   for (const k of Object.keys(got)) got[k] = norm(got[k]).replace(SUGGEST, "");
   check("F51: the page that asked for the Terms had exactly one tick and now has no tick but exactly one line, right before Check in", count(norm(golden.full), OLD_TICK) === 1 && count(norm(got.full), OLD_TICK) === 0 && count(norm(got.full), NEW_LINE) === 1 && count(norm(got.full), /type="checkbox"/g) === count(norm(golden.full), /type="checkbox"/g) - 1);
   check("F51: the pages that did not ask have no line", count(norm(got.bare), NEW_LINE) === 0 && count(norm(got.busy), NEW_LINE) === 0 && !/consent-line/.test(got.bare + got.busy));
-  for (const k of Object.keys(golden)) check(`the markup for ${k} is identical to what it was before F31 (comments aside; saved from commit 0e8d599; F51's line in place of the tick)`, norm(got[k]).replace(NEW_LINE, "") === norm(golden[k]).replace(OLD_TICK, ""), [norm(got[k]).length, norm(golden[k]).length]);
+  for (const k of Object.keys(golden)) check(`the markup for ${k} is identical to what it was before F31 (comments aside; saved from commit 0e8d599; F51's line in place of the tick; F63's Access row gone)`, norm(got[k]).replace(NEW_LINE, "") === norm(golden[k]).replace(OLD_TICK, "").replace(OLD_ACCESS, ""), [norm(got[k]).length, norm(golden[k]).length]);
   check("…and none of them mentions what the event collects or draws a tick", Object.values(got).every((x) => !/This event collects|collect-row/.test(x)));
 }
 await vite.close();

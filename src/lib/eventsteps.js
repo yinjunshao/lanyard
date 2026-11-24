@@ -6,6 +6,7 @@
 // the source of truth. validateStep() is a convenience that stops the host a step early.
 import { collectBody, createBody, THEME_OPTIONS } from "./eventform.js";
 import { cleanWhy, whyProblem } from "./collects.js";
+import { DIET_IDS, foodLine } from "./eventinfo.js";
 
 // Basics, Look, At the event, Questions, Review. Step 3 also takes F31's "What this event collects".
 export const STEPS = [
@@ -28,6 +29,8 @@ export const blankForm = () => ({
   collectOn: false, collectEmail: false, collectCard: false, collectWhy: "",
   // F60: "Suggest people to each other", on by default (sent only when switched off, so a default form sends what it did).
   suggestOn: true,
+  // F63: "Food or drinks provided" and the diet ids ticked (lib/eventinfo.js). `access` stays here, unseen, so an old value is kept.
+  foodOn: false, diet: [],
 });
 
 // A saved draft laid over a blank form: unknown keys are dropped, wrong types fall back, so an
@@ -40,6 +43,7 @@ export function formFromDraft(d) {
     const v = d[k], was = b[k];
     if (k === "startsAt" || k === "endsAt") b[k] = Number.isFinite(v) ? v : null;
     else if (k === "rsvpCount") b[k] = typeof v === "number" || typeof v === "string" ? v : "";
+    else if (k === "diet") b[k] = Array.isArray(v) ? DIET_IDS.filter((id) => v.includes(id)) : was; // F63: ids only
     else if (typeof was === "string") b[k] = typeof v === "string" ? v : was;
     else if (typeof was === "boolean") b[k] = typeof v === "boolean" ? v : was;
     else if (Array.isArray(was)) b[k] = Array.isArray(v) ? v.filter((q) => q && typeof q === "object").map((q) => ({ ...q })) : was;
@@ -120,8 +124,7 @@ export function copyFacts(s) {
     look: [["Theme", themeLabel(e.theme)], ["Brand colour", e.strapColor || "The theme colour"]],
     event: [
       ["Perks", (e.perks || []).join(", ") || "None"],
-      ["Access info", info.access || "None"],
-      ["Food and drink", info.food || "None"],
+      ["Food and drink", foodLine(info) || "None"],
       ["Sign-ups so far", e.rsvpCount ?? "None"],
       ["Attendee room", yes(e.directoryOn)],
       ["Suggest people to each other", yes(e.suggestOn !== false)],
@@ -168,8 +171,7 @@ export function reviewGroups(f, facts) {
     { step: 2, title: "Look", rows: [["Theme", themeLabel(f.theme)], ["Brand colour", f.strapColor || "The theme colour"]] },
     { step: 3, title: "At the event", rows: [
       ["Perks", perks.join(", ") || "None"],
-      ["Access info", f.access.trim() || "None"],
-      ["Food and drink", f.food.trim() || "None"],
+      ["Food and drink", f.foodOn ? foodLine({ food: String(f.food || "").trim(), diet: f.diet }) || "Provided" : "None"],
       ["Sign-ups so far", f.rsvpCount === "" || f.rsvpCount === null ? "None" : String(f.rsvpCount)],
       ["Attendee room", yes(f.directoryOn)],
       ["Suggest people to each other", yes(f.suggestOn !== false)],

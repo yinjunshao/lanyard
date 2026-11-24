@@ -11,6 +11,7 @@
 import { Hono } from "hono";
 import { newId, now, one, all } from "./db.js";
 import { requireUser, HttpError } from "./session.js";
+import { cleanInfo } from "../src/lib/eventinfoclean.js";
 
 export const feedbackApp = new Hono();
 
@@ -49,16 +50,11 @@ export function sanitizeQuestions(input) {
     .map((q, i) => ({ id: `h${i + 1}`, ...q }));
 }
 
-/** Practical info shown to attendees: accessibility, dress code, food, other. */
+/** Practical info shown to attendees: dress code, food (a tick, text and diet options) and other. `access` stays stored and accepted (hidden in the app since F63) so an old value is kept and the field can come back. */
 export function eventInfo(raw) {
   let o = raw;
   if (typeof o === "string") { try { o = JSON.parse(o); } catch { o = {}; } }
-  const out = {};
-  for (const k of ["access", "dress", "food", "other"]) {
-    const v = String(o?.[k] || "").trim().slice(0, 200);
-    if (v) out[k] = v;
-  }
-  return out;
+  return cleanInfo(o);
 }
 
 export function questionsFor(ev) {

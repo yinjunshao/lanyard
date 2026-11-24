@@ -16,6 +16,7 @@ import Waiting from "../components/Waiting.vue";
 import UiSheet from "../components/ui/UiSheet.vue";
 import { connectedShort, subtitleOf } from "../lib/profile";
 import { setLive, useEventClock } from "../lib/eventlive";
+import { infoRows } from "../lib/eventinfo";
 import { connectionsText, dateOf, perkParts, statusText, timeOfDay } from "../lib/eventtext";
 
 const route = useRoute();
@@ -106,6 +107,8 @@ const choicesOpen = ref(false);
 const choicesTrigger = ref(null);
 
 // Perks: "Free coffee (Show this at the bar)" is a button that opens what is in the brackets.
+// The practical notes the host wrote: dress code, food and drink (with options), good to know. Access is not shown (F63).
+const rows = computed(() => infoRows(event.value?.info));
 const perks = computed(() => (event.value?.perks || []).map(perkParts).filter((p) => p.label));
 const perkOpen = ref(null);
 const perkTrigger = ref(null);
@@ -148,6 +151,13 @@ function openPerk(p, e) { perkTrigger.value = e.currentTarget; perkOpen.value = 
           <dt class="label">{{ status === "ended" ? "In the room" : "People here" }}</dt>
           <dd>{{ hub.roomCount }}</dd>
         </div>
+      </dl>
+
+      <dl v-if="rows.length" class="hub-info" aria-label="About this event">
+        <template v-for="r in rows" :key="r[0]">
+          <dt class="label">{{ r[0] }}</dt>
+          <dd>{{ r[1] }}</dd>
+        </template>
       </dl>
 
       <!-- Who to meet (F60): everyone checked in, while the event is on, unless the host switched suggestions off. -->
@@ -281,6 +291,9 @@ function openPerk(p, e) { perkTrigger.value = e.currentTarget; perkOpen.value = 
 </template>
 
 <style scoped>
+.hub-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; padding: 12px 16px; border: var(--border); border-radius: var(--radius); }
+.hub-info dt { padding-top: 2px; }
+.hub-info dd { margin: 0; overflow-wrap: anywhere; }
 .hub-head { display: flex; align-items: flex-start; gap: 6px; margin-bottom: calc(var(--space) * 1); }
 .hub-back {
   flex: none; width: 44px; height: 44px; margin-left: -10px;

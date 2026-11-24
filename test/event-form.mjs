@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { createServer } from "vite";
 import { renderToString } from "vue/server-renderer";
 import { createSSRApp, h } from "vue";
-import { check, summary } from "./harness.mjs";
+import { check, summary, makeEnv, becomeHost } from "./harness.mjs";
 import { STEPS, LAST, blankForm, validateStep, stepDirection } from "../src/lib/eventsteps.js";
 
 const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8").replace(/\r\n/g, "\n");
@@ -59,7 +59,7 @@ const vite = await createServer({
   server: { middlewareMode: true, hmr: false, watch: null }, optimizeDeps: { noDiscovery: true },
 });
 const load = async (p) => (await vite.ssrLoadModule("/" + p)).default;
-const render = async (comp, props) => strip(await renderToString(createSSRApp({ render: () => h(comp, props) })));
+const render = async (comp, props) => strip(await renderToString(createSSRApp({ render: () => h(comp, props) }))).replace(/ data-v-[0-9a-f]+/g, "");
 try {
   const Create = await load("src/components/EventCreate.vue");
   const Basics = await load("src/components/EventStepBasics.vue");
@@ -80,6 +80,93 @@ try {
   }
   const names = await render(Create, { form: blank({ name: "N" }), step: 3 });
   check("the step names are a five-part progress row; the current one says so", (names.match(/<li[ >]/g) || []).length === 5 && /aria-current="step"/.test(names));
+  // ---------------------------------------------------------------------------------------------------------
+  console.log("\n# F63.2 Food and drink: a tick, text and diet options, stored in `info`");
+  const { DIET_IDS, dietLabel, foodLine, infoRows } = await import("../src/lib/eventinfo.js");
+  const { cleanInfo, foodTicked } = await import("../src/lib/eventinfoclean.js");
+  const { createBody, detailsBody, eventFromBody } = await import("../src/lib/eventform.js");
+  const { reviewGroups, copyFacts, formFromDraft } = await import("../src/lib/eventsteps.js");
+  check("the six diet ids are exactly vegetarian, vegan, halal, kosher, gluten-free and dairy-free, in that order", DIET_IDS.join() === "vegetarian,vegan,halal,kosher,gluten-free,dairy-free", DIET_IDS);
+  check("unknown ids are dropped", JSON.stringify(cleanInfo({ foodOn: true, diet: ["vegan", "beef"] }).diet) === '["vegan"]');
+  check("diet is dropped when foodOn is not true (missing, false, the string 'true', 1)", [undefined, false, "true", 1, null].every((v) => !("diet" in cleanInfo({ foodOn: v, diet: ["vegan"] })) && !("foodOn" in cleanInfo({ foodOn: v, diet: ["vegan"] }))));
+  check("at most six are kept, repeats count once, and a diet that is not a list is nothing", cleanInfo({ foodOn: true, diet: [...DIET_IDS, ...DIET_IDS, "x", "y"] }).diet.length === 6 && !("diet" in cleanInfo({ foodOn: true, diet: "vegan" })) && !("diet" in cleanInfo({ foodOn: true, diet: [{ id: "vegan" }, 5, null] })));
+  check("access is still kept and cleaned by cleanInfo (hidden in the app, not removed)", cleanInfo({ access: "  Step-free  " }).access === "Step-free" && cleanInfo({ access: "x".repeat(300) }).access.length === 200);
+  check("an old event with food text and no foodOn keeps its text, shows it, and opens the form ticked", cleanInfo({ food: "Pizza" }).food === "Pizza" && foodTicked({ food: "Pizza" }) === true && foodTicked({}) === false && foodTicked({ foodOn: true }) === true && infoRows({ food: "Pizza" })[0].join("|") === "Food and drink|Pizza");
+  check("the line reads 'Pizza. Options: Vegan, Halal', in the same order whatever order they were ticked", foodLine({ food: "Pizza", diet: ["halal", "vegan"] }) === "Pizza. Options: Vegan, Halal" && foodLine({ food: "Pizza.", diet: ["vegan"] }) === "Pizza. Options: Vegan" && foodLine({ diet: ["kosher"] }) === "Options: Kosher" && foodLine({ food: "Soup" }) === "Soup" && foodLine({}) === "");
+  check("the rows never include Access, and come in the order dress code, food, good to know", JSON.stringify(infoRows({ access: "Lift", dress: "Smart", food: "Tea", other: "Quiet room" })) === JSON.stringify([["Dress code", "Smart"], ["Food and drink", "Tea"], ["Good to know", "Quiet room"]]) && infoRows({ access: "Lift" }).length === 0);
+  check("the labels on the page are plain words", DIET_IDS.map(dietLabel).join() === "Vegetarian,Vegan,Halal,Kosher,Gluten-free,Dairy-free");
+
+  const fb = (o) => blank({ name: "N", ...o });
+  check("an unticked form sends no food and no foodOn, even with text typed (ticking off then saving clears it)", JSON.stringify(createBody(fb({ food: "Pizza", diet: ["vegan"] })).info) === '{"access":"","food":""}');
+  check("a ticked form sends the text, foodOn and the ticked ids", JSON.stringify(createBody(fb({ foodOn: true, food: "Pizza", diet: ["vegan", "halal"] })).info) === '{"access":"","food":"Pizza","foodOn":true,"diet":["vegan","halal"]}');
+  check("the Details form sends access back unchanged, plus dress code, notes and the food fields", JSON.stringify(detailsBody({ name: "x", access: "Lift", dress: "Smart", other: "Q", foodOn: true, food: "Tea", diet: ["vegan"], perksText: "" }).info) === '{"access":"Lift","dress":"Smart","other":"Q","food":"Tea","foodOn":true,"diet":["vegan"]}');
+  check("the preview reads the body the way the Worker does", JSON.stringify(eventFromBody(createBody(fb({ foodOn: true, food: "Pizza", diet: ["halal", "beef", "vegan"] }))).info) === '{"food":"Pizza","foodOn":true,"diet":["vegan","halal"]}');
+  const foodRow = (f) => reviewGroups(f, null)[2].rows.find((r) => r[0] === "Food and drink")[1];
+  check("Review says what there is and the options, or None, or Provided with nothing typed", foodRow(fb({ foodOn: true, food: "Pizza", diet: ["vegan", "halal"] })) === "Pizza. Options: Vegan, Halal" && foodRow(fb({ foodOn: false, food: "Pizza" })) === "None" && foodRow(fb({ foodOn: true })) === "Provided");
+  check("Review and the copy summary no longer list Access info", !reviewGroups(fb({ access: "Ramp" }), null).some((g) => g.rows.some((r) => /Access/.test(r[0]))) && !copyFacts({ event: { info: { access: "Ramp", food: "Soup" } } }).event.some((r) => /Access/.test(r[0])) && copyFacts({ event: { info: { food: "Soup", foodOn: true, diet: ["halal"] } } }).event.find((r) => r[0] === "Food and drink")[1] === "Soup. Options: Halal");
+  check("a saved draft keeps the tick and the ids, and drops an id that is not one", JSON.stringify(formFromDraft({ foodOn: true, diet: ["vegan", "beef", "kosher"] }).diet) === '["vegan","kosher"]' && formFromDraft({ foodOn: true }).foodOn === true && formFromDraft({ diet: "vegan" }).diet.length === 0);
+  check("an old draft that holds only food text opens with the tick off and the text still there", (() => { const d = formFromDraft({ food: "Pizza" }); return d.food === "Pizza" && d.foodOn === false; })());
+
+  console.log("\n# F63.2 The screens: no Access field, a food tick that opens");
+  const Food = await load("src/components/EventFood.vue");
+  const off = await render(Food, { form: blank(), prefix: "ev" });
+  check("unticked: the tick is there, with its words, and no text box and no options", /id="ev-food-on"/.test(off) && off.includes("Food or drinks provided") && !/id="ev-food"/.test(off) && !/Vegetarian/.test(off));
+  const on = await render(Food, { form: blank({ foodOn: true, food: "Pizza", diet: ["vegan"] }), prefix: "d" });
+  check("ticked: What there is, then six option ticks with their words, the right ones ticked, ids that do not clash", /id="d-food-on"[^>]*checked/.test(on) && /<label for="d-food">What there is/.test(on) && DIET_IDS.every((id) => on.includes(`>${dietLabel(id)}<`)) && (on.match(/type="checkbox"/g) || []).length === 7 && /value="vegan"[^>]*checked|checked[^>]*value="vegan"/.test(on) && !/value="halal"[^>]*checked|checked[^>]*value="halal"/.test(on), on);
+  check("the option ticks are in one labelled group", /<fieldset class="diet"><legend[^>]*>Options covered</.test(on));
+  check("the food details ease open with UiReveal and the tick names what it opens", /<UiReveal :open="!!form\.foodOn">/.test(read("src/components/EventFood.vue")) && /:aria-controls="id\('food-more'\)"/.test(read("src/components/EventFood.vue")));
+  const step3 = await render(AtEvent, { form: blank(), errors: {} });
+  check("Create event step 3 has the food tick and no Access field", /id="ev-food-on"/.test(step3) && !/ev-access|Access info/.test(step3));
+  const live = read("src/views/HostLive.vue");
+  check("the Details tab has the food tick and no Access field, and keeps the stored access to send back", /<EventFood :form="d" prefix="d" \/>/.test(live) && !/d-access|>Access</.test(live) && /access: e\.info\?\.access \|\| ""/.test(live) && /foodOn: foodTicked\(e\.info\)/.test(live));
+  const EventPage = await load("src/components/EventPage.vue");
+  const pageEv = (info) => ({ name: "Spring night", questions: [], directoryOn: false, feedbackOn: false, info });
+  const pageForm = () => ({ name: "", answers: {}, sponsorConsent: {}, directoryConsent: false, collect: null, hasEmail: true });
+  const pg = await render(EventPage, { event: pageEv(cleanInfo({ food: "Pizza", foodOn: true, diet: ["vegan", "halal"], access: "Step-free" })), form: pageForm() });
+  check("the check-in page says 'Food and drink' then 'Pizza. Options: Vegan, Halal', and never the access text", /<dt class="label">Food and drink<\/dt><dd>Pizza\. Options: Vegan, Halal<\/dd>/.test(pg) && !pg.includes("Step-free") && !/>Access</.test(pg), pg.slice(0, 600));
+  const pgOld = await render(EventPage, { event: pageEv({ food: "Soup", access: "Lift" }), form: pageForm() });
+  check("an old event's food text still shows on the check-in page", /<dd>Soup<\/dd>/.test(pgOld) && !pgOld.includes("Lift"));
+  const pgAccessOnly = await render(EventPage, { event: pageEv({ access: "Lift" }), form: pageForm() });
+  check("an event with only Access leaves no empty info panel", !pgAccessOnly.includes("event-info") && !pgAccessOnly.includes("Lift"));
+  const hub = read("src/views/EventDetail.vue");
+  check("the event hub shows the same rows (from infoRows) and not Access", /import \{ infoRows \} from "\.\.\/lib\/eventinfo"/.test(hub) && /const rows = computed\(\(\) => infoRows\(event\.value\?\.info\)\)/.test(hub) && !/info\.access|>Access</.test(hub));
+  check("the public check-in page and the hub import only the small wording file, never the host's cleaning code", /from "\.\.\/lib\/eventinfo"/.test(read("src/components/EventPage.vue")) && !/eventinfoclean/.test(read("src/components/EventPage.vue")) && !/eventinfoclean/.test(hub) && /^import \{ cleanInfo \} from "\.\.\/src\/lib\/eventinfoclean\.js";/m.test(read("worker/feedback.js")) && !/^import /m.test(read("src/lib/eventinfo.js")));
+  check("the check-in page has no label table of its own any more (INFO_LABELS is gone)", !/INFO_LABELS/.test(read("src/components/EventPage.vue")));
+
+  console.log("\n# F63.2 The Worker: stored, accepted and returned, cleaned the same way");
+  const T = await makeEnv();
+  const host = T.client({ ip: "10.63.0.1", site: "host" });
+  const org = await becomeHost(host, { kind: "company", name: "Form Co" });
+  T.env.DB.raw.prepare("INSERT INTO credits (id, org_id, events_granted, events_used, reason, created_at) VALUES ('cr-f63', ?, 80, 0, 'test', ?)").run(org.org.json.id, Date.now());
+  const main = T.client({ ip: "10.63.0.2" });
+  const make = async (info, extra = {}) => host.post("/api/host/events", { name: "Night", info, ...extra });
+  const stored = (id) => JSON.parse(T.q1("SELECT info FROM events WHERE id = ?", id).info);
+  const codeOf = async (id) => (await host.get(`/api/host/events/${id}/live`)).json.event.code;
+  const a1 = await make({ food: "Pizza", foodOn: true, diet: ["vegan", "beef"] });
+  check("a request with diet [vegan, beef] saves only vegan", a1.status === 201 && JSON.stringify(stored(a1.json.id)) === '{"food":"Pizza","foodOn":true,"diet":["vegan"]}', stored(a1.json.id));
+  const a2 = await make({ food: "Pizza", diet: ["vegan"] });
+  check("with no foodOn it saves no diet (and the text stays, as an old event had it)", JSON.stringify(stored(a2.json.id)) === '{"food":"Pizza"}', stored(a2.json.id));
+  const a3 = await make({ foodOn: true, diet: [...DIET_IDS, "kosher", "x"] });
+  check("more entries than there are ids save at most six", stored(a3.json.id).diet.length === 6, stored(a3.json.id));
+  const a4 = await make({ access: "Step-free entrance", dress: "Smart", food: "Tea", other: "Quiet room 106", junk: "x" });
+  check("access is still accepted and stored (hidden in the app, not removed), unknown keys are dropped", stored(a4.json.id).access === "Step-free entrance" && !("junk" in stored(a4.json.id)) && stored(a4.json.id).dress === "Smart", stored(a4.json.id));
+  check("the API still returns access (the public event route and the host's live route)", (await main.get(`/api/e/${await codeOf(a4.json.id)}`)).json.event.info.access === "Step-free entrance" && (await host.get(`/api/host/events/${a4.json.id}/live`)).json.event.info.access === "Step-free entrance");
+  const up = await host.put(`/api/host/events/${a4.json.id}`, { info: { access: "Step-free entrance", food: "", dress: "Smart" } });
+  check("saving Details with access sent back keeps it; food left out clears it", up.status === 200 && stored(a4.json.id).access === "Step-free entrance" && !("food" in stored(a4.json.id)), [up.status, stored(a4.json.id)]);
+  const up2 = await host.put(`/api/host/events/${a1.json.id}`, { info: { food: "Pizza", foodOn: true, diet: ["halal", "vegan"] } });
+  check("Details saves the ticked options in the same shape", up2.status === 200 && JSON.stringify(stored(a1.json.id)) === '{"food":"Pizza","foodOn":true,"diet":["vegan","halal"]}', stored(a1.json.id));
+  const dup = await host.post(`/api/host/events/${a1.json.id}/duplicate`, {});
+  check("a copy of an event carries the tick and the options", dup.status === 201 && JSON.stringify(stored(dup.json.id)) === '{"food":"Pizza","foodOn":true,"diet":["vegan","halal"]}', dup.status);
+  const pub = (await main.get(`/api/e/${await codeOf(a1.json.id)}`)).json.event;
+  check("the check-in page's data carries foodOn and diet, and the page's rows read them", pub.info.foodOn === true && JSON.stringify(pub.info.diet) === '["vegan","halal"]' && infoRows(pub.info)[0][1] === "Pizza. Options: Vegan, Halal", pub.info);
+  await main.post("/api/profile", { name: "Fay Food", acceptTerms: true, over18: true });
+  const ck = await main.post(`/api/e/${await codeOf(a1.json.id)}/checkin`, {});
+  const hubJson = (await main.get(`/api/my/events/${a1.json.id}`)).json;
+  check("the event hub's data carries the food and options once checked in", ck.status === 200 && hubJson.event.info?.foodOn === true && infoRows(hubJson.event.info)[0][1] === "Pizza. Options: Vegan, Halal", hubJson.event);
+  const plain = await make({});
+  await main.post(`/api/e/${await codeOf(plain.json.id)}/checkin`, {});
+  check("an event with no notes answers the hub with no info key, as it did before", !("info" in (await main.get(`/api/my/events/${plain.json.id}`)).json.event));
+
 } finally {
   await vite.close();
 }
