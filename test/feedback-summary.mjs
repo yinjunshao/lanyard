@@ -589,7 +589,7 @@ console.log("\n# F23.2 Migration 0027 and the host reset");
   check("it only creates (no drop, alter, update or delete): additive and safe before the new code", !/\b(DROP|ALTER|UPDATE)\b|(?<!ON )\bDELETE\b/i.test(mig) && /CREATE TABLE feedback_summaries/.test(mig));
   const { WIPED, COUNT_SQL, wipeSql, verify, SCHEMA_SQL } = await import("../scripts/reset-hosts.mjs");
   check("the reset script wipes the summaries before the events, and its schema check needs 0027 (and, since F31, 0028)", WIPED.indexOf("feedback_summaries") !== -1 && WIPED.indexOf("feedback_summaries") < WIPED.indexOf("events") && /feedback_summaries/.test(SCHEMA_SQL));
-  check("the script's header names 0027, 0028 and 0029", /0018, 0023, 0025, 0027, 0028 and 0029/.test(read("scripts/reset-hosts.mjs")));
+  check("the script's header names 0027, 0028, 0029 and 0040", /0018, 0023, 0025, 0027, 0028, 0029 and 0040/.test(read("scripts/reset-hosts.mjs")));
   raw.prepare("INSERT OR REPLACE INTO feedback_summaries (event_id, result, source, answers, created_at) VALUES (?, '{}', 'manual', 5, ?)").run(E2.id, realNow());
   const counts = raw.prepare(COUNT_SQL).get();
   check("a dry run counts them", counts.feedback_summaries >= 1, counts.feedback_summaries);

@@ -47,7 +47,21 @@ export const WISH_EXAMPLES = [
   "can explain how their job works",
 ];
 
-export const headlineExamples = (mode) => HEADLINE_EXAMPLES[mode === "career" ? "career" : "student"];
+// F60: "What are you hoping to get from this event?" at check-in and on the event hub (up to 120 characters).
+export const INTENTION_EXAMPLES = [
+  "Meet people who work in finance",
+  "Find a summer internship",
+  "Find a co-founder",
+  "Learn about careers in law",
+  "Meet other designers",
+  "Get advice on moving into tech",
+  "Meet people starting a business",
+  "Find someone to study with",
+  "Hear how people got into consulting",
+  "Meet researchers in health",
+];
+
+export const headlineExamples =(mode) => HEADLINE_EXAMPLES[mode === "career" ? "career" : "student"];
 
 // Link rows: LinkedIn first, Instagram second, then a plain website.
 const LINK_PLACEHOLDERS = ["linkedin.com/in/you", "instagram.com/you"];

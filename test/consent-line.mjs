@@ -210,7 +210,8 @@ const code = evr.json.code;
   const page = await draw(EventPage, { event, form, showName: true, needsAgree: true });
   const ls = linesOf(page.html);
   check("a first-timer sees one line, inside the Check in bar, directly above the button", ls.length === 1 && /<div class="thumb-bar"><div class="inner"><p class="consent-line">[\s\S]*?<\/p><button class="btn btn-primary">Check in<\/button><\/div><\/div>/.test(page.html));
-  check("there is no Terms tick (only the attendee room tick, which is the person's own choice)", checkboxes(page.html) === 1 && /attendee room/.test(page.html) && !/I&#39;m 18 or over/.test(page.html));
+  // F60 adds the Suggest me tick (pre-ticked by the owner's decision, D054), which is not a Terms tick either.
+  check("there is no Terms tick (only the attendee room tick, which is the person's own choice, and F60's Suggest me)", checkboxes(page.html) === 2 && /attendee room/.test(page.html) && /data-suggest-me/.test(page.html) && !/I&#39;m 18 or over/.test(page.html));
   const links = linksOf(ls[0]);
   check("its Terms and Privacy Policy links open in a new tab", links.length === 2 && /href="\/terms"/.test(links[0].attrs) && /href="\/privacy"/.test(links[1].attrs) && links.every((l) => /target="_blank"/.test(l.attrs)), links);
   const known = await draw(EventPage, { event, form, showName: false, needsAgree: false });

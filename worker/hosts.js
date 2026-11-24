@@ -23,6 +23,8 @@ import { exportAi } from "./ai/data.js";
 import { summaryGet, summaryPost } from "./ai/feedbackSummary.js";
 import { normPromo } from "./promo.js";
 import { collectFields, collectOf, hostAttendees, attendeesCsv, attendeesFileName, exportAttendeeLists } from "./attendance.js";
+// F60: the host sees two counts about suggestions, never a row (suggestCounts hides each under 3; D004, D054).
+import { suggestCounts } from "./suggest.js";
 import { registerHostPromo, releaseHeldClaims, heldClaims, exportHostClaims } from "./host-promo.js";
 import { registerDropsHost } from "./dropsHost.js";
 import { exportHostDrops } from "./dropsKeep.js";
@@ -334,6 +336,8 @@ function eventFields(b, { partial = false } = {}) {
   if (has("strapColor")) f.strap_color = /^#[0-9a-fA-F]{6}$/.test(b.strapColor || "") ? b.strapColor : null;
   if (has("perks")) f.perks = JSON.stringify(Array.isArray(b.perks) ? b.perks.slice(0, 10).map((x) => String(x).slice(0, 300)) : []);
   if (has("directoryOn")) f.directory_on = b.directoryOn === false ? 0 : 1;
+  // F60: "Suggest people to each other", on unless the host switches it off.
+  if (has("suggestOn")) f.suggest_on = b.suggestOn === false ? 0 : 1;
   if (has("info")) f.info = JSON.stringify(eventInfo(b.info));
   if (has("rsvpCount")) {
     // Empty clears it; otherwise a whole number from 0 to 100,000, or 400 (F35.7).
@@ -451,7 +455,7 @@ hostApp.post("/api/host/events/:id/duplicate", async (c) => {
     starts_at: Number.isFinite(Number(b.startsAt)) && b.startsAt ? Math.round(Number(b.startsAt)) : null,
     ends_at: Number.isFinite(Number(b.endsAt)) && b.endsAt ? Math.round(Number(b.endsAt)) : null,
     venue: src.venue, theme: src.theme, strap_color: src.strap_color,
-    perks: JSON.stringify(src.perks || []), directory_on: src.directory_on,
+    perks: JSON.stringify(src.perks || []), directory_on: src.directory_on, suggest_on: src.suggest_on ?? 1,
     info: JSON.stringify(eventInfo(src.info)), feedback_on: src.feedback_on,
     feedback_questions: JSON.stringify(sanitizeQuestions(src.feedback_questions)),
     // F31: the earlier event's list settings are never copied; the host chooses again (D038).
@@ -565,6 +569,8 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
       // F31: what this event collects. Present only when the list is on, so an event without it
       // answers exactly as before.
       ...(collectOf(ev) ? { collect: { ...collectOf(ev), organiser: orgRow?.name || "" } } : {}),
+      // F60: present only when the host switched suggestions off.
+      ...(ev.suggest_on ? {} : { suggestOn: false }),
     },
     sponsors: sponsors.map((x) => ({ id: x.id, name: x.name, perk: x.perk })),
     checkins: t.checkins,
@@ -573,6 +579,8 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
     feedback: t.feedback,
     // F17: how many people used "Be easy to find". A count only, hidden under 3 so it cannot point at anyone (D004).
     presenceUsed: t.presence >= 3 ? t.presence : null,
+    // F60: how many wrote what they hope to get from the event, and how many unticked Suggest me. Counts only, each null under 3.
+    suggestions: await suggestCounts(c.env.DB, ev.id),
     cap: EVENT_CHECKIN_CAP,
     overCap: t.checkins > EVENT_CHECKIN_CAP,
   });

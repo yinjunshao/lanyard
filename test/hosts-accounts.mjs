@@ -73,7 +73,7 @@ const { COUNT_SQL, LOGO_SQL, SCHEMA_SQL, WIPED, wipeSql, verify } = await import
 const rdb = makeDb({ before: "0018" });
 const r = rdb.raw;
 r.exec(fixture);
-const hasSchema = () => r.prepare(SCHEMA_SQL).get().n === 8; // the host tables of 0018, F17's event_presence (0023), F20's host_promo_claims (0025), F23's feedback_summaries (0027), F31's event_attendees (0028) and F32's drops (0029)
+const hasSchema = () => r.prepare(SCHEMA_SQL).get().n === 9; // the host tables of 0018, F17's event_presence (0023), F20's host_promo_claims (0025), F23's feedback_summaries (0027), F31's event_attendees (0028), F32's drops (0029) and F60's event_suggest (0040)
 check("the script refuses a database without migration 0018", !hasSchema());
 r.exec(readMigration(MIGRATION));
 check("…and still refuses one that has 0018 but not 0023 (F17: it has to see presence rows to remove their selfies)", !hasSchema());
@@ -86,7 +86,9 @@ check("…and one with all of those but not 0028 (F31: it has to wipe the attend
 r.exec(readMigration("0028_named_attendance.sql"));
 check("…and one with all of those but not 0029 (F32: it has to wipe the drops, their encrypted items and who was given them)", !hasSchema());
 r.exec(readMigration("0029_drops.sql"));
-check("…and accepts one with all six", hasSchema());
+check("…and one with all of those but not 0040 (F60: it has to wipe each person's intention and Suggest me choice)", !hasSchema());
+r.exec(readMigration("0040_event_suggest.sql"));
+check("…and accepts one with all seven", hasSchema());
 // Some data on the new model too, as production will have between the deploy and the reset.
 r.exec(`INSERT INTO host_accounts (id, email, full_name, status, created_at) VALUES ('hanew00001', 'new@company.example.com', 'New Host', 'active', 1);
   INSERT INTO host_sessions (id, host_account_id, created_at, expires_at) VALUES ('hs1', 'hanew00001', 1, 4100000000000);

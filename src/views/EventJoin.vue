@@ -15,7 +15,8 @@ const state = ref("loading");
 const event = ref(null);
 const sponsors = ref([]);
 // First-timers agree to the Terms here by pressing Check in, under the line that says so (F51; the server checks it too).
-const form = reactive({ name: me.profile?.name || "", answers: {}, sponsorConsent: {}, directoryConsent: false, collect: null, hasEmail: true });
+// F60: `suggest` starts ticked and `intention` empty (EventPage sets them when the event has suggestions on).
+const form = reactive({ name: me.profile?.name || "", answers: {}, sponsorConsent: {}, directoryConsent: false, collect: null, hasEmail: true, suggest: true, intention: "" });
 const needsAgree = () => !me.user?.termsAccepted;
 const busy = ref(false);
 const error = ref("");
@@ -60,6 +61,8 @@ async function checkIn() {
       directoryConsent: form.directoryConsent,
       // The ticks as they are now. Sent only for an event that collects; each is a plain true or false.
       ...(event.value.collects ? { collect: Object.fromEntries(event.value.collects.items.map((i) => [i.key, form.collect?.[i.key] === true])) } : {}),
+      // F60: the tick as it is now (a plain true or false) and what they hope to get, for an event with suggestions on.
+      ...(event.value.suggestOn !== false ? { suggest: form.suggest === true, intention: String(form.intention || "").trim() } : {}),
       ...(needsAgree() ? { acceptTerms: true, over18: true } : {}),
     });
     router.replace(`/app/events/${event.value.id}`);

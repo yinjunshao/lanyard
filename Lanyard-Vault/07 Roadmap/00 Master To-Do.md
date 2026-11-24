@@ -140,7 +140,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [x] **F54** [[F54 Midnight app theme]] · P1 · S · Needs: none (done 2026-11-24, last commit 3c9abce)
 - [x] **F55** [[F55 Card colour presets and a Plus colour wheel]] · P1 · M · Needs: none (what Plus includes, partly answered 2026-11-24) (done 2026-11-24, last commit 0d12dd4; migration 0039 to apply)
 - [ ] **F58** [[F58 Branded emails]] · P1 · M · Needs: F45, F48, F49 (in progress: Claude subagent, 2026-11-24; all tasks built and tested, last commit f33e36f; waiting on one check that needs real inboxes: one email of each main kind seen in Gmail and Outlook after deploy)
-- [ ] **F60** [[F60 Intention at check-in and who to meet for everyone]] · P1 · L · Needs: F17, F25, F52 (everyone checked in by owner decision, 2026-11-24; narrows D027; risk recorded in the plan note)
+- [ ] **F60** [[F60 Intention at check-in and who to meet for everyone]] · P1 · L · Needs: F17, F25, F52 (everyone checked in by owner decision, 2026-11-24; narrows D027; risk recorded in the plan note) (in progress: Claude subagent, 2026-11-24; built on F25 and F21 as they stand, with the owner's say-so)
 - [ ] **F59** [[F59 Feature stages and tutorials]] · P1 · L · Needs: F24, F60
 - [ ] **F56** [[F56 Premium materials for Plus cards]] · P2 · M · Needs: F55
 - [ ] **F61** [[F61 Matching profiles for better suggestions]] · P3 · L · Needs: F60 (research and an owner choice before any code)

@@ -32,7 +32,9 @@ function oldCreate(f) {
 console.log("\n# F30.1 The stepper sends what the single form sent");
 // F31 adds four keys to the form, all off. Everything F30 pinned is checked with them off.
 const F31_OFF = { collectOn: false, collectEmail: false, collectCard: false, collectWhy: "" };
-const blank = (o = {}) => ({ ...OLD_BLANK(), ...F31_OFF, ...o });
+// F60 adds one key, on by default; a form with it on sends exactly what the old form sent (checked below), off adds `suggestOn: false`.
+const F60_ON = { suggestOn: true };
+const blank = (o = {}) => ({ ...OLD_BLANK(), ...F31_OFF, ...F60_ON, ...o });
 const FORMS = {
   "blank except a name": blank({ name: "Only a name" }),
   "everything filled in (theme, colour, perks, questions)": blank({
@@ -47,7 +49,8 @@ const FORMS = {
   "a copy with a new name and times": blank({ name: " Copy night ", from: "ev-old", startsAt: Date.UTC(2026, 11, 1, 18, 0), endsAt: Date.UTC(2026, 11, 1, 20, 0), theme: "night", perksText: "ignored", q1: "ignored" }),
   "markup in the words": blank({ name: "<b>Bold</b> & co", venue: "\"Quoted\" <i>room</i>", perksText: "<script>x</script>" }),
 };
-check("the blank form is the old blank form, key for key, plus F31's four keys, all off", JSON.stringify(blankForm()) === JSON.stringify({ ...OLD_BLANK(), ...F31_OFF }));
+check("the blank form is the old blank form, key for key, plus F31's four keys, all off, and F60's switch, on", JSON.stringify(blankForm()) === JSON.stringify({ ...OLD_BLANK(), ...F31_OFF, ...F60_ON }));
+check("F60: with suggestions switched off, Create sends the same body plus suggestOn: false, and nothing else", JSON.stringify(createBody(blank({ name: "Off", suggestOn: false }))) === JSON.stringify({ ...createBody(blank({ name: "Off" })), suggestOn: false }));
 for (const [label, f] of Object.entries(FORMS)) {
   const a = submitPlan(f), b = oldCreate(f);
   check(`the request is the old request: ${label}`, JSON.stringify(a) === JSON.stringify(b), [a, b]);

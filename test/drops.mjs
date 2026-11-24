@@ -805,7 +805,7 @@ console.log("\n# F32.5 Account deletion, the host's download, and the host reset
   r.exec("BEGIN"); r.exec(reset.wipeSql(before, 1794300000000)); r.exec("COMMIT");
   const after = r.prepare(reset.COUNT_SQL).get();
   check("after the wipe there are no drops, items, gives, uses or audit rows, the script's own check passes and the person keeps their account", ["drops", "drop_items", "drop_gives", "voucher_uses", "drop_audit"].every((t) => after[t] === 0) && reset.verify(before, after).length === 0 && after.users_kept === 1, reset.verify(before, after));
-  check("a database without migration 0029 is refused by the script's schema check", makeDb({ before: "0029" }).raw.prepare(reset.SCHEMA_SQL).get().n === 7 && makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 8 && /0028 and 0029 are not all applied/.test(read("scripts/reset-hosts.mjs")) && /0018, 0023, 0025, 0027, 0028 and 0029/.test(read("scripts/reset-hosts.mjs")));
+  check("a database without migration 0029 is refused by the script's schema check", makeDb({ before: "0029" }).raw.prepare(reset.SCHEMA_SQL).get().n === 7 && makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 9 && /0028, 0029 and 0040 are not all applied/.test(read("scripts/reset-hosts.mjs")) && /0018, 0023, 0025, 0027, 0028, 0029 and 0040/.test(read("scripts/reset-hosts.mjs"))); // 0040 (F60) adds the ninth table
 }
 
 console.log("\n# F32.6 Show is a tap, from the app's own pages only");

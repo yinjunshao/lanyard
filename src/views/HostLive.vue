@@ -17,7 +17,7 @@ import EventPreview from "../components/EventPreview.vue";
 import EventCollects from "../components/EventCollects.vue";
 import HostAttendees from "../components/HostAttendees.vue";
 import HostDrops from "../components/HostDrops.vue";
-import { THEME_OPTIONS, detailsBody, eventFromBody } from "../lib/eventform";
+import { THEME_OPTIONS, detailsBody, eventFromBody, SUGGEST_HOST_HELP } from "../lib/eventform";
 import { defaultEnd } from "../lib/dates";
 import { cleanWhy, whyProblem } from "../lib/collects";
 import { useBusy } from "../components/Waiting.vue";
@@ -133,6 +133,7 @@ function fillDetails() {
     rsvpCount: e.rsvpCount ?? "",
     access: e.info?.access || "", dress: e.info?.dress || "", food: e.info?.food || "", other: e.info?.other || "",
     theme: e.theme || "default", strapColor: e.strapColor || "", perksText: (e.perks || []).join("\n"), directoryOn: e.directoryOn !== false,
+    suggestOn: e.suggestOn !== false, // F60: the live route says suggestOn only when it is off
     // F31: what the event collects (the live route sends it only when the list is on).
     collectWas: !!e.collect, collectOn: !!e.collect, collectEmail: !!e.collect?.items?.includes("email"),
     collectCard: !!e.collect?.items?.includes("card"), collectWhy: e.collect?.why || "",
@@ -262,6 +263,8 @@ async function copyFeedbackLink() {
           <div class="stat"><span class="stat-n tnum">{{ live.connections }}</span><span class="label">Connections</span></div>
           <div class="stat"><span class="stat-n tnum">{{ live.selfies }}</span><span class="label">Selfies</span></div>
           <div v-if="live.presenceUsed" class="stat"><span class="stat-n tnum">{{ live.presenceUsed }}</span><span class="label">Used Be easy to find</span></div>
+          <div v-if="live.suggestions?.intentions" class="stat"><span class="stat-n tnum">{{ live.suggestions.intentions }}</span><span class="label">Wrote what they hope for</span></div>
+          <div v-if="live.suggestions?.unticked" class="stat"><span class="stat-n tnum">{{ live.suggestions.unticked }}</span><span class="label">Not suggested</span></div>
           <div class="stat"><span class="stat-n tnum">{{ live.feedback }}</span><span class="label">Feedback</span></div>
           <p v-if="live.overCap" class="notice small">
             Over {{ live.cap }} check-ins. Nobody is turned away, but events this size
@@ -315,6 +318,11 @@ async function copyFeedbackLink() {
         <label class="checkbox-row">
           <input type="checkbox" v-model="d.directoryOn" />
           <span class="small">Show the live attendee room to checked-in people</span>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" v-model="d.suggestOn" data-suggest-on />
+          <span class="small"><strong>Suggest people to each other</strong>
+            <span class="muted" style="display:block">{{ SUGGEST_HOST_HELP }}</span></span>
         </label>
         <EventCollects :form="d" :errors="collectErrors" :was-on="d.collectWas" />
         <span class="label">Shown to attendees</span>

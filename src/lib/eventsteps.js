@@ -23,6 +23,8 @@ export const blankForm = () => ({
   rsvpCount: "", access: "", food: "", feedbackOn: true, feedbackQuestions: [],
   // F31: "What this event collects". Off until the host switches it on.
   collectOn: false, collectEmail: false, collectCard: false, collectWhy: "",
+  // F60: "Suggest people to each other", on by default (sent only when switched off, so a default form sends what it did).
+  suggestOn: true,
 });
 
 // A saved draft laid over a blank form: unknown keys are dropped, wrong types fall back, so an
@@ -119,6 +121,7 @@ export function copyFacts(s) {
       ["Food and drink", info.food || "None"],
       ["Sign-ups so far", e.rsvpCount ?? "None"],
       ["Attendee room", yes(e.directoryOn)],
+      ["Suggest people to each other", yes(e.suggestOn !== false)],
     ],
     questions: [
       ["Check-in questions", qs.join(", ") || "None"],
@@ -166,6 +169,7 @@ export function reviewGroups(f, facts) {
       ["Food and drink", f.food.trim() || "None"],
       ["Sign-ups so far", f.rsvpCount === "" || f.rsvpCount === null ? "None" : String(f.rsvpCount)],
       ["Attendee room", yes(f.directoryOn)],
+      ["Suggest people to each other", yes(f.suggestOn !== false)],
       ...collectRows(f),
     ] },
     { step: 4, title: "Questions", rows: [

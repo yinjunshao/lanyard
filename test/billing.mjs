@@ -94,7 +94,7 @@ console.log("\n# Migration 0031 is additive, and the host reset keeps its record
   check("applied to a database with data, three tables appear and nothing else changes", after.length === before.length + 3 && before.every((t) => after.includes(t)) && db.raw.prepare("SELECT COUNT(*) n FROM users").get().n === 1);
 
   const reset = await import("../scripts/reset-hosts.mjs");
-  check("the reset's schema check still counts its 8 tables with 0031 applied", makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 8);
+  check("the reset's schema check still counts its 9 tables with 0031 applied (0040, F60, adds the ninth)", makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 9);
   check("the reset never empties a billing table", !reset.WIPED.some((t) => t.startsWith("billing")));
   const r = makeDb();
   const raw = r.raw;

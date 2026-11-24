@@ -12,9 +12,15 @@
 //            `collect` holds the ticks of an event that collects names (F31), each ticked to start with.
 //   event.collects  { organiser, why, items: [{ key, label }] }, present only when the host switched named
 //            attendance on. The words come from the Worker (src/lib/collects.js) and are shown as text.
+//   event.suggestOn  false only when the host switched suggestions off (F60); otherwise the page asks what the person
+//            hopes to get from the event (optional) and shows the "Suggest me to people here" tick, on to start with.
+//            form.intention and form.suggest hold them; the words are src/lib/suggest.js, which the Worker records.
 //   showName ask for a name (a guest with no card yet)
 //   needsAgree show the line above Check in saying that pressing it agrees to 18+ and the Terms (first-timers, F51: no tick)
 import { computed, ref, watch } from "vue";
+import RotatingHint from "./ui/RotatingHint.vue";
+import { INTENTION_EXAMPLES } from "../lib/examples";
+import { INTENTION_LABEL, INTENTION_MAX, SUGGEST_DETAIL, SUGGEST_NOTICE } from "../lib/suggest";
 const INFO_LABELS = { access: "Access", dress: "Dress code", food: "Food and drink", other: "Good to know" };
 const branded = (e) => (e.theme && e.theme !== "default") || !!e.strapColor;
 const fmtDate = (t) =>
@@ -39,6 +45,12 @@ defineEmits(["checkin"]);
 watch(() => props.event.collects, (c) => {
   if (c && !props.form.collect) props.form.collect = { attendance: true, email: true, card: true };
 }, { immediate: true });
+// F60: Suggest me starts ticked (the owner's decision, D054); the person unticks to stay out of other people's lists.
+watch(() => props.event.suggestOn, (on) => {
+  if (on !== false && props.form.suggest === undefined) props.form.suggest = true;
+  if (on !== false && props.form.intention === undefined) props.form.intention = "";
+}, { immediate: true });
+const [SUGGEST_HEAD, ...SUGGEST_REST] = SUGGEST_NOTICE.split(". ");
 const noEmail = (k) => k === "email" && props.form.hasEmail === false; // no verified email: nothing to share
 const isOn = (k) => !!props.form.collect?.[k] && (k === "attendance" || (!!props.form.collect.attendance && !noEmail(k)));
 // One tick covers everything the host asks for (the owner's request, F40): on shares every item, off shares nothing.
@@ -124,6 +136,21 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
       <p class="small muted">Each sponsor is a separate, optional choice. Never pre-ticked.</p>
     </div>
 
+    <section v-if="event.suggestOn !== false" class="panel stack-2" aria-labelledby="suggest-h" data-suggest>
+      <h2 id="suggest-h" class="label">Who to meet</h2>
+      <div class="field" style="margin:0">
+        <label for="ev-intention">{{ INTENTION_LABEL }} <span class="muted">(optional)</span></label>
+        <RotatingHint :pool="INTENTION_EXAMPLES" :empty="!form.intention" v-slot="{ placeholder }">
+          <input id="ev-intention" v-model="form.intention" type="text" :maxlength="INTENTION_MAX" autocomplete="off" :placeholder="placeholder" />
+        </RotatingHint>
+      </div>
+      <label class="checkbox-row suggest-tick">
+        <input type="checkbox" v-model="form.suggest" data-suggest-me />
+        <span class="small"><strong>{{ SUGGEST_HEAD }}.</strong> {{ SUGGEST_REST.join(". ") }}</span>
+      </label>
+      <p class="small muted" style="margin:0">{{ SUGGEST_DETAIL }}</p>
+    </section>
+
     <section v-if="event.collects && form.collect" class="panel stack-2" aria-labelledby="collects-h" data-collects>
       <h2 id="collects-h" class="label">This event collects details</h2>
       <!-- One tick for everything the host asks for; the button beside it opens exactly what that is. -->
@@ -201,6 +228,7 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
 .collect-d-head h3 { margin: 6px 0 0; font-size: 20px; line-height: 1.25; }
 .collect-d-x { flex: none; width: 44px; height: 44px; margin: -4px -10px 0 0; font-size: 28px; line-height: 1; background: none; border: 0; color: var(--ink); cursor: pointer; }
 .collect-d-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.suggest-tick { min-height: 44px; align-items: flex-start; }
 .event-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
 .event-info dt { padding-top: 2px; }
 .event-info dd { margin: 0; }

@@ -2,6 +2,7 @@
 // F30 step 3: what people find at the event. Perks, notes, sign-ups and the attendee room.
 import CopiedFacts from "./CopiedFacts.vue";
 import EventCollects from "./EventCollects.vue";
+import { SUGGEST_HOST_HELP } from "../lib/eventform.js";
 
 defineProps({
   form: { type: Object, required: true },
@@ -31,6 +32,12 @@ defineProps({
     <label class="checkbox-row">
       <input type="checkbox" v-model="form.directoryOn" />
       <span class="small">Show the live attendee room to checked-in people</span>
+    </label>
+    <!-- F60: on by default; off means nobody at this event is suggested and the hub shows no Who to meet. -->
+    <label class="checkbox-row">
+      <input type="checkbox" v-model="form.suggestOn" data-suggest-on />
+      <span class="small"><strong>Suggest people to each other</strong>
+        <span class="muted" style="display:block">{{ SUGGEST_HOST_HELP }}</span></span>
     </label>
   </div>
   <CopiedFacts v-else-if="factsState !== 'none'" :facts="facts" :state="factsState" />

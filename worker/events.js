@@ -11,6 +11,7 @@ import { eventInfo, feedbackOpensAt } from "./feedback.js";
 import { checkinCapFor } from "./plans.js";
 import { noticeFor, choiceStatements } from "./attendance.js";
 import { recordCheckin } from "./eventConnections.js";
+import { readChoice, checkinSuggestStatements } from "./suggest.js";
 
 export const eventsApp = new Hono();
 
@@ -60,6 +61,8 @@ eventsApp.get("/api/e/:code", async (c) => {
       info: eventInfo(ev.info),
       feedbackOn: !!ev.feedback_on,
       ...(collects ? { collects } : {}),
+      // F60: present only when the host switched suggestions off, so every other event answers as before.
+      ...(ev.suggest_on ? {} : { suggestOn: false }),
     },
     sponsors: sponsors.map((s) => ({ id: s.id, name: s.name, perk: s.perk })),
     checkedIn: !!checkin,
@@ -97,6 +100,11 @@ eventsApp.post("/api/e/:code/checkin", async (c) => {
   if (!agreed && (body.acceptTerms !== true || body.over18 !== true)) {
     return c.json({ error: "Please confirm you're 18 or over and agree to the Terms and Privacy Policy.", code: "terms_required" }, 400);
   }
+  // F60: what they hope to get from the event and the Suggest me tick, for an event with suggestions on. Only a real
+  // true or false for the tick counts as having seen the notice; without one nothing is recorded (D054).
+  const suggestChoice = ev.suggest_on && typeof body.suggest === "boolean" ? readChoice(body) : null;
+  if (suggestChoice?.error) return c.json({ error: suggestChoice.error, code: "bad_suggest" }, 400);
+
   let profile = await one(db, "SELECT name FROM profiles WHERE user_id = ?", me.id);
   if (!profile) {
     const name = String(body.name || "").trim();
@@ -158,6 +166,7 @@ eventsApp.post("/api/e/:code/checkin", async (c) => {
   if (ev.collect_attendance && body.collect && typeof body.collect === "object") {
     stmts.push(...await choiceStatements(db, ev, me.id, body.collect));
   }
+  if (suggestChoice) stmts.push(...checkinSuggestStatements(db, ev, me.id, suggestChoice));
   await db.batch(stmts);
   // Event analytics: scans made in this event's window before this check-in now count for it.
   await recordCheckin(db, ev.id, me.id).catch(() => console.error("event_connections: could not record a check-in"));

@@ -17,6 +17,9 @@ const THEMES = THEME_OPTIONS.map((o) => o.value);
 export const HEX = /^#[0-9a-fA-F]{6}$/;
 const INFO_KEYS = ["access", "dress", "food", "other"];
 
+// F60: the help line under the host's "Suggest people to each other" switch (Create event step 3 and Details).
+export const SUGGEST_HOST_HELP = "People checked in see up to five others to go and meet, from what their cards show and what they hope to get from the event. Each person can say no on the check-in page or later. You only see counts.";
+
 const time = (v) => (v === null || v === undefined || v === "" ? null : Number.isFinite(Number(v)) ? Math.round(Number(v)) : null);
 const lines = (text) => String(text || "").split("\n").map((s) => s.trim()).filter(Boolean);
 
@@ -48,6 +51,8 @@ export function createBody(f) {
     feedbackOn: f.feedbackOn,
     feedbackQuestions: f.feedbackQuestions,
     ...(collectBody(f) ? { collect: collectBody(f) } : {}),
+    // F60: only when the host switched suggestions off, so a default form sends exactly what it did before.
+    ...(f.suggestOn === false ? { suggestOn: false } : {}),
   };
 }
 
@@ -75,13 +80,15 @@ export function eventFromBody(b, questions, organiser) {
     info,
     feedbackOn: b.feedbackOn !== false,
     ...(b.collect?.attendance === true ? { collects: noticeOf(b.collect, organiser) } : {}),
+    // F60: the check-in page asks for an intention and shows the Suggest me tick unless this is false (as the Worker says it).
+    ...(b.suggestOn === false ? { suggestOn: false } : {}),
   };
 }
 
 // The Details form of a saved event (HostLive) in the same shape.
 export function detailsBody(d) {
   return { name: d.name, venue: d.venue, startsAt: d.startsAt, endsAt: d.endsAt, theme: d.theme, strapColor: d.strapColor || "",
-    directoryOn: d.directoryOn, perks: lines(d.perksText), rsvpCount: d.rsvpCount === "" ? null : Number(d.rsvpCount),
+    directoryOn: d.directoryOn, suggestOn: d.suggestOn !== false, perks: lines(d.perksText), rsvpCount: d.rsvpCount === "" ? null : Number(d.rsvpCount),
     info: { access: d.access, dress: d.dress, food: d.food, other: d.other },
     // Sent when the list is on, and once when it was on and is being switched off; an event that never had it sends nothing.
     ...(d.collectWas || d.collectOn ? { collect: collectBody(d) || { attendance: false } } : {}) };

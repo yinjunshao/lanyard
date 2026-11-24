@@ -68,7 +68,7 @@ const previewEvent = computed(() => {
   const s = f.value.from && source.value?.event;
   const e = s
     ? eventFromBody({ name: f.value.name.trim() || s.name, venue: s.venue, startsAt: f.value.startsAt, theme: s.theme, strapColor: s.strapColor,
-      perks: s.perks, directoryOn: s.directoryOn, info: s.info, feedbackOn: s.feedbackOn, collect: collectBody(f.value) }, s.questions, org.value?.name)
+      perks: s.perks, directoryOn: s.directoryOn, suggestOn: s.suggestOn, info: s.info, feedbackOn: s.feedbackOn, collect: collectBody(f.value) }, s.questions, org.value?.name)
     : eventFromBody(createBody(f.value), undefined, org.value?.name);
   return e.name ? e : { ...e, name: "Your event name" };
 });

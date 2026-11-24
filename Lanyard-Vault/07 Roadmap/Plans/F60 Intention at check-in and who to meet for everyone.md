@@ -4,7 +4,7 @@ id: F60
 priority: P1
 phase: 10
 size: L
-status: Not started
+status: In progress
 needs: [F17, F25, F52]
 ---
 # F60 Intention at check-in and who to meet for everyone
@@ -46,7 +46,7 @@ Privacy and safety bar (a test for each, including negatives):
 - Hosts get counts only, hidden under 3.
 
 ## Tasks
-- [ ] F60.1 Storage and check-in: migration, the intention field and the Suggest me tick on the check-in page (and host preview), the host switch in Create event and Details, consent records, retention, export, deletion; tests.
+- [x] F60.1 Storage and check-in: migration, the intention field and the Suggest me tick on the check-in page (and host preview), the host switch in Create event and Details, consent records, retention, export, deletion; tests.
 - [ ] F60.2 Who to meet for everyone: the Worker list (non-AI rank with intentions), the event hub section, edit intention and untick from the hub and Settings; the bar tests.
 - [ ] F60.3 AI ranking: automatic AI order with reasons, the cache and the allowance, the fallback; stub tests, including the attack.
 - [ ] F60.4 Privacy Policy subsection, legitimate interests note in the audit, D052, [[Data Model]], [[API Surface]], [[Privacy and Data Retention]], [[Features]], [[Screens and Routes]]; browser check with three test accounts at a live local event (one with an intention, one without, one unticked) at 375 and 1280 px, light and dark.
@@ -64,6 +64,7 @@ Privacy and safety bar (a test for each, including negatives):
 - [ ] `npm test` passes; public pages within budget.
 
 ## Log
--
+- 2026-11-24 (Claude subagent): F60 needs F17 (done), F25 and F52. F25 is built and tested with a stub but unticked (its real-model check needs a key production does not have), and it sits on F21, also unticked for the same reason; F52 is built and unticked for one reduced-motion browser check. Built on F25 and F21 as they stand, with the owner's say-so (2026-11-11, the same for every AI item since), and on F52 as it stands. **If F21's or F25's real-key rollout changes the request shape, the reply checks or the gateway, the AI order here may need rework.** No real model was called; `.dev.vars` was not opened.
+- F60.1: `migrations/0040_event_suggest.sql` (additive: `events.suggest_on` default 1, table `event_suggest`); `src/lib/suggest.js` (the notice's words and version, no imports, read by the Worker and the pages); `worker/suggest.js` (rules, check-in statements, change, standing, candidates, photo rule, purge, export, host counts); check-in route, host create, Details and copy, the live view (counts, `suggestOn: false` only when off), purge, export, media route, host reset. Check-in page: "What are you hoping to get from this event? (optional)" with rotating examples (`INTENTION_EXAMPLES` in `src/lib/examples.js`) and the Suggest me tick, on to start with; host step 3 and Details: "Suggest people to each other". `test/who-to-meet-all.mjs` (before the budget check).
 
 Related: [[F17 Event presence and who to meet]] · [[F25 AI who-to-meet ranking]] · [[F61 Matching profiles for better suggestions]] · [[D027 Event presence is opt-in, private and deleted 48 hours after the event]] · back to [[00 Master To-Do]]

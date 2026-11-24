@@ -41,6 +41,7 @@ import { moveTo } from "./onboarding.js";
 import { selfieView } from "./selfie.js";
 import { sharedGround } from "./inCommon.js";
 import { exportPresence, canViewPresenceSelfie } from "./presence.js";
+import { exportSuggest, canViewSuggestPhoto } from "./suggest.js";
 import { presenceApp } from "./presenceApp.js";
 import { attendanceApp } from "./attendanceApp.js";
 import { dropsApp, exportDrops } from "./dropsApp.js";
@@ -532,6 +533,7 @@ app.get("/api/account/export", async (c) => {
   ]);
   const eventPresence = await exportPresence(db, u.id); // F17
   const namedAttendance = await exportNamedAttendance(db, u.id); // F31: only for a person who was ever offered a list
+  const eventSuggestions = await exportSuggest(db, u.id); // F60: only for a person who was ever shown the Suggest me notice
   const drops = await exportDrops(c.env, u.id); // F32: what organisers gave this person (opened, theirs only)
   const ai = await exportAi(db, "user", u.id); // F21
   const billingOrders = await exportBillingOrders(db, "user", u.id); // F36: card orders (none until billing is on)
@@ -565,6 +567,7 @@ app.get("/api/account/export", async (c) => {
     eventCheckins: checkins,
     eventPresence,
     ...(namedAttendance ? { namedAttendance } : {}),
+    ...(eventSuggestions ? { eventSuggestions } : {}),
     ...(drops ? { drops } : {}),
     ai,
     consents,
@@ -1389,7 +1392,8 @@ app.get("/media/:key{.+}", async (c) => {
   // An event-presence selfie (F17) is only ever served to someone allowed to see that person in
   // the list (see canViewPresenceSelfie), and is never cached, so withdrawing it works at once.
   const isPresence = key.startsWith("presence/");
-  if (isPresence && !(await canViewPresenceSelfie(c.env.DB, c.get("user")?.id, key))) return c.json({ error: "We couldn't find that photo. It may have been removed." }, 404);
+  // F60: or to someone who has that person in their Who to meet right now (canViewSuggestPhoto, the same rules as the list).
+  if (isPresence && !(await canViewPresenceSelfie(c.env.DB, c.get("user")?.id, key)) && !(await canViewSuggestPhoto(c.env.DB, c.get("user")?.id, key))) return c.json({ error: "We couldn't find that photo. It may have been removed." }, 404);
   const res = await getImage(c.env, key, { isPrivate: isPrivate || isPresence, noStore: isPresence });
   return res || c.json({ error: "We couldn't find that photo. It may have been removed." }, 404);
 });

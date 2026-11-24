@@ -274,7 +274,8 @@ const baseEvent = { name: "Notice night", venue: "Hall 1", questions: [], direct
 let html;
 {
   html = await render({ event: { ...baseEvent, collects: wordings }, form: pform() });
-  const inputs = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].map((m) => m[0]);
+  // F60's Suggest me tick (pre-ticked by the owner's decision, D054, pinned in test/who-to-meet-all.mjs) is its own section; it is left out here.
+  const inputs = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].map((m) => m[0]).filter((t) => !/data-suggest-me/.test(t));
   const rows = [...html.matchAll(/class="[^"]*collect-row[^"]*"/g)];
   check("the heading, the organiser's name, the why line and a Privacy Policy link are on the page", html.includes("This event collects") && html.includes("<strong") && html.includes("Quad Events") && html.includes(WHY) && /<a href="\/privacy"[^>]*>Privacy Policy<\/a>/.test(html));
   // F40 (owner's request): one tick covers everything the host asks for; the info button opens exactly what that is.
@@ -298,7 +299,7 @@ let html;
   check("a person with no verified email is told in the details that no email is shared; the tick stays on", /no verified email/.test(ne) && /checked/.test(tag(ne)));
   check("ticking shares every item (email only with a verified one), unticking shares none", /function tickAll\(on\)/.test(src) && /on && !noEmail\(i\.key\)/.test(src));
   const sp = await render({ event: { ...baseEvent, collects: wordings }, sponsors: [{ id: "s1", name: "Acme", perk: "Pens" }], form: pform({ sponsorConsent: {} }) });
-  check("sponsor ticks stay unticked: sponsors are still never pre-ticked", /Never pre-ticked/.test(sp) && ![...sp.matchAll(/<input[^>]*>/g)].some((m) => !/data-item/.test(m[0]) && /checked/.test(m[0].replace(/aria-checked/, ""))));
+  check("sponsor ticks stay unticked: sponsors are still never pre-ticked", /Never pre-ticked/.test(sp) && ![...sp.matchAll(/<input[^>]*>/g)].some((m) => !/data-item|data-suggest-me/.test(m[0]) && /checked/.test(m[0].replace(/aria-checked/, ""))) && [...sp.matchAll(/<input[^>]*name="?sponsor|<input[^>]*type="checkbox"[^>]*>/g)].filter((m) => !/data-item|data-suggest-me/.test(m[0])).length >= 1);
 }
 
 console.log("\n# An event without named attendance: the check-in page is the page it was");
@@ -316,6 +317,11 @@ console.log("\n# An event without named attendance: the check-in page is the pag
   const OLD_TICK = /<label class="checkbox-row"><input type="checkbox"><span class="small"> I&#39;m 18 or over and I agree to the <a href="\/terms" target="_blank">Terms<\/a> and <a href="\/privacy" target="_blank">Privacy Policy<\/a>\. <\/span><\/label>/g;
   const NEW_LINE = /<p class="consent-line"> By pressing Check in, you confirm you&#39;re 18 or over and agree to the <a href="\/terms" target="_blank">Terms<\/a> and <a href="\/privacy" target="_blank">Privacy Policy<\/a>\. <\/p>(?=<button class="btn btn-primary">Check in<\/button>)/g;
   const count = (s, re) => (s.match(re) || []).length;
+  // F60 (the owner's request): the page now asks what you hope to get from the event and shows the Suggest me tick, in one
+  // section of its own, exactly once on every page. That section taken out of today's markup must leave the old bytes.
+  const SUGGEST = /<section class="panel stack-2" aria-labelledby="suggest-h" data-suggest>[\s\S]*?<\/section>/g;
+  check("F60: each page has the intention and Suggest me section exactly once", Object.values(got).every((x) => count(norm(x), SUGGEST) === 1));
+  for (const k of Object.keys(got)) got[k] = norm(got[k]).replace(SUGGEST, "");
   check("F51: the page that asked for the Terms had exactly one tick and now has no tick but exactly one line, right before Check in", count(norm(golden.full), OLD_TICK) === 1 && count(norm(got.full), OLD_TICK) === 0 && count(norm(got.full), NEW_LINE) === 1 && count(norm(got.full), /type="checkbox"/g) === count(norm(golden.full), /type="checkbox"/g) - 1);
   check("F51: the pages that did not ask have no line", count(norm(got.bare), NEW_LINE) === 0 && count(norm(got.busy), NEW_LINE) === 0 && !/consent-line/.test(got.bare + got.busy));
   for (const k of Object.keys(golden)) check(`the markup for ${k} is identical to what it was before F31 (comments aside; saved from commit 0e8d599; F51's line in place of the tick)`, norm(got[k]).replace(NEW_LINE, "") === norm(golden[k]).replace(OLD_TICK, ""), [norm(got[k]).length, norm(golden[k]).length]);
@@ -422,7 +428,8 @@ console.log("\n# Everything else a host sees stays aggregate (D004, narrowed to 
   const crc = (await H.get(`/api/host/events/${cmp.json.id}/report.csv`)).text.split("\r\n").map((r) => r.split(",").slice(0, 2).join("|")).filter((r) => !/^(Event\|(Name|Code|Starts)|Privacy)/.test(r));
   const added = (now, before) => paths(now).filter((p) => !before.includes(p));
   const missing = (now, before) => before.filter((p) => !paths(now).includes(p));
-  check("the live view has gained only the event's collect settings (no name, no list), and lost nothing", JSON.stringify(added(cl, golden.live)) === '[".event.collect",".event.collect.attendance",".event.collect.items",".event.collect.organiser",".event.collect.why"]' && missing(cl, golden.live).length === 0, [added(cl, golden.live), missing(cl, golden.live)]);
+  // F60 adds two counts to every live view (how many wrote an intention, how many unticked Suggest me; each null under 3).
+  check("the live view has gained only the event's collect settings (no name, no list) and F60's two counts, and lost nothing", JSON.stringify(added(cl, golden.live)) === '[".event.collect",".event.collect.attendance",".event.collect.items",".event.collect.organiser",".event.collect.why",".suggestions",".suggestions.intentions",".suggestions.unticked"]' && missing(cl, golden.live).length === 0 && cl.suggestions.intentions === null && cl.suggestions.unticked === null, [added(cl, golden.live), missing(cl, golden.live)]);
   check("the report is field for field the report it was, with the list on", added(cr, golden.report).length === 0 && missing(cr, golden.report).length === 0, [added(cr, golden.report), missing(cr, golden.report)]);
   check("the report's CSV has the same sections and items it had", JSON.stringify(crc) === JSON.stringify(golden.csv), crc);
   const evAfter = (await watcher.get(`/api/e/${cmpLive0.event.code}`)).json;
@@ -624,8 +631,8 @@ console.log("\n# The host reset wipes the lists");
   const after = r.prepare(reset.COUNT_SQL).get();
   check("after the wipe there are no lists and the script's own check passes", after.event_attendees === 0 && reset.verify(before, after).length === 0, reset.verify(before, after));
   check("the attendee keeps their account and the record of what they chose (consent_log is kept)", after.users_kept === 1 && after.consent_log_kept >= before.consent_log_kept && r.prepare("SELECT wording FROM consent_log WHERE id = 'rl1'").get().wording === "words");
-  check("a database without migration 0028 is refused by the script's schema check", makeDb({ before: "0028" }).raw.prepare(reset.SCHEMA_SQL).get().n === 6 && makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 8 && makeDb({ before: "0029" }).raw.prepare(reset.SCHEMA_SQL).get().n === 7); // 0029 (F32) adds the eighth table
-  check("the script's header and its refusal message name 0028", /0018, 0023, 0025, 0027, 0028 and 0029/.test(read("scripts/reset-hosts.mjs")) && /0027, 0028 and 0029 are not all applied/.test(read("scripts/reset-hosts.mjs")));
+  check("a database without migration 0028 is refused by the script's schema check", makeDb({ before: "0028" }).raw.prepare(reset.SCHEMA_SQL).get().n === 6 && makeDb().raw.prepare(reset.SCHEMA_SQL).get().n === 9 && makeDb({ before: "0029" }).raw.prepare(reset.SCHEMA_SQL).get().n === 7); // 0029 (F32) adds the eighth table, 0040 (F60) the ninth
+  check("the script's header and its refusal message name 0028", /0018, 0023, 0025, 0027, 0028, 0029 and 0040/.test(read("scripts/reset-hosts.mjs")) && /0027, 0028, 0029 and 0040 are not all applied/.test(read("scripts/reset-hosts.mjs")));
 }
 
 summary();
