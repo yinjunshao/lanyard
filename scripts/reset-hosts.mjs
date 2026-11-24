@@ -30,6 +30,9 @@
 // uses an event's host gave out. They are wiped with the events they belong to (the encrypted items and who was given
 // them included); nothing of a drop is kept. The staff PIN hashes go with the drops.
 //
+// F55 card colours (cards.strap_color and cards.text_color, migration 0039) belong to an attendee's own card, which this reset keeps,
+// so nothing here reads or changes a colour column; 0039 adds a nullable column and is not needed by this script.
+//
 // Needs migrations 0018, 0023, 0025, 0027, 0028 and 0029. Dry run by default: prints the counts and changes nothing.
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite>            dry run on a SQLite file
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite> --apply    wipe that file

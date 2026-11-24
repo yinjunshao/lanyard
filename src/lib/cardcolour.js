@@ -52,3 +52,22 @@ export function strapInk(strap) {
   const h = strictHex(strap);
   return h && contrast("#FFFFFF", h) < contrast("#000000", h) ? "#000" : "#fff";
 }
+
+// ---- F55.3: the card's text colour (Plus) ----
+// What the card's words sit on: the card's own paper, which does not follow the app's theme. Night is the dark card.
+export const CARD_PAPER = { default: "#FFFDF8", formal: "#FFFDF8", host: "#FFFDF8", night: "#1F1D1A" };
+export const cardPaper = (theme) => CARD_PAPER[theme] || CARD_PAPER.default;
+// The card's usual text colour for a theme (what "Auto" is).
+export const AUTO_INK = { default: "#1B1A17", formal: "#1B1A17", host: "#1B1A17", night: "#F4F1EA" };
+export const autoInk = (theme) => AUTO_INK[theme] || AUTO_INK.default;
+
+// Under 3:1 a text colour is refused; from 3:1 to under 4.5:1 it is saved and the editor says "Hard to read".
+export const TEXT_REFUSE_BELOW = 3;
+export const TEXT_WARN_BELOW = 4.5;
+// How a text colour reads on a card of this theme: "ok", "hard" (saved, with a warning) or "no" (refused), and the ratio.
+export function textVerdict(textHex, theme) {
+  const h = strictHex(textHex);
+  if (!h) return { level: "no", ratio: 0 };
+  const ratio = contrast(h, cardPaper(theme));
+  return { level: ratio < TEXT_REFUSE_BELOW ? "no" : ratio < TEXT_WARN_BELOW ? "hard" : "ok", ratio };
+}

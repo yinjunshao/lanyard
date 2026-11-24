@@ -111,7 +111,7 @@ const payloadOf = () => ({
 // "what you do", tags and links still win over the profile's, as they do for anyone who scans it.
 const previewCard = computed(() => {
   const c = me.cards[0];
-  return c ? cardOf({ name: c.name, note: c.note, theme: c.theme, strapColor: c.strapColor, visibleLinks: c.visibleLinks, headline: c.headlineOverride, about: c.aboutOverride },
+  return c ? cardOf({ name: c.name, note: c.note, theme: c.theme, strapColor: c.strapColor, textColor: c.textColor, visibleLinks: c.visibleLinks, headline: c.headlineOverride, about: c.aboutOverride },
     { tags: c.tagsOverride, cardId: c.cardId, code: c.code }) : null;
 });
 // F49: the score of what is on the page now (after Save it is what the emails use). Six items, one point each.

@@ -39,7 +39,7 @@ async function render() {
         <span class="badge-strap-event">{{ view.name || "General" }}</span>
       </div>
 
-      <div class="badge-body">
+      <div class="badge-body" :style="view.textColor ? { '--ink': view.textColor } : null">
         <div class="badge-head">
           <Avatar class="badge-photo" :src="view.profile.photo" />
           <div class="badge-head-text">

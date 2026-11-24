@@ -6,7 +6,7 @@
 // Run: node test/card-colours.mjs
 import { readFileSync } from "node:fs";
 import { makeEnv, withLatency, check, summary } from "./harness.mjs";
-import { STRAP_PRESETS, strictHex, typedHex, isPreset, contrast, strapInk } from "../src/lib/cardcolour.js";
+import { STRAP_PRESETS, strictHex, typedHex, isPreset, contrast, strapInk, textVerdict as textVerdictLib } from "../src/lib/cardcolour.js";
 
 const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
@@ -287,7 +287,7 @@ console.log("\n# F55.2 The colour panel: what the page does (source)");
   check("only CardForm imports the swatches, and only the swatches load the panel", /import CardSwatches from/.test(form) && !/CardColourPanel/.test(form + read("src/views/Cards.vue")));
   check("the panel is the shared sheet: a popover from 600 px and a bottom sheet on a phone, with Escape, a press outside and Close all cancelling", /<UiSheet :open="open" :anchor="anchor" :label="label" focus="\.colp-square" @close="cancel">/.test(panel) && /function cancel\(\) \{\s*emit\("update:modelValue", before\);\s*emit\("close"\);/.test(panel));
   check("it remembers what the colour was when it opened, and cancel puts that back (the card preview follows live)", /before = props\.modelValue;/.test(panel) && /emit\("update:modelValue", hsvToHex\(next\)\);/.test(panel));
-  check("Done keeps and remembers a custom colour (never a preset), and Enter anywhere but on a button is Done", /function done\(\) \{[\s\S]*?if \(!isPreset\(r\.hex\)\) \{ recent\.value = pushRecent\(readRecent\(\), r\.hex\); writeRecent\(recent\.value\); \}\s*emit\("done", r\.hex\);/.test(panel) && /e\.key === "Enter" && !\(e\.target instanceof HTMLButtonElement\)/.test(panel) && /<button type="button" class="btn btn-primary" @click="done">Done<\/button>/.test(panel));
+  check("Done keeps and remembers a custom colour (never a preset), and Enter anywhere but on a button is Done", /function done\(\) \{[\s\S]*?if \(!isPreset\(r\.hex\)\) \{ recent\.value = pushRecent\(readRecent\(\), r\.hex\); writeRecent\(recent\.value\); \}\s*emit\("done", r\.hex\);/.test(panel) && /e\.key === "Enter" && !\(e\.target instanceof HTMLButtonElement\)/.test(panel) && /<button type="button" class="btn btn-primary" :disabled="level === 'no'" @click="done">Done<\/button>/.test(panel));
   check("a bad hex box answers in words and does not close", /if \(!r\.hex\) \{ hexError\.value = r\.why; return; \}/.test(panel) && /role="alert"/.test(panel));
   check("the square and the hue slider are sliders with names, values in words, one tab stop each, and the keys come from the tested functions", /class="colp-square" role="slider" tabindex="0" aria-label="Saturation and brightness"/.test(panel) && /aria-valuetext="sText"|:aria-valuetext="sText"/.test(panel) && /class="colp-hue" role="slider" tabindex="0" aria-label="Hue"/.test(panel) && /squareKey\(hsv\.value, e\.key, e\.shiftKey\)/.test(panel) && /hueKey\(hsv\.value, e\.key, e\.shiftKey\)/.test(panel));
   check("the keys the square does not use are not swallowed (preventDefault only when a move was made)", /if \(n\) \{ e\.preventDefault\(\); set\(n\); \}/.test(panel) && (panel.match(/if \(n\) \{ e\.preventDefault\(\); set\(n\); \}/g) || []).length === 2);
@@ -296,6 +296,181 @@ console.log("\n# F55.2 The colour panel: what the page does (source)");
   check("the last five custom colours are kept in this browser only, safely (try and catch), as 44 px buttons with the colour as their name", /const RECENT_KEY = "lanyard-recent-colours"/.test(panel) && /try \{ localStorage\.setItem/.test(panel) && /\.colp-r \{ width: 44px; height: 44px;/.test(panel) && /:aria-label="`Recent colour \$\{c\}`"/.test(panel));
   check("the panel's motion uses tokens only and stops under reduced motion; no colour library and no native colour input in the card form", /transition: transform var\(--dur-fast\) var\(--ease-out\)/.test(panel) && /prefers-reduced-motion: reduce/.test(panel) && !/\d+ms/.test(panel) && !/type="color"/.test(form + sw + panel) && !/^import .* from "(?!vue"|\.)/m.test(panel));
   check("for Plus the Custom swatch opens the panel (a button that says it opens a dialog) and shows its own colour with the ring when the card has one that is not a preset", /aria-haspopup="dialog" :aria-expanded="panelOpen"/.test(sw) && /const isCustom = computed\(\(\) => !!strictHex\(model\.value\) && !presetOf\(model\.value\)\)/.test(sw) && /:class="\{ 'sw-wheel': !isCustom \}"/.test(sw));
+}
+
+console.log("\n# F55.3 The migration and what the reset script does with it");
+{
+  const { makeDb, migrationFiles, readMigration } = await import("./harness.mjs");
+  const files = migrationFiles();
+  check("0039 is the next migration after 0038 and is named for the text colour", files.indexOf("0039_card_text_color.sql") === files.indexOf("0038_profile_nudges.sql") + 1 && files.indexOf("0039_card_text_color.sql") === files.length - 1);
+  const sql = readMigration("0039_card_text_color.sql").replace(/--.*$/gm, "").trim();
+  check("it only adds one nullable column to cards (additive, safe to apply before the new code is deployed)", sql === "ALTER TABLE cards ADD COLUMN text_color TEXT;" && !/NOT NULL|DEFAULT|DROP|UPDATE|DELETE/i.test(sql));
+  const before = makeDb({ before: "0039" });
+  before.raw.prepare("INSERT INTO users (id, created_at, is_guest) VALUES ('u1', 1, 1)").run();
+  before.raw.prepare("INSERT INTO cards (id, user_id, code, name, theme, strap_color, created_at) VALUES ('c1', 'u1', 'AB23', 'Old', 'night', '#2a6f4e', 1)").run();
+  before.raw.exec(readMigration("0039_card_text_color.sql"));
+  const row = before.raw.prepare("SELECT * FROM cards WHERE id = 'c1'").get();
+  check("an existing card keeps every value and gets an empty text colour (the theme's usual)", row.text_color === null && row.strap_color === "#2a6f4e" && row.name === "Old" && row.theme === "night");
+  const reset = read("scripts/reset-hosts.mjs");
+  check("the host reset leaves cards, their strap colour and their text colour alone (it names no colour column in any statement), and says so", !/strap_color|text_color/.test(reset.replace(/^\s*\/\/.*$/gm, "")) && /text_color/.test(reset) && /0039/.test(reset));
+}
+
+console.log("\n# F55.3 The text colour: Plus only, and it has to read on the card");
+{
+  const { textVerdict, cardPaper, autoInk, TEXT_REFUSE_BELOW, TEXT_WARN_BELOW } = await import("../src/lib/cardcolour.js");
+  check("a card's paper is the cream for Default, Formal and Host and the dark paper for Night, the same as the card's CSS", cardPaper("default") === "#FFFDF8" && cardPaper("formal") === "#FFFDF8" && cardPaper("host") === "#FFFDF8" && cardPaper("night") === "#1F1D1A" && /--paper-raised: #fffdf8/.test(read("src/styles/main.css")) && /\.badge\.night, \.profile\.night \{\s*--paper: #141311; --paper-raised: #1f1d1a;/.test(read("src/styles/main.css")));
+  check("Auto is the theme's ink (dark on the cream, cream on Night) and reads at 4.5:1 or better", autoInk("default") === "#1B1A17" && autoInk("night") === "#F4F1EA" && ["default", "formal", "night", "host"].every((t) => textVerdict(autoInk(t), t).level === "ok"));
+  check("the thresholds are 3:1 (refused below) and 4.5:1 (\"Hard to read\" below)", TEXT_REFUSE_BELOW === 3 && TEXT_WARN_BELOW === 4.5);
+  const v = (h, t = "default") => textVerdict(h, t).level;
+  check("on the Default card: white and near-white are refused (about 1:1), light grey 2.8:1 is refused, mid grey 3.4:1 is hard to read but allowed, 4.4:1 is hard to read, 5.2:1 and dark colours are fine", v("#FFFFFF") === "no" && v("#F5F5F5") === "no" && v("#9A9A9A") === "no" && v("#8A8A8A") === "hard" && v("#777777") === "hard" && v("#6B6B6B") === "ok" && v("#333333") === "ok");
+  check("on the Night card it is the other way round: dark colours are refused, light ones are fine", v("#222222", "night") === "no" && v("#333333", "night") === "no" && v("#555555", "night") === "no" && v("#EEEEEE", "night") === "ok" && v("#FFFFFF", "night") === "ok");
+  check("a bad colour reads as refused rather than throwing", v("red") === "no" && v(null) === "no" && v(undefined) === "no");
+}
+
+const textOf = (id) => q1("SELECT text_color FROM cards WHERE id = ?", id)?.text_color ?? null;
+const themeOf = (id) => q1("SELECT theme FROM cards WHERE id = ?", id)?.theme;
+{
+  const free = await person("Text Free Tess");
+  const shapes = ["#333333", "#1B1A17", "#8A8A8A", "#FFFFFF", "333333", "#333", "red", 333333, ["#333333"]];
+  const out = [];
+  for (const v of shapes) { const r = await put(free, { name: "Changed", textColor: v }); out.push([JSON.stringify(v), r.status, nameOf(free.card), textOf(free.card)]); }
+  check(`a free account sending a text colour (${shapes.length} shapes, even ones that would read well) gets 400 and nothing is saved, the name sent with it included`, out.every(([, st, nm, tx]) => st === 400 && nm !== "Changed" && tx === null), out.filter(([, st]) => st !== 400));
+  const msg = (await put(free, { textColor: "#333333" })).json;
+  check("the refusal says the text colour is part of Plus, in plain words", /text colour/i.test(msg.error) && /Plus/.test(msg.error) && msg.code === "plus_colour", msg);
+  check("the older field name text_color is held to the same rule", (await put(free, { text_color: "#333333" })).status === 400 && textOf(free.card) === null);
+  check("a free account may send an empty text colour (it clears nothing and is not an error)", (await put(free, { textColor: "", name: "Same" })).status === 200 && (await put(free, { textColor: null })).status === 200 && textOf(free.card) === null);
+  const forged = [];
+  for (const extra of [{ plan: "plus" }, { tier: "plus" }, { customStrap: true }, { user: { plan: "plus" } }]) forged.push((await put(free, { textColor: "#333333", ...extra })).status);
+  check("a free account claiming to be Plus in the body is still refused", forged.every((s) => s === 400) && textOf(free.card) === null, forged);
+  const mk = await free.c.post("/api/cards", { name: "Sneaky text", textColor: "#333333" });
+  check("a new card from a free account with a text colour is refused and no card is made", mk.status === 400 && cardsOf(free.id) === 1);
+  const many = await Promise.all(Array.from({ length: 20 }, (_, i) => put(free, { textColor: "#" + (0x202020 + i).toString(16) })));
+  check("20 text-colour saves from a free account at the same moment are all refused and none is saved", many.every((r) => r.status === 400) && textOf(free.card) === null);
+}
+{
+  const plus = await person("Text Plus Pia", { plus: true });
+  const bad = [];
+  for (const v of ["#FFFFFF", "#F5F5F5", "#9A9A9A"]) { const r = await put(plus, { name: "Nope", textColor: v }); bad.push([v, r.status, r.json.code, nameOf(plus.card), textOf(plus.card)]); }
+  check("Plus: white on the Default card is refused (about 1:1), and so are near-white and light grey under 3:1, with nothing saved", bad.every(([, st, code, nm, tx]) => st === 400 && code === "text_low" && nm !== "Nope" && tx === null), bad);
+  const low = (await put(plus, { textColor: "#FFFFFF" })).json.error;
+  check("the refusal is a plain message about reading, not a ratio or a code", /too hard to read/.test(low) && !/\d:1|undefined|\[object/.test(low), low);
+  const hard = await put(plus, { textColor: "#8a8a8a" });
+  check("a mid grey (3.4:1, under 4.5:1) is saved, kept in capitals (the editor warns \"Hard to read\")", hard.status === 200 && textOf(plus.card) === "#8A8A8A");
+  const meCard = (await plus.c.get("/api/me")).json.cards[0];
+  check("it comes back on /api/me as textColor", meCard.textColor === "#8A8A8A");
+  const pub = await client({ ip: "198.51.100.201" }).get(`/api/c/${plus.card}`);
+  check("and on the public card data, so the public page draws it with no code", pub.status === 200 && pub.json.textColor === "#8A8A8A");
+  check("a dark colour is saved", (await put(plus, { textColor: "#1a2b3c" })).status === 200 && textOf(plus.card) === "#1A2B3C");
+  check("#RGB, no #, junk and other types are refused with the format message", (await Promise.all(["#333", "333333", "red", 7, ["#333333"]].map((v) => put(plus, { textColor: v })))).every((r) => r.status === 400 && /# then six/.test(r.json.error)) && textOf(plus.card) === "#1A2B3C");
+  check("empty or null sets it back to Auto", (await put(plus, { textColor: "" })).status === 200 && textOf(plus.card) === null);
+  await put(plus, { textColor: "#333333" });
+  check("an edit that does not mention it leaves it alone", (await put(plus, { name: "Renamed" })).status === 200 && textOf(plus.card) === "#333333");
+  check("a Plus account can set the strap and the text together, and the text is checked against the card's theme in the same save", (await put(plus, { strapColor: "#c9a227", textColor: "#222222", theme: "night" })).status === 400 && themeOf(plus.card) === "default" && strapOf(plus.card) === null && (await put(plus, { strapColor: "#c9a227", textColor: "#eeeeee", theme: "night" })).status === 200 && themeOf(plus.card) === "night" && strapOf(plus.card) === "#C9A227" && textOf(plus.card) === "#EEEEEE");
+
+  // The theme and the text colour have to agree, whichever is changed.
+  const t = await person("Theme Tom", { plus: true });
+  await put(t, { textColor: "#333333" });
+  const toNight = await put(t, { theme: "night" });
+  check("changing the theme to Night while the text colour is a dark grey is refused, in words that say what to do, and nothing changes", toNight.status === 400 && /Night theme/.test(toNight.json.error) && /Auto/.test(toNight.json.error) && themeOf(t.card) === "default" && textOf(t.card) === "#333333", toNight.json);
+  check("...but the same save with the text set back to Auto works", (await put(t, { theme: "night", textColor: "" })).status === 200 && themeOf(t.card) === "night" && textOf(t.card) === null);
+  await put(t, { textColor: "#eeeeee" });
+  const toDefault = await put(t, { theme: "default" });
+  check("and back from Night with a light text colour is refused the same way", toDefault.status === 400 && /Default theme/.test(toDefault.json.error) && themeOf(t.card) === "night" && textOf(t.card) === "#EEEEEE");
+  check("a theme change that keeps the text colour readable is fine", (await put(t, { theme: "formal", textColor: "#222222" })).status === 200 && themeOf(t.card) === "formal" && textOf(t.card) === "#222222");
+
+  const gold = await plus.c.post("/api/cards", { name: "With text", textColor: "#334455", strapColor: "#c9a227" });
+  check("a new Plus card can be made with a text colour and a strap colour", gold.status === 201 && textOf(gold.json.id) === "#334455" && strapOf(gold.json.id) === "#C9A227");
+  const white = await plus.c.post("/api/cards", { name: "Too pale", textColor: "#ffffff" });
+  check("a new card with an unreadable text colour is refused and no card is made", white.status === 400 && white.json.code === "text_low" && q1("SELECT COUNT(*) n FROM cards WHERE name = 'Too pale'").n === 0);
+  const nightNew = await plus.c.post("/api/cards", { name: "Night new", theme: "night", textColor: "#222222" });
+  check("on a new Night card the check is against the Night paper (a dark text colour is refused)", nightNew.status === 400 && (await plus.c.post("/api/cards", { name: "Night new ok", theme: "night", textColor: "#eeeeee" })).status === 201);
+}
+
+console.log("\n# F55.3 A lapsed Plus account keeps its text colour, and concurrent requests cannot get round the rules");
+{
+  const p = await person("Lapsed Lena", { plus: true });
+  await put(p, { textColor: "#8a8a8a" });
+  base.raw.prepare("UPDATE cards SET text_color = '#8a8a8a' WHERE id = ?").run(p.card);
+  base.raw.prepare("UPDATE users SET plan_until = ? WHERE id = ?").run(Date.now() - 1000, p.id);
+  const me = (await p.c.get("/api/me")).json;
+  check("after the plan lapses the card still has its text colour (nothing rewritten) and still shows it", me.plan.customStrap === false && me.cards[0].textColor === "#8a8a8a" && textOf(p.card) === "#8a8a8a");
+  const again = await put(p, { name: "Kept", textColor: "#8A8A8A", strapColor: "" });
+  check("saving again with the same text colour works and is not rewritten (the case is kept)", again.status === 200 && nameOf(p.card) === "Kept" && textOf(p.card) === "#8a8a8a");
+  const fresh = await put(p, { name: "Nope", textColor: "#444444" });
+  check("a new text colour is refused (400) and nothing is saved", fresh.status === 400 && textOf(p.card) === "#8a8a8a" && nameOf(p.card) === "Kept");
+  check("setting it back to Auto is allowed", (await put(p, { textColor: "" })).status === 200 && textOf(p.card) === null);
+  check("and it cannot then be chosen again", (await put(p, { textColor: "#8A8A8A" })).status === 400 && textOf(p.card) === null);
+  base.raw.prepare("UPDATE cards SET text_color = '#EEEEEE', theme = 'night' WHERE id = ?").run(p.card);
+  const lapsedTheme = await put(p, { theme: "default" });
+  check("a lapsed account changing the theme to one its kept colour cannot be read on is told so, and may clear the text colour in the same save", lapsedTheme.status === 400 && (await put(p, { theme: "default", textColor: "" })).status === 200 && themeOf(p.card) === "default");
+  const mk = await p.c.post("/api/cards", { name: "Lapsed text", textColor: "#333333" });
+  check("a new card with a text colour from the lapsed account is refused", mk.status === 400);
+
+  // The plan runs out between the server's read and its write.
+  const lap = await person("Lapsing Lou T", { plus: true });
+  let fired = 0;
+  const realPrepare = env.DB.prepare;
+  env.DB.prepare = function (sql) {
+    const s = realPrepare.call(this, sql);
+    if (/^UPDATE cards SET/.test(sql)) { const run = s.run.bind(s); s.run = async () => { if (!fired++) base.raw.prepare("UPDATE users SET plan_until = ? WHERE id = ?").run(Date.now() - 1, lap.id); return run(); }; }
+    return s;
+  };
+  const r1 = await put(lap, { name: "Too late", textColor: "#333333" });
+  env.DB.prepare = realPrepare;
+  check("a plan that runs out after the server read it and before it writes: the text colour is refused and nothing is saved", fired === 1 && r1.status === 400 && textOf(lap.card) === null && nameOf(lap.card) !== "Too late", { fired, st: r1.status });
+
+  // The theme changes between the read and the write of a text colour that read well on the old one.
+  const th = await person("Racing Theo", { plus: true });
+  let fired2 = 0;
+  env.DB.prepare = function (sql) {
+    const s = realPrepare.call(this, sql);
+    if (/^UPDATE cards SET/.test(sql)) { const run = s.run.bind(s); s.run = async () => { if (!fired2++) base.raw.prepare("UPDATE cards SET theme = 'night' WHERE id = ?").run(th.card); return run(); }; }
+    return s;
+  };
+  const r2 = await put(th, { textColor: "#333333" });
+  env.DB.prepare = realPrepare;
+  check("a dark text colour saved at the moment the theme becomes Night is not written (it would be unreadable): refused with the reason", fired2 === 1 && [400, 409].includes(r2.status) && textOf(th.card) === null && themeOf(th.card) === "night", { st: r2.status, t: textOf(th.card) });
+  // A text colour changes between the read and the write of a theme change.
+  const th2 = await person("Racing Thea", { plus: true });
+  await put(th2, { textColor: "#333333" });
+  let fired3 = 0;
+  env.DB.prepare = function (sql) {
+    const s = realPrepare.call(this, sql);
+    if (/^UPDATE cards SET/.test(sql)) { const run = s.run.bind(s); s.run = async () => { if (!fired3++) base.raw.prepare("UPDATE cards SET text_color = '#444444' WHERE id = ?").run(th2.card); return run(); }; }
+    return s;
+  };
+  const r3 = await put(th2, { theme: "formal" });
+  env.DB.prepare = realPrepare;
+  check("a theme change whose text colour moved while it was being saved is not written (the guard sees it): told to reload (409) when nothing is wrong now", fired3 === 1 && r3.status === 409 && themeOf(th2.card) === "default" && textOf(th2.card) === "#444444", { st: r3.status });
+
+  // Ten requests at once on one card: a dark text colour and a switch to Night; the card never ends up Night with dark text.
+  const mix = await person("Mixing Max", { plus: true });
+  const res = await Promise.all([...Array.from({ length: 6 }, (_, i) => put(mix, { textColor: "#33333" + i })), ...Array.from({ length: 6 }, () => put(mix, { theme: "night" })), ...Array.from({ length: 6 }, () => put(mix, { theme: "default" }))]);
+  const final = q1("SELECT theme, text_color FROM cards WHERE id = ?", mix.card);
+  const okEnd = !final.text_color || (final.theme === "night" ? textVerdictOf(final.text_color, "night") : textVerdictOf(final.text_color, "default"));
+  check("18 saves at once (text colours, to Night, to Default): the card never ends up with a text colour that cannot be read on its theme", okEnd && res.every((r) => [200, 400, 409].includes(r.status)), { final, st: res.map((r) => r.status).join() });
+  const reps = await Promise.all(Array.from({ length: 15 }, () => put(mix, { strapColor: "#765432" })));
+  check("and the strap rule still holds in the same instant for Plus (any colour saved) after all that", reps.every((r) => r.status === 200 || r.status === 409) && strapOf(mix.card) === "#765432");
+}
+function textVerdictOf(hex, theme) { return textVerdictLib(hex, theme).level !== "no"; }
+
+console.log("\n# F55.3 Where the text colour is drawn, and the editor (source)");
+{
+  const cv = read("src/components/CardView.vue"), badge = read("src/components/Badge.vue"), css = read("src/styles/main.css"), qr = read("src/lib/qr.js");
+  check("the public card page applies it as --ink on the card's body only (not on the card, so its border and the photo's border keep the theme's ink), from data, with no colour code imported", /<div class="profile-body" :style="view\.textColor \? \{ '--ink': view\.textColor \} : null">/.test(cv) && !/<article[^>]*textColor/.test(cv) && !/cardcolour/.test(cv));
+  check("the badge on My card does the same on its body", /<div class="badge-body" :style="view\.textColor \? \{ '--ink': view\.textColor \} : null">/.test(badge) && !/cardcolour/.test(badge));
+  check("the body sets its own colour from --ink, so the words follow it (the card's border is declared on the card and does not)", /\.badge-body \{\s*color: var\(--ink\);/.test(css) && /\.profile-body \{ color: var\(--ink\);/.test(css) && /--border-ink: 1\.5px solid var\(--ink\);\s*--shadow-1/.test(css));
+  check("the card image export draws the name, headline and code in the text colour and keeps the borders in the theme's ink", /t\.text = strictHex\(view\?\.textColor\) \|\| t\.ink/.test(qr) && /color: t\.text, ls: -0\.3/.test(qr) && /color: t\.text \}\);/.test(qr) && /color: t\.text, ls: 4\.68/.test(qr) && /ctx\.strokeStyle = t\.ink/.test(qr));
+  const prev = read("src/lib/cardpreview.js"), cards = read("src/views/Cards.vue"), edit = read("src/views/EditProfile.vue"), form = read("src/components/CardForm.vue");
+  check("the live preview carries the text colour from the form, the real view and the card on Edit profile", /textColor: form\.textColor \|\| null/.test(prev) && /textColor: card\.textColor/.test(prev) && /textColor: c\.textColor/.test(edit));
+  check("My cards has the text colour in a new card's form and in an edited one, and sends it with everything else", /strapColor: "", textColor: ""/.test(cards) && /textColor: card\.textColor \|\| ""/.test(cards) && /<CardTextColour v-model="f\.textColor" :theme="f\.theme" \/>/.test(form));
+  const tc = read("src/components/CardTextColour.vue"), panel = read("src/components/CardColourPanel.vue");
+  check("for Plus the editor offers Auto and Custom, says \"Hard to read\" from 3:1 to under 4.5:1 and stops under 3:1, and the panel it opens is the strap's, told the card's paper", /v-if="me\.plan\.customStrap"/.test(tc) && /aria-label="Auto text colour"/.test(tc) && /Hard to read \(\{\{ verdict\.ratio\.toFixed\(1\) \}\} to 1 on this card\)/.test(tc) && /Too hard to read on this card\. Choose another before you save\./.test(tc) && /:against="paper"/.test(tc) && /label="Text colour"/.test(tc));
+  check("a free account sees a line that points to Plus, and a lapsed one sees what it kept and can set it back to Auto", /Your own text colour is part of/.test(tc) && /to="\/app\/settings\/plan"/.test(tc) && /Kept from Plus/.test(tc) && /Set it back to Auto/.test(tc));
+  check("the panel says how a text colour reads (Hard to read under 4.5:1, Too hard to read under 3:1 with Done off) using the same thresholds as the Worker", /level === 'hard'[\s\S]*Hard to read/.test(panel) && /Too hard to read on this card/.test(panel) && /:disabled="level === 'no'"/.test(panel) && /TEXT_REFUSE_BELOW, TEXT_WARN_BELOW/.test(panel) && /if \(level\.value === "no"\) return;/.test(panel));
+  check("the text colour's chunk is the strap's, not a new one, and it uses the tokens, with no motion under reduced motion", /Panel\.value = \(await import\("\.\/CardColourPanel\.vue"\)\)\.default/.test(tc) && !/defineAsyncComponent/.test(tc) && /transition: transform var\(--dur-fast\) var\(--ease-out\)/.test(tc) && /prefers-reduced-motion: reduce/.test(tc) && !/\d+ms/.test(tc) && !/type="color"/.test(tc));
+  const classes = [...panel.slice(panel.indexOf("<style>")).matchAll(/\.([a-z][\w-]*)/g)].map((m) => m[1]).filter((c) => !/^(ui-layer|is-sheet|is-modal|btn|label|error-text|small|muted|btn-primary|btn-row)$/.test(c));
+  check("every class the panel's stylesheet defines starts with colp (the preview's own .cp classes were once hit by a clash)", classes.length > 8 && classes.every((c) => c.startsWith("colp")), classes.filter((c) => !c.startsWith("colp")));
 }
 
 summary();

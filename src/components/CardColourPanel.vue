@@ -10,7 +10,7 @@
 import { computed, ref, watch } from "vue";
 import UiSheet from "./ui/UiSheet.vue";
 import { hexToHsv, hsvToHex, squareKey, hueKey, pointToSv, pointToHue, readHexBox, pushRecent, cleanRecent } from "../lib/colourpanel";
-import { isPreset, strictHex } from "../lib/cardcolour";
+import { contrast, isPreset, strictHex, TEXT_REFUSE_BELOW, TEXT_WARN_BELOW } from "../lib/cardcolour";
 
 const props = defineProps({
   open: Boolean,
@@ -18,7 +18,7 @@ const props = defineProps({
   modelValue: { type: String, default: "" },      // "#RRGGBB", or "" for the theme's own colour
   fallback: { type: String, default: "#C4441E" }, // what the panel starts from when there is no colour yet
   label: { type: String, default: "Choose a colour" },
-  note: { type: String, default: "" },            // a line under the hex box (the text colour's "Hard to read")
+  against: { type: String, default: "" },         // the text colour's panel: the card's paper, so it says how well this reads on it
 });
 const emit = defineEmits(["update:modelValue", "done", "close"]);
 
@@ -32,6 +32,10 @@ const hexText = ref("");
 const hexError = ref("");
 const recent = ref([]);
 const hex = computed(() => hsvToHex(hsv.value));
+// How the colour reads on the card (the text colour only): under 3:1 it cannot be kept, under 4.5:1 it is "Hard to read".
+const ratio = computed(() => (props.against ? contrast(hex.value, props.against) : 0));
+const level = computed(() => (!props.against ? "" : ratio.value < TEXT_REFUSE_BELOW ? "no" : ratio.value < TEXT_WARN_BELOW ? "hard" : "ok"));
+const ratioText = computed(() => ratio.value.toFixed(1));
 
 watch(() => props.open, (v) => {
   if (!v) return;
@@ -87,6 +91,7 @@ function done() {
   const r = readHexBox(hexText.value);
   if (!r.hex) { hexError.value = r.why; return; }
   if (r.hex !== hex.value) setHex(r.hex);
+  if (level.value === "no") return; // the message under the box says why; it cannot be kept
   if (!isPreset(r.hex)) { recent.value = pushRecent(readRecent(), r.hex); writeRecent(recent.value); }
   emit("done", r.hex);
 }
@@ -128,7 +133,9 @@ const sText = computed(() => `Saturation ${Math.round(hsv.value.s * 100)} percen
         </label>
       </div>
       <p v-if="hexError" class="error-text colp-msg" role="alert">{{ hexError }}</p>
-      <p v-else-if="note" class="small colp-msg colp-note" role="status">{{ note }}</p>
+      <p v-else-if="level === 'no'" class="error-text colp-msg" role="alert">Too hard to read on this card ({{ ratioText }} to 1). Choose a darker or lighter colour.</p>
+      <p v-else-if="level === 'hard'" class="small colp-msg colp-note" role="status">Hard to read ({{ ratioText }} to 1). It will save, but some people will struggle.</p>
+      <p v-else-if="level === 'ok'" class="small muted colp-msg" role="status">Reads well on this card ({{ ratioText }} to 1).</p>
 
       <div v-if="recent.length" class="colp-recent">
         <span class="label">Recent</span>
@@ -141,7 +148,7 @@ const sText = computed(() => `Saturation ${Math.round(hsv.value.s * 100)} percen
 
       <div class="btn-row colp-actions">
         <button type="button" class="btn" @click="cancel">Cancel</button>
-        <button type="button" class="btn btn-primary" @click="done">Done</button>
+        <button type="button" class="btn btn-primary" :disabled="level === 'no'" @click="done">Done</button>
       </div>
     </div>
   </UiSheet>

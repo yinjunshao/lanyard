@@ -13,6 +13,9 @@ tags: [design]
 --font: "Atkinson Hyperlegible Next", system-ui, sans-serif;
 ```
 
+## Card colours (F55)
+The strap's ten presets are Persimmon `#C4441E`, Graphite `#2B3138`, Navy `#1F3A5F`, Cobalt `#2F5BD3`, Teal `#12817A`, Forest `#2E7D4F`, Ochre `#9A6410`, Rose `#C23B66`, Plum `#7A3E8E` and Slate `#55606E`, each at 4.5:1 or better with white strap text. Swatches are round, 28 px dots in 44 px tap targets with a 2px ink ring (3px in from the edge) on the chosen one; the colour panel is a popover from 600 px and a sheet on a phone (UiSheet), with `--dur-fast` motion only. A card's colour reaches the page as data and is drawn with `--card-strap`, `--card-strap-ink` and a body `--ink`; strap words are white or black, whichever reads at 4.5:1.
+
 ## Themes (interface fixed; only theme changes)
 | Theme | Use |
 | --- | --- |

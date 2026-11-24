@@ -513,6 +513,7 @@ button.list-row { font: inherit; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .badge-body {
+  color: var(--ink); /* F55.3: a Plus card's text colour is set as --ink on this element (borders, declared on the card, keep the theme's ink) */
   padding: 20px 20px 18px;
   display: flex;
   flex-direction: column;
@@ -746,7 +747,7 @@ button.list-row { font: inherit; }
   color: var(--card-strap-ink, #fff);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.profile-body { padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+.profile-body { color: var(--ink); padding: 20px; display: flex; flex-direction: column; gap: 18px; }
 .profile-id { display: flex; align-items: center; gap: 16px; }
 .profile-photo {
   display: block;

@@ -9,6 +9,7 @@ import RotatingHint from "./ui/RotatingHint.vue";
 import { headlineExamples } from "../lib/examples";
 import UiTagInput from "./ui/UiTagInput.vue";
 import CardSwatches from "./CardSwatches.vue";
+import CardTextColour from "./CardTextColour.vue";
 import { CARD_TAGS, joinTags, parseTags } from "../lib/tags";
 import { nextUid } from "./ui/uid";
 
@@ -85,6 +86,11 @@ function toggle(label) {
     <div class="field">
       <label id="strap-label">Strap colour</label>
       <CardSwatches v-model="f.strapColor" :theme="f.theme" />
+    </div>
+
+    <div class="field">
+      <label id="text-colour-label">Text colour</label>
+      <CardTextColour v-model="f.textColor" :theme="f.theme" />
     </div>
   </div>
 </template>

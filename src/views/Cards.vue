@@ -10,7 +10,7 @@ import UiReveal from "../components/ui/UiReveal.vue";
 import { cardOf, profileOf } from "../lib/cardpreview";
 import { useBusy } from "../components/Waiting.vue";
 
-const blank = () => ({ name: "", theme: "default", note: "", headline: "", about: "", tagsText: "", visibleLinks: [], strapColor: "" });
+const blank = () => ({ name: "", theme: "default", note: "", headline: "", about: "", tagsText: "", visibleLinks: [], strapColor: "", textColor: "" });
 const creating = ref(false);
 const form = ref(blank());
 const editingId = ref(null);
@@ -109,6 +109,7 @@ function startEdit(card, toCode = false) {
     tagsText: (card.tagsOverride || []).join(", "),
     visibleLinks: [...(card.visibleLinks || [])],
     strapColor: card.strapColor || "",
+    textColor: card.textColor || "",
   };
 }
 

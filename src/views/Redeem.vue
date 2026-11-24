@@ -134,7 +134,7 @@ function submitTyped() {
           <p>You were <strong>#{{ mine.position }}</strong><template v-if="mine.max"> of {{ mine.max }}</template>. Lanyard Plus is on<template v-if="planUntil"> until {{ fmtDate(planUntil) }}</template>.</p>
           <ul class="small plan-list">
             <li>Up to 12 cards, one for each kind of room</li>
-            <li>Custom strap colours</li>
+            <li>Any card colour and text colour</li>
             <li>Choose your own card code, like your name</li>
           </ul>
           <router-link to="/app" class="btn btn-primary">Go to my card</router-link>

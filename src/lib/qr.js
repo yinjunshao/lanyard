@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { strapInk } from "./cardcolour.js";
+import { strapInk, strictHex } from "./cardcolour.js";
 
 // Badge colours. These mirror the CSS custom properties on `.badge` in
 // main.css, because the PNG export is a scaled-up replica of the on-screen
@@ -105,6 +105,7 @@ export async function drawBadge(canvas, view, url) {
   const CARD_W = 352, B = 1.5, PAD = 28;
   const t = { ...(THEMES[view?.theme === "night" ? "night" : view?.theme === "formal" ? "formal" : "light"]) };
   if (view?.strapColor) t.strap = view.strapColor;
+  t.text = strictHex(view?.textColor) || t.ink; // F55.3: a Plus card's own text colour for the words (the borders stay the theme's ink)
   const strapText = view?.strapColor ? strapInk(view.strapColor) : "#fff"; // F55: white or black, whichever reads on the strap
   const p = view?.profile || {};
 
@@ -229,7 +230,7 @@ export async function drawBadge(canvas, view, url) {
   const blockH = 22.4 + (meta ? 2 + 19.5 : 0);
   const blockTop = photoY + (68 - blockH) / 2;
   mctx.font = FONT(20, 700);
-  line(ctx, truncateTo(mctx, p.name || "Your name", tw, -0.3), tx, blockTop, { size: 20, lineH: 22.4, weight: 700, color: t.ink, ls: -0.3 });
+  line(ctx, truncateTo(mctx, p.name || "Your name", tw, -0.3), tx, blockTop, { size: 20, lineH: 22.4, weight: 700, color: t.text, ls: -0.3 });
   if (meta) {
     mctx.font = FONT(13, 400);
     line(ctx, truncateTo(mctx, meta, tw, 0), tx, blockTop + 22.4 + 2, { size: 13, lineH: 19.5, color: t.graphite });
@@ -243,7 +244,7 @@ export async function drawBadge(canvas, view, url) {
     rule(y);
     label("What I do", y + 1 + 9);
     mctx.font = FONT(13.5, 400);
-    line(ctx, truncateTo(mctx, headline, bodyW, 0), bx, y + 1 + 9 + 16.5 + 3, { size: 13.5, lineH: 20.25, color: t.ink });
+    line(ctx, truncateTo(mctx, headline, bodyW, 0), bx, y + 1 + 9 + 16.5 + 3, { size: 13.5, lineH: 20.25, color: t.text });
     y += 49.75 + 12;
   }
 
@@ -285,7 +286,7 @@ export async function drawBadge(canvas, view, url) {
   // footer
   line(ctx, "SCAN TO CONNECT", bx + bodyW / 2, y, { size: 11, lineH: 16.5, weight: 700, color: t.graphite, ls: 1.43, align: "center" });
   if (view?.code) {
-    line(ctx, String(view.code), bx + bodyW / 2 + 2.34, y + 16.5 + 2, { size: 18, lineH: 27, weight: 700, color: t.ink, ls: 4.68, align: "center" });
+    line(ctx, String(view.code), bx + bodyW / 2 + 2.34, y + 16.5 + 2, { size: 18, lineH: 27, weight: 700, color: t.text, ls: 4.68, align: "center" });
   }
   ctx.restore();
 

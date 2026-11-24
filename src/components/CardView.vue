@@ -33,7 +33,7 @@ const host = (url) => { try { return new URL(url).hostname.replace(/^www\./, "")
       <span class="profile-strap-card">{{ view.name }}</span>
     </div>
 
-    <div class="profile-body">
+    <div class="profile-body" :style="view.textColor ? { '--ink': view.textColor } : null">
       <div class="profile-id">
         <Avatar class="profile-photo" :class="{ zoomable: p.photo }" :src="p.photo" :alt="p.name" @click="openPhoto(p.photo, p.name)" />
         <div class="profile-id-text">
