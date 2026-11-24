@@ -135,7 +135,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 - [ ] **F52** [[F52 Rotating examples and better link examples]] · P1 · S · Needs: none (in progress: Claude subagent, 2026-11-24; built and tested, last commit 5d81e8a; waiting on one check: the slide seen as a plain fade with reduced motion on, which the browser pane could not emulate)
 - [x] **F53** [[F53 Tag boxes and new suggestions]] · P1 · S · Needs: none (done 2026-11-24, last commit 39965bf)
 - [ ] **F57** [[F57 Card editor opens with motion]] · P1 · S · Needs: F40
-- [ ] **F54** [[F54 Midnight app theme]] · P1 · S · Needs: none
+- [ ] **F54** [[F54 Midnight app theme]] · P1 · S · Needs: none (in progress: Claude subagent, 2026-11-24)
 - [ ] **F55** [[F55 Card colour presets and a Plus colour wheel]] · P1 · M · Needs: none (what Plus includes, partly answered 2026-11-24)
 - [ ] **F58** [[F58 Branded emails]] · P1 · M · Needs: F45, F48, F49
 - [ ] **F60** [[F60 Intention at check-in and who to meet for everyone]] · P1 · L · Needs: F17, F25, F52 (everyone checked in by owner decision, 2026-11-24; narrows D027; risk recorded in the plan note)

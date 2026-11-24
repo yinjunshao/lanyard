@@ -24,6 +24,10 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     target: 'es2020',
+    // F54.0: with preloading on, the entry lists every lazy chunk and its imports by hashed file name (about 2.7 KB raw,
+    // about 1.4 KB gzip, and it grows with each new chunk), and every public page downloads that list. Off, the list keeps only
+    // the CSS files (a lazy chunk's styles still load with it); a lazy chunk's own imports start once the chunk has arrived.
+    modulePreload: false,
     chunkSizeWarningLimit: 120,
   },
 }))

@@ -4,7 +4,7 @@ id: F54
 priority: P1
 phase: 10
 size: S
-status: Not started
+status: In progress
 needs: []
 ---
 # F54 Midnight app theme
@@ -30,6 +30,7 @@ needs: []
 - Public pages: the theme file is shared, so keep the cost to a few hundred bytes and report before/after.
 
 ## Tasks
+- [x] F54.0 Win back JS budget headroom before the work (added 2026-11-24 by the orchestrator: PrivacyRequest had 57 B left).
 - [ ] F54.1 Add the Midnight tokens, the theme choice and the pre-paint; make every dark check include Midnight; tests (theme.js applies `midnight`, the meta colour, the setting is saved); browser check of My card, People, a person, Events, an event hub, Settings, a sheet and a picker in Midnight at 375 and 1280 px, and the Light and Dark themes unchanged.
 
 ## Acceptance checks
@@ -40,6 +41,6 @@ needs: []
 - [ ] `npm test` passes; public pages within budget.
 
 ## Log
--
+- 2026-11-24 (Claude subagent) F54.0: **why every public page grew by 15-50 B per feature.** The entry chunk (the one file every public page loads) carries Vite's preload map: a list of every lazy chunk and its imports and styles by hashed file name (90 names, about 2.7 KB raw). Hashes do not compress, so each new chunk anywhere in the app added a name there, and each lazy import another. Fix: `build.modulePreload: false` in `vite.config.js`. The map now keeps only the 26 style files (a lazy chunk's CSS still loads with it, checked in the built entry); a lazy chunk's own script imports start when the chunk has arrived instead of beside it (one extra round trip on a lazy route; no behaviour change). Entry 42,154 to 40,739 B gzip. First-load gzip before to after: Landing 45,537 to 44,019; PublicCard 48,847 to 47,360; Hosts 43,943 to 42,529; Privacy 50,845 to 49,430; Terms 48,065 to 46,651; Redeem 47,283 to 45,865; SignIn 48,411 to 46,995; PrivacyRequest 51,143 to 49,728 (1,472 B left, was 57). Nothing on the page itself changed, so UiSelect and UiSheet still load with it. New lazy chunks now cost public pages far less than before.
 
 Related: [[Design System]] · [[F55 Card colour presets and a Plus colour wheel]] · back to [[00 Master To-Do]]
