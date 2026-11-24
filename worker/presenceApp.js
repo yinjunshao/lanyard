@@ -14,6 +14,7 @@ import {
   INTRO_MAX, LOOKING_MAX, cleanLine, displayName, presenceCandidates, presenceScope, presenceStanding, removePresence,
 } from "./presence.js";
 import { suggest } from "./presenceMatch.js";
+import { safeReason } from "./suggestScreen.js";
 import { forgetSearchReplies } from "./ai/optout.js";
 
 export const presenceApp = new Hono();
@@ -34,7 +35,7 @@ export const refuse = (c, why) => c.json({ error: WHY[why][1], code: WHY[why][2]
 // One person in the list: a photo, a name, their line and a reason, and nothing else. F25 shapes its list the same way.
 export const entryOf = (p) => ({
   presenceId: p.id, name: displayName(p.name), selfie: p.selfie_key ? `/media/${p.selfie_key}` : null,
-  intro: p.intro, reason: p.reason,
+  intro: p.intro, reason: typeof p.reason === "string" ? safeReason(p.reason) : p.reason, // F69: never a sensitive word
 });
 
 // What you see about your own presence. The same shape from every route that returns it.

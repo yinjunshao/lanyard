@@ -4,7 +4,7 @@ id: F69
 priority: P0
 phase: 11
 size: S
-status: Not started
+status: In progress
 needs: [F60]
 ---
 # F69 Keep sensitive words out of who to meet
@@ -48,7 +48,7 @@ The F61 research ([[F61 Research Matching options]]) found that today's who to m
 - **Privacy notes:** add a line to [[Privacy and Data Retention]] and to the F60 section of the Privacy Policy (section 8f) saying that suggestions never use words about religion, health, sexuality, politics, ethnicity or union membership. Do not bump the Terms version. Flag whether it is material; it reduces processing, so probably not.
 
 ## Tasks
-- [ ] F69.1 `sensitiveTerms.js` and `isSensitive`; the screen in the plain order, the AI input and the reasons (and the old who-to-meet path, if still reached); the prompt line; Privacy Policy line; tests; vault notes ([[Privacy and Data Retention]], [[F60 Intention at check-in and who to meet for everyone]] Log, [[UK GDPR Audit 2026-11-01]] if it has an F60 section).
+- [x] F69.1 `sensitiveTerms.js` and `isSensitive`; the screen in the plain order, the AI input and the reasons (and the old who-to-meet path, if still reached); the prompt line; Privacy Policy line; tests; vault notes ([[Privacy and Data Retention]], [[F60 Intention at check-in and who to meet for everyone]] Log, [[UK GDPR Audit 2026-11-01]] if it has an F60 section).
 
 ## Acceptance checks
 - [ ] Two people both tagged "Christian Union" and nothing else in common: neither is suggested to the other for that, and no reason mentions it (test through the real Worker).
@@ -59,6 +59,12 @@ The F61 research ([[F61 Research Matching options]]) found that today's who to m
 - [ ] `npm test` passes; public pages within budget (Worker-only, so unchanged).
 
 ## Log
--
+- 2026-11-24 (Claude subagent): F69 needs F60, which is built and tested but unticked (it waits on the owner's real-model check). Built on F60 as it stands, with the owner's say-so (the standing say-so for AI items since 2026-11-11, and the decision of 2026-11-24 to "fix F60 now"). No real model was called; `.dev.vars` was not opened; no migration.
+- F69.1: `src/lib/sensitiveTerms.js` (no imports; `SENSITIVE_TERMS` in six groups, `HERITAGE` x `GROUPS` for heritage societies, `isSensitive`, `findSensitive`, `stripSensitive`; whole words, any case and accents, simple plurals, phrases, "LGBTQ+", CamelCase and "...soc" run-togethers) and `worker/suggestScreen.js` (`screenFields`, `screenSide`, `screenLine`, `screenHeadline`, `safeReason`). Applied in the plain order (`suggestMatch.js`: both sides, both intentions, the F16 facts), the AI order (`ai/suggestRank.js`: every candidate record and the viewer's own; a reason with a listed word is blanked in `refine` before it is kept and replaced by that person's plain reason; a pick whose quote has one is dropped), and `entryOf` (`safeReason`, the last net). The prompt has the fixed line (`SENSITIVE_LINE`, `suggest-rank-2`). Privacy Policy 8f has one new bullet. `test/sensitive-terms.mjs` (69 checks), wired into `npm test` before the budget. Vault: [[D057 Who to meet never matches on or sends special category words]], [[Decision Log]], [[Privacy and Data Retention]], [[UK GDPR Audit 2026-11-01]] (F60 LIA), [[AI Safety and Cost Plan]] (section 6), [[F60 Intention at check-in and who to meet for everyone]] Log, [[Codebase Map]], [[Testing]].
+- **Shared ground:** the "same tags" (and course, company, institution) facts used by Who to meet go through the screen; the person-page shared ground (F16, two people already connected, `sharedGround`) is unchanged, as the plan says (a test pins that it still says "Both into Christian Union" there).
+- **The older who-to-meet path:** no page calls F17's `GET /api/e/:id/suggestions` or F25's `/api/ai/who-to-meet/:eventId` any more, but both routes are still mounted in the Worker, so a script could reach them. They got the same screen (`presenceMatch.js` `rank` and `topicsOf`, `presenceApp.js` `entryOf`, `ai/whoToMeet.js` `buildRecord` and the wish) and the same prompt line (`who-to-meet-3`). A later clean-up could remove them.
+- **Decisions without the owner:** which words are on the list (see the file: 342 terms in six groups, plus 384 heritage-society phrases from 48 words and 8 group words); "health" alone is **not** screened, so "Health tech", "Healthcare", "Digital health" and "Public health" still match as industries, while "mental health" and named conditions are screened; also not screened alone: "labour", "union", "black", "asian" and other heritage words, "race", "liberal", "cancer", "blind", "bi", "aids", "lent", "ministry", "poc", "theology", "vegan", "gender", pronouns. "Temple", "pride", "faith" and "god" are screened even though they have other senses (cost: a lost match, never data). An intention is dropped whole when the listed words outnumber the useful words left (group words such as "society" and "network" do not count as useful), so "meet other Muslim founders" keeps "meet other founders" and "Islamic Society" goes whole; "Find a Friday prayers group" keeps "Find a Friday group" (the residual the F61 note names). A headline is cut at `, ; | / · •` and spaced dashes. A course, role, company or institution with a listed word is left out whole (for example "Islamic Studies").
+- **For the owner, out of scope:** Do I know someone who (F24, a person searching their own connections in their own words) and follow-up drafts (F22, F44) are not screened. Say if either should be.
+- **Privacy Policy:** one bullet in 8f ("Words we never use"). The Terms and Privacy version is **not** bumped. In our view this change is not material on its own: it narrows processing and gives people more protection; it can go with the F60 bump the owner already has to decide.
 
 Related: [[F61 Research Matching options]] · [[F60 Intention at check-in and who to meet for everyone]] · back to [[00 Master To-Do]]

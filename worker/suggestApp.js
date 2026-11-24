@@ -18,6 +18,7 @@ import { displayName } from "./presence.js";
 import { visibleFields } from "./presenceMatch.js";
 import { changeSuggest, mySuggestChoices, readChoice, suggestCandidates, suggestStanding } from "./suggest.js";
 import { meRow, rankSuggest } from "./suggestMatch.js";
+import { safeReason } from "./suggestScreen.js";
 import { forgetSearchReplies } from "./ai/optout.js";
 import { aiOrder } from "./ai/suggestRank.js";
 import { SUGGEST_NOTICE, SUGGEST_VERSION } from "../src/lib/suggest.js";
@@ -37,10 +38,13 @@ const WHY = {
 };
 export const refuse = (c, why) => c.json({ error: WHY[why][1], code: WHY[why][2] }, WHY[why][0]);
 
-/** One person in someone's list. Exactly these keys; `photo` only when they turned on Be easy to find. */
+/**
+ * One person in someone's list. Exactly these keys; `photo` only when they turned on Be easy to find. The headline, tags
+ * and intention are what their card shows, unscreened (F69); the reason is the last check that no sensitive word shows.
+ */
 export function entryOf(row) {
   const f = visibleFields(row);
-  const e = { id: row.id, name: displayName(row.name), headline: f.headline, tags: f.tags.slice(0, TAGS_SHOWN), intention: row.intention || "", reason: row.reason || "" };
+  const e = { id: row.id, name: displayName(row.name), headline: f.headline, tags: f.tags.slice(0, TAGS_SHOWN), intention: row.intention || "", reason: safeReason(row.reason || "") };
   if (row.photo_key) e.photo = `/media/${row.photo_key}`;
   return e;
 }

@@ -155,7 +155,7 @@ Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a we
 ### Phase 11: owner requests (2026-11-24, second batch)
 Build order: F68, F69, F63, F67, F64, F65, F66. F61's research note can be written alongside, since it touches only its own note.
 - [x] **F68** [[F68 Event status on event lists]] · P1 · S · Needs: F15 (done 2026-11-24, last commit deccdf1)
-- [ ] **F69** [[F69 Keep sensitive words out of who to meet]] · P0 · S · Needs: F60 (owner decision 2026-11-24, from the F61 research; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so)
+- [ ] **F69** [[F69 Keep sensitive words out of who to meet]] · P0 · S · Needs: F60 (owner decision 2026-11-24, from the F61 research; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so) (in progress: Claude subagent, 2026-11-24)
 - [ ] **F63** [[F63 Create event form refresh]] · P1 · M · Needs: F30
 - [ ] **F67** [[F67 Check-in page layout]] · P1 · S · Needs: F63
 - [ ] **F64** [[F64 New events start from the host's latest settings]] · P1 · S · Needs: F63, F31, F60 (collects copied by owner decision, 2026-11-24; narrows D038; risk recorded in the plan note; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so)

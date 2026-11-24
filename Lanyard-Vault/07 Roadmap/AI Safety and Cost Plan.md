@@ -113,6 +113,7 @@ So even a perfect injection can only show the asker data they could already see.
 - **No training on our data.** Confirm in Anthropic's commercial terms and data processing addendum that API data isn't used for training. Accept the DPA. Record it in the processor list.
 - **Gateway logs hold prompts.** Turn off request and response body logging in AI Gateway, or set the shortest retention. Keep only metadata (feature, tokens, cost, status).
 - **People search consent:** a setting under Privacy and data: "Let people I've connected with find me using AI search" (default on, using data they can already see). Write a short legitimate-interests assessment for it, and update the DPIA from [[UK GDPR Audit 2026-11-01]] Medium 6. Have the lawyer or legal clinic review it with the rest.
+- **No special category words in Who to meet ([[F69 Keep sensitive words out of who to meet]], [[D057 Who to meet never matches on or sends special category words]]):** a tag, headline phrase or intention word about religion or belief, health, sexuality or gender identity, politics, ethnicity or union membership (`src/lib/sensitiveTerms.js`) is screened out before the model sees anything, a reason with one is never shown or kept, and the prompt has one fixed line. Any new matching feature (F61) uses the same screen.
 - **Retention:** `ai_cache` rows deleted after 7 days by the daily purge; `ai_usage` kept as counts only (no text) for 13 months.
 - **Data export** includes the person's AI usage counts.
 

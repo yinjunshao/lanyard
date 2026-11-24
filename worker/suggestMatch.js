@@ -13,7 +13,12 @@
 // F16's rule holds: a word or fact may only come from what that person has chosen to show (visibleFields: the mode's
 // fields, the default card's tags and headline), plus the intention they wrote for this event. A hidden field never
 // makes a hit, so it never shows in a reason.
+//
+// F69 (D057): both sides, both intentions and the shared-ground facts go through the sensitive-words screen first
+// (suggestScreen.js), so a tag such as a faith, health, LGBTQ+, political, union or heritage society never scores and
+// never becomes a reason. The entry shown is not screened: it still shows what the card shows.
 import { inCommon } from "./inCommon.js";
+import { screenFields, screenLine, safeReason } from "./suggestScreen.js";
 import { words, visibleFields, NEW_COUNT, NEW_REASON, TOP, WORD_SCORE, FACT_SCORE } from "./presenceMatch.js";
 
 export const BACK_SCORE = 2;
@@ -46,12 +51,12 @@ function shownFields(f) {
  * Returns { mode: "matched" | "new", ranked: [{ row, score, reason }] }.
  */
 export function rankSuggest({ me, intention, rows }) {
-  const mine = visibleFields(me);
+  const mine = screenFields(visibleFields(me));
   const myFields = shownFields(mine);
-  const wanted = intentionWords(intention);
+  const wanted = intentionWords(screenLine(intention));
   const scored = rows.map((row) => {
-    const f = visibleFields(row);
-    const theirWords = intentionWords(row.intention);
+    const f = screenFields(visibleFields(row));
+    const theirWords = intentionWords(screenLine(row.intention));
     const theirFields = shownFields(f);
     const hits = [];
     for (const [tok, shown] of wanted) {
@@ -66,7 +71,7 @@ export function rankSuggest({ me, intention, rows }) {
     }
     const facts = inCommon(mine.side, f.side);
     const score = hits.length * WORD_SCORE + back.length * BACK_SCORE + facts.length * FACT_SCORE;
-    const reason = hits.sort((a, b) => a.order - b.order)[0]?.text || back[0]?.text || facts[0]?.text || "";
+    const reason = safeReason(hits.sort((a, b) => a.order - b.order)[0]?.text || back[0]?.text || facts[0]?.text || "");
     return { row, score, reason };
   });
   const top = scored.filter((s) => s.score > 0)

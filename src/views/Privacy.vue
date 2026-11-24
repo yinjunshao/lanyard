@@ -201,6 +201,7 @@ const UPDATED = "24 November 2026";
       <li><b>What others see</b>: your first name and last initial, your card's headline and up to three of its tags, what you hope to get from the event if you write it, and one reason. Your photo only if you turn on Be easy to find (8b). Never your surname, card, links or contact details.</li>
       <li><b>Who</b>: only people checked in to the same event who are suggested too, while it is on, and never someone you blocked or who blocked you. The organiser can switch it off, and sees only how many wrote what they hope for or unticked.</li>
       <li><b>AI</b>: if AI features are on, a model orders the list from what you and the others hope for and show, without names, photos or ids, and without anyone who unticked or switched off AI search (8c).</li>
+      <li><b>Words we never use</b>: suggestions never use words about religion or belief, health, sexuality or gender identity, politics, ethnicity or trade union membership. Your card still shows them where you put them, but we leave them out of matching and out of what the AI sees.</li>
       <li><b>Our basis and how to say no</b>: legitimate interests, helping people at an event meet. Untick at check-in, on the event's page or in Settings, Privacy and data; it works at once. Each choice and the words you saw go in your consent history.</li>
       <li><b>How long</b>: what you wrote and your choice are deleted 48 hours after the event ends, or with your account.</li>
     </ul>

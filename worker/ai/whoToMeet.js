@@ -27,6 +27,8 @@
 //   so any change to who is there or what they show is a different key; the people are also looked up again on every
 //   request, so a reply can only ever name someone who is a candidate right now. Withdrawing, blocking and deleting an account
 //   also delete the kept replies (forgetSearchReplies), and a request outside the event's live window is refused before the cache.
+// F69 (D057): no page calls this route any more (F60 replaced it), but it is still mounted, so the wish and every record go
+//   through the sensitive-words screen (worker/suggestScreen.js) before the model sees them, and the prompt has the fixed line.
 import { Hono } from "hono";
 import { requireUser } from "../session.js";
 import { bump, HOUR } from "../ratelimit.js";
@@ -39,6 +41,7 @@ import { cleanText, CAPS } from "./sanitize.js";
 import { assignIds } from "./prompt.js";
 import { searchableIds } from "./optout.js";
 import { scrub, scrubList, narrow, tokensOf, verifyMatches } from "./peopleSearch.js";
+import { screenFields, screenLine } from "../suggestScreen.js";
 import { MAX_PEOPLE, MAX_TOKENS, CACHE_MS, WHO_TO_MEET_SCHEMA, WHO_TO_MEET_SYSTEM, PROMPT_VERSION } from "./prompts/whoToMeet.js";
 
 export const whoToMeetApp = new Hono();
@@ -48,7 +51,7 @@ export const AI_PER_HOUR = 60; // requests (the model is called far less: the qu
 
 /** A candidate as the model gets it, without the id. Empty fields are left out. Reads only what visibleFields() keeps. */
 export function buildRecord(row) {
-  const f = visibleFields(row);
+  const f = screenFields(visibleFields(row)); // F69: no sensitive tag, phrase or word
   const rec = {};
   const put = (k, v) => { if (Array.isArray(v) ? v.length : v) rec[k] = v; };
   put("line", cleanText(scrub(f.side?.career ? [f.role, f.company].filter(Boolean).join(" at ") : f.course), CAPS.line));
@@ -95,7 +98,7 @@ whoToMeetApp.post("/api/ai/who-to-meet/:eventId", async (c) => {
   const allowance = async () => leftOf(await allowanceFor(c.env, actor, "who_to_meet", eventId));
 
   // The viewer's own saved wish, cleaned. It is data for the model, never instructions.
-  const wish = cleanText(st.mine.looking_for, CAPS.query);
+  const wish = cleanText(screenLine(st.mine.looking_for), CAPS.query);
   if (wish.length < 3 || !/[\p{L}\p{N}]{2}/u.test(wish)) {
     return c.json({ fallback: true, reason: "no_wish", message: "Write who you want to meet and press Find people first.", allowance: await allowance() });
   }

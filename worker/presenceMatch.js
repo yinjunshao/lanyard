@@ -14,9 +14,13 @@
 // they would share, the default card), plus the line they wrote for this event, and the headline
 // and role that card page shows. A hidden field never makes a hit, and so never shows in a reason.
 // F25 (the AI ranking) must start from the same candidates and the same visible fields.
+//
+// F69 (D057): no page calls this list any more (F60 replaced it), but its routes are still mounted, so it gets the same
+// sensitive-words screen as F60: the wish, each side and the topic chips are screened before anything is scored.
 import { one } from "./db.js";
 import { inCommon, normTag, visibleSide } from "./inCommon.js";
 import { presenceCandidates } from "./presence.js";
+import { screenFields, screenLine, screenSide, safeReason } from "./suggestScreen.js";
 
 export const NEW_REASON = "Say hi to someone new";
 export const NEW_COUNT = 3;
@@ -89,13 +93,14 @@ function hitReasons(wish, f) {
  * or, when none does, "new" with up to NEW_COUNT of them at random.
  */
 export function rank({ me, wish, rows, random = Math.random }) {
-  const wanted = words(wish);
+  const wanted = words(screenLine(wish));
+  const mine = screenSide(me);
   const scored = rows.map((row) => {
-    const f = visibleFields(row);
+    const f = screenFields(visibleFields(row));
     const hits = wanted.size ? hitReasons(wanted, f) : [];
-    const facts = inCommon(me, f.side); // no past events here: everyone is at this one
+    const facts = inCommon(mine, f.side); // no past events here: everyone is at this one
     const score = hits.length * WORD_SCORE + facts.length * FACT_SCORE;
-    return { row, score, reason: hits[0]?.text || facts[0]?.text || "" };
+    return { row, score, reason: safeReason(hits[0]?.text || facts[0]?.text || "") };
   });
   const top = scored.filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score || b.row.checked_in_at - a.row.checked_in_at)
@@ -112,7 +117,7 @@ export function topicsOf(rows, limit = 6) {
   const seen = new Map();
   for (const row of rows) {
     const mine = new Set();
-    for (const tag of visibleFields(row).tags) {
+    for (const tag of screenFields(visibleFields(row)).tags) {
       const k = normTag(tag);
       if (!k || mine.has(k)) continue;
       mine.add(k);
