@@ -8,6 +8,8 @@ import PhotoCropper from "../components/PhotoCropper.vue";
 import ModeFields from "../components/ModeFields.vue";
 import TagFields from "../components/TagFields.vue";
 import { buildLinks } from "../lib/links";
+import RotatingHint from "../components/ui/RotatingHint.vue";
+import { headlineExamples, linkPlaceholder } from "../lib/examples";
 import CardPreview from "../components/CardPreview.vue";
 import { cardOf, profileOf } from "../lib/cardpreview";
 import { profileScore } from "../lib/profileScore";
@@ -192,8 +194,9 @@ async function save() {
     <div class="form-section">
       <span class="form-section-title">About</span>
       <div class="field"><label for="headline">What you do</label>
-        <input id="headline" v-model="f.headline" type="text" maxlength="80"
-               placeholder="e.g. Building robots and Roblox games" />
+        <RotatingHint :pool="headlineExamples(f.mode)" :empty="!f.headline" v-slot="{ placeholder }">
+          <input id="headline" v-model="f.headline" type="text" maxlength="80" :placeholder="placeholder" />
+        </RotatingHint>
         <span class="small muted" style="align-self:flex-end">{{ f.headline.length }}/80 — this is one line on your badge</span></div>
       <div class="field"><label for="about">About</label>
         <textarea id="about" v-model="f.about" maxlength="600"></textarea></div>
@@ -208,7 +211,7 @@ async function save() {
         <label>Links <span class="muted">({{ f.links.filter((l) => l.label.trim() && l.url.trim()).length }} of {{ MAX_LINKS }})</span></label>
         <div v-for="(l, i) in f.links" :key="i" class="link-row">
           <input v-model="l.label" type="text" maxlength="40" placeholder="LinkedIn" :aria-label="`Link ${i + 1} label`" />
-          <input v-model="l.url" type="url" inputmode="url" placeholder="linkedin.com/in/you" :aria-label="`Link ${i + 1} address`" />
+          <input v-model="l.url" type="url" inputmode="url" :placeholder="linkPlaceholder(i)" :aria-label="`Link ${i + 1} address`" />
           <button type="button" class="link-remove" :aria-label="`Remove link ${i + 1}`" @click="removeLink(i)">×</button>
         </div>
         <button type="button" class="btn" :disabled="f.links.length >= MAX_LINKS" @click="addLink">Add a link</button>

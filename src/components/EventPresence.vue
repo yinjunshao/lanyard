@@ -9,6 +9,8 @@ import { api } from "../lib/api";
 import { fileToDataUrl } from "../lib/photo";
 import Avatar from "./Avatar.vue";
 import UiSheet from "./ui/UiSheet.vue";
+import RotatingHint from "./ui/RotatingHint.vue";
+import { WISH_EXAMPLES } from "../lib/examples";
 
 const props = defineProps({ eventId: { type: String, required: true }, status: { type: String, default: "ongoing" } });
 
@@ -201,7 +203,9 @@ const withdrawNow = async () => {
       <div v-if="me.on" class="panel stack">
         <div class="field" style="margin-bottom:0">
           <label for="presence-wish">I want to meet someone who…</label>
-          <input id="presence-wish" v-model="wish" type="text" :maxlength="WISH_MAX" placeholder="is into robotics, or works in design" @keydown.enter.prevent="findPeople" />
+          <RotatingHint :pool="WISH_EXAMPLES" :empty="!wish" v-slot="{ placeholder }">
+            <input id="presence-wish" v-model="wish" type="text" :maxlength="WISH_MAX" :placeholder="placeholder" @keydown.enter.prevent="findPeople" />
+          </RotatingHint>
         </div>
         <div v-if="list?.topics?.length" class="chip-row" role="group" aria-label="Topics people here show">
           <button v-for="t in list.topics" :key="t" type="button" class="chip chip-toggle" @click="pickTopic(t)">{{ t }}</button>

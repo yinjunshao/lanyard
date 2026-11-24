@@ -5,6 +5,8 @@
 import { computed } from "vue";
 import { me } from "../lib/store";
 import UiSelect from "./ui/UiSelect.vue";
+import RotatingHint from "./ui/RotatingHint.vue";
+import { headlineExamples } from "../lib/examples";
 
 const f = defineModel({ type: Object, required: true });
 defineProps({ showStrap: { type: Boolean, default: false } });
@@ -37,7 +39,9 @@ function toggle(label) {
       <span class="form-section-title">What this card says</span>
       <p class="small muted" style="margin:0 0 12px">Leave a box empty to use what's on your profile.</p>
       <div class="field"><label>What you do</label>
-        <input v-model="f.headline" type="text" maxlength="80" :placeholder="me.profile?.headline || 'e.g. Building robots'" /></div>
+        <RotatingHint :pool="headlineExamples(me.profile?.mode)" :empty="!f.headline" :off="!!me.profile?.headline" v-slot="{ placeholder }">
+          <input v-model="f.headline" type="text" maxlength="80" :placeholder="me.profile?.headline || placeholder" />
+        </RotatingHint></div>
       <div class="field"><label>Come to me for — comma separated</label>
         <input v-model="f.tagsText" type="text" :placeholder="(me.profile?.tags || []).join(', ') || 'hackathons, CV reviews'" />
         <span class="small muted">The first 4 show on the badge. All of them show on the full card.</span></div>

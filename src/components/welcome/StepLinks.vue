@@ -4,6 +4,7 @@ import { ref } from "vue";
 import { Api } from "../../lib/api";
 import { me, refreshMe } from "../../lib/store";
 import { buildLinks, labelForUrl } from "../../lib/links";
+import { linkPlaceholder } from "../../lib/examples";
 
 const MAX_LINKS = 20;
 const have = Object.entries(me.profile?.links || {}).map(([label, url]) => ({ label, url, auto: "" }));
@@ -30,11 +31,11 @@ defineExpose({ ready: true, save });
 <template>
   <div class="stack-2">
     <h1>Add your links</h1>
-    <p class="muted" style="margin:0">LinkedIn, GitHub, a portfolio. People tap them straight from your card. You can skip this.</p>
+    <p class="muted" style="margin:0">LinkedIn, Instagram, a portfolio. People tap them straight from your card. You can skip this.</p>
     <div id="links" class="field" style="margin-bottom:0">
       <div v-for="(l, i) in rows" :key="i" class="link-row">
         <input v-model="l.label" type="text" maxlength="40" placeholder="Label" :aria-label="`Link ${i + 1} label`" />
-        <input v-model="l.url" type="url" inputmode="url" placeholder="linkedin.com/in/you" :aria-label="`Link ${i + 1} address`"
+        <input v-model="l.url" type="url" inputmode="url" :placeholder="linkPlaceholder(i)" :aria-label="`Link ${i + 1} address`"
                autocapitalize="none" spellcheck="false" @input="onUrl(l)" />
         <button type="button" class="link-remove" :aria-label="`Remove link ${i + 1}`" @click="remove(i)">×</button>
       </div>

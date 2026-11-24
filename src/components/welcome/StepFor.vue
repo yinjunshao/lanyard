@@ -5,6 +5,8 @@ import { ref } from "vue";
 import { Api } from "../../lib/api";
 import { me, refreshMe } from "../../lib/store";
 import TagFields from "../TagFields.vue";
+import RotatingHint from "../ui/RotatingHint.vue";
+import { headlineExamples, HEADLINE_MAX } from "../../lib/examples";
 
 const p = me.profile || {};
 const f = ref({ mode: p.mode === "career" ? "career" : "student", tags: (p.tags || []).join(", "), headline: p.headline || "" });
@@ -25,7 +27,9 @@ defineExpose({ ready: true, save });
     <p class="muted" style="margin:0">Pick a few, or add your own.</p>
     <TagFields :form="f" label="Add your own, separated by commas" />
     <div class="field"><label for="headline">What you do, in one line</label>
-      <input id="headline" v-model="f.headline" type="text" maxlength="80" placeholder="e.g. Building robots and Roblox games" />
-      <span class="small muted" style="align-self:flex-end">{{ f.headline.length }}/80</span></div>
+      <RotatingHint :pool="headlineExamples(f.mode)" :empty="!f.headline" v-slot="{ placeholder }">
+        <input id="headline" v-model="f.headline" type="text" :maxlength="HEADLINE_MAX" :placeholder="placeholder" />
+      </RotatingHint>
+      <span class="small muted" style="align-self:flex-end">{{ f.headline.length }}/{{ HEADLINE_MAX }}</span></div>
   </div>
 </template>
