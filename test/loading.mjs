@@ -423,10 +423,10 @@ check("a message that appears (Saved, Copied) and a button's new label fade in; 
 
 // The motion bar for the whole app: only transform and opacity move, nothing is longer than 300 ms, and every
 // duration comes from a token (the skeleton and the camera flash, which F38 and the first release made, are named).
-const ALLOWED = new Set(["opacity", "transform", "visibility", "overlay", "display", "content-visibility", "block-size"]);
+const ALLOWED = new Set(["opacity", "transform", "visibility", "overlay", "display", "content-visibility", "block-size", "grid-template-rows"]);
 const decls = ALL_CSS.flatMap(([f, t]) => [...t.matchAll(/(?<![-\w])(transition|animation)(-property)?\s*:\s*([^;}]+)/g)].map((m) => [f, m[1], m[3].trim()]));
 const badTransitions = decls.filter(([, kind, v]) => kind === "transition" && v !== "none" && v.split(/,(?![^(]*\))/).some((part) => !ALLOWED.has(part.trim().split(/\s+/)[0])));
-check(`every transition in the app moves only transform or opacity (or flips visibility, display, overlay, content-visibility, or a details panel's block-size) (${decls.filter((d) => d[1] === "transition").length} checked)`, badTransitions.length === 0, badTransitions);
+check(`every transition in the app moves only transform or opacity (or flips visibility, display, overlay, content-visibility, a details panel's block-size, or the F57 reveal's grid-template-rows) (${decls.filter((d) => d[1] === "transition").length} checked)`, badTransitions.length === 0, badTransitions);
 const NAMED = /sk-|shutter|scan-pop|0\.12s/;
 const longOnes = decls.filter(([, , v]) => !NAMED.test(v)).flatMap(([f, kind, v]) => [...v.replace(/var\([^)]*\)/g, "").matchAll(/(?<![\w.-])(\d*\.?\d+)(ms|s)\b/g)].map((m) => [f, kind, v, ms(m[1] + m[2])]).filter((x) => x[3] > 300));
 check("no animation or transition is written with a time over 300 ms (the tokens are the only long ones, and none is over 300)", longOnes.length === 0, longOnes);
@@ -493,5 +493,42 @@ check("the helper's spring time is the elastic token", /const SPRING_MS = 420;/.
 }
 
 check("Settings' appearance control glides with the elastic spring like the host tabs (signed-in, not on a public page)", /import \{ glideSeg \} from "\.\.\/\.\.\/lib\/segGlide"/.test(read("src/views/settings/SettingsAppearance.vue")) && /<div :ref="glide" class="seg" role="group" aria-label="Appearance">/.test(read("src/views/settings/SettingsAppearance.vue")) && /onBeforeUnmount\(\(\) => stopGlide\?\.\(\)\)/.test(read("src/views/settings/SettingsAppearance.vue")) && PUBLIC.every((n) => !/segGlide/.test(read("src/views/" + n + ".vue"))));
+
+// ---------------------------------------------------------------------------------------------------------
+// F57: the card editors in My cards ease open and closed (UiReveal). Source guards, and the block rendered on the server.
+// ---------------------------------------------------------------------------------------------------------
+console.log("\n# F57 The card editor opens with motion");
+{
+  const reveal = read("src/components/ui/UiReveal.vue").replace(/\r\n/g, "\n");
+  const revealScript = reveal.slice(0, reveal.indexOf("</script>"));
+  const cardsSrc = read("src/views/Cards.vue").replace(/\r\n/g, "\n");
+  const revealCss = css.slice(css.indexOf("/* A block that eases open and closed (F57"), css.indexOf("/* A <details> opens"));
+  const noComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "");
+  check("the reveal tokens exist: 200 ms to open, a quicker 140 ms to close, no wait; under reduced motion both are 0 and the wait is the fade's length",
+    ms(token("dur-reveal")) === 200 && ms(token("dur-reveal-out")) === 140 && ms(token("dur-reveal-out")) < ms(token("dur-reveal")) && ms(token("reveal-wait")) === 0
+    && /--dur-reveal:\s*0ms/.test(rr) && /--dur-reveal-out:\s*0ms/.test(rr) && /--reveal-wait:\s*var\(--dur-out\)/.test(rr));
+  check("the height is a grid row, 0fr to 1fr, written only in the reveal rules and only with the tokens (no interpolate-size, no height or max-height)",
+    /\.reveal \{ display: grid; grid-template-rows: 0fr; transition: grid-template-rows var\(--dur-reveal-out\) var\(--ease-in\) var\(--reveal-wait\); \}/.test(revealCss)
+    && /\.reveal\.open \{ grid-template-rows: 1fr; transition: grid-template-rows var\(--dur-reveal\) var\(--ease-out\); \}/.test(revealCss)
+    && !/grid-template-rows/.test(css.replace(revealCss, "")) && !/(?<![-\w])(max-)?height\s*:/.test(noComments(revealCss)) && !/interpolate-size/.test(noComments(revealCss)));
+  check("the content fades in with the opening token and out with the closing one, clipped while it moves and free once settled (a focus ring is not cut)",
+    /\.reveal-in \{[^}]*overflow: hidden; opacity: 0; transition: opacity var\(--dur-out\) var\(--ease-in\); \}/.test(revealCss) && /\.reveal\.open > \.reveal-in \{ opacity: 1; transition: opacity var\(--dur\) var\(--ease-out\); \}/.test(revealCss) && /\.reveal\.settled > \.reveal-in \{ overflow: visible; \}/.test(revealCss));
+  check("the parts of an editor rise in 30 ms apart with the tokens (m-rise, --stagger), and no time is written in the reveal rules",
+    /\.reveal\.open \.reveal-body\.rise > \* \{ animation: m-rise var\(--dur\) var\(--ease-out\) calc\(var\(--i, 0\) \* var\(--stagger\)\) backwards; \}/.test(revealCss) && !/\d\s*m?s\b/.test(noComments(revealCss)));
+  const closeMs = Number(/const CLOSE_MS = (\d+);/.exec(revealScript)?.[1]), openMs = Number(/const OPEN_MS = (\d+);/.exec(revealScript)?.[1]);
+  check("the block keeps its content in the page while it closes and takes it out only afterwards (timers of 300 ms or less, longer than the CSS), and it takes no clicks or keys meanwhile (inert)",
+    closeMs <= 300 && closeMs >= ms(token("dur-reveal-out")) && closeMs >= ms(token("dur-out")) && openMs <= 300 && openMs >= ms(token("dur-reveal"))
+    && /mounted\.value = false/.test(revealScript) && /<slot v-if="mounted" \/>/.test(reveal) && /:inert="shown \? null : ''"/.test(reveal), [openMs, closeMs]);
+  check("the block uses no Vue <Transition>, no library and no duration but its two timers", !/<Transition|<transition|TransitionGroup/.test(reveal) && !/\bimport .* from "(?!vue")/.test(revealScript) && !/\d+\s*ms\b/.test(reveal.replace(/\/\/.*$/gm, "")));
+  check("a block that is closed has nothing but its wrapper in the page, and one told to keep its content keeps it", /const mounted = ref\(props\.open \|\| props\.keep\);/.test(revealScript) && /if \(!props\.keep\) mounted\.value = false;/.test(revealScript));
+  check("My cards: each card is a summary that folds away (kept, so its Edit button stays for focus) and an editor that eases open; New card is one too; no editor is taken out with a v-if",
+    (cardsSrc.match(/<UiReveal /g) || []).length === 3 && /<UiReveal keep :open="editingId !== c\.cardId">/.test(cardsSrc) && /<UiReveal :open="creating"/.test(cardsSrc) && !/v-if="(creating|editingId)/.test(cardsSrc.replace(/<script[\s\S]*?<\/script>/, "")));
+  check("after Cancel or Save the closed editor gives focus back to that card's Edit button, unless another editor or the new card form is opening",
+    /:id="`card-edit-\$\{c\.cardId\}`"/.test(cardsSrc) && /function editorClosed\(id\) \{\s*if \(editingId\.value !== null \|\| creating\.value\) return;[^}]*getElementById\(`card-edit-\$\{id\}`\)\?\.focus\(\)/.test(cardsSrc) && /@closed="editorClosed\(c\.cardId\)"/.test(cardsSrc));
+  check("opening an editor closes any other and the New card form, and an editor that is closing still shows its own card", /creating\.value = false;\s+editingId\.value = card\.cardId;/.test(cardsSrc) && /if \(creating\.value\) editingId\.value = null/.test(cardsSrc) && /const id = editingId\.value \?\? lastEditId\.value;/.test(cardsSrc));
+  check("the opened editor is scrolled into view only if its top is off the screen (or to its code section), smoothly, and at once under reduced motion",
+    /if \(code \|\| top < 0 \|\| top > innerHeight\) el\.scrollIntoView\(\{ block: "start", behavior: calm\(\) \? "auto" : "smooth" \}\)/.test(cardsSrc) && /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/.test(cardsSrc));
+  check("the address ?edit=<card>&section=code still opens that editor and then scrolls to its code section", /startEdit\(c, route\.query\.section === "code"\)/.test(cardsSrc) && /codeFor\.value = toCode \? card\.cardId : null;/.test(cardsSrc) && /bringIntoView\(id, codeFor\.value === id\)/.test(cardsSrc) && /card-code-\$\{id\}/.test(cardsSrc));
+}
 
 summary();

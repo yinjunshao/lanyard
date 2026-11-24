@@ -49,6 +49,9 @@
   --slide: 100%;          /* how far a sheet or panel travels; 0px when motion is reduced */
   --slide-fade: 1;        /* the opacity it starts or ends at while it slides; 0 when motion is reduced */
   --shift: 8px;           /* how far a modal drops or a row rises; 0px when motion is reduced */
+  --dur-reveal: 200ms;    /* F57: a block's height easing open (UiReveal); 0ms when motion is reduced (it only fades) */
+  --dur-reveal-out: 140ms;
+  --reveal-wait: 0ms;     /* and how long its height waits to fold while its content fades out: 0 normally */
 
   /* Elevation — the thing a flat, all-bordered page is missing. A badge or
      panel sits ABOVE the paper; a boundary line just separates two things
@@ -984,6 +987,9 @@ button.list-row { font: inherit; }
     --dur-sheet-out: 100ms;
     --dur-elastic: 0ms;
     --stagger: 0ms;
+    --dur-reveal: 0ms;
+    --dur-reveal-out: 0ms;
+    --reveal-wait: var(--dur-out);
   }
 }
 
@@ -1020,6 +1026,23 @@ button.list-row { font: inherit; }
 }
 .rot-hint-line.rot-in { animation: m-hint-in var(--dur) var(--ease-out) backwards; }
 .rot-hint-line.rot-out { animation: m-hint-out var(--dur-out) var(--ease-in) forwards; }
+/* A block that eases open and closed (F57, UiReveal: the card editors in My cards). Its height is a grid row that goes
+   from 0fr to 1fr, the height ease D045 allows beside a details panel; the content fades in as it opens and rises in
+   30 ms apart (.rise), and folds away faster than it opened. While it is closed or closing it is inert, so it takes no
+   clicks and no keys. Under reduced motion the row does not move (its tokens are 0): the content fades, and the row
+   folds when the fade is over (--reveal-wait). When it has finished opening, overflow shows again so a focus ring is not cut. */
+.reveal { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-reveal-out) var(--ease-in) var(--reveal-wait); }
+.reveal.open { grid-template-rows: 1fr; transition: grid-template-rows var(--dur-reveal) var(--ease-out); }
+.reveal-in { min-height: 0; overflow: hidden; opacity: 0; transition: opacity var(--dur-out) var(--ease-in); }
+.reveal.open > .reveal-in { opacity: 1; transition: opacity var(--dur) var(--ease-out); }
+.reveal.settled > .reveal-in { overflow: visible; }
+.reveal-body { display: flex; flex-direction: column; gap: 8px; }
+.reveal-body:focus { outline: none; }
+.reveal.open .reveal-body.rise > * { animation: m-rise var(--dur) var(--ease-out) calc(var(--i, 0) * var(--stagger)) backwards; }
+.reveal-body.rise > :nth-child(2) { --i: 1; }
+.reveal-body.rise > :nth-child(3) { --i: 2; }
+.reveal-body.rise > :nth-child(4) { --i: 3; }
+.reveal-body.rise > :nth-child(5) { --i: 4; }
 /* A <details> opens and closes with a height ease where the browser can (interpolate-size and ::details-content);
    elsewhere it opens and closes at once, as before. Closing is the quicker one. */
 @supports (interpolate-size: allow-keywords) and selector(::details-content) {
