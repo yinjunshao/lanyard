@@ -66,6 +66,8 @@ These block the items in brackets. Tick each one and write the answer in the lin
 - [x] Which credits make an event paid for company branding ([[F66 Host branding on event pages]]): **bought credits only** (answered 2026-11-25; starter and promo credits do not)
 - [ ] Matching ([[F61 Matching profiles for better suggestions]], [[F61 Research Matching options]]): **staged fixed list with anonymous outcome counts; field proposed from the card and confirmed; a global "Suggest me at events" setting, on by default; sensitive words screened, F60 fixed now ([[F69 Keep sensitive words out of who to meet]])** (answered 2026-11-24). Still open: keep the per-event untick too, where picks show, and the policy bump and lawyer sign-off
 - [x] Platform metrics archive and export ([[F70 Platform metrics with daily snapshots and CSV export]]): **daily snapshots, CSV export** (answered 2026-11-25)
+- [x] Admin-made profiles before they are claimed ([[F74 Admin-made profiles with a claim link]]): **private until claimed, deleted after 30 days unclaimed** (answered 2026-11-25)
+- [x] Admin edits to someone's card ([[F75 Admin-suggested profile edits that the person approves]]): **saved as a suggestion; nothing shows until they accept** (answered 2026-11-25)
 
 ## Build order
 Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a week or more. Priorities: **P0** now · **P1** next · **P2** after · **P3** only if needed.
@@ -167,11 +169,21 @@ Build order: F68, F69, F63, F67, F64, F65, F66. F61's research note can be writt
 ### Phase 12: owner requests (2026-11-25)
 - [ ] **F70** [[F70 Platform metrics with daily snapshots and CSV export]] · P1 · M · Needs: none (daily snapshots and CSV export by owner decision, 2026-11-25) (in progress: Claude subagent, 2026-11-25; all tasks and acceptance checks done except the owner's next-morning check on production, and the vault lines for four owner-modified notes are listed in the plan note's Log; migration 0045 to apply)
 
+### Phase 13: owner requests (2026-11-25, second batch)
+Build order: F71 and F72 together (both small, both My card), F73, F74, F75.
+- [ ] **F71** [[F71 Card PNG with a transparent background]] · P1 · S · Needs: none
+- [ ] **F72** [[F72 One heading on My card and Events]] · P1 · S · Needs: none
+- [ ] **F73** [[F73 Scan and card arrival motion]] · P1 · M · Needs: none
+- [ ] **F74** [[F74 Admin-made profiles with a claim link]] · P1 · L · Needs: F70 (private until claimed, deleted after 30 days, by owner decision, 2026-11-25)
+- [ ] **F75** [[F75 Admin-suggested profile edits that the person approves]] · P1 · M · Needs: F74 (the person approves first, by owner decision, 2026-11-25)
+
 ## Dependency map
 ```mermaid
 graph LR
   F15 --> F68
   F60 --> F69
+  F70 --> F74
+  F74 --> F75
   F30 --> F63
   F63 --> F67
   F63 --> F64
@@ -262,6 +274,8 @@ graph LR
 | F63, F64, F67, F68 | Front end and Worker only, no migration expected: `npm run deploy`. Then create one event on the host site on a phone and a laptop, and look at the check-in page and both event lists | [[F63 Create event form refresh]], [[F64 New events start from the host's latest settings]], [[F67 Check-in page layout]], [[F68 Event status on event lists]] |
 | F69 | Worker and one Privacy Policy line, no migration: `npm run deploy` with F60. In F60's real-model check, also try a sensitive tag and "meet other Muslim founders" and confirm no reason mentions them. Decide whether F24 and follow-up drafts should be screened too | [[F69 Keep sensitive words out of who to meet]] |
 | F70 | Worker, Admin page and migration 0045: `npm run db:remote`, then `npm run deploy`. The next morning, open `/admin`, press Show metrics and check one snapshot is dated that day; press Download CSV once and open it in a spreadsheet | [[F70 Platform metrics with daily snapshots and CSV export]] |
+| F71, F72, F73 | Front end only: `npm run deploy`. Then download a card PNG and drop it on a dark slide to check the corners, and scan a real badge with a phone to judge the new motion | [[F71 Card PNG with a transparent background]], [[F72 One heading on My card and Events]], [[F73 Scan and card arrival motion]] |
+| F74, F75 | Migrations: `npm run db:remote`, then `npm run deploy`. Make a profile for a friend and have them claim it on their phone; suggest details for your own test account and accept them from the email | [[F74 Admin-made profiles with a claim link]], [[F75 Admin-suggested profile edits that the person approves]] |
 | F65 | `npm run db:remote` (0043, additive: one nullable column on `events`) before `npm run deploy`. Then create one event with a new theme on the host site on a phone and a laptop, and look at the check-in page, Present and the printed poster | [[F65 Event themes and an advanced look]], [[D060 Event themes are one shared list drawn by CSS, and a chosen text colour must read]] |
 | F66 | `npm run db:remote` (the F66 migration, additive) before `npm run deploy`. Upload your own test logo on a paid test event and look at Present, the check-in page and print. Decide whether the new Terms line on names and logos needs a version bump, and which credits make an event paid (now every credit; events made before F66 stay free) | [[F66 Host branding on event pages]] |
 
