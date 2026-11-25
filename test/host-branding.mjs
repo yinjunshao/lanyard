@@ -326,4 +326,51 @@ console.log("\n# Replacing and removing delete the old object; so does deleting 
   check("nothing else in R2 was touched", [...snapshot.keys()].filter((k) => !k.startsWith("logo/")).every((k) => env.MEDIA.store.has(k)));
 }
 
+console.log("\n# F66.2 The host's side: the Branding section, the logo made ready in the browser, the per-event switch");
+{
+  const acct = read("src/views/HostAccount.vue");
+  check("the Branding section reads the settings from /api/host/me and changes them only through the four brand routes", /setBrand\(me\.value\.brand\)/.test(acct) && /HostApi\.hostSetBrandName\(me\.value\.org\.id/.test(acct) && /HostApi\.hostUploadLogo\(me\.value\.org\.id/.test(acct) && /HostApi\.hostRemoveLogo\(me\.value\.org\.id/.test(acct) && /hostBrand: \(org\) => api\(`\/api\/host\/orgs\/\$\{encodeURIComponent\(org\)\}\/brand`\)/.test(read("src/lib/hostapi.js")));
+  check("only the owner can use the controls (the name field, Save and Add a logo are disabled otherwise, Remove is not drawn), and a switched-off organisation is told so", /const canEditBrand = computed\(\(\) => !!brand\.value\?\.canEdit && !brand\.value\?\.off\)/.test(acct) && /:disabled="!canEditBrand"/.test(acct) && /:disabled="!canEditBrand \|\| !!working" @click="chooseLogo"/.test(acct) && /v-if="brand\.logo && brand\.canEdit"/.test(acct) && /Only the organisation's owner can change the branding/.test(acct) && /Lanyard switched off branding for this organisation/.test(acct));
+  check("the name field holds 60 characters, and the file picker offers only PNG, JPEG and WebP", /:maxlength="brand\.nameMax"/.test(acct) && /:accept="LOGO_TYPES\.join\(','\)"/.test(acct));
+  check("the preview shows the Present head and the check-in head, each with the logo or the name, and Check in with Lanyard", /data-brand-preview/.test(acct) && /class="bp-present"/.test(acct) && /class="profile event-brand default bp-checkin"/.test(acct) && (acct.match(/Check in with Lanyard/g) || []).length >= 2 && /\{\{ shownName \}\}/.test(acct));
+  check("the name and logo are shown as text and as an <img>, never as HTML", !/v-html|innerHTML/.test(acct) && /<img v-if="brand\.logo" :src="brand\.logo"/.test(acct));
+  check("the Host Terms are linked from where a logo is added", /termsUrl = `\$\{MAIN_ORIGIN\}\/terms#hosts`/.test(acct) && /Only add a name or logo you have the right to use/.test(acct));
+  const L = await import("../src/lib/logo.js");
+  check("the browser side refuses an SVG, a GIF or anything without an image type before reading it", await Promise.all(["image/svg+xml", "image/gif", "text/html", ""].map((type) => L.prepareLogo({ type, size: 10 }).then(() => false, (e) => e.message === L.LOGO_TYPE_ERROR))).then((r) => r.every(Boolean)) && JSON.stringify(L.LOGO_TYPES) === '["image/png","image/jpeg","image/webp"]');
+  check("a picture over 1024 px is drawn smaller keeping its shape, as a PNG (transparency kept), and one small enough is sent as it is", JSON.stringify(L.fitWithin(4000, 1000)) === '{"w":1024,"h":256}' && JSON.stringify(L.fitWithin(300, 2048)) === '{"w":150,"h":1024}' && JSON.stringify(L.fitWithin(800, 600)) === '{"w":800,"h":600}' && /canvas\.toDataURL\("image\/png"\)/.test(read("src/lib/logo.js")) && /if \(Math\.max\(w, h\) <= LOGO_MAX_SIDE && file\.size <= LOGO_MAX_BYTES\) return original;/.test(read("src/lib/logo.js")));
+  check("the browser's limits are the Worker's", L.LOGO_MAX_BYTES === (await import("../worker/branding.js")).LOGO_MAX_BYTES && L.LOGO_MAX_SIDE === (await import("../worker/branding.js")).LOGO_MAX_SIDE && L.dataUrlBytes("data:image/png;base64,AAAA") === 3);
+  const { createBody, detailsBody } = await import("../src/lib/eventform.js");
+  const { blankForm } = await import("../src/lib/eventsteps.js");
+  const f = blankForm();
+  check("Create sends nothing new unless the host unticked the switch (so a default form sends what it always did)", !("useBranding" in createBody(f)) && createBody({ ...f, useBranding: false }).useBranding === false && !("useBranding" in createBody({ ...f, useBranding: true })));
+  check("Details sends the switch once it has read it, and not before", !("useBranding" in detailsBody({ name: "x", perks: [] })) && detailsBody({ name: "x", perks: [], useBranding: false }).useBranding === false && detailsBody({ name: "x", perks: [], useBranding: true }).useBranding === true);
+  const dash = read("src/views/HostDashboard.vue"), live = read("src/views/HostLive.vue");
+  check("Create knows whether the event will be paid (not a society's free event of the week) and passes the settings to step 2", /:look="\{ brand, paid: !freeNow \}"/.test(dash) && /brand\.value = d\.brand \|\| null;/.test(dash) && /:look="look"/.test(read("src/components/EventCreate.vue")));
+  check("Details reads the event's own switch and whether it is paid from /api/host/me (the live route is unchanged)", /look\.value = \{ brand: me\.brand \|\| null, paid: !!ev\?\.isPaid \};/.test(live) && /useBranding: ev\.useBranding !== false/.test(live));
+
+  globalThis.location ??= new URL("https://host.lanyard.test/"); // the swatches read the store, which reads the site address
+  const { createServer } = await import("vite");
+  const { renderToString } = await import("vue/server-renderer");
+  const { createSSRApp, h } = await import("vue");
+  const vite = await createServer({ configFile: "vite.config.js", root: process.cwd(), logLevel: "silent", appType: "custom", server: { middlewareMode: true, hmr: false, watch: null }, optimizeDeps: { noDiscovery: true } });
+  try {
+    const EventLook = (await vite.ssrLoadModule("/src/components/EventLook.vue")).default;
+    const render = (props) => renderToString(createSSRApp({ render: () => h(EventLook, props) }).component("router-link", { render() { return h("a", {}, this.$slots.default?.()); } })).then((x) => x.replace(/<!--[\s\S]*?-->/g, ""));
+    const form = (o = {}) => ({ theme: "default", strapColor: "", strapInk: "", ...o });
+    const box = (html) => (html.match(/<label class="[^"]*el-brand[^"]*"[^>]*data-use-branding[^>]*>[\s\S]*?<\/label>/) || [""])[0];
+    const has = { has: true, off: false, name: "Acme Careers", defaultName: "Acme Ltd", logo: "/media/logo/x.png?v=1" };
+    const paidOn = box(await render({ form: form(), brand: has, paid: true }));
+    check("a paid event of an organisation with branding: the switch is on and can be changed", /<input type="checkbox" checked/.test(paidOn) && !/disabled/.test(paidOn.match(/<input[^>]*>/)[0]) && /Check in with Lanyard/.test(paidOn));
+    const paidOff = box(await render({ form: form({ useBranding: false }), brand: has, paid: true }));
+    check("…unticked by the host, it shows unticked", !/checked/.test(paidOff.match(/<input[^>]*>/)[0]));
+    const free = box(await render({ form: form(), brand: has, paid: false }));
+    check("a free event: the switch shows, disabled and unticked, saying Branding shows on paid events", /<input type="checkbox" disabled/.test(free) && !/checked/.test(free.match(/<input[^>]*>/)[0]) && /Branding shows on paid events\./.test(free));
+    const none = box(await render({ form: form(), brand: { has: false, off: false }, paid: true }));
+    check("no name or logo yet: disabled, saying where to add them", /<input type="checkbox" disabled/.test(none) && /Add your company name or logo under Account and team, Branding/.test(none));
+    const off = box(await render({ form: form(), brand: { ...has, off: true }, paid: true }));
+    check("switched off by Lanyard: disabled, and it says so", /<input type="checkbox" disabled/.test(off) && /Lanyard switched off your organisation(&#39;|')s branding/.test(off));
+    check("the switch's words are tied to it for a screen reader", /aria-describedby="ev-brand-d"/.test(paidOn) && /id="ev-brand-d"/.test(paidOn));
+  } finally { await vite.close(); }
+}
+
 summary();

@@ -59,6 +59,8 @@ export function createBody(f) {
     ...(collectBody(f) ? { collect: collectBody(f) } : {}),
     // F60: only when the host switched suggestions off, so a default form sends exactly what it did before.
     ...(f.suggestOn === false ? { suggestOn: false } : {}),
+    // F66: likewise the company branding switch, sent only when the host unticked it.
+    ...(f.useBranding === false ? { useBranding: false } : {}),
   };
 }
 
@@ -93,6 +95,7 @@ export function eventFromBody(b, questions, organiser) {
 export function detailsBody(d) {
   return { name: d.name, venue: d.venue, startsAt: d.startsAt, endsAt: d.endsAt, theme: d.theme, strapColor: d.strapColor || "",
     ...("strapInk" in d ? { strapInk: d.strapInk || "" } : {}), // F65: the Details form has the text colour; a bare object does not
+    ...("useBranding" in d ? { useBranding: d.useBranding !== false } : {}), // F66: once the Details tab has read the event's switch
     directoryOn: d.directoryOn, suggestOn: d.suggestOn !== false, perks: perkLines(d), rsvpCount: d.rsvpCount === "" ? null : Number(d.rsvpCount),
     info: { access: d.access || "", dress: d.dress, other: d.other, ...foodBody(d) },
     // Sent when the list is on, and once when it was on and is being switched off; an event that never had it sends nothing.

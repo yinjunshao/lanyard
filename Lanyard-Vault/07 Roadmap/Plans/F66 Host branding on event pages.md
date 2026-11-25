@@ -64,7 +64,7 @@ Asked whether anything from Lanyard should stay, the owner chose **"Small 'with 
 
 ## Tasks
 - [x] F66.1 Migration, the branding settings routes (name, logo upload and remove, roles), R2 storage and serving, deletion; tests for the security bar. ([[D061 Host branding shows on paid events only, keeps a Check in with Lanyard line, and takes PNG, JPEG or WebP logos up to 1 MB]]; `worker/branding.js`, migration 0044, `test/host-branding.mjs`; `events.is_paid` is now set by the credit, it was never set before)
-- [ ] F66.2 The Branding section on the host account page with the preview; the per-event switch in Advanced, paid events only; tests.
+- [x] F66.2 The Branding section on the host account page with the preview; the per-event switch in Advanced, paid events only; tests. (`src/views/HostAccount.vue`, `src/lib/logo.js` shrinks a picture over 1024 px to a PNG in the browser, `EventLook.vue` switch with `brand` and `paid`; Create knows paid from the free-week rule, Details from `/api/host/me`)
 - [ ] F66.3 Branding drawn on Present, the check-in page, the event hub and print, with the "Check in with Lanyard" line; admin view and remove, audit-logged; Terms line; vault notes ([[Data Model]], [[API Surface]], [[Security]], [[Screens and Routes]]); browser check on a paid and a free event at 375 and 1280 px, light, dark and midnight.
 
 ## Acceptance checks

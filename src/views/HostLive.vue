@@ -52,6 +52,7 @@ async function load() {
   try {
     live.value = await HostApi.hostLive(id.value);
     fillDetails();
+    loadLook();
     await nextTick(); // the canvas is drawn into the page once `live` has rendered it
     await renderQr();
     clearInterval(timer);
@@ -144,6 +145,17 @@ function fillDetails() {
     collectWas: !!e.collect, collectOn: !!e.collect, collectEmail: !!e.collect?.items?.includes("email"),
     collectCard: !!e.collect?.items?.includes("card"), collectWhy: e.collect?.why || "",
   };
+}
+// F66: the company branding switch under Advanced needs the organisation's settings and whether this event is paid, which
+// /api/host/me has (the live route stays as it was). Until it answers, the form does not send the switch at all.
+const look = ref(null);
+async function loadLook() {
+  try {
+    const me = await HostApi.hostMe();
+    const ev = (me.events || []).find((x) => x.id === id.value);
+    look.value = { brand: me.brand || null, paid: !!ev?.isPaid };
+    if (ev) d.value = { ...d.value, useBranding: ev.useBranding !== false };
+  } catch { /* the switch shows, disabled, until it is known */ }
 }
 // The notice shows the organisation's name, which the live route gives only for an event that has the list on.
 // For one that is switching it on now it is read once from the host's own account.
@@ -315,7 +327,7 @@ async function copyFeedbackLink() {
           <input id="d-rsvp" v-model="d.rsvpCount" type="number" min="0" inputmode="numeric" />
           <span class="small muted">A number only. The report compares it with check-ins.</span>
         </div>
-        <EventLook :form="d" prefix="d" />
+        <EventLook :form="d" prefix="d" :brand="look?.brand" :paid="look ? look.paid : null" />
         <div class="field"><span class="label">Perks</span><PerkRows :form="d" :errors="perkErrors" prefix="d" /></div>
         <label class="checkbox-row">
           <input type="checkbox" v-model="d.directoryOn" />

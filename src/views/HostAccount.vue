@@ -2,7 +2,8 @@
 // Host account (F10): how you sign in, your devices, who else is on the
 // organisation, handing it over, integrations, and sign out. The host account
 // signs in with an email code only; it has nothing to do with a Lanyard card.
-import { onMounted, ref } from "vue";
+// F66 (D061): Branding, the organisation's display name and logo for its paid events, with a preview. The owner changes it.
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { HostApi, hostSignOutAndReload } from "../lib/hostapi";
 import UiSelect from "../components/ui/UiSelect.vue";
@@ -10,6 +11,8 @@ import { HELP_EMAIL } from "../lib/contact";
 import Waiting from "../components/Waiting.vue";
 import { SessionLost } from "../lib/errors";
 import { useBusy } from "../components/Waiting.vue";
+import { prepareLogo, LOGO_TYPES } from "../lib/logo";
+import { MAIN_ORIGIN } from "../lib/site";
 document.title = "Account | Lanyard hosts";
 
 const router = useRouter();
@@ -28,6 +31,7 @@ async function load() {
     if (me.value.step !== "ready" && me.value.step !== "org") { needsAccount.value = true; return; }
     loadDevices();
     if (me.value.org) {
+      setBrand(me.value.brand);
       team.value = await HostApi.hostTeam();
       if (team.value.role === "owner") tix.value = await HostApi.hostTickets();
       loadInteg();
@@ -162,6 +166,37 @@ const removeKey = once(async () => {
 const curlExample = () =>
   `curl -X POST ${integ.value?.rsvpEndpoint} \\\n  -H "Authorization: Bearer ${apiKey.value || "lyk_…"}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"eventCode":"ABC12","count":120}'`;
 
+// ----- branding (F66): the owner sets a display name and a logo; everyone on the team sees it and the preview -----
+const brand = ref(null); // /api/host/orgs/:id/brand
+const termsUrl = `${MAIN_ORIGIN}/terms#hosts`;
+const brandName = ref("");
+const brandMsg = ref("");
+const brandErr = ref("");
+const logoInput = ref(null);
+function setBrand(b) { brand.value = b || null; brandName.value = b?.name || ""; }
+const canEditBrand = computed(() => !!brand.value?.canEdit && !brand.value?.off);
+// What the pages show: the name typed (as it is now, before Save) or the organisation's own name.
+const shownName = computed(() => brandName.value.trim() || brand.value?.defaultName || "");
+const brandDo = async (fn, done) => {
+  brandMsg.value = ""; brandErr.value = "";
+  try { setBrand(await fn()); brandMsg.value = done; }
+  catch (e) { brandErr.value = e.message; }
+};
+const saveBrandName = once(() => brandDo(() => HostApi.hostSetBrandName(me.value.org.id, brandName.value), "Name saved."));
+const chooseLogo = () => { brandErr.value = ""; logoInput.value?.click(); };
+const uploadLogo = once(async (ev) => {
+  const file = ev.target.files?.[0];
+  ev.target.value = "";
+  if (!file) return;
+  let dataUrl;
+  try { dataUrl = await prepareLogo(file); } catch (e) { brandMsg.value = ""; brandErr.value = e.message; return; }
+  await brandDo(() => HostApi.hostUploadLogo(me.value.org.id, dataUrl), "Logo saved.");
+});
+const removeLogo = once(async () => {
+  if (!confirm("Remove the logo? Your paid events show your name instead.")) return;
+  await brandDo(() => HostApi.hostRemoveLogo(me.value.org.id), "Logo removed.");
+});
+
 async function signOut() {
   try { await hostSignOutAndReload("/"); }
   catch (e) { error.value = e.message; }
@@ -216,6 +251,62 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
           <div v-if="me.org.university" class="list-row spread"><span class="muted">University</span><strong>{{ me.org.university }}</strong></div>
           <div v-if="me.org.orgLink" class="list-row spread"><span class="muted">Link</span>
             <a :href="me.org.orgLink" target="_blank" rel="noopener" style="text-decoration:underline;overflow-wrap:anywhere;text-align:right">{{ me.org.orgLink }}</a></div>
+        </div>
+      </section>
+
+      <section v-if="me.org && brand" class="panel stack" aria-labelledby="brand-h" data-branding>
+        <span id="brand-h" class="label">Branding</span>
+        <p class="small muted" style="margin:0">
+          Your name or logo in place of the Lanyard mark on your paid events (events that use a credit): the check-in page,
+          the event page attendees see after checking in, the Present page and the printed poster. A small
+          "Check in with Lanyard" line stays at the foot. Each event can switch it off under Look, Advanced.
+        </p>
+        <p v-if="brand.off" class="notice small" role="status">Lanyard switched off branding for this organisation, so your events show the Lanyard look. Email <a :href="`mailto:${HELP_EMAIL}`">{{ HELP_EMAIL }}</a> if you think that is a mistake.</p>
+        <p v-else-if="!brand.canEdit" class="small muted" style="margin:0">Only the organisation's owner can change the branding.</p>
+
+        <form class="stack" @submit.prevent="saveBrandName">
+          <label for="brand-name">Name on your event pages</label>
+          <div class="row">
+            <input id="brand-name" v-model="brandName" type="text" :maxlength="brand.nameMax" autocomplete="organization" :placeholder="brand.defaultName" :disabled="!canEditBrand" style="flex:1" />
+            <button class="btn" style="width:auto" type="submit" :disabled="!canEditBrand || !!working">{{ working === saveBrandName ? "Saving…" : "Save" }}</button>
+          </div>
+          <span class="small muted">Up to {{ brand.nameMax }} characters. Leave it empty to use {{ brand.defaultName }}.</span>
+        </form>
+
+        <div class="stack">
+          <span class="label">Logo</span>
+          <div class="brand-logo-box">
+            <img v-if="brand.logo" :src="brand.logo" :alt="`${shownName} logo`" class="brand-logo" />
+            <span v-else class="small muted">No logo yet. Your name shows instead.</span>
+          </div>
+          <input ref="logoInput" type="file" :accept="LOGO_TYPES.join(',')" hidden @change="uploadLogo" />
+          <div class="btn-row">
+            <button class="btn" type="button" :disabled="!canEditBrand || !!working" @click="chooseLogo">{{ working === uploadLogo ? "Uploading…" : brand.logo ? "Replace logo" : "Add a logo" }}</button>
+            <button v-if="brand.logo && brand.canEdit" class="btn btn-danger" type="button" :disabled="!!working" @click="removeLogo">{{ working === removeLogo ? "Removing…" : "Remove logo" }}</button>
+          </div>
+          <span class="small muted">PNG, JPEG or WebP, up to 1 MB. A picture over {{ brand.logoMaxSide }} pixels is made smaller first. Only add a name or logo you have the right to use (<a :href="termsUrl" target="_blank" rel="noopener" style="text-decoration:underline">Host Terms</a>, section 15).</span>
+        </div>
+        <p v-if="brandMsg" class="success-text small" role="status">{{ brandMsg }}</p>
+        <p v-if="brandErr" class="error-text small" role="alert">{{ brandErr }}</p>
+
+        <div class="stack" data-brand-preview>
+          <span class="label">Preview</span>
+          <div class="bp-present" aria-label="Present page head">
+            <img v-if="brand.logo" :src="brand.logo" :alt="shownName" class="bp-present-logo" />
+            <p v-else class="bp-present-name">{{ shownName }}</p>
+            <p class="bp-event">Your event name</p>
+            <p class="bp-with">Check in with Lanyard</p>
+          </div>
+          <div class="profile event-brand default bp-checkin" aria-label="Check-in page head">
+            <div class="profile-strap">
+              <span class="profile-strap-word brand-strap-word">{{ shownName }}</span>
+              <span class="profile-strap-card">Event check-in</span>
+            </div>
+            <div class="profile-body">
+              <img v-if="brand.logo" :src="brand.logo" alt="" class="brand-head-logo" />
+              <p class="bp-event">Your event name</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -368,5 +459,14 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
 </template>
 
 <style scoped>
+.brand-logo-box { display: flex; align-items: center; min-height: 72px; padding: 12px; border: var(--border); border-radius: var(--radius); background: var(--paper); }
+.brand-logo { max-height: 64px; max-width: 100%; object-fit: contain; }
+.bp-present { display: flex; flex-direction: column; gap: 6px; padding: 16px; border: var(--border); border-radius: var(--radius); background: var(--paper); border-top: 6px solid var(--strap); }
+.bp-present-logo { max-height: 40px; max-width: 60%; object-fit: contain; align-self: flex-start; }
+.bp-present-name { margin: 0; font-weight: 700; font-size: 20px; letter-spacing: -0.02em; line-height: 1.1; overflow-wrap: anywhere; }
+.bp-event { margin: 0; font-weight: 700; font-size: 18px; }
+.bp-with { margin: 4px 0 0; font-size: 12px; color: var(--graphite); }
+.bp-checkin { margin: 0; }
+.bp-checkin .profile-body { padding: 14px 20px 18px; }
 .code-block { margin: 0; padding: 10px; border: var(--border); border-radius: var(--radius); background: var(--paper); overflow-x: auto; white-space: pre; }
 </style>

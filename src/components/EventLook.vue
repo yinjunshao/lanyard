@@ -8,7 +8,10 @@
 //   - the brand colour: the card colour swatches and the colour panel (F55), free for hosts (plus-gate off);
 //   - the text colour on the strap: Automatic (white or black, whichever reads better), White or Dark, and only a choice that reads
 //     (4.5:1) is offered; one that stops reading when the colour or theme changes goes back to Automatic, with a line saying so;
-//   - "Use our company branding": off and disabled until F66.
+//   - "Use our company branding" (F66, D061): the organisation's name and logo in place of the Lanyard mark, on unless the host
+//     unticks it. It can be ticked only on a paid event of an organisation that has a name or a logo (and that Lanyard has not
+//     switched off); otherwise it shows, disabled, with the reason. `brand` is the organisation's settings from /api/host/me,
+//     `paid` whether this event uses a credit (false for a society's free event of the week; null when not known).
 import { computed, ref, nextTick, watch } from "vue";
 import UiReveal from "./ui/UiReveal.vue";
 import CardSwatches from "./CardSwatches.vue";
@@ -18,6 +21,8 @@ import { INK_CHOICES, inkReads, strapIn } from "../lib/eventlook";
 const props = defineProps({
   form: { type: Object, required: true },
   prefix: { type: String, default: "ev" },
+  brand: { type: Object, default: null },
+  paid: { type: Boolean, default: null },
   // F64: the event was started from another one, which keeps its own look (the Create form shows nothing to choose).
 });
 const t = computed(() => themeOf(props.form.theme));
@@ -60,6 +65,15 @@ function onInkKey(e, i) {
   nextTick(() => inkGroup.value?.querySelector('[aria-checked="true"]')?.focus());
 }
 function pickInk(o) { props.form.strapInk = o.value; reset.value = false; }
+
+// ---- company branding (F66) ----
+const brandCan = computed(() => props.paid !== false && !!props.brand?.has && !props.brand?.off);
+const brandLine = computed(() => {
+  if (props.paid === false) return "Branding shows on paid events. This one is free, so it shows the Lanyard look.";
+  if (props.brand?.off) return "Lanyard switched off your organisation's branding, so this event shows the Lanyard look.";
+  if (!props.brand?.has) return "Add your company name or logo under Account and team, Branding. It shows on paid events.";
+  return "Your company name and logo in place of the Lanyard mark on the check-in page, the Present page and the poster. A small \"Check in with Lanyard\" line stays.";
+});
 </script>
 
 <template>
@@ -105,10 +119,11 @@ function pickInk(o) { props.form.strapInk = o.value; reset.value = false; }
             <span v-if="reset" class="small el-note" role="status">The text colour went back to Automatic, because the one you chose would be hard to read on this strap.</span>
           </div>
 
-          <label class="checkbox-row el-brand" aria-disabled="true">
-            <input type="checkbox" disabled />
+          <label class="checkbox-row el-brand" :class="{ 'el-off': !brandCan }" data-use-branding>
+            <input type="checkbox" :checked="brandCan && form.useBranding !== false" :disabled="!brandCan" :aria-describedby="id('brand-d')"
+                   @change="form.useBranding = $event.target.checked" />
             <span class="small"><strong>Use our company branding</strong>
-              <span class="muted" style="display:block">Coming soon: your company name and logo on the check-in page, the Present page and the poster, for paid events.</span></span>
+              <span :id="id('brand-d')" class="muted" style="display:block">{{ brandLine }}</span></span>
           </label>
         </div>
       </UiReveal>
@@ -147,6 +162,6 @@ function pickInk(o) { props.form.strapInk = o.value; reset.value = false; }
 .el-ink .chip { min-height: 44px; }
 .el-ink .chip:disabled { opacity: 0.5; cursor: not-allowed; }
 .el-note { color: var(--strap-deep); font-weight: 700; }
-.el-brand { opacity: 0.7; }
+.el-brand.el-off { opacity: 0.7; }
 @media (prefers-reduced-motion: reduce) { .el-ring, .el-chev { transition: none; } }
 </style>

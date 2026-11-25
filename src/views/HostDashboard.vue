@@ -59,6 +59,8 @@ const f = ref(blankForm());
 // F64 (D056): a fresh form starts with the switches and "What this event collects" as on the organisation's latest
 // event (the server's `eventDefaults`; the fixed defaults for a first event). A draft keeps its own values.
 const eventDefaults = ref(null);
+// F66: the organisation's branding settings, for step 2's "Use our company branding" switch and the preview.
+const brand = ref(null);
 const freshForm = () => freshFrom(eventDefaults.value);
 // Where the seven settings came from, so the form and Review can say so: the last event, or the one started from.
 const start = computed(() => (f.value.from
@@ -115,6 +117,7 @@ async function load() {
     setServerNow(d.now);
     events.value = d.events || [];
     eventDefaults.value = d.eventDefaults || null;
+    brand.value = d.brand || null;
     if (d.step === "ready") loadDraftOnce();
     view.value = d.step;
     if (location.pathname === "/signin") history.replaceState(null, "", "/");
@@ -370,7 +373,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       <EventPreview v-if="creating" v-model:theme="f.theme" :event="previewEvent"
                     :sponsors="f.from ? (source?.sponsors || []) : []" :off="!!f.from && !source?.event" :strip="!f.from" :inline="step === 5">
         <EventCreate :form="f" :step="step" :from-options="FROM_OPTIONS" :has-events="events.length > 0" :facts="facts" :facts-state="sourceState"
-                     :busy="busy" :error="error" :server-error="fieldError" :needs-credits="!freeNow" :start="start"
+                     :busy="busy" :error="error" :server-error="fieldError" :needs-credits="!freeNow" :start="start" :look="{ brand, paid: !freeNow }"
                      :create-label="(f.from ? 'Create the copy' : 'Create event') + (freeNow ? ' (free this week)' : ' (uses 1 credit)')"
                      @go="go" @create="create" @cancel="cancel">
           <template #error-extra><router-link v-if="credits.remaining <= 0" to="/billing" style="text-decoration:underline">Buy credits</router-link></template>

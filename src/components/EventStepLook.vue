@@ -7,6 +7,8 @@ defineProps({
   form: { type: Object, required: true },
   facts: { type: Array, default: null },
   factsState: { type: String, default: "none" },
+  // F66: { brand, paid } for the company branding switch under Advanced.
+  look: { type: Object, default: null },
 });
 </script>
 
@@ -14,7 +16,7 @@ defineProps({
   <div v-if="!form.from" class="ev-groups">
    <section class="ev-group" aria-labelledby="ev-g-look">
     <h3 id="ev-g-look" class="label ev-group-h">Check-in page</h3>
-    <EventLook :form="form" prefix="ev" />
+    <EventLook :form="form" prefix="ev" :brand="look?.brand" :paid="look?.paid ?? null" />
    </section>
   </div>
   <CopiedFacts v-else-if="factsState !== 'none'" :facts="facts" :state="factsState" />

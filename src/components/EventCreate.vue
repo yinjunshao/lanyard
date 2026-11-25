@@ -28,6 +28,8 @@ const props = defineProps({
   needsCredits: { type: Boolean, default: false },
   // F64: where the seven settings started ({ values, by: "last" | "copy" }), so a copied one says so. Null: nothing copied.
   start: { type: Object, default: null },
+  // F66: the organisation's branding settings and whether this event will be paid, for step 2's branding switch.
+  look: { type: Object, default: null },
 });
 const emit = defineEmits(["go", "create", "cancel"]);
 
@@ -98,7 +100,7 @@ defineExpose({ heading });
     <div :key="step" class="ev-body" :class="dir === 'fwd' ? 'ev-fwd' : dir === 'back' ? 'ev-back-dir' : null">
     <EventStepBasics v-if="step === 1" :form="form" :errors="errors" :from-options="fromOptions" :has-events="hasEvents"
                      :facts="sf('basics')" :facts-state="form.from ? factsState : 'none'" />
-    <EventStepLook v-else-if="step === 2" :form="form" :facts="sf('look')" :facts-state="factsState" />
+    <EventStepLook v-else-if="step === 2" :form="form" :facts="sf('look')" :facts-state="factsState" :look="look" />
     <EventStepAtEvent v-else-if="step === 3" :form="form" :errors="errors" :facts="sf('event')" :facts-state="factsState" :copied="copied" :notes="notes" />
     <EventStepQuestions v-else-if="step === 4" :form="form" :errors="errors" :facts="sf('questions')" :facts-state="factsState" :copied="copied" :notes="notes" />
 

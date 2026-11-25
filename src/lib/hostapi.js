@@ -55,6 +55,11 @@ export const HostApi = {
   // F20: promo codes that give event credits.
   hostPromo: (code) => api(`/api/host/redeem/${encodeURIComponent(code)}`),
   hostRedeem: (code) => api(`/api/host/redeem/${encodeURIComponent(code)}`, "POST"),
+  // F66: the organisation's branding (the owner changes it; anyone on the team reads it).
+  hostBrand: (org) => api(`/api/host/orgs/${encodeURIComponent(org)}/brand`),
+  hostSetBrandName: (org, name) => api(`/api/host/orgs/${encodeURIComponent(org)}/brand`, "PUT", { name }),
+  hostUploadLogo: (org, dataUrl) => api(`/api/host/orgs/${encodeURIComponent(org)}/brand/logo`, "POST", { dataUrl }),
+  hostRemoveLogo: (org) => api(`/api/host/orgs/${encodeURIComponent(org)}/brand/logo`, "DELETE"),
 };
 
 // Ends the host session, then a full page load, so no half-finished screen or
