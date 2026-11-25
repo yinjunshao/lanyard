@@ -146,7 +146,8 @@ export async function drawBadge(canvas, view, url) {
   if (noteLines.length) bodyH += 12 + (12 + noteLines.length * 21);
   bodyH += 12 + 2 + 160; // qr (+ margin-top 2)
   bodyH += 12 + 16.5 + (view?.code ? 2 + 27 : 0); // footer
-  const cardH = B + 76 + 20 + bodyH + 18 + B;
+  // A whole number of picture pixels tall (at most a third of a CSS px more), so the bottom edge is as crisp as the others.
+  const cardH = Math.ceil((B + 76 + 20 + bodyH + 18 + B) * S) / S;
 
   // F71: the picture is the card and nothing else: no margin, no paper fill, no shadow.
   // Every pixel outside the 8 px rounded corners stays transparent (alpha 0).

@@ -41,6 +41,7 @@ const base = await run(view());
   check("the shown width is the card's 352 CSS px, not 408 (no 28 px margin each side)", base.style.width === "352px", base.style.width);
   const first = base.log.find((e) => e[0] === "scale");
   check("the 3x scale is kept", first && first[1][0] === 3 && first[1][1] === 3);
+  check("the card ends on a whole picture pixel, so the bottom edge is not half transparent", Number.isInteger(Math.round(parseFloat(base.style.height) * S * 1e6) / 1e6) && base.height === parseFloat(base.style.height) * S, [base.height, base.style.height]);
   check("the height is the card's height x 3 and shown height matches", base.height === Math.round(parseFloat(base.style.height) * S) && parseFloat(base.style.height) > 400, [base.height, base.style.height]);
 }
 
