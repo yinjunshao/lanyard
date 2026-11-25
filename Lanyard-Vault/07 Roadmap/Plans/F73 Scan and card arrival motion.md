@@ -36,7 +36,7 @@ needs: []
 
 ## Tasks
 - [x] F73.1 The scan lock, the opening state and the miss shake in Scan.
-- [ ] F73.2 The card rising into place on the public card page, with the panels after it.
+- [x] F73.2 The card rising into place on the public card page, with the panels after it.
 - [ ] F73.3 Tests (source guards for the reduced-motion fallbacks, and the budget), vault notes, Log, Master To-Do.
 
 ## Acceptance checks

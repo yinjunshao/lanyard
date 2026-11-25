@@ -173,4 +173,18 @@ const removeSelfie = () => { if (confirm("Delete this selfie for both of you? Th
 <style scoped>
 .connected-foot { margin: 16px 0 0; text-align: center; }
 .connected-foot time { white-space: nowrap; }
+
+/* F73: the card arrives. When the answer comes, the notes and the card rise 16 px with a fade (300 ms, the Motion
+   section's ease-out) and the panels under the card follow 60 ms later. Plain CSS on elements that are new when the
+   skeleton leaves, so no script and no live-region text is added. Only transform and opacity move. Under reduced
+   motion each is a 150 ms fade with no movement (the animation is the shared m-fade, not the rise). */
+.profile-page { --arrive-dur: 300ms; --arrive-lag: 60ms; --arrive-y: 16px; }
+.profile-page > :is(.notice, .note-callout, .profile) { animation: arrive var(--arrive-dur) var(--ease-out) backwards; }
+.profile-page > .profile ~ :is(.panel, .connected-foot) { animation: arrive var(--arrive-dur) var(--ease-out) var(--arrive-lag) backwards; }
+@keyframes arrive { from { opacity: 0; transform: translateY(var(--arrive-y)); } }
+@media (prefers-reduced-motion: reduce) {
+  .profile-page { --arrive-dur: 150ms; }
+  .profile-page > :is(.notice, .note-callout, .profile) { animation-name: m-fade; animation-timing-function: linear; }
+  .profile-page > .profile ~ :is(.panel, .connected-foot) { animation-name: m-fade; animation-timing-function: linear; }
+}
 </style>
