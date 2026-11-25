@@ -16,6 +16,7 @@ import { TERMS_VERSION, termsScope, hasConsent, recordConsent, recordConsentStmt
 import { putImage, getImage, deleteImage } from "./media.js";
 import { serveLogo } from "./branding.js";
 import { eraseUser, purgeExpired } from "./purge.js";
+import { snapshotMetrics } from "./metrics.js";
 import { eventsApp } from "./events.js";
 import { myEventsApp } from "./myevents.js";
 import { leaveEventApp } from "./leaveEvent.js";
@@ -1483,7 +1484,14 @@ export default {
   // Daily retention clean-up (see [triggers] in wrangler.toml).
   scheduled: (event, env, ctx) => {
     // Hourly: post-event emails. Daily (03:17): retention clean-up.
-    if (event.cron === "17 3 * * *") ctx.waitUntil(purgeExpired(env));
+    // F70: the purge, then the day's metrics snapshot, in one job so the numbers describe what is left after it. Each has its
+    // own catch, so one failing never stops the other.
+    if (event.cron === "17 3 * * *") {
+      ctx.waitUntil((async () => {
+        await purgeExpired(env).catch((e) => console.error("daily clean-up failed", e));
+        await snapshotMetrics(env).catch((e) => console.error("metrics snapshot failed", e));
+      })());
+    }
     else {
       ctx.waitUntil(sendEventEmails(env).catch((e) => console.error(e)));
       ctx.waitUntil(sendFollowupEmails(env).catch((e) => console.error("follow-up reminder emails failed")));

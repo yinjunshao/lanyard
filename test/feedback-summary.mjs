@@ -473,7 +473,7 @@ console.log("\n# F23.2 The hourly job: once, when the feedback window has closed
   const ctxDaily = { waits: [], waitUntil(p) { this.waits.push(p); } };
   await worker.scheduled({ cron: "17 3 * * *" }, env, ctxDaily);
   await Promise.all(ctxDaily.waits);
-  check("the daily run is the purge only", ctxDaily.waits.length === 1);
+  check("the daily run is one job: the purge, then the metrics snapshot (F70)", ctxDaily.waits.length === 1);
 }
 
 console.log("\n# F23.2 The hourly job: failures, retries, the switch and the rollout");

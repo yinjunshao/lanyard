@@ -4,7 +4,7 @@ id: F70
 priority: P1
 phase: 12
 size: M
-status: Not started
+status: In progress
 needs: []
 ---
 # F70 Platform metrics with daily snapshots and CSV export
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS metrics_daily (
 - Account erasure (`eraseUser`) and `purgeExpired` leave `metrics_daily` untouched.
 
 ## Tasks
-- [ ] F70.1 Add `worker/metrics.js` (`computeMetrics`, `METRICS_VERSION`) and migration `0045_metrics_daily.sql`, with `snapshotMetrics` wired into the 03:17 job; tests for the numbers on a seeded set, zero bases, idempotence and erasure leaving rows alone.
+- [x] F70.1 Add `worker/metrics.js` (`computeMetrics`, `METRICS_VERSION`) and migration `0045_metrics_daily.sql`, with `snapshotMetrics` wired into the 03:17 job; tests for the numbers on a seeded set, zero bases, idempotence and erasure leaving rows alone. (`worker/metrics.js`, `migrations/0045_metrics_daily.sql`, `test/metrics.mjs`; the purge and the snapshot run as one 03:17 job, each with its own catch)
 - [ ] F70.2 Add `GET /api/admin/metrics`, `POST /api/admin/metrics/snapshot` and `GET /api/admin/metrics/export` with CSV escaping and date checks; tests for 401 without the token, the audit row, the CSV header, empty cells for missing metrics and no personal data.
 - [ ] F70.3 Add the Platform metrics section to `/admin` (tiles, score spread, snapshot button, date range, Download CSV); browser check at 375 and 1280 px, light and dark.
 - [ ] F70.4 Vault: [[Data Model]] (metrics_daily), [[API Surface]] (three routes), [[Privacy and Data Retention]] (kept indefinitely, aggregates only), a decision note D062 and its [[Decision Log]] row, the Log here, the Master To-Do tick and Done log line.
