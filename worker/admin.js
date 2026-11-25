@@ -270,7 +270,7 @@ adminApp.get("/api/admin/reports", async (c) => {
      FROM reports r
      LEFT JOIN profiles t ON t.user_id = r.target_id
      LEFT JOIN profiles rp ON rp.user_id = r.reporter_id
-     ORDER BY r.created_at DESC LIMIT 100`);
+     ORDER BY r.created_at DESC, r.rowid DESC LIMIT 100`); // rowid breaks a tie between reports made in the same millisecond
   return c.json({ reports: rows.map((r) => ({
     id: r.id, reason: r.reason || "", createdAt: r.created_at,
     target: { id: r.target_id, name: r.target_name || null, reports: r.target_reports },
