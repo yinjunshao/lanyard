@@ -16,6 +16,7 @@ import { stageFunnel } from "./stages.js";
 import { ORG_KINDS } from "./plans.js";
 import { settleStatements } from "./host-promo.js";
 import { registerAiAdmin } from "./ai/admin.js";
+import { registerMetricsAdmin } from "./metricsAdmin.js";
 import { adminBrands, removeLogo, LOGO_KEY } from "./branding.js";
 import { getImage } from "./media.js";
 
@@ -48,6 +49,8 @@ adminApp.use("/api/admin/*", async (c, next) => {
 
 // F21: the AI section (spend, kill switch, allow-list). Registered here so the token check above covers it.
 registerAiAdmin(adminApp);
+// F70: platform metrics, the daily snapshot and the CSV export (same: after the token check, so audited and limited).
+registerMetricsAdmin(adminApp);
 
 adminApp.get("/api/admin/queue", async (c) => {
   const db = c.env.DB;

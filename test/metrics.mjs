@@ -220,6 +220,97 @@ console.log("\n# The nightly snapshot: one row a day, the first run's, and not t
   check("the archive has no foreign key to any account", !/REFERENCES/i.test(read("migrations/0045_metrics_daily.sql")));
 }
 
+/* ------------------- the admin routes and the CSV ------------------- */
+console.log("\n# Every new route is refused without the token and audited with it");
+{
+  const w = await world();
+  const people = [];
+  for (let i = 0; i < 3; i++) { const id = w.user({ seen: Date.now() - DAY, email: `person${i}@example.org` }); w.profile(id, ["Ada Lovelace", "Grace Hopper", "Alan Turing"][i], w.FULL); w.card(id); people.push(id); }
+  const admin = w.client({ ip: "198.51.100.70" });
+  const AUTH = { authorization: "Bearer test-admin-token-f70" };
+  const routes = [["GET", "/api/admin/metrics"], ["POST", "/api/admin/metrics/snapshot"], ["GET", "/api/admin/metrics/export"], ["GET", "/api/admin/metrics/export?from=2026-11-01&to=2026-11-30"]];
+  for (const [method, path] of routes) {
+    const anon = await admin.req(method, path, method === "POST" ? {} : undefined);
+    const wrong = await admin.req(method, path, method === "POST" ? {} : undefined, { authorization: "Bearer nope" });
+    check(`${method} ${path.split("?")[0]} without the token is 401, and with a wrong one`, anon.status === 401 && wrong.status === 401 && !/users_total/.test(anon.text + wrong.text), [anon.status, wrong.status]);
+  }
+  check("a refused call writes no snapshot", w.q("SELECT COUNT(*) n FROM metrics_daily")[0].n === 0);
+  const audit = () => w.q("SELECT action FROM admin_audit").map((r) => r.action);
+  const before = audit().length;
+  const live = await admin.get("/api/admin/metrics", AUTH);
+  const snap = await admin.post("/api/admin/metrics/snapshot", {}, AUTH);
+  const exp = await admin.get("/api/admin/metrics/export?from=2020-01-01&to=2030-01-01", AUTH);
+  check("with the token all three answer 200", live.status === 200 && snap.status === 200 && exp.status === 200, [live.status, snap.status, exp.status]);
+  const rows = audit().slice(before);
+  check("each of the three wrote an admin_audit row", rows.includes("GET /api/admin/metrics") && rows.includes("POST /api/admin/metrics/snapshot") && rows.includes("GET /api/admin/metrics/export") && rows.length === 3, rows);
+  check("the live answer is the numbers, the version and the archive size", live.json.now.users_total === 3 && live.json.version === METRICS_VERSION && live.json.snapshots === 0 && live.json.first === null && live.json.last === null, live.json);
+
+  console.log("\n# The button replaces today's row; the count stays");
+  const day = new Date().toISOString().slice(0, 10);
+  check("the first press writes today's row", snap.json.ok && snap.json.day === day && snap.json.snapshots === 1 && snap.json.first === day && snap.json.last === day, snap.json);
+  const taken1 = w.q1("SELECT taken_at FROM metrics_daily").taken_at;
+  w.user({ seen: Date.now() });
+  await new Promise((r) => setTimeout(r, 10));
+  const again = await admin.post("/api/admin/metrics/snapshot", {}, AUTH);
+  const row = w.q1("SELECT * FROM metrics_daily");
+  check("a second press replaces it: still one row, later taken_at, new numbers", again.json.snapshots === 1 && row.taken_at > taken1 && JSON.parse(row.data).users_total === 4, [again.json, row.taken_at, taken1]);
+
+  console.log("\n# The CSV");
+  const ex2 = (await admin.get("/api/admin/metrics/export?from=2020-01-01&to=2030-01-01", AUTH)).text.trim().split("\r\n");
+  check("it is text/csv with a download name from the range, nosniff", exp.headers.get("content-type") === "text/csv; charset=utf-8" && exp.headers.get("content-disposition") === 'attachment; filename="lanyard-metrics-2020-01-01-to-2030-01-01.csv"' && exp.headers.get("x-content-type-options") === "nosniff", [exp.headers.get("content-type"), exp.headers.get("content-disposition")]);
+  check("the header starts day,taken_at,version, then every metric sorted", ex2[0].startsWith("day,taken_at,version,") && (() => { const k = ex2[0].split(",").slice(3); return k.length === Object.keys(live.json.now).length && k.join() === [...k].sort().join(); })(), ex2[0].slice(0, 80));
+  check("one row, so a header and one line", ex2.length === 2 && ex2[1].startsWith(day + ","), ex2.length);
+  check("taken_at is ISO 8601 UTC", /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(ex2[1].split(",")[1]));
+  check("no range means all rows, named all", (await admin.get("/api/admin/metrics/export", AUTH)).headers.get("content-disposition").includes("lanyard-metrics-all.csv"));
+
+  // Rows over several days; an older row lacks a metric a newer one has.
+  w.sql("DELETE FROM metrics_daily");
+  const put = (d, data, version = 1) => w.sql("INSERT INTO metrics_daily (day, taken_at, version, data) VALUES (?, ?, ?, ?)", d, Date.parse(d + "T03:17:00Z"), version, JSON.stringify(data));
+  put("2026-10-31", { users_total: 5 }); put("2026-11-01", { users_total: 6, active_7d: 3 }); put("2026-11-15", { users_total: 8, active_7d: 4, plus_pct: 12.5 }); put("2026-11-30", { users_total: 9, active_7d: 5, plus_pct: 11.1 }); put("2026-12-01", { users_total: 10 });
+  const nl = (await admin.get("/api/admin/metrics/export?from=2026-11-01&to=2026-11-30", AUTH)).text.trim().split("\r\n");
+  check("from and to are inclusive: a line for each of the three days in range", nl.length === 4 && nl[1].startsWith("2026-11-01,") && nl[3].startsWith("2026-11-30,"), nl);
+  check("the header is day,taken_at,version,active_7d,plus_pct,users_total", nl[0] === "day,taken_at,version,active_7d,plus_pct,users_total", nl[0]);
+  check("a row from before a metric existed has an empty cell for it", nl[1] === "2026-11-01,2026-11-01T03:17:00.000Z,1,3,,6" && nl[2] === "2026-11-15,2026-11-15T03:17:00.000Z,1,4,12.5,8", nl.slice(1, 3));
+  const only = (await admin.get("/api/admin/metrics/export?from=2026-11-15", AUTH)).text.trim().split("\r\n");
+  const upto = (await admin.get("/api/admin/metrics/export?to=2026-10-31", AUTH)).text.trim().split("\r\n");
+  check("a start alone and an end alone work", only.length === 4 && upto.length === 2 && upto[1].startsWith("2026-10-31,"), [only.length, upto.length]);
+  check("an empty range is just the header", (await admin.get("/api/admin/metrics/export?from=2027-01-01&to=2027-01-02", AUTH)).text === "day,taken_at,version\r\n");
+
+  console.log("\n# Bad dates are a 400 with a plain message");
+  for (const q of ["from=2026-13-01", "to=2026-02-30", "from=yesterday", "from=2026-1-1", "from=2026-11-30&to=2026-11-01", "from=2026-11-01T00:00:00Z", "to=%27%3B%20DROP%20TABLE%20metrics_daily"]) {
+    const r = await admin.get("/api/admin/metrics/export?" + q, AUTH);
+    check(`?${q} is 400 and says why in plain words`, r.status === 400 && typeof r.json?.error === "string" && /day|date/i.test(r.json.error) && !/Error:|SQL/.test(r.json.error), [r.status, r.text.slice(0, 80)]);
+  }
+  check("the table is intact after those", w.q("SELECT COUNT(*) n FROM metrics_daily")[0].n === 5);
+
+  console.log("\n# CSV injection: a cell that starts a formula is neutralised, commas and quotes are quoted");
+  w.sql("DELETE FROM metrics_daily");
+  w.sql("INSERT INTO metrics_daily (day, taken_at, version, data) VALUES ('2026-11-02', ?, 1, ?)", T,
+    JSON.stringify({ "=1+1": 1, "+cmd": 2, "-2+3": 3, "@SUM(A1)": 4, "a,b": 5, 'say "hi"': 6, ok: 7, text_value: '=HYPERLINK("http://evil")', line: "a\nb" }));
+  const bad = (await admin.get("/api/admin/metrics/export", AUTH)).text;
+  const [h, v] = bad.trim().split("\r\n");
+  check("header cells starting = + - @ get a leading apostrophe", ["'=1+1", "'+cmd", "'-2+3", "'@SUM(A1)"].every((c) => h.split(",").includes(c)), h);
+  check("a comma or a quote makes a quoted cell, quotes doubled", h.includes('"a,b"') && h.includes('"say ""hi"""'), h);
+  check("a text value (only a crafted row has one) is not exported: an empty cell, so it cannot start a formula", !bad.includes("HYPERLINK") && !bad.includes("evil"), v);
+  check("no cell in the file starts with = + - or @", !bad.split("\r\n").some((l) => l.split(",").some((c) => /^[=+\-@]/.test(c))), bad);
+  check("the export never changes a stored value", JSON.parse(w.q1("SELECT data FROM metrics_daily").data)["=1+1"] === 1);
+  const { csvCell } = await import("../worker/metricsAdmin.js");
+  check("csvCell alone: formulas, tab, quotes, line breaks, numbers, empty", csvCell("=a") === "'=a" && csvCell("+a") === "'+a" && csvCell("-a") === "'-a" && csvCell("@a") === "'@a" && csvCell("\t1") === "'\t1" && csvCell('x"y') === '"x""y"' && csvCell("a\nb") === '"a\nb"' && csvCell(12.5) === "12.5" && csvCell(0) === "0" && csvCell(null) === "" && csvCell("") === "");
+  check("a plain number is never altered because metrics are never negative (asserted above on a full set of metrics)", csvCell(40) === "40" && csvCell(0.5) === "0.5");
+
+  console.log("\n# No person in the live answer, the snapshot row or the CSV");
+  w.sql("DELETE FROM metrics_daily");
+  const s2 = await admin.post("/api/admin/metrics/snapshot", {}, AUTH);
+  const l2 = await admin.get("/api/admin/metrics", AUTH);
+  const c2 = await admin.get("/api/admin/metrics/export", AUTH);
+  const everything = JSON.stringify(s2.json) + l2.text + c2.text + JSON.stringify(w.q("SELECT * FROM metrics_daily"));
+  const who = ["Ada Lovelace", "Grace Hopper", "Alan Turing", "Lovelace", "Hopper", "Turing", "person0@example.org", "person1@example.org", "person2@example.org", "example.org", ...people, ...w.q("SELECT code FROM cards").map((c) => c.code), "p/x.jpg", "Test University", "Builds things", "https://example.com"];
+  check("none of the seeded ids, names, emails, card codes or text is in any of them", who.length > 12 && who.every((x) => !everything.includes(x)), who.filter((x) => everything.includes(x)));
+  check("every value in the live answer and every CSV data cell is a plain non-negative number", Object.values(l2.json.now).every((n) => typeof n === "number" && n >= 0) && c2.text.trim().split("\r\n")[1].split(",").slice(3).every((c) => c === "" || /^\d+(\.\d+)?$/.test(c)));
+  const src = read("worker/metricsAdmin.js").replace(/\/\/.*$/gm, "");
+  check("the routes file never selects a person column (source guard)", !/recovery_email|pending_email|photo_key|user_id|FROM users|FROM profiles|FROM cards/i.test(src));
+}
+
 console.log("\n# The migration is additive and safe to run before the new code");
 {
   const sql = read("migrations/0045_metrics_daily.sql");
