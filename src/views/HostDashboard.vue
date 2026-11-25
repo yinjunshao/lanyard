@@ -98,7 +98,7 @@ const previewEvent = computed(() => {
     ? eventFromBody({ name: f.value.name.trim() || s.name, venue: s.venue, startsAt: f.value.startsAt, theme: s.theme, strapColor: s.strapColor, strapInk: s.strapInkChoice,
       perks: s.perks, directoryOn: s.directoryOn, suggestOn: s.suggestOn, info: s.info, feedbackOn: s.feedbackOn, collect: collectBody(f.value) }, s.questions, org.value?.name)
     : eventFromBody(createBody(f.value), undefined, org.value?.name);
-  const b = previewBrand(brand.value, !freeNow.value, s ? events.value.find((x) => x.id === f.value.from)?.useBranding : f.value.useBranding); // F66: a copy keeps its event's switch
+  const b = previewBrand(brand.value, paidNext.value, s ? events.value.find((x) => x.id === f.value.from)?.useBranding : f.value.useBranding); // F66: a copy keeps its event's switch
   return { ...e, ...(b ? { brand: b } : {}), name: e.name || "Your event name" };
 });
 
@@ -194,6 +194,8 @@ const declineTransfer = once(async (t) => {
 
 const canCreate = computed(() => org.value?.status === "approved");
 const freeNow = computed(() => org.value?.type === "society" && limits.value.freeLeftThisWeek > 0);
+// F66: the next event is paid, and so can show company branding, only when it spends a bought credit (the owner's decision, 2026-11-25).
+const paidNext = computed(() => !freeNow.value && !!credits.value?.nextBought);
 
 // ----- Create event in steps (F30) -----
 // The step is in the address (?step=N), so the browser's Back button moves between steps and a refresh
@@ -374,7 +376,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
       <EventPreview v-if="creating" v-model:theme="f.theme" :event="previewEvent"
                     :sponsors="f.from ? (source?.sponsors || []) : []" :off="!!f.from && !source?.event" :strip="!f.from" :inline="step === 5">
         <EventCreate :form="f" :step="step" :from-options="FROM_OPTIONS" :has-events="events.length > 0" :facts="facts" :facts-state="sourceState"
-                     :busy="busy" :error="error" :server-error="fieldError" :needs-credits="!freeNow" :start="start" :look="{ brand, paid: !freeNow }"
+                     :busy="busy" :error="error" :server-error="fieldError" :needs-credits="!freeNow" :start="start" :look="{ brand, paid: paidNext }"
                      :create-label="(f.from ? 'Create the copy' : 'Create event') + (freeNow ? ' (free this week)' : ' (uses 1 credit)')"
                      @go="go" @create="create" @cancel="cancel">
           <template #error-extra><router-link v-if="credits.remaining <= 0" to="/billing" style="text-decoration:underline">Buy credits</router-link></template>

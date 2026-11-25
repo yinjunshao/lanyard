@@ -38,8 +38,11 @@ async function hostOf(name, extra = {}) {
   const c = client({ site: "host", ip: ip() });
   const r = await becomeHost(c, { kind: "company", name, ...extra });
   const me = (await c.get("/api/host/me")).json;
-  // Plenty of event credits, so every event a test makes is paid unless it is a society's free one.
-  q("INSERT INTO credits (id, org_id, events_granted, events_used, expires_at, reason, granted_by, created_at) VALUES (?, ?, 50, 0, NULL, 'test', 'test', 1)", "t" + me.org.id, me.org.id);
+  // Plenty of bought event credits (granted_by 'polar', as a paid order grants them), so every event a test makes is paid unless
+  // it is a society's free one. The starter credit a new host gets runs out sooner, so it would be spent first and that event
+  // would not be paid (only bought credits count, 2026-11-25); it is removed here, and the starter case is tested on its own.
+  q("DELETE FROM credits WHERE org_id = ?", me.org.id);
+  q("INSERT INTO credits (id, org_id, events_granted, events_used, expires_at, reason, granted_by, created_at) VALUES (?, ?, 50, 0, NULL, 'card:test', 'polar', 1)", "t" + me.org.id, me.org.id);
   return Object.assign(c, { org: me.org, email: r.email });
 }
 async function person(name) {
@@ -81,7 +84,30 @@ console.log("\n# An event is paid when it spends a credit (events.is_paid)");
   check("a copy spends a credit, so it is paid too", dup.status === 201 && q1("SELECT is_paid FROM events WHERE id = ?", dup.json.id).is_paid === 1);
   const sneaky = await A.post("/api/host/events", { name: "Sneaky", isPaid: false, is_paid: 0 });
   const sneakyS = await S.post("/api/host/events", { name: "Sneaky free", isPaid: true, is_paid: 1 });
-  check("is_paid comes from the credit rule in the same INSERT, never from the request", /CASE WHEN \$\{freeWeekNow\} THEN 0 ELSE 1 END/.test(read("worker/hosts.js")) && q1("SELECT is_paid FROM events WHERE id = ?", sneaky.json.id).is_paid === 1 && q1("SELECT is_paid FROM events WHERE id = ?", sneakyS.json.id).is_paid === 1);
+  check("is_paid comes from the credit rule in the same INSERT, never from the request", /CASE WHEN \$\{freeWeekNow\} THEN 0 WHEN \(SELECT granted_by FROM credits WHERE id = \(\$\{nextCredit\}\)\) = 'polar' THEN 1 ELSE 0 END/.test(read("worker/hosts.js")) && q1("SELECT is_paid FROM events WHERE id = ?", sneaky.json.id).is_paid === 1 && q1("SELECT is_paid FROM events WHERE id = ?", sneakyS.json.id).is_paid === 1);
+  // Only a bought credit makes an event paid (the owner's decision, 2026-11-25): a starter or promo credit spends, but is not paid.
+  for (const [label, by, reason] of [["a starter credit", "self-serve", "starter"], ["a promo credit", "promo", "promo:TEST"]]) {
+    const H = await hostOf(`Unpaid ${by} Org`);
+    q("DELETE FROM credits WHERE org_id = ?", H.org.id);
+    q("INSERT INTO credits (id, org_id, events_granted, events_used, expires_at, reason, granted_by, created_at) VALUES (?, ?, 1, 0, NULL, ?, ?, 1)", "u" + H.org.id, H.org.id, reason, by);
+    const e = await H.post("/api/host/events", { name: `On ${by}` });
+    check(`an event made with ${label} spends it but is not paid`, e.status === 201 && q1("SELECT is_paid FROM events WHERE id = ?", e.json.id).is_paid === 0 && q1("SELECT events_used FROM credits WHERE id = ?", "u" + H.org.id).events_used === 1);
+  }
+  {
+    // Both kinds: the credit that runs out first is spent first, and the event is paid only when that one was bought.
+    const H = await hostOf("Mixed credits Org");
+    q("DELETE FROM credits WHERE org_id = ?", H.org.id);
+    q("INSERT INTO credits (id, org_id, events_granted, events_used, expires_at, reason, granted_by, created_at) VALUES (?, ?, 1, 0, ?, 'starter', 'self-serve', 1)", "ms" + H.org.id, H.org.id, Date.now() + 86400000);
+    q("INSERT INTO credits (id, org_id, events_granted, events_used, expires_at, reason, granted_by, created_at) VALUES (?, ?, 1, 0, NULL, 'card:test', 'polar', 1)", "mp" + H.org.id, H.org.id);
+    const before = (await H.get("/api/host/me")).json.credits.nextBought;
+    const first = await H.post("/api/host/events", { name: "Starter first" });
+    const between = (await H.get("/api/host/me")).json.credits.nextBought;
+    const second = await H.post("/api/host/events", { name: "Bought second" });
+    check("with a starter and a bought credit, the first event spends the starter (not paid) and the next the bought one (paid)",
+      q1("SELECT is_paid FROM events WHERE id = ?", first.json.id).is_paid === 0 && q1("SELECT is_paid FROM events WHERE id = ?", second.json.id).is_paid === 1 &&
+      q1("SELECT events_used FROM credits WHERE id = ?", "ms" + H.org.id).events_used === 1 && q1("SELECT events_used FROM credits WHERE id = ?", "mp" + H.org.id).events_used === 1);
+    check("/api/host/me says whether the next event spends a bought credit, so Create can offer branding: no before the starter is used, yes after", before === false && between === true, [before, between]);
+  }
   Object.assign(globalThis, { SOCIETY: S, SOC_FREE: free.json, SOC_PAID: paid.json });
 }
 
@@ -345,7 +371,7 @@ console.log("\n# F66.2 The host's side: the Branding section, the logo made read
   check("Create sends nothing new unless the host unticked the switch (so a default form sends what it always did)", !("useBranding" in createBody(f)) && createBody({ ...f, useBranding: false }).useBranding === false && !("useBranding" in createBody({ ...f, useBranding: true })));
   check("Details sends the switch once it has read it, and not before", !("useBranding" in detailsBody({ name: "x", perks: [] })) && detailsBody({ name: "x", perks: [], useBranding: false }).useBranding === false && detailsBody({ name: "x", perks: [], useBranding: true }).useBranding === true);
   const dash = read("src/views/HostDashboard.vue"), live = read("src/views/HostLive.vue");
-  check("Create knows whether the event will be paid (not a society's free event of the week) and passes the settings to step 2", /:look="\{ brand, paid: !freeNow \}"/.test(dash) && /brand\.value = d\.brand \|\| null;/.test(dash) && /:look="look"/.test(read("src/components/EventCreate.vue")));
+  check("Create knows whether the event will be paid (not a society's free event of the week, and the next credit was bought) and passes the settings to step 2", /:look="\{ brand, paid: paidNext \}"/.test(dash) && /const paidNext = computed\(\(\) => !freeNow\.value && !!credits\.value\?\.nextBought\);/.test(dash) && /brand\.value = d\.brand \|\| null;/.test(dash) && /:look="look"/.test(read("src/components/EventCreate.vue")));
   check("Details reads the event's own switch and whether it is paid from /api/host/me (the live route is unchanged)", /look\.value = \{ brand: me\.brand \|\| null, paid: !!ev\?\.isPaid \};/.test(live) && /useBranding: ev\.useBranding !== false/.test(live));
 
   globalThis.location ??= new URL("https://host.lanyard.test/"); // the swatches read the store, which reads the site address
@@ -424,7 +450,7 @@ console.log("\n# F66.3 Drawn on every surface, with Check in with Lanyard, as te
   const { previewBrand } = await import("../src/lib/eventform.js");
   const set = { has: true, off: false, name: "", defaultName: "Drawn Org", logo: "/media/logo/a/b.png?v=1" };
   check("the previews beside the forms follow the Worker's rule", JSON.stringify(previewBrand(set, true, undefined)) === '{"name":"Drawn Org","logo":"/media/logo/a/b.png?v=1"}' && previewBrand(set, false, true) === null && previewBrand(set, true, false) === null && previewBrand({ ...set, off: true }, true, true) === null && previewBrand({ has: false }, true, true) === null && previewBrand(null, true, true) === null);
-  check("Create's and Details' previews pass it to the same check-in page", /previewBrand\(brand\.value, !freeNow\.value/.test(read("src/views/HostDashboard.vue")) && /previewBrand\(look\.value\.brand, look\.value\.paid, d\.value\.useBranding\)/.test(read("src/views/HostLive.vue")));
+  check("Create's and Details' previews pass it to the same check-in page", /previewBrand\(brand\.value, paidNext\.value/.test(read("src/views/HostDashboard.vue")) && /previewBrand\(look\.value\.brand, look\.value\.paid, d\.value\.useBranding\)/.test(read("src/views/HostLive.vue")));
   const admin = read("src/views/Admin.vue");
   check("the admin page lists branding, shows a logo through the token (a blob address, no public link), removes it and switches branding off, each after a confirm", /call\("\/api\/admin\/brands"\)/.test(admin) && /fetch\(`\/api\/admin\/orgs\/\$\{encodeURIComponent\(o\.id\)\}\/brand\/logo`, \{ headers: \{ authorization: `Bearer \$\{token\.value\}` \} \}\)/.test(admin) && /URL\.createObjectURL/.test(admin) && /\/brand\/logo`, "DELETE"\)/.test(admin) && /\/brand`, "POST", \{ off \}\)/.test(admin) && (admin.match(/window\.confirm\(`(Remove the logo|Switch off branding)/g) || []).length === 2 && !/v-html/.test(admin));
   const terms = read("src/views/Terms.vue");

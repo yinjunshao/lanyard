@@ -149,7 +149,16 @@ async function creditSummary(db, orgId) {
      FROM credits WHERE org_id = ? AND (expires_at IS NULL OR expires_at > ?)`,
     orgId, now()
   );
+  // F66: whether the credit the next event will spend was bought, so Create can say whether that event can carry company
+  // branding. Same order as insertEvent (soonest to run out, then id); only a bought credit (granted_by 'polar') makes it paid.
+  const next = await one(
+    db,
+    `SELECT granted_by FROM credits WHERE org_id = ? AND events_used < events_granted AND (expires_at IS NULL OR expires_at > ?)
+     ORDER BY COALESCE(expires_at, 9007199254740991), id LIMIT 1`,
+    orgId, now()
+  );
   return {
+    nextBought: next?.granted_by === "polar",
     granted: row?.granted || 0,
     used: row?.used || 0,
     remaining: Math.max(0, (row?.granted || 0) - (row?.used || 0)),
@@ -425,17 +434,21 @@ async function insertEvent(db, org, fields, questions) {
   const freeWeekNow = society ? "NOT EXISTS (SELECT 1 FROM events WHERE org_id = ? AND created_at > ? AND id != ?)" : "0";
   const freeArgs = society ? [org.id, ts - 7 * DAY, id] : [];
   const creditLeft = "SELECT id FROM credits WHERE org_id = ? AND events_used < events_granted AND (expires_at IS NULL OR expires_at > ?)";
-  // F66: an event is paid (events.is_paid) when it spends a credit, which is every event except a society's free one of the week,
-  // worked out in the same statement by the same rule as the credit below. Only a paid event shows company branding (D061).
+  // The credit an event spends: the one that runs out first, then by id, so the paid check below and the UPDATE pick the same row.
+  const nextCredit = `${creditLeft} ORDER BY COALESCE(expires_at, 9007199254740991), id LIMIT 1`;
+  // F66: an event is paid (events.is_paid) only when the credit it spends was bought (granted_by 'polar'; the owner's decision,
+  // 2026-11-25): not a society's free one of the week, and not a starter or promo credit. Worked out in the same statement by the
+  // same rule as the credit below. Only a paid event shows company branding (D061).
+  const paidNow = `CASE WHEN ${freeWeekNow} THEN 0 WHEN (SELECT granted_by FROM credits WHERE id = (${nextCredit})) = 'polar' THEN 1 ELSE 0 END`;
   const keys = Object.keys(cols);
-  const picks = keys.map((k) => (k === "is_paid" ? `CASE WHEN ${freeWeekNow} THEN 0 ELSE 1 END` : "?"));
-  const values = keys.flatMap((k) => (k === "is_paid" ? freeArgs : [cols[k]]));
+  const picks = keys.map((k) => (k === "is_paid" ? paidNow : "?"));
+  const values = keys.flatMap((k) => (k === "is_paid" ? [...freeArgs, org.id, ts] : [cols[k]]));
   const out = await db.batch([
     db.prepare(`INSERT INTO events (${keys.join(", ")}) SELECT ${picks.join(", ")}
                 WHERE ${freeWeekNow} OR EXISTS (${creditLeft})`).bind(...values, ...freeArgs, org.id, ts),
     db.prepare(
       `UPDATE credits SET events_used = events_used + 1 WHERE id = (
-         ${creditLeft} ORDER BY COALESCE(expires_at, 9007199254740991) LIMIT 1)
+         ${nextCredit})
        AND EXISTS (SELECT 1 FROM events WHERE id = ?) AND NOT (${freeWeekNow})`
     ).bind(org.id, ts, id, ...freeArgs),
   ]);

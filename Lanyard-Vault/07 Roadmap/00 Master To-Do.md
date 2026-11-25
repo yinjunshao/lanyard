@@ -63,6 +63,7 @@ These block the items in brackets. Tick each one and write the answer in the lin
 - [x] What a host chooses an event's look from ([[F65 Event themes and an advanced look]]): **designed themes, plus an advanced mode with any brand colour and the company's own branding** (answered 2026-11-24)
 - [x] Lanyard's mark on a host-branded page ([[F66 Host branding on event pages]]): **a small "Check in with Lanyard" line stays** (answered 2026-11-24)
 - [x] Who gets company branding ([[F66 Host branding on event pages]]): **paid events only** (answered 2026-11-24)
+- [x] Which credits make an event paid for company branding ([[F66 Host branding on event pages]]): **bought credits only** (answered 2026-11-25; starter and promo credits do not)
 - [ ] Matching ([[F61 Matching profiles for better suggestions]], [[F61 Research Matching options]]): **staged fixed list with anonymous outcome counts; field proposed from the card and confirmed; a global "Suggest me at events" setting, on by default; sensitive words screened, F60 fixed now ([[F69 Keep sensitive words out of who to meet]])** (answered 2026-11-24). Still open: keep the per-event untick too, where picks show, and the policy bump and lawyer sign-off
 
 ## Build order
