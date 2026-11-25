@@ -311,6 +311,29 @@ console.log("\n# Every new route is refused without the token and audited with i
   check("the routes file never selects a person column (source guard)", !/recovery_email|pending_email|photo_key|user_id|FROM users|FROM profiles|FROM cards/i.test(src));
 }
 
+/* ------------------- the Admin page section (source guards; the look is checked in a browser) ------------------- */
+console.log("\n# Platform metrics on /admin: asked for only on a press, text only, nothing shared changed");
+{
+  const comp = read("src/components/AdminMetrics.vue");
+  const admin = read("src/views/Admin.vue");
+  const script = comp.split("</script>")[0];
+  const tpl = comp.split("</script>")[1].split("<style")[0];
+  check("the component does not fetch when it appears (no onMounted, no watch, no top-level call)", !/onMounted|onBeforeMount|watchEffect|\bwatch\(/.test(script) && !/^\s*(show|snapshot|download)\(\)/m.test(script));
+  check("the only fetch of the live numbers is the Show metrics press", (comp.match(/\/api\/admin\/metrics"/g) || []).length === 1 && /@click="show"/.test(tpl) && /v-if="!d" class="btn"[^>]*@click="show"/.test(tpl));
+  check("Admin's sign-in load() does not ask for metrics (the page's first load stays at 8 requests)", !/metrics/.test(admin.slice(admin.indexOf("async function load()"), admin.indexOf("async function signIn()"))) && (admin.match(/<AdminMetrics/g) || []).length === 1);
+  check("the section sits with the funnels, before the AI section", admin.indexOf("<AdminMetrics") > admin.indexOf("adm-tips-h") && admin.indexOf("<AdminMetrics") < admin.indexOf("<AdminAi"));
+  check("no v-html and no inline script: every number is drawn as text", !/v-html|innerHTML/.test(comp));
+  check("the CSV goes through fetch with the Bearer token and a Blob link (a plain link cannot send the header)", /authorization: `Bearer \$\{props\.token\}`/.test(comp) && /createObjectURL/.test(comp) && !/<a [^>]*href="\/api\/admin/.test(tpl));
+  check("the dates use the hand-built date picker, no native date input", /UiDatePicker/.test(tpl) && !/type="date"/.test(comp));
+  check("it names Show metrics, Take a snapshot now and Download CSV", ["Show metrics", "Take a snapshot now", "Download CSV"].every((t) => tpl.includes(t)));
+  check("every group of the plan has a tile group, and the score spread has 0 to 6", ["Accounts", "Profiles", "Active use", "Network", "Events", "Revenue"].every((g) => script.includes(`title: "${g}"`)) && /profile_score_\$\{i\}/.test(script));
+  const keys = Object.keys(await computeMetrics((await world()).env.DB, T));
+  const used = [...script.matchAll(/"([a-z0-9_]+)", (?:N|P|R|GBP)\]/g)].map((m) => m[1]);
+  check("every key a tile shows is a real metric, and every metric except the 0 to 6 spread has a tile", used.every((k) => keys.includes(k)) && keys.filter((k) => !/^profile_score_[0-6]$/.test(k)).every((k) => used.includes(k)), { missing: keys.filter((k) => !/^profile_score_[0-6]$/.test(k) && !used.includes(k)), unknown: used.filter((k) => !keys.includes(k)) });
+  check("no emoji in it", !/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(comp));
+  check("only Admin imports it, and no shared front-end file knows about it", ["src/main.js", "src/router/index.js", "src/lib/api.js", "src/lib/store.js"].every((f) => !/AdminMetrics|admin\/metrics/.test(read(f))) && !/AdminMetrics/.test(read("src/components/AdminAi.vue")));
+}
+
 console.log("\n# The migration is additive and safe to run before the new code");
 {
   const sql = read("migrations/0045_metrics_daily.sql");

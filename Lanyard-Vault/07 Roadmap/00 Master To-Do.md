@@ -165,7 +165,7 @@ Build order: F68, F69, F63, F67, F64, F65, F66. F61's research note can be writt
 - [x] **F66** [[F66 Host branding on event pages]] · P2 · L · Needs: F65 (paid events only, with a "Check in with Lanyard" line, by owner decision, 2026-11-24) (done 2026-11-25, last commit 0dc43f8; migration 0044 to apply; which credits count as paid is a question in the plan note)
 
 ### Phase 12: owner requests (2026-11-25)
-- [ ] **F70** [[F70 Platform metrics with daily snapshots and CSV export]] · P1 · M · Needs: none (daily snapshots and CSV export by owner decision, 2026-11-25) (in progress: Claude subagent, 2026-11-25)
+- [ ] **F70** [[F70 Platform metrics with daily snapshots and CSV export]] · P1 · M · Needs: none (daily snapshots and CSV export by owner decision, 2026-11-25) (in progress: Claude subagent, 2026-11-25; all tasks and acceptance checks done except the owner's next-morning check on production, and the vault lines for four owner-modified notes are listed in the plan note's Log; migration 0045 to apply)
 
 ## Dependency map
 ```mermaid

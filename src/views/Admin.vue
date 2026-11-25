@@ -4,6 +4,7 @@
 import { onMounted, ref } from "vue";
 import UiDatePicker from "../components/ui/UiDatePicker.vue";
 import AdminAi from "../components/AdminAi.vue";
+import AdminMetrics from "../components/AdminMetrics.vue";
 import { HOST_ORIGIN } from "../lib/site";
 import { fix } from "../lib/errors"; // F39: plain words for a failed request
 import Waiting from "../components/Waiting.vue";
@@ -473,6 +474,9 @@ const EMAIL = { education: "university or school address", free: "webmail addres
           </tbody>
         </table>
       </section>
+
+      <!-- F70: loaded only when Show metrics is pressed, so signing in adds no request for it. -->
+      <AdminMetrics :call="call" :token="token" />
 
       <AdminAi :call="call" />
 
