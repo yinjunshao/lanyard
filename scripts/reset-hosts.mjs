@@ -36,6 +36,12 @@
 // F60 suggestions at events (event_suggest, migration 0040: each person's intention and Suggest me choice at an event)
 // are wiped with the events they belong to. The consent_log rows recording each choice (event_suggest:) are kept, as for F31.
 //
+// F66 company branding (migration 0044): an organisation's display name and logo columns go with its row. Its logo in R2
+// is queued in media_deletes by a database trigger as the organisation is deleted, and the Worker's daily clean-up deletes
+// it from R2; with --local or --remote and --apply this script also deletes each one straight after the wipe (one that
+// fails stays queued for the clean-up). media_deletes is not wiped: it is the list of objects still to delete. The
+// branding switch on events goes with the events. A database without 0044 has no logos, and the script still runs.
+//
 // Needs migrations 0018, 0023, 0025, 0027, 0028, 0029 and 0040. Dry run by default: prints the counts and changes nothing.
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite>            dry run on a SQLite file
 //   node scripts/reset-hosts.mjs --sqlite <copy.sqlite> --apply    wipe that file
@@ -78,6 +84,8 @@ export const COUNT_SQL = `SELECT ${[
 ].join(",\n  ")}`;
 export const LOGO_SQL = "SELECT logo_key FROM sponsors WHERE logo_key IS NOT NULL";
 export const PRESENCE_SQL = "SELECT selfie_key FROM event_presence WHERE selfie_key IS NOT NULL";
+export const BRAND_COLUMN_SQL = "SELECT COUNT(*) AS n FROM pragma_table_info('orgs') WHERE name = 'brand_logo_key'";
+export const BRAND_LOGO_SQL = "SELECT brand_logo_key FROM orgs WHERE brand_logo_key IS NOT NULL";
 export const SCHEMA_SQL = "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('host_accounts', 'host_org_members', 'host_mail_log', 'event_presence', 'host_promo_claims', 'feedback_summaries', 'event_attendees', 'drops', 'event_suggest')";
 export const R2_BUCKET = "lanyard-media";
 
@@ -168,6 +176,7 @@ function main(argv) {
     const before = db.rows(COUNT_SQL)[0];
     const logos = db.rows(LOGO_SQL).map((r) => r.logo_key);
     const selfies = db.rows(PRESENCE_SQL).map((r) => r.selfie_key);
+    const brandLogos = Number(db.rows(BRAND_COLUMN_SQL)[0]?.n) ? db.rows(BRAND_LOGO_SQL).map((r) => r.brand_logo_key) : [];
     console.log(`Host reset, option B (full wipe): ${where}${where === "sqlite" ? ` ${sqlite}` : ""}${apply ? "" : " (dry run, nothing changed)"}`);
     console.table(Object.entries(before).map(([k, v]) => ({ count: k, now: Number(v), after: WIPED.includes(k) || ["host_consents", "connections_with_event", "cards_with_event", "billing_without_name", "host_codes_with_uses"].includes(k) ? 0 : Number(v) })));
     if (logos.length) console.log(`R2 sponsor logos to delete by hand (${logos.length}):\n${logos.join("\n")}`);
@@ -175,6 +184,10 @@ function main(argv) {
       const direct = apply && where !== "sqlite";
       console.log(`Event-presence selfies in R2 (${selfies.length}): ${direct ? "deleted before the wipe" : "to delete by hand"}`);
       if (!direct) console.log(selfies.join(String.fromCharCode(10)));
+    }
+    if (brandLogos.length) {
+      console.log(`Organisation logos in R2 (${brandLogos.length}): queued for deletion by the wipe${apply && where !== "sqlite" ? " and deleted after it" : ", deleted by the daily clean-up"}`);
+      console.log(brandLogos.join(String.fromCharCode(10)));
     }
     if (!apply) { console.log("Dry run. Add --apply to wipe."); return 0; }
     if (where !== "sqlite") {
@@ -185,6 +198,13 @@ function main(argv) {
       }
     }
     db.exec(wipeSql(before));
+    if (where !== "sqlite") {
+      // F66: the organisations are gone, so nothing points at their logos; each stays queued if it cannot be deleted now.
+      for (const key of brandLogos) {
+        const r = spawnSync("npx", r2DeleteArgs(where, key), { encoding: "utf8", shell: process.platform === "win32" });
+        if (r.status !== 0) console.error(`Could not delete ${key} from R2 now; the daily clean-up will.`);
+      }
+    }
     const after = db.rows(COUNT_SQL)[0];
     const bad = verify(before, after);
     console.table(Object.entries(after).map(([k, v]) => ({ count: k, now: Number(v) })));

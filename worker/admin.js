@@ -15,6 +15,8 @@ import { stageFunnel } from "./stages.js";
 import { ORG_KINDS } from "./plans.js";
 import { settleStatements } from "./host-promo.js";
 import { registerAiAdmin } from "./ai/admin.js";
+import { adminBrands, removeLogo, LOGO_KEY } from "./branding.js";
+import { getImage } from "./media.js";
 
 export const adminApp = new Hono();
 
@@ -202,6 +204,27 @@ adminApp.post("/api/admin/hosts/:id/status", async (c) => {
   if (!r.meta?.changes) return c.json({ error: "No such host account." }, 404);
   if (b.status === "disabled") await run(db, "DELETE FROM host_sessions WHERE host_account_id = ?", c.req.param("id"));
   return c.json({ ok: true });
+});
+
+// F66 (D061): company branding, for moderation. The admin sees each organisation's display name and logo, removes the logo
+// and switches its branding off (and back on). Each request is in admin_audit (the middleware above) with its path, which
+// names the organisation; nothing here is reachable without the admin token.
+adminApp.get("/api/admin/brands", async (c) => c.json({ brands: await adminBrands(c.env.DB) }));
+adminApp.get("/api/admin/orgs/:id/brand/logo", async (c) => {
+  const org = await one(c.env.DB, "SELECT brand_logo_key FROM orgs WHERE id = ?", c.req.param("id"));
+  const res = org?.brand_logo_key && LOGO_KEY.test(org.brand_logo_key) ? await getImage(c.env, org.brand_logo_key, { noStore: true }) : null;
+  return res || c.json({ error: "This organisation has no logo." }, 404);
+});
+adminApp.delete("/api/admin/orgs/:id/brand/logo", async (c) => {
+  if (!(await one(c.env.DB, "SELECT 1 AS x FROM orgs WHERE id = ?", c.req.param("id")))) return c.json({ error: "No such organisation." }, 404);
+  return c.json({ ok: true, removed: await removeLogo(c.env, c.req.param("id")) });
+});
+adminApp.post("/api/admin/orgs/:id/brand", async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  if (typeof b.off !== "boolean") return c.json({ error: "Say off: true or off: false." }, 400);
+  const r = await run(c.env.DB, "UPDATE orgs SET brand_off = ? WHERE id = ?", b.off ? 1 : 0, c.req.param("id"));
+  if (!r.meta?.changes) return c.json({ error: "No such organisation." }, 404);
+  return c.json({ ok: true, off: b.off });
 });
 
 // An organisation with no members gets an owner. The host account must exist

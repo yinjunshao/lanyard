@@ -13,6 +13,7 @@ import { forgetSearchReplies } from "./ai/optout.js";
 import { purgeSummaries } from "./ai/feedbackSummary.js";
 import { purgePending } from "./pending-email.js";
 import { purgeStageStats } from "./stages.js";
+import { drainMediaDeletes } from "./branding.js";
 
 const DAY = 86400_000;
 export const SELFIE_MAX_AGE = 365 * DAY;
@@ -98,6 +99,9 @@ export async function purgeExpired(env, ts = Date.now()) {
 
   // F45: an email typed when connecting or making a card and never confirmed, 30 days after it was typed.
   out.pendingEmails = await purgePending(db, ts);
+
+  // F66: logos the database stopped pointing at (replaced, removed, or their organisation deleted) and not yet deleted from R2.
+  out.mediaDeletes = await drainMediaDeletes(env);
 
   await run(db, "DELETE FROM reports WHERE created_at < ?", ts - REPORT_KEEP);
   await run(db, "DELETE FROM consent_log WHERE at < ?", ts - CONSENT_KEEP);

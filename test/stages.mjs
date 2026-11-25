@@ -57,7 +57,7 @@ console.log("\n# The migration is additive");
   check("user_stages holds who, which tip, when and how it ended", cols("user_stages").join() === "user_id,stage,seen_at,outcome", cols("user_stages"));
   check("stage_stats is counts per day and tip with no column that could say who", cols("stage_stats").join() === "day,stage,shown,finished,skipped", cols("stage_stats"));
   check("an existing account is untouched and the database still has all its other tables", !!old.raw.prepare("SELECT 1 FROM users WHERE id = 'u1'").get());
-  check("0041 is the newest migration of the tips, named for them (0042, F56, adds one column to cards after it, and 0043, F65, one to events)", readdirSync(new URL("../migrations", import.meta.url)).filter((f) => f.endsWith(".sql")).sort().filter((f) => f >= "0041").join() === "0041_user_stages.sql,0042_card_material.sql,0043_event_strap_ink.sql");
+  check("0041 is the newest migration of the tips, named for them (0042, F56, adds one column to cards after it, 0043, F65, one to events, and 0044, F66, the branding columns)", readdirSync(new URL("../migrations", import.meta.url)).filter((f) => f.endsWith(".sql")).sort().filter((f) => f >= "0041").join() === "0041_user_stages.sql,0042_card_material.sql,0043_event_strap_ink.sql,0044_host_branding.sql");
 }
 
 console.log("\n# The registry");

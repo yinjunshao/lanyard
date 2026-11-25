@@ -69,7 +69,8 @@ export async function hostGuard(c, next) {
   await next();
 }
 
-async function loadHost(c) {
+// F66: also used by /media/logo/... on the host site, to let an organisation's own hosts see its logo.
+export async function loadHost(c) {
   c.set("host", null);
   const token = getCookie(c, hostCookieName(c));
   if (!token || !/^[0-9a-f]{32}$/.test(token)) return;

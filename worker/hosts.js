@@ -29,6 +29,8 @@ import { collectFields, collectOf, hostAttendees, attendeesCsv, attendeesFileNam
 import { suggestCounts } from "./suggest.js";
 import { registerHostPromo, releaseHeldClaims, heldClaims, exportHostClaims } from "./host-promo.js";
 import { registerDropsHost } from "./dropsHost.js";
+// F66 (D061): company branding (worker/branding.js): the owner's settings, and the brand on a paid event's pages.
+import { registerBrandHost, brandSettings, eventBrand } from "./branding.js";
 import { exportHostDrops } from "./dropsKeep.js";
 import { billingOn, productFor, checkoutReady } from "./billing/provider.js";
 import { offResponse, checkoutBody, startCheckout, billingInfo, exportBillingOrders } from "./billing/routes.js";
@@ -110,7 +112,7 @@ hostApp.get("/api/host/account/export", async (c) => {
   const db = c.env.DB;
   const q = (sql, ...a) => all(db, sql, ...a);
   const [orgs, tickets, transfers, billing, consents, sessions, promoClaims, attendeeLists, drops, cardOrders] = await Promise.all([
-    q(`SELECT o.id, o.name, o.org_type, o.university, o.institution_id, m.role FROM host_org_members m JOIN orgs o ON o.id = m.org_id WHERE m.host_account_id = ?`, me.id),
+    q(`SELECT o.id, o.name, o.org_type, o.university, o.institution_id, m.role, o.brand_name, (o.brand_logo_key IS NOT NULL) AS brand_logo FROM host_org_members m JOIN orgs o ON o.id = m.org_id WHERE m.host_account_id = ?`, me.id),
     q("SELECT kind, new_email, message, status, admin_note, created_at, resolved_at FROM host_org_tickets WHERE host_account_id = ?", me.id),
     q("SELECT org_id, to_email, status, created_at, resolved_at FROM host_org_transfers WHERE from_host_id = ? OR to_host_id = ?", me.id, me.id),
     q("SELECT org_name, sku, quantity, amount_pence, contact_email, po_number, note, status, created_at FROM billing_requests WHERE host_account_id = ?", me.id),
@@ -177,6 +179,8 @@ async function requireOrg(db, userId) {
 
 // F20: promo codes for event credits (host-promo.js): /api/host/redeem/:code.
 registerHostPromo(hostApp, { findOrg, normCode: normPromo });
+// F66: /api/host/orgs/:id/brand (name, logo upload and remove). The owner changes them; any member reads them.
+registerBrandHost(hostApp, { findOrg });
 
 // Societies and institutions can't run events until an admin approves them.
 function assertApproved(org) {
@@ -270,9 +274,12 @@ hostApp.get("/api/host/me", async (c) => {
       perks: e.perks || [], directoryOn: !!e.directory_on, isPaid: !!e.is_paid,
       endsAt: e.ends_at || null, ended: !!e.ended_at, endedAt: e.ended_at || null, rsvpCount: e.rsvp_count ?? null,
       info: eventInfo(e.info), feedbackOn: !!e.feedback_on,
+      useBranding: e.use_branding !== 0, // F66: the event's own switch; branding shows only when isPaid is true too
     })),
     // F64: where a fresh Create event form starts (the latest event's seven settings, or the fixed defaults).
     eventDefaults: await eventDefaults(db, org.id),
+    // F66: the organisation's own branding settings, for the Branding section and the per-event switch.
+    brand: brandSettings(org, membership?.role || "owner"),
   });
 });
 
@@ -379,6 +386,8 @@ function eventFields(b, { partial = false, base = null } = {}) {
     else throw new HttpError(400, "Sign-ups so far must be a whole number, or empty.", "bad_rsvp");
   }
   if (has("feedbackOn")) f.feedback_on = b.feedbackOn === false ? 0 : 1;
+  // F66: "Use our company branding", on unless switched off. It shows only on a paid event (is_paid, set by the credit).
+  if (has("useBranding")) f.use_branding = b.useBranding === false ? 0 : 1;
   if (has("feedbackQuestions")) f.feedback_questions = JSON.stringify(sanitizeQuestions(b.feedbackQuestions));
   if (f.ends_at && f.starts_at && f.ends_at <= f.starts_at) throw new HttpError(400, "The end time must be after the start.");
   // F31: what the event collects. Only when the request says something about it; off otherwise.
@@ -409,7 +418,6 @@ async function insertEvent(db, org, fields, questions) {
   const code = await uniqueCode(db, "events", 5);
   const ts = now();
   const cols = { ...fields, id, org_id: org.id, code, checkin_questions: JSON.stringify(questions), is_paid: 0, created_at: ts };
-  const keys = Object.keys(cols);
   // The checks above are for a quick answer; the real rule is this one transaction (F35.2), so
   // Create pressed many times at once can never make more events than there are credits. The event
   // goes in only if, at that moment, the society's free week is still free or a credit has room;
@@ -417,9 +425,14 @@ async function insertEvent(db, org, fields, questions) {
   const freeWeekNow = society ? "NOT EXISTS (SELECT 1 FROM events WHERE org_id = ? AND created_at > ? AND id != ?)" : "0";
   const freeArgs = society ? [org.id, ts - 7 * DAY, id] : [];
   const creditLeft = "SELECT id FROM credits WHERE org_id = ? AND events_used < events_granted AND (expires_at IS NULL OR expires_at > ?)";
+  // F66: an event is paid (events.is_paid) when it spends a credit, which is every event except a society's free one of the week,
+  // worked out in the same statement by the same rule as the credit below. Only a paid event shows company branding (D061).
+  const keys = Object.keys(cols);
+  const picks = keys.map((k) => (k === "is_paid" ? `CASE WHEN ${freeWeekNow} THEN 0 ELSE 1 END` : "?"));
+  const values = keys.flatMap((k) => (k === "is_paid" ? freeArgs : [cols[k]]));
   const out = await db.batch([
-    db.prepare(`INSERT INTO events (${keys.join(", ")}) SELECT ${keys.map(() => "?").join(", ")}
-                WHERE ${freeWeekNow} OR EXISTS (${creditLeft})`).bind(...Object.values(cols), ...freeArgs, org.id, ts),
+    db.prepare(`INSERT INTO events (${keys.join(", ")}) SELECT ${picks.join(", ")}
+                WHERE ${freeWeekNow} OR EXISTS (${creditLeft})`).bind(...values, ...freeArgs, org.id, ts),
     db.prepare(
       `UPDATE credits SET events_used = events_used + 1 WHERE id = (
          ${creditLeft} ORDER BY COALESCE(expires_at, 9007199254740991) LIMIT 1)
@@ -488,7 +501,7 @@ hostApp.post("/api/host/events/:id/duplicate", async (c) => {
     ends_at: Number.isFinite(Number(b.endsAt)) && b.endsAt ? Math.round(Number(b.endsAt)) : null,
     venue: src.venue, theme: src.theme, strap_color: src.strap_color, strap_ink: src.strap_ink ?? null,
     perks: JSON.stringify(src.perks || []), directory_on: src.directory_on, suggest_on: src.suggest_on ?? 1,
-    info: JSON.stringify(eventInfo(src.info)), feedback_on: src.feedback_on,
+    info: JSON.stringify(eventInfo(src.info)), feedback_on: src.feedback_on, use_branding: src.use_branding ?? 1, // F66
     feedback_questions: JSON.stringify(sanitizeQuestions(src.feedback_questions)),
     // F31: the earlier event's list settings are never copied; the host chooses again (D038).
     ...collectFields(b.collect),
@@ -591,6 +604,7 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
   // F18: what the host set up, so the Details tab can preview the attendee page. All of it is the host's
   // own entry; sponsors are names and perks they typed, with no attendee in it.
   const sponsors = await all(c.env.DB, "SELECT id, name, perk FROM sponsors WHERE event_id = ?", ev.id);
+  const brand = await eventBrand(c.env.DB, ev);
   return c.json({
     event: {
       id: ev.id, code: ev.code, name: ev.name, startsAt: ev.starts_at, venue: ev.venue,
@@ -604,6 +618,8 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
       // F60: present only when the host switched suggestions off.
       ...(ev.suggest_on ? {} : { suggestOn: false }),
     },
+    // F66 (D061): the organisation's name and logo for Present, the poster and the preview: a paid event with branding on only.
+    ...(brand ? { brand } : {}),
     sponsors: sponsors.map((x) => ({ id: x.id, name: x.name, perk: x.perk })),
     checkins: t.checkins,
     connections: t.connections,

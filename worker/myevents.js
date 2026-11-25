@@ -9,6 +9,7 @@ import { eventStatus } from "./eventstatus.js";
 import { selfieView } from "./selfie.js";
 import { SHARED_CARD_SQL } from "./shares.js";
 import { cleanInfo } from "../src/lib/eventinfoclean.js";
+import { eventBrand } from "./branding.js";
 
 export const myEventsApp = new Hono();
 
@@ -55,7 +56,7 @@ myEventsApp.get("/api/my/events/:id", async (c) => {
   const e = await one(
     db,
     `SELECT e.id, e.code, e.name, e.starts_at, e.ends_at, e.ended_at, e.venue, e.theme, e.strap_color,
-            e.perks, e.directory_on, e.collect_attendance, e.info, ch.created_at AS checked_in_at
+            e.perks, e.directory_on, e.collect_attendance, e.info, e.org_id, e.is_paid, e.use_branding, ch.created_at AS checked_in_at
      FROM checkins ch JOIN events e ON e.id = ch.event_id
      WHERE ch.user_id = ?1 AND e.id = ?2`,
     me.id, c.req.param("id")
@@ -77,6 +78,8 @@ myEventsApp.get("/api/my/events/:id", async (c) => {
   const sponsors = await one(db, "SELECT COUNT(*) AS n FROM sponsors WHERE event_id = ?", e.id);
 
   // People here: the others who chose to appear in the room, the same people the Room tab lists.
+  // F66 (D061): the organisation's name and logo on the hub's head, for a paid event with branding on only.
+  const brand = await eventBrand(db, e);
   let roomCount = null;
   if (e.directory_on) {
     const blocked = await blockedSet(db, me.id);
@@ -102,6 +105,7 @@ myEventsApp.get("/api/my/events/:id", async (c) => {
       hasChoices: !!e.directory_on || sponsors.n > 0 || !!e.collect_attendance,
       // F31: the organisers keep a list of who checked in (named only when they do; absent otherwise).
       ...(e.collect_attendance ? { namedAttendance: true } : {}),
+      ...(brand ? { brand } : {}),
     },
     status: eventStatus(eventTimes(e), e.checked_in_at, t),
     checkedInAt: e.checked_in_at,

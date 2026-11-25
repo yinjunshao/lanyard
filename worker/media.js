@@ -92,27 +92,60 @@ export function stripMetadata(b, ext) {
   return out;
 }
 
-// strip: remove metadata first (face photos). maxBytes: a lower ceiling than the default.
-export async function putImage(env, dataUrl, prefix = "u", { strip = false, maxBytes = MAX_BYTES } = {}) {
+// The checks every upload goes through, without storing anything: a data URL of WebP, JPEG or PNG whose bytes
+// really are that type, under the ceiling, with the metadata removed when `strip` is set. F66 logos use it to check
+// the picture's size before it is stored.
+export function readImage(dataUrl, { strip = false, maxBytes = MAX_BYTES } = {}) {
   const parsed = parseDataUrl(dataUrl, maxBytes);
   if (!parsed) throw new HttpError(400, "That file isn't a supported image. Choose a WebP, JPEG or PNG photo.");
   if (parsed.bytes.byteLength > maxBytes) throw new HttpError(413, "That photo is too large. Choose a smaller one.");
-  const bytes = strip ? stripMetadata(parsed.bytes, parsed.ext) : parsed.bytes;
+  return { ...parsed, bytes: strip ? stripMetadata(parsed.bytes, parsed.ext) : parsed.bytes };
+}
+
+// strip: remove metadata first (face photos). maxBytes: a lower ceiling than the default.
+export async function putImage(env, dataUrl, prefix = "u", { strip = false, maxBytes = MAX_BYTES } = {}) {
+  const parsed = readImage(dataUrl, { strip, maxBytes });
   const key = `${prefix}/${newId()}${newId()}.${parsed.ext}`;
-  await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: parsed.type } });
+  await env.MEDIA.put(key, parsed.bytes, { httpMetadata: { contentType: parsed.type } });
   return key;
+}
+
+// F66: the width and height a picture says it has, read from its header (PNG IHDR, a JPEG frame, a WebP VP8, VP8L or
+// VP8X chunk), or null when the header cannot be read. Nothing is decoded.
+export function imageSize(b, ext) {
+  if (ext === "png") return b.length >= 24 && tag(b, 12) === "IHDR" ? { w: u32(b, 16), h: u32(b, 20) } : null;
+  if (ext === "jpg") {
+    let i = 2;
+    while (i + 9 < b.length && b[i] === 0xff) {
+      const m = b[i + 1];
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: (b[i + 5] << 8) | b[i + 6], w: (b[i + 7] << 8) | b[i + 8] };
+      if (m === 0xda) return null;
+      i += 2 + ((b[i + 2] << 8) | b[i + 3]);
+    }
+    return null;
+  }
+  if (b.length < 30) return null;
+  const t = tag(b, 12);
+  if (t === "VP8X") return { w: 1 + (b[24] | (b[25] << 8) | (b[26] << 16)), h: 1 + (b[27] | (b[28] << 8) | (b[29] << 16)) };
+  if (t === "VP8 " && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
+  if (t === "VP8L" && b[20] === 0x2f) {
+    const bits = le32(b, 21);
+    return { w: 1 + (bits & 0x3fff), h: 1 + ((bits >>> 14) & 0x3fff) };
+  }
+  return null;
 }
 
 // `isPrivate` images (shared selfies) are only cached by the viewer's browser,
 // briefly, so removing a connection takes effect quickly.
 // `noStore` (event presence selfies) is not cached at all, so withdrawing one takes effect at once.
-export async function getImage(env, key, { isPrivate = false, noStore = false } = {}) {
+// `cache` (F66 logos): a cache rule of the caller's own, for an address that carries a version.
+export async function getImage(env, key, { isPrivate = false, noStore = false, cache = "" } = {}) {
   const obj = await env.MEDIA.get(key);
   if (!obj) return null;
   return new Response(obj.body, {
     headers: {
       "content-type": obj.httpMetadata?.contentType || "image/webp",
-      "cache-control": noStore ? "private, no-store" : isPrivate ? "private, max-age=3600" : "public, max-age=86400",
+      "cache-control": cache || (noStore ? "private, no-store" : isPrivate ? "private, max-age=3600" : "public, max-age=86400"),
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",
       "cross-origin-resource-policy": "same-origin",

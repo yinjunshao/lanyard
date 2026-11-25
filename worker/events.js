@@ -13,6 +13,7 @@ import { inkIn } from "../src/lib/eventlook.js";
 import { noticeFor, choiceStatements } from "./attendance.js";
 import { recordCheckin } from "./eventConnections.js";
 import { readChoice, checkinSuggestStatements } from "./suggest.js";
+import { eventBrand } from "./branding.js";
 
 export const eventsApp = new Hono();
 
@@ -44,6 +45,8 @@ eventsApp.get("/api/e/:code", async (c) => {
   const sponsors = await all(db, "SELECT id, name, perk FROM sponsors WHERE event_id = ?", ev.id);
   // F31: what this event collects, for the notice on the page. Only when the host switched it on.
   const collects = await noticeFor(db, ev);
+  // F66 (D061): the organisation's name and logo, only for a paid event with branding on. A free event never has it.
+  const brand = await eventBrand(db, ev);
 
   return c.json({
     event: {
@@ -65,6 +68,7 @@ eventsApp.get("/api/e/:code", async (c) => {
       ...(collects ? { collects } : {}),
       // F60: present only when the host switched suggestions off, so every other event answers as before.
       ...(ev.suggest_on ? {} : { suggestOn: false }),
+      ...(brand ? { brand } : {}),
     },
     sponsors: sponsors.map((s) => ({ id: s.id, name: s.name, perk: s.perk })),
     checkedIn: !!checkin,

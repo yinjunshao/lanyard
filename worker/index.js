@@ -14,6 +14,7 @@ import * as EmailAuth from "./email-auth.js";
 import { probeBlocker } from "./probes.js";
 import { TERMS_VERSION, termsScope, hasConsent, recordConsent, recordConsentStmt, logConsentStmt } from "./legal.js";
 import { putImage, getImage, deleteImage } from "./media.js";
+import { serveLogo } from "./branding.js";
 import { eraseUser, purgeExpired } from "./purge.js";
 import { eventsApp } from "./events.js";
 import { myEventsApp } from "./myevents.js";
@@ -1385,6 +1386,8 @@ app.post("/api/connections/:id/selfie/remove", async (c) => {
 app.get("/media/:key{.+}", async (c) => {
   // Keys are prefix/hex.ext — block traversal.
   const key = c.req.param("key");
+  // F66: an organisation's logo has its own rules (public only once it is on a paid event's page; worker/branding.js).
+  if (key.startsWith("logo/")) return serveLogo(c, key);
   if (!/^(avatar|selfie|project|event|presence)\/[a-z0-9]+\.(webp|jpg|jpeg|png)$/.test(key)) {
     return c.json({ error: "That photo link isn't valid." }, 400);
   }

@@ -4,7 +4,7 @@ id: F66
 priority: P2
 phase: 11
 size: L
-status: Not started
+status: In progress
 needs: [F65]
 ---
 # F66 Host branding on event pages
@@ -63,7 +63,7 @@ Asked whether anything from Lanyard should stay, the owner chose **"Small 'with 
   - a free event never shows branding, even with `use_branding` 1.
 
 ## Tasks
-- [ ] F66.1 Migration, the branding settings routes (name, logo upload and remove, roles), R2 storage and serving, deletion; tests for the security bar.
+- [x] F66.1 Migration, the branding settings routes (name, logo upload and remove, roles), R2 storage and serving, deletion; tests for the security bar. ([[D061 Host branding shows on paid events only, keeps a Check in with Lanyard line, and takes PNG, JPEG or WebP logos up to 1 MB]]; `worker/branding.js`, migration 0044, `test/host-branding.mjs`; `events.is_paid` is now set by the credit, it was never set before)
 - [ ] F66.2 The Branding section on the host account page with the preview; the per-event switch in Advanced, paid events only; tests.
 - [ ] F66.3 Branding drawn on Present, the check-in page, the event hub and print, with the "Check in with Lanyard" line; admin view and remove, audit-logged; Terms line; vault notes ([[Data Model]], [[API Surface]], [[Security]], [[Screens and Routes]]); browser check on a paid and a free event at 375 and 1280 px, light, dark and midnight.
 
@@ -76,6 +76,8 @@ Asked whether anything from Lanyard should stay, the owner chose **"Small 'with 
 - [ ] Removing the logo deletes the R2 object; deleting the organisation deletes it too (test with the R2 stand-in).
 - [ ] The admin removes a logo, and the audit log records it (test).
 - [ ] `npm test` passes; public pages within budget.
+
+> [!question] Which credits make an event "paid"? Until now nothing set `events.is_paid` (every event was 0). F66.1 sets it when an event spends a credit, which is every event except a society's free one of the week, so starter and promo credits count as well as bought ones (the owner's words: "paid for with a credit"). Events made before F66 stay free. If branding should be for bought credits only, say so: it is one condition in `insertEvent` (`worker/hosts.js`).
 
 ## Log
 -

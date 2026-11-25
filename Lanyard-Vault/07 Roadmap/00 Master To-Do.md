@@ -160,7 +160,7 @@ Build order: F68, F69, F63, F67, F64, F65, F66. F61's research note can be writt
 - [x] **F67** [[F67 Check-in page layout]] · P1 · S · Needs: F63 (done 2026-11-24, last commit 7ff00c8)
 - [x] **F64** [[F64 New events start from the host's latest settings]] · P1 · S · Needs: F63, F31, F60 (collects copied by owner decision, 2026-11-24; narrows D038; risk recorded in the plan note; F60 is built but unticked, so this builds on F60 as it stands, with the owner's say-so) (done 2026-11-24, last commit 68ead22)
 - [x] **F65** [[F65 Event themes and an advanced look]] · P1 · M · Needs: F63, F55 (done 2026-11-24, last commit d7a3cd9; migration 0043 to apply)
-- [ ] **F66** [[F66 Host branding on event pages]] · P2 · L · Needs: F65 (paid events only, with a "Check in with Lanyard" line, by owner decision, 2026-11-24)
+- [ ] **F66** [[F66 Host branding on event pages]] · P2 · L · Needs: F65 (paid events only, with a "Check in with Lanyard" line, by owner decision, 2026-11-24) (in progress: Claude subagent, 2026-11-25)
 
 ## Dependency map
 ```mermaid
