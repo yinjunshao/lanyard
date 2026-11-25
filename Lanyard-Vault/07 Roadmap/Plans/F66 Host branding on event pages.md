@@ -4,7 +4,7 @@ id: F66
 priority: P2
 phase: 11
 size: L
-status: In progress
+status: Done
 needs: [F65]
 ---
 # F66 Host branding on event pages
@@ -68,18 +68,23 @@ Asked whether anything from Lanyard should stay, the owner chose **"Small 'with 
 - [x] F66.3 Branding drawn on Present, the check-in page, the event hub and print, with the "Check in with Lanyard" line; admin view and remove, audit-logged; Terms line; vault notes ([[Data Model]], [[API Surface]], [[Security]], [[Screens and Routes]]); browser check on a paid and a free event at 375 and 1280 px, light, dark and midnight. (EventPage, EventDetail, HostPresent, HostPrint; the logo on a light plate; previews beside the forms use `previewBrand`; admin Company branding section; Terms section 15 line; browser: a paid and a free event on the local database, see the Log)
 
 ## Acceptance checks
-- [ ] An organisation admin uploads a PNG logo and sets the name "Acme Careers"; on a paid event the Present page shows the logo in place of `lanyard.` and "Check in with Lanyard" at the foot (browser).
-- [ ] The same organisation's free event shows the Lanyard mark, and the switch is disabled with "Branding shows on paid events" (test and browser).
-- [ ] An SVG, a 2 MB PNG and a file with a PNG name but HTML inside are each refused with 400 (test).
-- [ ] A team member without the admin role gets 403 on the branding routes; another organisation's host gets 404 (test).
-- [ ] A display name `<script>alert(1)</script>` shows as text on every surface (test).
-- [ ] Removing the logo deletes the R2 object; deleting the organisation deletes it too (test with the R2 stand-in).
-- [ ] The admin removes a logo, and the audit log records it (test).
-- [ ] `npm test` passes; public pages within budget.
+- [x] An organisation admin uploads a PNG logo and sets the name "Acme Careers"; on a paid event the Present page shows the logo in place of `lanyard.` and "Check in with Lanyard" at the foot (browser).
+- [x] The same organisation's free event shows the Lanyard mark, and the switch is disabled with "Branding shows on paid events" (test and browser).
+- [x] An SVG, a 2 MB PNG and a file with a PNG name but HTML inside are each refused with 400 (test).
+- [x] A team member without the admin role gets 403 on the branding routes; another organisation's host gets 404 (test).
+- [x] A display name `<script>alert(1)</script>` shows as text on every surface (test).
+- [x] Removing the logo deletes the R2 object; deleting the organisation deletes it too (test with the R2 stand-in).
+- [x] The admin removes a logo, and the audit log records it (test).
+- [x] `npm test` passes; public pages within budget.
 
 > [!question] Which credits make an event "paid"? Until now nothing set `events.is_paid` (every event was 0). F66.1 sets it when an event spends a credit, which is every event except a society's free one of the week, so starter and promo credits count as well as bought ones (the owner's words: "paid for with a credit"). Events made before F66 stay free. If branding should be for bought credits only, say so: it is one condition in `insertEvent` (`worker/hosts.js`).
 
 ## Log
--
+- 2026-11-25 (Claude subagent). Company branding: `worker/branding.js` (settings routes, `/media/logo/...`, `eventBrand`), migration 0044 (`orgs.brand_name`, `brand_logo_key`, `brand_logo_version`, and `brand_off` for the admin's switch; `events.use_branding`; a `media_deletes` table with two triggers so a replaced, removed or deleted organisation's logo is always deleted from R2), Branding on Account and team with a preview, the switch under Advanced, the name and logo on the check-in page, the hub, Present and the poster with "Check in with Lanyard", an admin section, and a Host Terms line (section 15). [[D061 Host branding shows on paid events only, keeps a Check in with Lanyard line, and takes PNG, JPEG or WebP logos up to 1 MB]].
+- Found: `events.is_paid` was never set (every event was 0). It is now set in `insertEvent`'s own `INSERT` when the event spends a credit (any credit; not a society's free event of the week). Events made before F66 stay free. See the question above.
+- The security bar, each in `test/host-branding.mjs` (126 checks): types (SVG, SVG or GIF or HTML declared as PNG, PNG bytes declared as JPEG, WebP, SVG or text/html, a URL: each 400; just over 1 MB and 2 MB: 400; over 1024 px: 400; the stored PNG has its tEXt chunk with HTML removed); no re-encode in the Worker (no decoder there): the browser draws a picture over 1024 px smaller as a PNG, the Worker checks size and strips metadata; serving (real type, nosniff, sandbox CSP, no Content-Disposition, `public, max-age=31536000, immutable` with `?v=`, 404 before it is public, private to the organisation's hosts, 404 for another organisation's host, a guessed key, another extension and a traversal); roles (owner only; staff 403 on all three writes; another organisation 404 on all four; signed out 401; an attendee cookie 401 on the host site, 403 on the main site); the name (control, zero-width, direction characters removed, 61 refused, `<script>alert(1)</script>` and `"><img src=x onerror=alert(1)>` rendered as text on the check-in page by the real component, the other surfaces by source: text and attributes only, no v-html); paid only (a society's free event with use_branding 1 and a logo: no brand on `/api/e/:code`, the hub or `/live`, and the rendered page is the Lanyard look); the line (a test reads each of the four surfaces); deletion (replace, remove, an R2 failure then the purge, and the host reset's wipe then the purge, against the R2 stand-in); admin (list, view, remove, switch off and on, both in `admin_audit`; the host cannot undo the switch); isolation (`/host/me`, `/live`, the host and attendee downloads and the events list).
+- Browser (local database, servers on 8787 and 5173, `MAIL_LOG`, throwaway vars, no `.dev.vars`): as F68 Test Co's owner, set "Acme Careers" and added a generated PNG (picked through the real file input), checked the Branding section and its preview (1280 dark, 375 light); created "Acme Careers Evening" through Create, which spent a real local credit and came out paid, with the switch on in step 2 and the logo in the preview; Present showed the logo in place of `lanyard.` and "Check in with Lanyard" at the foot (1280 light and dark, 375 light); the poster showed the logo at the top and the line at the foot; the check-in page (1280 light, 375 Dark and Midnight) and, after checking in, the hub (375 Midnight, 1280 light) showed the name, the logo and the line; the free event "Coming up Friday" (made before F66) showed `lanyard.` on Present, no brand on its check-in data or hub, and its Details switch disabled with "Branding shows on paid events"; the admin page listed the organisation and showed the logo. Fixed on the way: the logos are on a light plate so a dark logo reads in the dark themes, and keep their shape.
+- Not checked by eye: every surface in every theme and width (sampled as above), the poster on paper, a logo over 1024 px through the browser's shrink (unit-tested only), the admin's Remove and Switch off buttons in the browser (tested through the Worker), screen readers.
+- Check-in page JS: EventPage chunk 3,680 to 3,774 B gzip (+94), the page's first load 49,067 to 49,155 B (+88); public pages (built from a clean copy, before to after, B gzip): Landing 44,326 to 44,330, PublicCard 47,680 to 47,681, Hosts 42,680 to 42,680, Privacy 50,296 to 50,295, Terms 46,804 to 46,889, Redeem 46,037 to 46,036, SignIn 47,145 to 47,147, PrivacyRequest 49,867 to 49,871. Owner steps: `npm run db:remote` (0044, additive) before `npm run deploy`; decide which credits count as paid; decide whether the Terms line needs a version bump (my view: not material, as it only binds a host who uses the new feature, but it adds an obligation, so it is the owner's call); upload your own test logo on a paid test event and look at Present, the check-in page and print on a phone.
 
 Related: [[F65 Event themes and an advanced look]] · [[F27 Lanyard Plus and billing]] · back to [[00 Master To-Do]]
