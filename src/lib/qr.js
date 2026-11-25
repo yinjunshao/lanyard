@@ -11,7 +11,6 @@ const THEMES = {
   formal: { bg: "#FFFDF8", ink: "#1B1A17", graphite: "#6B675F", rule: "#D8D2C5", strap: "#2B3138" },
   night: { bg: "#1F1D1A", ink: "#F4F1EA", graphite: "#A29D92", rule: "#38352F", strap: "#C4441E" },
 };
-const PAPER = "#F4F1EA";
 
 const FONT = (size, weight = 400, italic = false) =>
   `${italic ? "italic " : ""}${weight} ${size}px "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", sans-serif`;
@@ -103,7 +102,7 @@ function loadImage(src) {
 // out (352px wide card, 76px strap, 68px photo, 160px QR box …), scaled 3x.
 export async function drawBadge(canvas, view, url) {
   const S = 3;
-  const CARD_W = 352, B = 1.5, PAD = 28;
+  const CARD_W = 352, B = 1.5;
   const t = { ...(THEMES[view?.theme === "night" ? "night" : view?.theme === "formal" ? "formal" : "light"]) };
   if (view?.strapColor) t.strap = view.strapColor;
   t.text = strictHex(view?.textColor) || t.ink; // F55.3: a Plus card's own text colour for the words (the borders stay the theme's ink)
@@ -118,7 +117,6 @@ export async function drawBadge(canvas, view, url) {
   const tags = (p.tags || []).slice(0, 4);
   const note = (view?.note || "").slice(0, 160);
   const meta = view?.subtitle || ""; // formatted by the caller (lib/profile.js), so this chunk stays free of it
-  const caption = ""; // codes are permanent now, so nothing to warn about under the card
 
   const mctx = document.createElement("canvas").getContext("2d");
   const bodyW = CARD_W - 2 * B - 40; // 309
@@ -150,8 +148,10 @@ export async function drawBadge(canvas, view, url) {
   bodyH += 12 + 16.5 + (view?.code ? 2 + 27 : 0); // footer
   const cardH = B + 76 + 20 + bodyH + 18 + B;
 
-  const W = CARD_W + PAD * 2;
-  const H = PAD + cardH + PAD + (caption ? 26 : 0);
+  // F71: the picture is the card and nothing else: no margin, no paper fill, no shadow.
+  // Every pixel outside the 8 px rounded corners stays transparent (alpha 0).
+  const W = CARD_W;
+  const H = cardH;
   canvas.width = Math.round(W * S);
   canvas.height = Math.round(H * S);
   canvas.style.width = `${W}px`;
@@ -161,22 +161,9 @@ export async function drawBadge(canvas, view, url) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  // page backdrop
-  ctx.fillStyle = PAPER;
-  ctx.fillRect(0, 0, W, H);
-
-  const cx = PAD, cy = PAD;
-  // card + shadow
+  const cx = 0, cy = 0;
   ctx.save();
-  ctx.shadowColor = "rgba(27,26,23,0.18)";
-  ctx.shadowBlur = 20;
-  ctx.shadowOffsetY = 9;
-  ctx.fillStyle = t.bg;
-  rr(ctx, cx, cy, CARD_W, cardH, 8); ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  rr(ctx, cx, cy, CARD_W, cardH, 8); ctx.clip();
+  rr(ctx, cx, cy, CARD_W, cardH, 8); ctx.clip(); // the clip is anti-aliased, so the corner curve is smooth
   ctx.fillStyle = t.bg; ctx.fillRect(cx, cy, CARD_W, cardH);
 
   const ix = cx + B, iy = cy + B, iw = CARD_W - 2 * B;
@@ -303,12 +290,6 @@ export async function drawBadge(canvas, view, url) {
   // border
   ctx.strokeStyle = t.ink; ctx.lineWidth = 1.5;
   rr(ctx, cx + 0.75, cy + 0.75, CARD_W - 1.5, cardH - 1.5, 7.25); ctx.stroke();
-
-  // Optional line under the card, outside it, so the card itself stays
-  // identical to the one on screen.
-  if (caption) {
-    line(ctx, caption, W / 2, cy + cardH + PAD - 4, { size: 13, lineH: 19.5, color: "#6B675F", align: "center" });
-  }
 
   return canvas;
 }

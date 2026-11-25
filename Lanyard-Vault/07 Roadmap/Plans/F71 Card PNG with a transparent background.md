@@ -4,7 +4,7 @@ id: F71
 priority: P1
 phase: 13
 size: S
-status: Not started
+status: In progress
 needs: []
 ---
 # F71 Card PNG with a transparent background
@@ -26,7 +26,7 @@ needs: []
 - The file name stays `lanyard-badge.png`, and the 3x scale stays.
 
 ## Tasks
-- [ ] F71.1 Draw the card alone on a transparent canvas, with anti-aliased rounded corners and no margin or shadow; test the result.
+- [x] F71.1 Draw the card alone on a transparent canvas, with anti-aliased rounded corners and no margin or shadow; test the result.
 - [ ] F71.2 Vault notes, Log, Master To-Do.
 
 ## Acceptance checks
