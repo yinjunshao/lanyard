@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS metrics_daily (
 - Owner steps: `npm run db:remote` (0045, additive, safe before the deploy), then `npm run deploy`. The next morning open `/admin`, press Show metrics and check the archive says one snapshot dated that day, then press Download CSV and open it in a spreadsheet (the first night there is one line; graphs need a few days). Apply the vault lines below.
 
 ### Vault updates pending (owner-modified notes)
-These four notes have uncommitted owner edits, so they were not touched. Add these lines:
+Applied by the orchestrator on 2026-11-25 to the working copies of all four notes, left uncommitted because those notes also hold the owner's own uncommitted edits; they go in with the owner's next vault commit. The lines added:
 
 **[[Data Model]]** (a new bullet beside the other migration bullets, after the F66 one):
 `- **Platform metrics archive (F70, migration 0045, [[D062 Platform metrics are totals only, archived once a UTC day and exported as CSV]]).** `metrics_daily` (`day` TEXT primary key, the UTC day it was taken; `taken_at` INTEGER ms; `version` INTEGER, `METRICS_VERSION`; `data` TEXT, a JSON object of flat numbers): totals about the service and nothing about one person (no id, name, email or text). No foreign key. Written by `snapshotMetrics` (the 03:17 job with `INSERT OR IGNORE`, so the first run of a day wins; the admin button with `INSERT OR REPLACE`). Never touched by `eraseUser`, `expireInactive` or `purgeExpired`; kept indefinitely.`
