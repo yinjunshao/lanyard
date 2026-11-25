@@ -8,6 +8,7 @@ import { createServer } from "vite";
 import { renderToString } from "vue/server-renderer";
 import { createSSRApp, h } from "vue";
 import { check, summary, makeEnv, becomeHost } from "./harness.mjs";
+globalThis.location ??= new URL("https://host.lanyard.test/"); // F65: the Look step now draws the card swatches, which read the store and so the site address
 import { STEPS, LAST, blankForm, validateStep, stepDirection } from "../src/lib/eventsteps.js";
 
 const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8").replace(/\r\n/g, "\n");

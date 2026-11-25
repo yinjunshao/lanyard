@@ -5,6 +5,7 @@
 // (a copy of an earlier event, or a new one through createBody), and the server's checks stay
 // the source of truth. validateStep() is a convenience that stops the host a step early.
 import { collectBody, createBody, THEME_OPTIONS } from "./eventform.js";
+import { INK_CHOICES, cleanInk } from "./eventlook.js";
 import { cleanWhy, whyProblem } from "./collects.js";
 import { DIET_IDS, foodLine } from "./eventinfo.js";
 import { PERK_MAX, perkLines, perkProblems, perkRows } from "./perkrows.js";
@@ -25,7 +26,7 @@ export const LAST = STEPS.length;
 export const stepDirection = (from, to) => (!from || !to || from === to ? "" : to > from ? "fwd" : "back");
 
 export const blankForm = () => ({
-  from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "",
+  from: "", name: "", venue: "", startsAt: null, endsAt: null, theme: "default", strapColor: "", strapInk: "", // F65: "" is Automatic; White or Dark is sent only when chosen
   perks: [], directoryOn: true, q1: "", q2: "", // F63: perks are rows of { name, details } (lib/perkrows.js), sent as "Name (Details)"
   rsvpCount: "", access: "", food: "", feedbackOn: true, feedbackQuestions: [],
   // F31: "What this event collects". Off until the host switches it on.
@@ -149,7 +150,9 @@ export const stepFromQuery = (q) => {
 // What "Start from an earlier event" copies, for steps 2 to 4 and Review. `s` is the live
 // route's answer for that event ({ event, sponsors }). The values are only shown: Create sends
 // the name and times, and the server copies the rest.
-const themeLabel = (t) => THEME_OPTIONS.find((o) => o.value === t)?.label || "Default";
+const themeLabel = (t) => THEME_OPTIONS.find((o) => o.value === t)?.label || "Persimmon";
+// F65: a chosen text colour on the strap is a Review row; Automatic (the usual) has none.
+const inkRow = (v) => { const c = INK_CHOICES.find((x) => x.value === cleanInk(v)); return c ? [["Text on the strap", c.name]] : []; };
 const yes = (b) => (b ? "Yes" : "No");
 export function copyFacts(s) {
   const e = s?.event;
@@ -159,7 +162,7 @@ export function copyFacts(s) {
   const sp = (s.sponsors || []).map((x) => x.name).filter(Boolean);
   return {
     basics: [["Venue", e.venue || "None"]],
-    look: [["Theme", themeLabel(e.theme)], ["Brand colour", e.strapColor || "The theme colour"]],
+    look: [["Theme", themeLabel(e.theme)], ["Brand colour", e.strapColor || "The theme colour"], ...inkRow(e.strapInkChoice)],
     event: [
       ["Perks", (e.perks || []).join(", ") || "None"],
       ["Food and drink", foodLine(info) || "None"],
@@ -213,7 +216,7 @@ export function reviewGroups(f, facts, start = null) {
   const own = (f.feedbackQuestions || []).filter((q) => String(q.label || "").trim());
   return [
     { step: 1, title: "Basics", rows: [...basics, ["Venue", f.venue.trim() || "None"]] },
-    { step: 2, title: "Look", rows: [["Theme", themeLabel(f.theme)], ["Brand colour", f.strapColor || "The theme colour"]] },
+    { step: 2, title: "Look", rows: [["Theme", themeLabel(f.theme)], ["Brand colour", f.strapColor || "The theme colour"], ...inkRow(f.strapInk)] },
     { step: 3, title: "At the event", rows: [
       ["Perks", perks.join(", ") || "None"],
       ["Food and drink", f.foodOn ? foodLine({ food: String(f.food || "").trim(), diet: f.diet }) || "Provided" : "None"],

@@ -30,6 +30,9 @@ Every email is made by `emailLayout` in `worker/mail-layout.js` ([[D053 Every em
 | Night | Socials; ink background, paper text, Persimmon strap |
 | Host brand | Paid events; host colour on the strap only |
 
+### Event themes (F65)
+Eight, from `src/lib/eventthemes.js`, drawn by `src/styles/eventthemes.css` on the check-in head, the Present page and the poster ([[D060 Event themes are one shared list drawn by CSS, and a chosen text colour must read]]). Persimmon `#C4441E`, Formal `#2B3138` and Night (dark card, Persimmon strap) are the three that always existed and look as they did. Forest `#2A6B45`, Ocean `#1F5F8B`, Plum `#6E3A82` and Rose `#B83A5E` carry white words (6.4, 6.8, 8.1 and 5.5:1) on a faint tint of the same colour (`#F1F6F1`, `#EEF4F8`, `#F6F0F8`, `#FBF0F3`); Sand `#A67C37` carries `#1B1A17` words (4.6:1) on `#FAF4E8`. A head is a card with its own paper, so it reads the same in Light, Dark and Midnight; Present is tinted in its light look only. A brand colour is any colour, and its words are white or black, whichever reads better (always 4.58:1 or more); a host's own White or Dark must reach 4.5:1 or is not offered. The theme grid is 44 px swatches in a radio group with a ring on the chosen one (opacity and transform, tokens).
+
 ## Rules
 - One primary action per screen, bottom thumb zone, Persimmon.
 - 1px borders not shadows; 4-6px radius; no hover effects; motion only as set out under Motion below (and the shutter flash on a selfie).

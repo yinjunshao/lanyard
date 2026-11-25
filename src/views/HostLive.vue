@@ -12,8 +12,8 @@ import FeedbackResults from "../components/FeedbackResults.vue";
 import FeedbackSummary from "../components/FeedbackSummary.vue";
 import { fmtDateTime } from "../lib/time";
 import UiDateTimePicker from "../components/ui/UiDateTimePicker.vue";
-import UiSelect from "../components/ui/UiSelect.vue";
 import EventPreview from "../components/EventPreview.vue";
+import EventLook from "../components/EventLook.vue";
 import EventCollects from "../components/EventCollects.vue";
 import EventFood from "../components/EventFood.vue";
 import PerkRows from "../components/PerkRows.vue";
@@ -21,7 +21,7 @@ import { perkProblems, perkRows } from "../lib/perkrows";
 import { foodTicked } from "../lib/eventinfoclean";
 import HostAttendees from "../components/HostAttendees.vue";
 import HostDrops from "../components/HostDrops.vue";
-import { THEME_OPTIONS, detailsBody, eventFromBody, SUGGEST_HOST_HELP } from "../lib/eventform";
+import { detailsBody, eventFromBody, SUGGEST_HOST_HELP } from "../lib/eventform";
 import { defaultEnd } from "../lib/dates";
 import { cleanWhy, whyProblem } from "../lib/collects";
 import { useBusy } from "../components/Waiting.vue";
@@ -138,7 +138,7 @@ function fillDetails() {
     // access is not on the form (F63) but is kept here so saving sends the stored value back unchanged.
     access: e.info?.access || "", dress: e.info?.dress || "", other: e.info?.other || "",
     food: e.info?.food || "", foodOn: foodTicked(e.info), diet: Array.isArray(e.info?.diet) ? [...e.info.diet] : [],
-    theme: e.theme || "default", strapColor: e.strapColor || "", perks: perkRows(e.perks), directoryOn: e.directoryOn !== false,
+    theme: e.theme || "default", strapColor: e.strapColor || "", strapInk: e.strapInkChoice || "", perks: perkRows(e.perks), directoryOn: e.directoryOn !== false,
     suggestOn: e.suggestOn !== false, // F60: the live route says suggestOn only when it is off
     // F31: what the event collects (the live route sends it only when the list is on).
     collectWas: !!e.collect, collectOn: !!e.collect, collectEmail: !!e.collect?.items?.includes("email"),
@@ -302,7 +302,7 @@ async function copyFeedbackLink() {
       <HostDrops v-if="tab === 'drops'" :event-id="id" role="tabpanel" />
 
       <!-- Details -->
-      <EventPreview v-if="tab === 'details'" v-model:theme="d.theme" v-model:strap-color="d.strapColor" :event="previewEvent" :sponsors="live.sponsors || []">
+      <EventPreview v-if="tab === 'details'" v-model:theme="d.theme" :event="previewEvent" :sponsors="live.sponsors || []">
       <form class="panel stack-2" role="tabpanel" @submit.prevent="saveDetails">
         <div class="field"><label for="d-name">Event name</label><input id="d-name" v-model="d.name" type="text" maxlength="120" /></div>
         <div class="field"><label for="d-venue">Venue</label><input id="d-venue" v-model="d.venue" type="text" maxlength="120" /></div>
@@ -315,15 +315,7 @@ async function copyFeedbackLink() {
           <input id="d-rsvp" v-model="d.rsvpCount" type="number" min="0" inputmode="numeric" />
           <span class="small muted">A number only. The report compares it with check-ins.</span>
         </div>
-        <div class="field"><label id="d-theme-l">Theme</label>
-          <UiSelect id="d-theme" v-model="d.theme" labelledby="d-theme-l" :options="THEME_OPTIONS" /></div>
-        <div class="field"><label for="d-strap">Brand colour (optional)</label>
-          <div class="row">
-            <input id="d-strap" type="color" :value="d.strapColor || '#c4441e'" style="width:56px;height:44px;padding:2px;flex:none" @input="d.strapColor = $event.target.value" />
-            <span class="small muted" style="flex:1">{{ d.strapColor || "Using the theme colour" }}</span>
-            <button v-if="d.strapColor" class="btn" style="width:auto;flex:none" type="button" @click="d.strapColor = ''">Reset</button>
-          </div>
-        </div>
+        <EventLook :form="d" prefix="d" />
         <div class="field"><span class="label">Perks</span><PerkRows :form="d" :errors="perkErrors" prefix="d" /></div>
         <label class="checkbox-row">
           <input type="checkbox" v-model="d.directoryOn" />

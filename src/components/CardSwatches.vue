@@ -11,10 +11,18 @@ import { STRAP_PRESETS, presetOf, strictHex } from "../lib/cardcolour";
 // about 0.8 KB gzip to the Vue code every public page loads, so the import is made by hand.)
 const Panel = shallowRef(null);
 const model = defineModel({ type: String, default: "" });
-const props = defineProps({ theme: { type: String, default: "default" } });
+const props = defineProps({
+  theme: { type: String, default: "default" },
+  // F65: an event's brand colour uses the same swatches and panel but is free for hosts. plusGate false turns the Plus gate off (a card
+  // never does); themeColour and themeName say what "no colour chosen" is for an event theme, which the card themes cannot.
+  plusGate: { type: Boolean, default: true },
+  themeColour: { type: String, default: "" },
+  themeName: { type: String, default: "" },
+});
+const custom = computed(() => !props.plusGate || me.plan.customStrap);
 
 // What the strap is when nothing is chosen: Formal is graphite, every other theme is the brand orange.
-const themeHex = computed(() => (props.theme === "formal" ? "#2B3138" : "#C4441E"));
+const themeHex = computed(() => strictHex(props.themeColour) || (props.theme === "formal" ? "#2B3138" : "#C4441E"));
 const shown = computed(() => strictHex(model.value) || themeHex.value);
 const chosen = computed(() => presetOf(shown.value));
 // A colour that is not one of the ten (Plus made it): the Custom swatch shows it, with the ring.
@@ -26,7 +34,7 @@ async function openPanel() {
   panelOpen.value = true;
 }
 const caption = computed(() => {
-  if (!model.value) return `Theme colour: ${presetOf(themeHex.value).name}`;
+  if (!model.value) return `Theme colour: ${presetOf(themeHex.value)?.name || props.themeName || themeHex.value}`;
   return chosen.value ? chosen.value.name : `Custom ${shown.value}`;
 });
 
@@ -60,7 +68,7 @@ const tabbable = (p, i) => (chosen.value ? chosen.value.hex === p.hex : i === 0)
         </button>
       </div>
       <!-- Free: the Plus page, nothing is saved. Plus: the colour panel. -->
-      <router-link v-if="!me.plan.customStrap" class="swatch swatch-custom" to="/app/settings/plan"
+      <router-link v-if="!custom" class="swatch swatch-custom" to="/app/settings/plan"
                    aria-label="Custom colour, part of Lanyard Plus" title="Custom colours are part of Lanyard Plus">
         <span class="sw-dot sw-wheel"></span>
         <span class="sw-plus" aria-hidden="true">Plus</span>
@@ -73,7 +81,7 @@ const tabbable = (p, i) => (chosen.value ? chosen.value.hex === p.hex : i === 0)
       </button>
     </div>
     <p class="small muted swatch-name" aria-live="polite">{{ caption }}</p>
-    <component :is="Panel" v-if="Panel && me.plan.customStrap" v-model="model" :open="panelOpen" :anchor="customBtn" :fallback="shown"
+    <component :is="Panel" v-if="Panel && custom" v-model="model" :open="panelOpen" :anchor="customBtn" :fallback="shown"
                      label="Strap colour" @done="panelOpen = false" @close="panelOpen = false" />
   </div>
 </template>

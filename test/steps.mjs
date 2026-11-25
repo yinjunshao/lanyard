@@ -8,6 +8,7 @@ import { createServer } from "vite";
 import { renderToString } from "vue/server-renderer";
 import { createSSRApp, h } from "vue";
 import { check, summary, makeEnv, becomeHost } from "./harness.mjs";
+globalThis.location ??= new URL("https://host.lanyard.test/"); // F65: the Look step now draws the card swatches, which read the store and so the site address
 import { createBody } from "../src/lib/eventform.js";
 import {
   STEPS, LAST, blankForm, formFromDraft, submitPlan, validateStep, firstBadStep, serverErrorField, stepFromQuery, copyFacts, reviewGroups,
@@ -36,10 +37,11 @@ const F31_OFF = { collectOn: false, collectEmail: false, collectCard: false, col
 const F60_ON = { suggestOn: true };
 // F63 adds the food tick and the diet ticks, off. A form with food typed now needs the tick on (an unticked form sends no food).
 const F63_OFF = { perks: [], foodOn: false, diet: [] };
+const F65_OFF = { strapInk: "" }; // F65: the text colour on the strap, Automatic until chosen
 // F63: the perks are rows of { name, details } (sent as "Name (Details)"), not one text; `rows` makes them from lines.
 const rows = (t) => t.split("\n").map((s) => s.trim()).filter(Boolean).map((name) => ({ name, details: "" }));
 const { perksText: _oldPerks, ...OLD_NO_PERKS } = OLD_BLANK();
-const blank = (o = {}) => ({ ...OLD_NO_PERKS, ...F31_OFF, ...F60_ON, ...F63_OFF, ...o });
+const blank = (o = {}) => ({ ...OLD_NO_PERKS, ...F31_OFF, ...F60_ON, ...F63_OFF, ...F65_OFF, ...o });
 const FORMS = {
   "blank except a name": blank({ name: "Only a name" }),
   "everything filled in (theme, colour, perks, questions)": blank({
@@ -55,7 +57,7 @@ const FORMS = {
   "markup in the words": blank({ name: "<b>Bold</b> & co", venue: "\"Quoted\" <i>room</i>", perks: rows("<script>x</script>") }),
 };
 const sorted = (o) => JSON.stringify(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1)));
-check("the blank form is the old blank form, key for key, plus F31's four keys, all off, F60's switch, on, and F63's food tick and diet list, off", sorted(blankForm()) === sorted({ ...OLD_NO_PERKS, ...F31_OFF, ...F60_ON, ...F63_OFF }));
+check("the blank form is the old blank form, key for key, plus F31's four keys, all off, F60's switch, on, F63's food tick and diet list, off, and F65's text colour on the strap, Automatic", sorted(blankForm()) === sorted({ ...OLD_NO_PERKS, ...F31_OFF, ...F60_ON, ...F63_OFF, ...F65_OFF }));
 check("F60: with suggestions switched off, Create sends the same body plus suggestOn: false, and nothing else", JSON.stringify(createBody(blank({ name: "Off", suggestOn: false }))) === JSON.stringify({ ...createBody(blank({ name: "Off" })), suggestOn: false }));
 for (const [label, f] of Object.entries(FORMS)) {
   const a = submitPlan(f), b = oldCreate(f);
@@ -248,8 +250,8 @@ try {
   check("step 4 has both check-in questions, the feedback tick and the feedback editor only", has(4, ["ev-q1", "ev-q2"]) && /anonymous feedback/.test(P[4]) && /Everyone is asked/.test(P[4]) && none(4, ["ev-name", "ev-perks-h", "ev-theme"]));
   check("every old field is on exactly one step (nothing was dropped)", ["ev-from", "ev-name", "ev-start", "ev-end", "ev-venue", "ev-theme", "ev-strap", "ev-perks-h", "ev-food-on", "ev-rsvp", "ev-q1", "ev-q2"].every((i) => [1, 2, 3, 4].filter((n) => ids(P[n]).includes(i)).length === 1));
   const dashSrc = read("src/views/HostDashboard.vue");
-  check("every option list is kept: the theme picker has Default, Formal and Night; the earlier-event picker has a blank event and one entry per event",
-    /THEME_OPTIONS/.test(read("src/components/EventStepLook.vue")) && /:options="THEME_OPTIONS"/.test(read("src/components/EventStepLook.vue")) && /export const THEME_OPTIONS = EVENT_THEMES\.map\(/.test(read("src/lib/eventform.js")) && /id: "default"[\s\S]*id: "formal"[\s\S]*id: "night"/.test(read("src/lib/eventthemes.js"))
+  check("every option list is kept: the theme picker (F65: a grid of radio swatches from the shared list) has Default, Formal and Night first; the earlier-event picker has a blank event and one entry per event",
+    /<EventLook :form="form" prefix="ev" \/>/.test(read("src/components/EventStepLook.vue")) && /v-for="\(th, i\) in EVENT_THEMES"/.test(read("src/components/EventLook.vue")) && /role="radio"/.test(read("src/components/EventLook.vue")) && /export const THEME_OPTIONS = EVENT_THEMES\.map\(/.test(read("src/lib/eventform.js")) && /id: "default"[\s\S]*id: "formal"[\s\S]*id: "night"/.test(read("src/lib/eventthemes.js"))
     && /const FROM_OPTIONS = computed\(\(\) => \[\{ value: "", label: "A blank event" \}, \.\.\.events\.value\.map/.test(dashSrc) && /:from-options="FROM_OPTIONS"/.test(dashSrc));
   check("each screen says where you are: Step N of 5, the names, aria-current on this one, and the heading has the step in it", [1, 2, 3, 4, 5].every((n) => P[n].includes(`Step ${n} of 5`) && P[n].includes(`aria-current="step"`) && new RegExp(`id="ev-step-h"[^>]*>(<span[^>]*>)?Step ${n} of 5`).test(P[n])));
   check("the heading can take focus (tabindex -1) and the form is a real form with one submit button, so Enter is Next", [1, 2, 3, 4, 5].every((n) => /id="ev-step-h"[^>]*tabindex="-1"/.test(P[n]) && /<form[^>]*novalidate/.test(P[n]) && (P[n].match(/type="submit"/g) || []).length === 1));

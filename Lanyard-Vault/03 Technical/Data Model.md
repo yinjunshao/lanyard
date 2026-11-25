@@ -36,7 +36,7 @@ D1 schema from `migrations/0001`-`0024`. Conventions: ids are 10-character ungue
 - `orgs` (plan, org_type society|institution|company|individual, verification_status, leader, university, **institution_id** (F12, as on `profiles`), review notes)
 - `host_org_members` (owner|staff|sponsor_viewer), `host_org_transfers`, `host_org_invites` (optional email), `host_org_tickets`: all on host accounts. `host_mail_log`: the owner recap, once per event
 - Old, before F10: `host_profiles`, `org_members`, `org_transfers`, `org_invites`, `host_tickets` point at `users`. No code reads them; the host reset empties them and a later migration can drop them
-- `events` (code, name, starts_at, venue, theme, strap_color, perks, directory_on, checkin_questions, is_paid)
+- `events` (code, name, starts_at, venue, theme, strap_color, **strap_ink** (F65, migration 0043, nullable: the host's chosen text colour on the strap, `#FFFFFF` or `#1B1A17`, NULL = Automatic; the Worker keeps it only if it reads at 4.5:1 on the strap in effect), perks, directory_on, checkin_questions, is_paid). `theme` is free text with no CHECK; the Worker keeps one of the ids in `src/lib/eventthemes.js` (default, formal, night, forest, ocean, plum, rose, sand) and turns anything else into default ([[D060 Event themes are one shared list drawn by CSS, and a chosen text colour must read]])
 - `checkins` (answers JSON, sponsor opt-ins)
 - `sponsors`
 - `credits` (events_granted, events_used, expires_at, reason, granted_by), `promo_redemptions`

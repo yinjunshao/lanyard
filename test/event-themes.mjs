@@ -7,7 +7,11 @@
 // The Worker is the real one on in-memory SQLite (test/harness.mjs). What the eye sees is checked in a browser (see the plan note).
 // Run: node test/event-themes.mjs
 import { readFileSync } from "node:fs";
+import { createServer } from "vite";
+import { renderToString } from "vue/server-renderer";
+import { createSSRApp, h } from "vue";
 import { makeEnv, makeDb, readMigration, migrationFiles, check, summary, becomeHost } from "./harness.mjs";
+globalThis.location ??= new URL("https://host.lanyard.test/"); // the swatches read the store, which reads the site address
 import { EVENT_THEMES, THEME_IDS, isTheme, themeOf, cleanTheme } from "../src/lib/eventthemes.js";
 import { contrast, strapInk, STRAP_PRESETS } from "../src/lib/cardcolour.js";
 import { INK_CHOICES, INK_MIN, INK_LOW, cleanInk, inkReads, inkOf, inkIn, strapIn } from "../src/lib/eventlook.js";
@@ -205,6 +209,61 @@ console.log("\n# The check-in page gets no script for this (CSS only)");
   check("EventPage imports no theme list and no colour sums (the CSS comes with main.css)", !/^import [^\n]*(eventthemes\.js|eventlook|cardcolour|colourpanel)/m.test(ep));
   check("the head's class is the id and its colours are data in two CSS custom properties", /class="profile event-brand" :class="event\.theme"/.test(ep) && /'--card-strap': event\.strapColor, '--card-strap-ink': event\.strapInk/.test(ep));
   check("a default event with no colour and no text colour is still the plain head (nothing is branded)", /const branded = \(e\) => \(e\.theme && e\.theme !== "default"\) \|\| !!e\.strapColor \|\| !!e\.strapInk;/.test(ep));
+}
+
+console.log("\n# The form: a theme grid, and Advanced with the F55 picker, free for hosts (rendered on the server)");
+const vite = await createServer({
+  configFile: "vite.config.js", root: process.cwd(), logLevel: "silent", appType: "custom",
+  server: { middlewareMode: true, hmr: false, watch: null }, optimizeDeps: { noDiscovery: true },
+});
+try {
+  const load = async (p) => (await vite.ssrLoadModule("/" + p)).default;
+  const EventLook = await load("src/components/EventLook.vue"), EventStepLook = await load("src/components/EventStepLook.vue"), CardSwatches = await load("src/components/CardSwatches.vue");
+  // The swatches link to the Plus page with the router's own link; a stand-in draws it as a plain link here.
+  const render = (comp, props) => renderToString(createSSRApp({ render: () => h(comp, props) }).component("router-link", { props: ["to"], render() { return h("a", { href: this.to, class: this.$attrs.class, "aria-label": this.$attrs["aria-label"] }, this.$slots.default?.()); } })).then((x) => x.replace(/<!--[\s\S]*?-->/g, ""));
+  const form = (o = {}) => ({ theme: "default", strapColor: "", strapInk: "", ...o });
+  const look = (o, prefix = "ev") => render(EventLook, { form: form(o), prefix });
+  const html = await look({ theme: "forest" });
+  const radios = [...html.matchAll(/<button[^>]*role="radio"[^>]*data-pick="(\w+)"[^>]*>/g)];
+  check("the grid is a radio group of one swatch per theme in the list, in order, named by its label", radios.map((m) => m[1]).join() === THEME_IDS.join() && radios.length >= 8 && /role="radiogroup" aria-labelledby="ev-theme-l"/.test(html) && /id="ev-theme-l"/.test(html) && /id="ev-theme"/.test(html));
+  check("each swatch shows its name and a small head in its own colours; only the chosen one is checked, and one swatch is in the tab order", EVENT_THEMES.every((t) => html.includes(`>${t.name}</span>`) && html.includes(`--th-strap:${t.strap}`) && html.includes(`--th-tint:${t.tint}`))
+    && radios.filter((m) => /aria-checked="true"/.test(m[0])).map((m) => m[1]).join() === "forest" && radios.filter((m) => /tabindex="0"/.test(m[0])).map((m) => m[1]).join() === "forest");
+  const none = [...(await look({ theme: "made-up" })).matchAll(/<button[^>]*role="radio"[^>]*data-pick="(\w+)"[^>]*>/g)];
+  check("a form with a theme that is not in the list has one tab stop (the first) and none checked", none.filter((m) => /tabindex="0"/.test(m[0])).map((m) => m[1]).join() === "default" && none.every((m) => /aria-checked="false"/.test(m[0])));
+  const src = read("src/components/EventLook.vue");
+  check("the arrow keys, Home and End move and choose, wrapping round (one tab stop, like the card swatches)", /ArrowRight/.test(src) && /ArrowLeft/.test(src) && /ArrowUp/.test(src) && /ArrowDown/.test(src) && /Home: 0/.test(src) && /End: n - 1/.test(src) && /:tabindex="tabbable\(th, i\) \? 0 : -1"/.test(src));
+  check("each swatch is at least 44 px to press, and the ring fades and grows (opacity and transform, tokens), still under reduced motion", /min-height: 44px/.test(src) && /\.el-ring \{[^}]*opacity: 0; transform: scale\(0\.97\); transition: opacity var\(--dur-fast\) var\(--ease-out\), transform var\(--dur-fast\) var\(--ease-out\)/.test(src) && /@media \(prefers-reduced-motion: reduce\) \{ \.el-ring, \.el-chev \{ transition: none; \} \}/.test(src));
+  check("the grid is two across on a phone and four from 560 px", /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/.test(src) && /min-width: 560px\) \{ \.el-grid \{ grid-template-columns: repeat\(4/.test(src));
+  check("Advanced opens with UiReveal (the F57 height ease, kept in the page and inert while shut), from a button that says whether it is open", /import UiReveal from "\.\/ui\/UiReveal\.vue"/.test(src) && /<UiReveal :open="open" keep>/.test(src) && /:aria-expanded="open"/.test(src) && /:aria-controls="id\('adv'\)"/.test(src) && !/<Transition|<transition/.test(src));
+  check("Advanced starts shut, and starts open when the form already has a brand colour or a text colour", /const open = ref\(!!props\.form\.strapColor \|\| !!props\.form\.strapInk\)/.test(src) && /class="reveal"[^>]*inert/.test(html) && !/class="reveal open/.test(html) && /class="reveal open/.test(await look({ strapColor: "#123456" })) && /class="reveal open/.test(await look({ strapInk: "#FFFFFF" })));
+  check("under Advanced: the brand colour swatches, the text on the strap (Automatic, White, Dark) and the company branding switch, off and disabled, saying it is coming soon",
+    /id="ev-strap"/.test(html) && /role="radiogroup" aria-label="Strap colour"/.test(html) && />Automatic</.test(html) && />White</.test(html) && />Dark</.test(html) && /Use our company branding/.test(html) && /<input type="checkbox" disabled/.test(html) && /Coming soon/.test(html) && !/<input type="checkbox"[^>]*checked/.test(html));
+  check("the old controls are gone from step 2: no select, no native colour input", !/type="color"|UiSelect/.test(read("src/components/EventStepLook.vue") + src) && /<EventLook :form="form" prefix="ev" \/>/.test(read("src/components/EventStepLook.vue")));
+  const step = await render(EventStepLook, { form: { ...form(), from: "" } });
+  check("step 2 is the grid and Advanced under the Check-in page heading, with the ids the stepper counts (ev-theme, ev-strap)", /id="ev-theme"/.test(step) && /id="ev-strap"/.test(step) && /Check-in page/.test(step) && /role="radio"/.test(step));
+  const copy = await render(EventStepLook, { form: { ...form(), from: "ev-old" }, facts: [["Theme", "Forest"]], factsState: "ready" });
+  check("a copy of an earlier event still shows no grid (it keeps the earlier event's look)", !/role="radio"/.test(copy));
+  const hl = read("src/views/HostLive.vue");
+  check("the Details tab uses the same component with its own ids (d-theme, d-strap) and a text colour in its form; the old select and colour input are gone",
+    /<EventLook :form="d" prefix="d" \/>/.test(hl) && /strapInk: e\.strapInkChoice \|\| ""/.test(hl) && !/type="color"|id="d-theme"|THEME_OPTIONS/.test(hl) && /id="d-theme"/.test(await look({}, "d")) && /id="d-strap"/.test(await look({}, "d")));
+  check("the preview strip lists the same themes, and has no native colour input any more", /EVENT_THEMES\.map\(/.test(read("src/components/EventPreview.vue")) && !/type="color"/.test(read("src/components/EventPreview.vue")) && !/strap-color/.test(read("src/views/HostDashboard.vue") + hl));
+  const sandHtml = await look({ theme: "sand" }), plumHtml = await look({ theme: "plum" });
+  check("a text colour that would be hard to read is not offered: white on Sand and dark on Plum are disabled, Automatic never is, and a plain line says why",
+    /<button[^>]*role="radio"[^>]*disabled[^>]*>White<\/button>/.test(sandHtml) && !/<button[^>]*role="radio"[^>]*disabled[^>]*>(Automatic|Dark)<\/button>/.test(sandHtml) && /White would be hard to read on this strap, so it is not offered\./.test(sandHtml)
+    && /<button[^>]*role="radio"[^>]*disabled[^>]*>Dark<\/button>/.test(plumHtml) && !/<button[^>]*role="radio"[^>]*disabled[^>]*>(Automatic|White)<\/button>/.test(plumHtml) && /Dark would be hard to read on this strap, so it is not offered\./.test(plumHtml));
+  const midGrey = await look({ strapColor: "#767676" });
+  check("on a mid-grey brand colour (the hardest case for the automatic ink) the sums leave White open (4.5:1) and close Dark (3.8:1), and Automatic is always open", /<button[^>]*role="radio"[^>]*disabled[^>]*>Dark<\/button>/.test(midGrey) && !/<button[^>]*role="radio"[^>]*disabled[^>]*>(White|Automatic)<\/button>/.test(midGrey));
+  check("a text colour that stops reading when the colour or theme changes goes back to Automatic, and the form says so", /inkReads\(props\.form\.strapInk, strap\.value\)\) \{ props\.form\.strapInk = ""; reset\.value = true; \}/.test(src) && /went back to Automatic/.test(src));
+  check("Review lists a chosen text colour, and says nothing for Automatic", read("src/lib/eventsteps.js").includes('["Text on the strap", c.name]'));
+
+  const gate = await render(CardSwatches, { modelValue: "", theme: "default" });
+  const hostGate = await render(CardSwatches, { modelValue: "", theme: "default", plusGate: false, themeColour: "#2A6B45", themeName: "Forest" });
+  check("a card's swatches are as they were: without Plus the Custom swatch is a link to the Plus page, and the card form never passes the new props", /<a[^>]*href="\/app\/settings\/plan"[^>]*swatch-custom|<a[^>]*swatch-custom[^>]*href="\/app\/settings\/plan"/.test(gate) && /Custom colour, part of Lanyard Plus/.test(gate) && />Plus</.test(gate) && !/plus-gate|plusGate/.test(read("src/components/CardForm.vue") + read("src/views/Cards.vue")) && /<CardSwatches v-model="f\.strapColor" :theme="f\.theme" \/>/.test(read("src/components/CardForm.vue")), gate.slice(-300));
+  check("on the host site the Plus gate is not applied: Custom is a button that opens the panel, with no Plus label and no link, and the caption names the theme's colour", /<button[^>]*swatch-custom[^>]*aria-haspopup="dialog"/.test(hostGate) && !/Lanyard Plus|settings\/plan|sw-plus/.test(hostGate) && />Theme colour: Forest</.test(hostGate), hostGate.slice(-420));
+  check("the brand colour is the same ten presets and the same lazy panel as a card's, and the Worker's card colour rules (Plus-only any colour) are untouched", /STRAP_PRESETS/.test(read("src/components/CardSwatches.vue")) && /await import\("\.\/CardColourPanel\.vue"\)/.test(read("src/components/CardSwatches.vue")) && !/eventthemes|eventlook/.test(read("worker/cardcolour.js")));
+  check("the public check-in page and the card page import neither the swatches nor the panel nor the look component", !/CardSwatches|CardColourPanel|EventLook/.test(read("src/components/EventPage.vue") + read("src/views/EventJoin.vue") + read("src/views/PublicCard.vue") + read("src/components/CardView.vue")));
+} finally {
+  await vite.close();
 }
 
 summary();

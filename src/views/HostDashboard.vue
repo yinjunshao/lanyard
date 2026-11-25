@@ -93,7 +93,7 @@ const facts = computed(() => copyFacts(source.value));
 const previewEvent = computed(() => {
   const s = f.value.from && source.value?.event;
   const e = s
-    ? eventFromBody({ name: f.value.name.trim() || s.name, venue: s.venue, startsAt: f.value.startsAt, theme: s.theme, strapColor: s.strapColor,
+    ? eventFromBody({ name: f.value.name.trim() || s.name, venue: s.venue, startsAt: f.value.startsAt, theme: s.theme, strapColor: s.strapColor, strapInk: s.strapInkChoice,
       perks: s.perks, directoryOn: s.directoryOn, suggestOn: s.suggestOn, info: s.info, feedbackOn: s.feedbackOn, collect: collectBody(f.value) }, s.questions, org.value?.name)
     : eventFromBody(createBody(f.value), undefined, org.value?.name);
   return e.name ? e : { ...e, name: "Your event name" };
@@ -367,7 +367,7 @@ const fmtDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "nu
         <button v-if="!creating" class="btn" style="width:auto" :disabled="!canCreate" @click="go(1)">New event</button>
       </div>
 
-      <EventPreview v-if="creating" v-model:theme="f.theme" v-model:strap-color="f.strapColor" :event="previewEvent"
+      <EventPreview v-if="creating" v-model:theme="f.theme" :event="previewEvent"
                     :sponsors="f.from ? (source?.sponsors || []) : []" :off="!!f.from && !source?.event" :strip="!f.from" :inline="step === 5">
         <EventCreate :form="f" :step="step" :from-options="FROM_OPTIONS" :has-events="events.length > 0" :facts="facts" :facts-state="sourceState"
                      :busy="busy" :error="error" :server-error="fieldError" :needs-credits="!freeNow" :start="start"

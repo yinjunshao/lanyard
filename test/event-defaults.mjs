@@ -10,6 +10,7 @@ import { createServer } from "vite";
 import { renderToString } from "vue/server-renderer";
 import { createSSRApp, h } from "vue";
 import { makeEnv, check, summary, becomeHost } from "./harness.mjs";
+globalThis.location ??= new URL("https://host.lanyard.test/"); // F65: the Look step now draws the card swatches, which read the store and so the site address
 import {
   blankForm, freshForm, startValues, startFromEvent, copiedKeys, reviewGroups, submitPlan, formFromDraft, START_KEYS,
   COPIED_LINE, COLLECT_LINE,

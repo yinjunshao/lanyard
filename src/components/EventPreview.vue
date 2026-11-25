@@ -4,10 +4,11 @@
 // It saves nothing and calls nothing: the page is inert and nobody else can open it. From
 // 1000 px it sits beside the form; below that a Preview button opens the same panel full screen.
 //
-// The form goes in the default slot. v-model:theme and v-model:strap-color are the same
-// two settings the form has, so the strip under the preview changes the form as well.
+// The form goes in the default slot. v-model:theme is the same theme the form has, so the
+// strip under the preview changes the form as well (the brand colour is set under Advanced, F65).
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import EventPage from "./EventPage.vue";
+import { EVENT_THEMES } from "../lib/eventthemes";
 
 const props = defineProps({
   // What the page is given (lib/eventform.js: eventFromBody).
@@ -22,7 +23,6 @@ const props = defineProps({
   inline: { type: Boolean, default: false },
 });
 const theme = defineModel("theme", { type: String, default: "default" });
-const strap = defineModel("strapColor", { type: String, default: "" });
 
 // Typing updates the preview a moment later, not on every key.
 const shown = ref(props.event);
@@ -33,7 +33,7 @@ watch(() => props.event, (e) => { clearTimeout(timer); timer = setTimeout(() => 
 const firstTime = ref(true);
 // `collect` is the pre-ticked state of the notice an event with named attendance shows (F31).
 const form = reactive({ name: "", answers: {}, sponsorConsent: {}, directoryConsent: false, agreed: false, collect: { attendance: true, email: true, card: true } });
-const THEMES = [["default", "Default"], ["formal", "Formal"], ["night", "Night"]];
+const THEMES = EVENT_THEMES.map((t) => [t.id, t.name]);
 
 // Below 1000 px the panel is full screen while `open`.
 // F40: it slides in from the right and back out, so closing waits for the exit (`leaving`) before it hides it.
@@ -108,11 +108,6 @@ function onKey(e) {
         <div v-if="strip" class="pv-strip" role="group" aria-label="Theme">
           <button v-for="t in THEMES" :key="t[0]" type="button" class="chip chip-toggle" :class="{ on: theme === t[0] }"
                   :aria-pressed="theme === t[0]" @click="theme = t[0]">{{ t[1] }}</button>
-          <label class="pv-brand chip" :class="{ on: !!strap }">
-            <span>Brand colour</span>
-            <input type="color" :value="strap || '#c4441e'" aria-label="Brand colour for the strap" @input="strap = $event.target.value" />
-          </label>
-          <button v-if="strap" type="button" class="link-btn small" @click="strap = ''">Reset colour</button>
         </div>
       </div>
     </aside>
@@ -141,8 +136,6 @@ function onKey(e) {
 /* The bar that sticks to the bottom of a phone is part of the frame here, not the window. */
 .pv-page :deep(.thumb-bar) { position: sticky; bottom: 0; margin: 24px -20px 0; box-shadow: none; }
 .pv-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; justify-content: center; }
-.pv-brand { gap: 8px; cursor: pointer; }
-.pv-brand input { width: 28px; height: 28px; padding: 0; border: 0; background: none; }
 
 @media (max-width: 999px) {
   .pv-side { display: none; }
