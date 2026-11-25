@@ -21,6 +21,8 @@ From `src/router/index.js`. All views are code-split so public pages stay light 
 ## Attendee app (`/app`, bottom tabs: My Card, Scan, People, Events)
 `/app`, `/app/cards`, `/app/profile`, `/app/scan`, `/app/people`, `/app/people/:id`, `/app/events`, `/app/events/:id`, `/app/settings`, `/app/feedback/:eventId`
 
+**My card and Events headings** (F72, no new route): My card (`/app`) and Events (`/app/events`) each have one heading, an `h1` "My card" and an `h1` "Events", with no small label above it ("Your badge", "Make your badge" and "Your events" are gone). On My card the heading sits beside Edit profile and Cards, and the Switch card selector is directly under that row, above the finish panels and the badge. The F71 Download PNG saves the card alone, 1056 px wide with transparent rounded corners and no margin or shadow.
+
 **Card page, In common** (F16, `/c/:cardId`): under the name and headline, one line with a small "In common" label: the first two facts joined by " · ", the third folds to "+1" under 600 px. Then Come to me for, About, Projects, Find online; a shared selfie and its prompts now follow the links. The People list rows do not show it.
 
 **Draft a message** (F22, renamed in F47, a bottom sheet on `/c/:cardId` once you are connected, loaded only when the button is pressed): choices as chips in groups (Send it on, Tone, Goal, Talk about, You can offer), the note switch, "Anything to add?" with a counter, then Draft it. The result is a notice ("A draft written by AI..." or "Here's a starting point. ..."), an optional Subject, an editable Message, Copy and Open in, Try again and Change the choices, "2 drafts left today", and Mark as followed up. No new route.
