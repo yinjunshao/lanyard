@@ -146,8 +146,7 @@ async function share() {
   <div v-if="redirecting" aria-busy="true"></div>
   <div v-else-if="!card" class="stack-3">
     <div class="page-head">
-      <span class="label">My card</span>
-      <h1>Make your badge</h1>
+      <h1 style="margin-top:0">My card</h1>
       <p class="sub">Fill in your details once, then show your card at every event.</p>
     </div>
     <router-link to="/app/welcome" class="btn btn-primary">Set up your card</router-link>
@@ -155,15 +154,14 @@ async function share() {
 
   <div v-else class="stack-3">
     <div class="card-head">
-      <div>
-        <span class="label">My card</span>
-        <h1 style="margin-top:4px">Your badge</h1>
-      </div>
+      <h1>My card</h1>
       <div class="card-actions">
         <router-link to="/app/profile" class="btn-quiet">Edit profile</router-link>
         <router-link to="/app/cards" class="btn-quiet">Cards</router-link>
       </div>
     </div>
+
+    <UiSelect v-model="selectedId" label="Switch card" :options="cardOptions" />
 
     <section v-if="inSteps" class="panel stack-2 finish" aria-label="Finish your card">
       <strong>Your card isn't finished</strong>
@@ -277,8 +275,6 @@ async function share() {
       <button class="btn" @click="share">{{ copied ? "Link copied" : "Share link" }}</button>
       <button class="btn" @click="savePng">Download PNG</button>
     </div>
-
-    <UiSelect v-model="selectedId" label="Switch card" :options="cardOptions" />
   </div>
 </template>
 
@@ -288,7 +284,7 @@ async function share() {
 .card-actions { display: flex; gap: var(--space); }
 .card-actions .btn-quiet { flex: 1; }
 @media (min-width: 600px) {
-  .card-head { grid-template-columns: 1fr auto; align-items: end; }
+  .card-head { grid-template-columns: 1fr auto; align-items: center; }
   .card-actions .btn-quiet { flex: 0 0 auto; min-width: 128px; }
 }
 .finish { border-left: 4px solid var(--strap); }

@@ -4,7 +4,7 @@ id: F72
 priority: P1
 phase: 13
 size: S
-status: Not started
+status: In progress
 needs: []
 ---
 # F72 One heading on My card and Events
@@ -28,7 +28,7 @@ needs: []
 - Copy and source guards (`test/copycheck.mjs`, `test/ui.mjs`, the F06 and F68 tests) may pin the old text. Update them without weakening them.
 
 ## Tasks
-- [ ] F72.1 One heading on My card and Events, and the switcher under the buttons.
+- [x] F72.1 One heading on My card and Events, and the switcher under the buttons.
 - [ ] F72.2 Vault notes ([[Screens and Routes]] if it names the headings), Log, Master To-Do.
 
 ## Acceptance checks

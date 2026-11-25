@@ -36,8 +36,7 @@ const live = computed(() => [{ id: "now", title: "In progress", list: groups.val
 <template>
   <div class="stack-3">
     <div class="page-head">
-      <span class="label">Your events</span>
-      <h1>Events</h1>
+      <h1 style="margin-top:0">Events</h1>
     </div>
 
     <Waiting v-if="loading" shape="list" :rows="4" label="Loading your events" :retry="load" />
