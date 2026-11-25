@@ -176,7 +176,7 @@ console.log("\n# Addresses: ?s= on the QR, the typed code and the link");
     && viaOfS("x") === null && viaOfS(undefined) === null && viaOfS(["q"]) === null && viaOfS("constructor") === null && viaOfS("__proto__") === null);
   const has = (text, ...bits) => bits.every((b) => text.includes(b));
   const scan = src("src/views/Scan.vue");
-  check("the in-app scanner sends q and a typed code sends c", has(scan, 'go(res, "q")', 'go(res, "c")', "withSource(res.search, s)"));
+  check("the in-app scanner sends q and a typed code sends c", has(scan, '{ camera: true }), "q")', 'resolveScanned(text), "c")', "go(res, s)", "withSource(res.search, s)"));
   const mine = src("src/views/MyCard.vue");
   check("the QR and the saved badge image carry s=q, copy and share carry s=l", has(mine, ':url="qrUrl"', "subtitle: subtitle.value }, qrUrl.value)",
     "writeText(linkUrl.value)", "url: linkUrl.value }", 'withSource(url.value, "q")', 'withSource(url.value, "l")'));

@@ -4,7 +4,7 @@ id: F73
 priority: P1
 phase: 13
 size: M
-status: Not started
+status: In progress
 needs: []
 ---
 # F73 Scan and card arrival motion
@@ -35,7 +35,7 @@ needs: []
   - Name the classes generally (for example `.scan-lock`, `.arrive`), so the Connect flow can reuse the same lock later.
 
 ## Tasks
-- [ ] F73.1 The scan lock, the opening state and the miss shake in Scan.
+- [x] F73.1 The scan lock, the opening state and the miss shake in Scan.
 - [ ] F73.2 The card rising into place on the public card page, with the panels after it.
 - [ ] F73.3 Tests (source guards for the reduced-motion fallbacks, and the budget), vault notes, Log, Master To-Do.
 
