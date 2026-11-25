@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS metrics_daily (
 - [ ] Owner check (cannot be ticked by an agent): after deploy and `npm run db:remote`, the next morning `/admin` shows one snapshot dated that day.
 
 ## Log
+- 2026-11-25 (owner decision): add the Privacy Policy line. Section 6 now has a row: usage totals are kept with no time limit, counts only. Terms and Privacy versions not bumped.
 - 2026-11-25 (owner decision): daily snapshots, CSV export; owner's Admin edits committed first as 1e19eb8.
 
 - 2026-11-25 (Claude subagent): built F70.1 to F70.3; waiting only on the owner's next-morning check on production and on the four vault notes below. [[D062 Platform metrics are totals only, archived once a UTC day and exported as CSV]].

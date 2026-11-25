@@ -107,6 +107,7 @@ const UPDATED = "24 November 2026";
         <tr><td>Finish-your-card emails</td><td>We keep how many were sent (never more than two) and when, until you delete your account</td></tr>
         <tr><td>Written feedback answers</td><td>12 months, then removed automatically; anonymous ratings and choices are kept so organisers can compare events</td></tr>
         <tr><td>The record that you gave feedback</td><td>Until you delete your account</td></tr>
+        <tr><td>Usage totals (for example how many accounts there are and how many were active that day)</td><td>No time limit. They are counts only and cannot identify you</td></tr>
       </tbody>
     </table>
 
