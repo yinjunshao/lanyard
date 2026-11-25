@@ -8,6 +8,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { applyTheme } from "../lib/theme";
+import { themeOf } from "../lib/eventthemes";
 import { idleHider, keepAwake } from "../lib/presentui";
 import { HostApi } from "../lib/hostapi";
 import { joinText, joinUrl } from "../lib/checkinlink";
@@ -67,7 +68,7 @@ onMounted(async () => {
       ? "signin" : e.status === 404 ? "missing" : "error";
     return;
   }
-  setDark(live.value.event.theme === "night"); // a Night event is dark to begin with; the button changes it
+  setDark(themeOf(live.value.event.theme).dark); // a Night event is dark to begin with; the button changes it
   stop = startPolling(refresh);
   release = keepAwake();
 });
@@ -83,13 +84,13 @@ onBeforeUnmount(() => {
 
 const ev = computed(() => live.value?.event || null);
 const qr = computed(() => (ev.value ? qrPath(joinUrl(ev.value.code)) : null));
-// The event's own strap: the host's colour, else Formal's navy-grey, else the Lanyard strap.
-const strap = computed(() => ev.value?.strapColor || (ev.value?.theme === "formal" ? "#2b3138" : ""));
+// The event's own strap: the host's colour, else the theme's (src/styles/eventthemes.css has a rule for each theme).
+const strap = computed(() => ev.value?.strapColor || "");
 const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(ev.value.startsAt) : ""].filter(Boolean).join(" · "));
 </script>
 
 <template>
-  <main class="present" :class="{ idle: !controls }" :style="strap ? { '--event-strap': strap } : null">
+  <main class="present" :class="[ev?.theme, { idle: !controls }]" :style="strap ? { '--event-strap': strap } : null">
     <div class="present-strap" aria-hidden="true"></div>
     <p v-if="problem === 'signin'" class="present-note">Sign in to the host portal to present this event. <router-link to="/">Go to the host portal</router-link></p>
     <p v-else-if="problem === 'missing'" class="present-note">This event was not found. <router-link to="/">Go to the host portal</router-link></p>
@@ -128,7 +129,7 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
 .present {
   --event-strap: var(--strap);
   position: fixed; inset: 0; z-index: 100; overflow-x: hidden; overflow-y: auto;
-  background: var(--paper); color: var(--ink);
+  background: var(--event-tint, var(--paper)); color: var(--ink);
   display: flex; flex-direction: column;
 }
 .present-strap { height: 2vh; min-height: 8px; background: var(--event-strap); flex: none; }

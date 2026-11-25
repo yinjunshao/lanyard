@@ -1,0 +1,42 @@
+/* F65 (D060): the event themes, drawn on three surfaces. The ids, strap colours, inks and tints are in src/lib/eventthemes.js and
+   test/event-themes.mjs checks that every id has a rule on every surface below, with the same colours, and works out the contrast.
+   No script draws a theme: the check-in page only puts the id on the element as a class.
+   1  the head of the check-in page and the host's preview of it: .profile.event-brand.<id> (a card, so it keeps its own paper
+      whatever the app's theme is, Midnight included)
+   2  the Present page: main.present.<id>, a stripe colour and, in the light look only, a tinted page
+   3  the poster that is printed: .poster.<id>, the colour of its top rule (black on white otherwise)
+   Formal and Night are older: their head rules are in main.css (.profile.formal, .profile.night) and are not repeated here. A strap
+   colour the host chose is set inline as --card-strap and --card-strap-ink (or --event-strap), which beats these rules. */
+
+/* 1 The head of the check-in page. Formal and Night keep their older rules in main.css. */
+.profile.event-brand.default { --card-strap: #C4441E; --card-strap-ink: #FFFFFF; --paper-raised: #FFFDF8; }
+.profile.event-brand.forest { --card-strap: #2A6B45; --card-strap-ink: #FFFFFF; --paper-raised: #F1F6F1; }
+.profile.event-brand.ocean { --card-strap: #1F5F8B; --card-strap-ink: #FFFFFF; --paper-raised: #EEF4F8; }
+.profile.event-brand.plum { --card-strap: #6E3A82; --card-strap-ink: #FFFFFF; --paper-raised: #F6F0F8; }
+.profile.event-brand.rose { --card-strap: #B83A5E; --card-strap-ink: #FFFFFF; --paper-raised: #FBF0F3; }
+.profile.event-brand.sand { --card-strap: #A67C37; --card-strap-ink: #1B1A17; --paper-raised: #FAF4E8; }
+
+/* 2 The Present page. The tint shows in the light look; the dark look keeps the app's dark paper. */
+main.present.default { --event-strap: var(--strap); }
+main.present.formal { --event-strap: #2B3138; }
+main.present.night { --event-strap: var(--strap); }
+main.present.forest { --event-strap: #2A6B45; }
+main.present.ocean { --event-strap: #1F5F8B; }
+main.present.plum { --event-strap: #6E3A82; }
+main.present.rose { --event-strap: #B83A5E; }
+main.present.sand { --event-strap: #A67C37; }
+:root[data-theme="light"] main.present.forest { --event-tint: #F1F6F1; }
+:root[data-theme="light"] main.present.ocean { --event-tint: #EEF4F8; }
+:root[data-theme="light"] main.present.plum { --event-tint: #F6F0F8; }
+:root[data-theme="light"] main.present.rose { --event-tint: #FBF0F3; }
+:root[data-theme="light"] main.present.sand { --event-tint: #FAF4E8; }
+
+/* 3 The poster. */
+.poster.default { --event-strap: #C4441E; }
+.poster.formal { --event-strap: #2B3138; }
+.poster.night { --event-strap: #C4441E; }
+.poster.forest { --event-strap: #2A6B45; }
+.poster.ocean { --event-strap: #1F5F8B; }
+.poster.plum { --event-strap: #6E3A82; }
+.poster.rose { --event-strap: #B83A5E; }
+.poster.sand { --event-strap: #A67C37; }

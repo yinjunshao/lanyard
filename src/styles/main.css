@@ -3,6 +3,8 @@
    action and the strap. 1px borders, no shadows, 6px radius, pressed states
    only (no hover motion). */
 
+@import "./eventthemes.css"; /* F65: the event themes, in the one stylesheet so no script chunk has to fetch them */
+
 @font-face {
   font-family: "Atkinson Hyperlegible Next";
   src: url("/fonts/atkinson-latin.woff2") format("woff2-variations");

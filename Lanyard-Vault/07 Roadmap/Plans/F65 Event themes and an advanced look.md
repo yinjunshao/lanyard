@@ -4,7 +4,7 @@ id: F65
 priority: P1
 phase: 11
 size: M
-status: Not started
+status: In progress
 needs: [F63, F55]
 ---
 # F65 Event themes and an advanced look
@@ -43,7 +43,7 @@ Asked what hosts choose from, the owner said: "Themes, but they can customize mo
 - **The check-in page is public:** keep its budget growth under 300 B gzip. The CSS is not counted, but keep it small.
 
 ## Tasks
-- [ ] F65.1 The theme list (shared file), the Worker accepting it, CSS for every surface, the contrast test.
+- [x] F65.1 The theme list (shared file), the Worker accepting it, CSS for every surface, the contrast test. ([[D060 Event themes are one shared list drawn by CSS, and a chosen text colour must read]]; eight themes in `src/lib/eventthemes.js`, rules in `src/styles/eventthemes.css`, the text-colour column in migration 0043, `test/event-themes.mjs`)
 - [ ] F65.2 The step 2 theme grid and the Advanced disclosure with the F55 picker (free for hosts); the same on the Details tab; tests (unknown theme falls back to default, colour contrast refused, Plus gate not applied for hosts); vault notes ([[Design System]], [[Screens and Routes]]); browser check of every theme on the check-in page, Present and print at 375 and 1280 px, light, dark and midnight.
 
 ## Acceptance checks

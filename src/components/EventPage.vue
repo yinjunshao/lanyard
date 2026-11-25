@@ -5,7 +5,8 @@
 // the form state (`form`), the error and the check-in itself.
 //
 //   event    { name, venue, startsAt, info, questions, directoryOn, feedbackOn, theme, strapColor }
-//            The theme (formal, night) and the host's strap colour show on the head of the page
+//            The theme (src/lib/eventthemes.js) and the host's strap colour show on the head of the page;
+//            strapInk is the colour of the words on a strap the host chose (F65)
 //            like a card's strap. An event with the default theme and no colour looks as it always did.
 //   sponsors [{ id, name, perk }]
 //   form     { name, answers: {key: text}, sponsorConsent: {id: bool}, directoryConsent, collect, hasEmail }
@@ -22,7 +23,7 @@ import RotatingHint from "./ui/RotatingHint.vue";
 import { INTENTION_EXAMPLES } from "../lib/examples";
 import { infoRows } from "../lib/eventinfo";
 import { INTENTION_LABEL, INTENTION_MAX, SUGGEST_DETAIL, SUGGEST_NOTICE } from "../lib/suggest";
-const branded = (e) => (e.theme && e.theme !== "default") || !!e.strapColor;
+const branded = (e) => (e.theme && e.theme !== "default") || !!e.strapColor || !!e.strapInk;
 const fmtDate = (t) =>
   t ? new Date(t).toLocaleString(undefined, {
     weekday: "short", day: "numeric", month: "long", hour: "numeric", minute: "2-digit",
@@ -76,7 +77,7 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
 <template>
   <div class="checkin">
     <div v-if="branded(event)" class="profile event-brand" :class="event.theme">
-      <div class="profile-strap" :style="event.strapColor ? { background: event.strapColor } : null">
+      <div class="profile-strap" :style="{ '--card-strap': event.strapColor, '--card-strap-ink': event.strapInk }">
         <span class="profile-strap-word">lanyard</span>
         <span class="profile-strap-card">Event check-in</span>
       </div>

@@ -22,6 +22,8 @@ import { normEmail, validEmail, emailProblem, moveOwnership, openTransfer } from
 import { exportAi } from "./ai/data.js";
 import { summaryGet, summaryPost } from "./ai/feedbackSummary.js";
 import { normPromo } from "./promo.js";
+import { cleanTheme } from "../src/lib/eventthemes.js";
+import { cleanInk, inkIn, inkReads, strapIn, INK_LOW } from "../src/lib/eventlook.js";
 import { collectFields, collectOf, hostAttendees, attendeesCsv, attendeesFileName, exportAttendeeLists } from "./attendance.js";
 // F60: the host sees two counts about suggestions, never a row (suggestCounts hides each under 3; D004, D054).
 import { suggestCounts } from "./suggest.js";
@@ -344,7 +346,9 @@ hostApp.post("/api/host/org", async (c) => {
 });
 
 // Cleans the editable event fields. `partial` = only what was sent (for edits).
-function eventFields(b, { partial = false } = {}) {
+// F65: `base` is the saved event row on an edit, so a request that changes only the theme or the colour is still checked
+// against the text colour the event already has.
+function eventFields(b, { partial = false, base = null } = {}) {
   const f = {};
   const has = (k) => !partial || b[k] !== undefined;
   const time = (v) => (v === null || v === "" ? null : Number.isFinite(Number(v)) ? Math.round(Number(v)) : null);
@@ -352,8 +356,16 @@ function eventFields(b, { partial = false } = {}) {
   if (has("startsAt")) f.starts_at = time(b.startsAt);
   if (has("endsAt")) f.ends_at = time(b.endsAt);
   if (has("venue")) f.venue = String(b.venue || "").slice(0, 120);
-  if (has("theme")) f.theme = ["default", "formal", "night"].includes(b.theme) ? b.theme : "default";
+  if (has("theme")) f.theme = cleanTheme(b.theme); // F65 (D060): the exact ids in src/lib/eventthemes.js, else default
   if (has("strapColor")) f.strap_color = /^#[0-9a-fA-F]{6}$/.test(b.strapColor || "") ? b.strapColor : null;
+  // F65: the words on the strap: Automatic (null) or one of two exact colours, and the one chosen has to read (4.5:1) on the
+  // strap in effect after this save. Automatic always reads, so a brand colour on its own is never refused.
+  if (has("strapInk")) f.strap_ink = cleanInk(b.strapInk);
+  if ("strap_ink" in f || "strap_color" in f || "theme" in f) {
+    const ink = "strap_ink" in f ? f.strap_ink : base?.strap_ink;
+    const strap = strapIn("theme" in f ? f.theme : base?.theme, "strap_color" in f ? f.strap_color : base?.strap_color);
+    if (ink && !inkReads(ink, strap)) throw new HttpError(400, INK_LOW, "ink_low");
+  }
   if (has("perks")) f.perks = JSON.stringify(Array.isArray(b.perks) ? b.perks.slice(0, 10).map((x) => String(x).slice(0, 300)) : []);
   if (has("directoryOn")) f.directory_on = b.directoryOn === false ? 0 : 1;
   // F60: "Suggest people to each other", on unless the host switches it off.
@@ -449,7 +461,7 @@ hostApp.put("/api/host/events/:id", async (c) => {
   const ev = await hostEvent(c, me);
   const b = await c.req.json().catch(() => ({}));
   delete b.feedbackQuestions; // edited through /feedback, which enforces the lock
-  const f = eventFields(b, { partial: true });
+  const f = eventFields(b, { partial: true, base: ev });
   if ("name" in f && !f.name) return c.json({ error: "Add a name for the event." }, 400);
   const start = "starts_at" in f ? f.starts_at : ev.starts_at;
   const end = "ends_at" in f ? f.ends_at : ev.ends_at;
@@ -474,7 +486,7 @@ hostApp.post("/api/host/events/:id/duplicate", async (c) => {
     name: String(b.name || src.name).trim().slice(0, 120),
     starts_at: Number.isFinite(Number(b.startsAt)) && b.startsAt ? Math.round(Number(b.startsAt)) : null,
     ends_at: Number.isFinite(Number(b.endsAt)) && b.endsAt ? Math.round(Number(b.endsAt)) : null,
-    venue: src.venue, theme: src.theme, strap_color: src.strap_color,
+    venue: src.venue, theme: src.theme, strap_color: src.strap_color, strap_ink: src.strap_ink ?? null,
     perks: JSON.stringify(src.perks || []), directory_on: src.directory_on, suggest_on: src.suggest_on ?? 1,
     info: JSON.stringify(eventInfo(src.info)), feedback_on: src.feedback_on,
     feedback_questions: JSON.stringify(sanitizeQuestions(src.feedback_questions)),
@@ -584,7 +596,7 @@ hostApp.get("/api/host/events/:id/live", async (c) => {
       id: ev.id, code: ev.code, name: ev.name, startsAt: ev.starts_at, venue: ev.venue,
       endsAt: ev.ends_at || null, endedAt: ev.ended_at || null, rsvpCount: ev.rsvp_count ?? null,
       info: eventInfo(ev.info), feedbackOn: !!ev.feedback_on,
-      theme: ev.theme, strapColor: ev.strap_color, perks: ev.perks || [], directoryOn: !!ev.directory_on,
+      theme: ev.theme, strapColor: ev.strap_color, strapInk: inkIn(ev), strapInkChoice: ev.strap_ink || null, perks: ev.perks || [], directoryOn: !!ev.directory_on,
       questions: ev.checkin_questions || [],
       // F31: what this event collects. Present only when the list is on, so an event without it
       // answers exactly as before.

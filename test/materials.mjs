@@ -138,7 +138,7 @@ console.log("\n# F56 The migration");
 {
   const { makeDb, migrationFiles, readMigration } = await import("./harness.mjs");
   const files = migrationFiles();
-  check("0042 is the newest migration, after 0041, named for the material", files.at(-1) === "0042_card_material.sql" && files.at(-2) === "0041_user_stages.sql");
+  check("0042 follows 0041 and is named for the material (0043, F65, adds one column to events after it)", files.indexOf("0042_card_material.sql") === files.indexOf("0041_user_stages.sql") + 1 && files.indexOf("0043_event_strap_ink.sql") === files.indexOf("0042_card_material.sql") + 1);
   const sql = readMigration("0042_card_material.sql").replace(/--.*$/gm, "").trim();
   check("it only adds one nullable column to cards (additive, safe to apply before the new code is deployed)", sql === "ALTER TABLE cards ADD COLUMN material TEXT;" && !/NOT NULL|DEFAULT|DROP|UPDATE|DELETE/i.test(sql));
   const old = makeDb({ before: "0042" });

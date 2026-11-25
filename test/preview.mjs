@@ -125,7 +125,7 @@ console.log("\n# The theme shows on the page; the default page is unchanged");
   const formal = await html({ theme: "formal", strapColor: null }), night = await html({ theme: "night", strapColor: null });
   check("formal and night draw a card head with its own strap, like a card", cls(formal, "profile", "event-brand", "formal") && cls(night, "profile", "event-brand", "night") && formal.includes("profile-strap") && !formal.includes("background"));
   const brand = await html({ theme: "default", strapColor: "#2a6f4e" });
-  check("a brand colour alone colours the strap only", cls(brand, "profile", "event-brand") && /class="profile-strap"[^>]*style="background:#2a6f4e;?"/.test(brand), brand.slice(0, 400));
+  check("a brand colour alone colours the strap only", cls(brand, "profile", "event-brand") && /class="profile-strap"[^>]*style="--card-strap:#2a6f4e;?"/.test(brand), brand.slice(0, 400));
   const rest = (h) => h.slice(h.indexOf('<div class="notice"'));
   check("everything below the head is the same whatever the theme", rest(plain) === rest(formal) && rest(formal) === rest(night) && rest(night) === rest(brand));
 }

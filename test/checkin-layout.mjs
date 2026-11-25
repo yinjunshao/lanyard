@@ -88,7 +88,7 @@ console.log("\n# F67 One rhythm in the styles: no inline style, one gap between 
 {
   const tpl = src.slice(src.indexOf("<template>"), src.indexOf("</template>\n\n<style"));
   check("no inline style= is left in EventPage.vue", !/\sstyle="/.test(src), src.match(/\sstyle="[^"]*"/g));
-  check("the only :style is the host's own strap colour, a value only the host knows", (src.match(/:style=/g) || []).length === 1 && /:style="event\.strapColor \?/.test(src));
+  check("the only :style is the host's own strap colour and the ink on it (F65), two values only the host knows, set as custom properties", (src.match(/:style=/g) || []).length === 1 && /:style="\{ '--card-strap': event\.strapColor, '--card-strap-ink': event\.strapInk \}"/.test(src));
   check("an event with no theme and no colour draws no style attribute at all", !/style=/.test(await render(everything)));
   check("the old stack and margin helpers are gone from the page (the page spaces itself)", !/stack-[23]|margin:\s*\d/.test(tpl));
   check("one token for the gap between panels and one for the gap between rows, each set once", (css.match(/--panel-gap:\s*\d+px/g) || []).length === 1 && (css.match(/--row-gap:\s*\d+px/g) || []).length === 1);

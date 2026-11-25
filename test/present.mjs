@@ -199,7 +199,7 @@ console.log("\n# Controls, fullscreen and keeping the screen awake (F19.3)");
   check("the cursor is hidden with the controls", /\.present\.idle \{ cursor: none; \}/.test(vue) && vue.includes("idle: !controls"));
   check("the controls show on movement, touch and keys", ["pointermove", "pointerdown", "keydown"].every((e) => vue.includes(`addEventListener("${e}", poke)`)));
   check("the theme change is for this page only: the portal's own choice is put back on leaving, and nothing is saved", vue.includes("applyTheme();") && !/setThemePref|localStorage/.test(vue));
-  check("a Night event starts dark", vue.includes('setDark(live.value.event.theme === "night")'));
+  check("a Night event starts dark (F65: from the shared theme list, where only Night is dark)", vue.includes('setDark(themeOf(live.value.event.theme).dark)'));
   check("fullscreen is left on exit and the page holds the screen awake", vue.includes("document.exitFullscreen") && vue.includes("keepAwake()") && vue.includes("release?.()"));
   check("every button is a real button or link with a visible name, at least 44 px tall", /\.present-btn \{[^}]*min-height: 44px/.test(vue) && !/<(div|span)[^>]*@click/.test(vue));
 }
@@ -224,10 +224,10 @@ console.log("\n# The poster (F19.4): A4, paper and ink, no counter and no contro
   check("it renders no HTML from data", !/v-html|innerHTML/.test(pr));
   const poster = css.slice(css.indexOf(".poster-sheet {"), css.indexOf("</style>"));
   const colours = new Set((poster.match(/#[0-9a-fA-F]{3,6}\b/g) || []).map((c) => c.toLowerCase()));
-  check("the only colours on the paper are black, white and the event's strap (a rule 1.6 cqw thick)", [...colours].every((c) => ["#fff", "#000"].includes(c)) && /border-top: 1\.6cqw solid var\(--event-strap\)/.test(poster), [...colours]);
+  check("the only colours on the paper are black, white and the event's strap (a rule 1.6 cqw thick)", [...colours].every((c) => ["#fff", "#000", "#c4441e"].includes(c)) && /border-top: 1\.6cqw solid var\(--event-strap, #c4441e\)/.test(poster), [...colours]);
   check("no filled area: the one background on the sheet is white, nothing else is filled", (poster.match(/background[a-z-]*:/g) || []).length === 1 && /background: #fff/.test(poster), poster.match(/background[a-z-]*:[^;]*/g));
   check("the paper is white and black whatever the theme (no theme variable sets its colours)", /\.poster-sheet \{[^}]*background: #fff; color: #000/.test(poster) && !/var\(--(ink|paper|graphite)/.test(poster));
-  check("the strap is the host's colour, else Formal's, else the Lanyard strap", pr.includes('ev.value?.strapColor || (ev.value?.theme === "formal" ? "#2b3138" : "#c4441e")'));
+  check("the strap is the host's colour, else the theme's (the .poster.<id> rules in eventthemes.css, Persimmon as the last resort)", pr.includes('ev.value?.strapColor || ""') && pr.includes(':class="ev.theme"') && /\.poster\.formal \{ --event-strap: #2B3138; \}/.test(read("src/styles/eventthemes.css")));
   // The poster QR is the same path the screen draws, so it reads back the same address (decoded above); here with the poster's own black on white.
   check("the poster's QR reads back as the check-in address", decode(joinUrl("ABCDE"), 8) === joinUrl("ABCDE"));
   check("event codes only change when the host asks (no schedule), so a poster stays valid until New check-in code",

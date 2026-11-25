@@ -9,6 +9,7 @@ import { termsScope, hasConsent, recordConsentStmt, logConsentStmt, logNoticeStm
 import { blockedSet } from "./blocks.js";
 import { eventInfo, feedbackOpensAt } from "./feedback.js";
 import { checkinCapFor } from "./plans.js";
+import { inkIn } from "../src/lib/eventlook.js";
 import { noticeFor, choiceStatements } from "./attendance.js";
 import { recordCheckin } from "./eventConnections.js";
 import { readChoice, checkinSuggestStatements } from "./suggest.js";
@@ -53,6 +54,7 @@ eventsApp.get("/api/e/:code", async (c) => {
       venue: ev.venue,
       theme: ev.theme,
       strapColor: ev.strap_color,
+      strapInk: inkIn(ev), // F65 (D060): the words on the strap, only when the host set a colour or a text colour
       perks: ev.perks || [],
       directoryOn: !!ev.directory_on,
       questions: ev.checkin_questions || [],

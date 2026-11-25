@@ -9,13 +9,11 @@
 import { noticeOf } from "./collects.js";
 import { cleanInfo } from "./eventinfoclean.js";
 import { perkLines } from "./perkrows.js";
+import { EVENT_THEMES, cleanTheme } from "./eventthemes.js";
+import { cleanInk, inkIn } from "./eventlook.js";
 
-export const THEME_OPTIONS = [
-  { value: "default", label: "Default — Persimmon" },
-  { value: "formal", label: "Formal — navy strap" },
-  { value: "night", label: "Night — dark" },
-];
-const THEMES = THEME_OPTIONS.map((o) => o.value);
+// F65 (D060): the themes are the shared list the Worker reads too (src/lib/eventthemes.js).
+export const THEME_OPTIONS = EVENT_THEMES.map((t) => ({ value: t.id, label: t.name }));
 export const HEX = /^#[0-9a-fA-F]{6}$/;
 
 // F60: the help line under the host's "Suggest people to each other" switch (Create event step 3 and Details).
@@ -47,6 +45,7 @@ export function createBody(f) {
     endsAt: f.endsAt,
     theme: f.theme,
     strapColor: f.strapColor || "",
+    ...(f.strapInk ? { strapInk: f.strapInk } : {}), // F65: only when the host chose a text colour
     directoryOn: f.directoryOn,
     perks: perkLines(f),
     questions: [
@@ -75,8 +74,10 @@ export function eventFromBody(b, questions, organiser) {
     name: String(b.name || "").trim().slice(0, 120),
     venue: String(b.venue || "").slice(0, 120),
     startsAt: time(b.startsAt),
-    theme: THEMES.includes(b.theme) ? b.theme : "default",
+    theme: cleanTheme(b.theme),
     strapColor: HEX.test(b.strapColor || "") ? b.strapColor : null,
+    // F65: what the Worker serves: the words on a strap the host set (theirs, else white or black by the colour), else none.
+    strapInk: inkIn({ theme: cleanTheme(b.theme), strap_color: HEX.test(b.strapColor || "") ? b.strapColor : null, strap_ink: cleanInk(b.strapInk) }),
     perks: (Array.isArray(b.perks) ? b.perks : []).slice(0, 10).map((x) => String(x).slice(0, 300)),
     directoryOn: b.directoryOn !== false,
     questions: qs,
@@ -91,6 +92,7 @@ export function eventFromBody(b, questions, organiser) {
 // The Details form of a saved event (HostLive) in the same shape.
 export function detailsBody(d) {
   return { name: d.name, venue: d.venue, startsAt: d.startsAt, endsAt: d.endsAt, theme: d.theme, strapColor: d.strapColor || "",
+    ...("strapInk" in d ? { strapInk: d.strapInk || "" } : {}), // F65: the Details form has the text colour; a bare object does not
     directoryOn: d.directoryOn, suggestOn: d.suggestOn !== false, perks: perkLines(d), rsvpCount: d.rsvpCount === "" ? null : Number(d.rsvpCount),
     info: { access: d.access || "", dress: d.dress, other: d.other, ...foodBody(d) },
     // Sent when the list is on, and once when it was on and is being switched off; an event that never had it sends nothing.

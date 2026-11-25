@@ -31,8 +31,8 @@ onMounted(async () => {
 
 const ev = computed(() => live.value?.event || null);
 const qr = computed(() => (ev.value ? qrPath(joinUrl(ev.value.code)) : null));
-// The event's own strap colour is the only colour on the paper.
-const strap = computed(() => ev.value?.strapColor || (ev.value?.theme === "formal" ? "#2b3138" : "#c4441e"));
+// The event's own strap colour is the only colour on the paper: the host's, else the theme's (src/styles/eventthemes.css).
+const strap = computed(() => ev.value?.strapColor || "");
 const when = computed(() => (ev.value?.startsAt
   ? new Date(ev.value.startsAt).toLocaleString(undefined, { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })
   : ""));
@@ -50,7 +50,7 @@ const when = computed(() => (ev.value?.startsAt
     <p v-else-if="problem" class="poster-msg no-print" role="alert">Could not load this event. <router-link to="/">Go to the host portal</router-link></p>
     <p v-else-if="!ev" class="poster-msg no-print" role="status" aria-busy="true">Getting the poster ready… <a class="sk-late" href="">Taking longer than usual. Try again</a></p>
     <div v-if="ev" class="poster-sheet">
-      <div class="poster" :style="{ '--event-strap': strap }">
+      <div class="poster" :class="ev.theme" :style="strap ? { '--event-strap': strap } : null">
         <div class="poster-head">
           <p class="poster-kicker">Event check-in</p>
           <h1 class="poster-name">{{ ev.name }}</h1>
@@ -98,7 +98,7 @@ const when = computed(() => (ev.value?.startsAt
 }
 .poster {
   height: 100%; display: flex; flex-direction: column; align-items: center; text-align: center;
-  padding: 4cqw 5cqw 3.5cqw; border-top: 1.6cqw solid var(--event-strap);
+  padding: 4cqw 5cqw 3.5cqw; border-top: 1.6cqw solid var(--event-strap, #c4441e);
   justify-content: space-between; font-family: var(--font);
 }
 .poster-head { display: flex; flex-direction: column; gap: 1.4cqw; align-items: center; width: 100%; }
