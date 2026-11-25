@@ -210,7 +210,10 @@ console.log("\n# Event hub (source guards)");
   check("the room, album and perks tabs are still there", ["Room", "Album", "Perks"].every((t) => hubSrc.includes(`>${t}</button>`)));
   check("choices open in a sheet, and the sheet is the last child of the root", /<UiSheet[^>]*label="Your choices at this event"/.test(hubSrc) && /<\/UiSheet>\s*<\/div>\s*<\/template>/.test(hubSrc));
   check("the choices component no longer draws its own panel", !/class="panel/.test(read("src/components/EventChoices.vue")));
-  check("the room tab and the stats keep to tokens (no hard-coded colours)", !/#[0-9a-f]{3,8}\b/i.test(hubSrc.slice(hubSrc.indexOf("<style"))));
+  // F66: one fixed colour is allowed, the light plate under a host's logo (#FFFDF8, the card paper), so a dark logo reads in the
+  // dark themes too, as on the check-in page and Present. It must be on .hub-logo and nowhere else.
+  const hubCss = hubSrc.slice(hubSrc.indexOf("<style"));
+  check("the room tab and the stats keep to tokens (no hard-coded colours; only the logo's light plate, F66)", !/#[0-9a-f]{3,8}\b/i.test(hubCss.replace(/^\.hub-logo \{[^}]*background: #FFFDF8; \}$/m, "")) && (hubCss.match(/#[0-9a-f]{3,8}\b/gi) || []).join() === "#FFFDF8");
   const routes = read("src/router/routes.attendee.js");
   check("both pages stay lazy /app routes", /path: "\/app\/events", component: \(\) => import\("\.\.\/views\/Events\.vue"\), meta: \{ app: true \}/.test(routes) && /path: "\/app\/events\/:id", component: \(\) => import\("\.\.\/views\/EventDetail\.vue"\), meta: \{ app: true \}/.test(routes));
   const entryUsers = ["src/main.js", "src/App.vue", "src/router/index.js", "src/lib/store.js", "src/lib/api.js", "src/lib/profile.js", "src/lib/shell.js"].filter((f) => /eventlive|eventtext|eventstatus/.test(read(f)));

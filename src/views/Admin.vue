@@ -73,6 +73,36 @@ const attach = once(async (o) => {
   catch (e) { error.value = e.message; }
 });
 
+// F66 (D061): company branding, for moderation. The logo is fetched with the admin token and shown from a blob address,
+// so it never needs a public link; each request is in the admin audit log on the server.
+const brands = ref(null);
+const logoShown = ref({}); // org id -> blob: address
+async function loadBrands() {
+  try { brands.value = (await call("/api/admin/brands")).brands; }
+  catch (e) { error.value = e.message; }
+}
+async function showLogo(o) {
+  error.value = "";
+  try {
+    const res = await fetch(`/api/admin/orgs/${encodeURIComponent(o.id)}/brand/logo`, { headers: { authorization: `Bearer ${token.value}` } });
+    if (!res.ok) throw new Error("That logo could not be shown. It may have been removed.");
+    if (logoShown.value[o.id]) URL.revokeObjectURL(logoShown.value[o.id]);
+    logoShown.value = { ...logoShown.value, [o.id]: URL.createObjectURL(await res.blob()) };
+  } catch (e) { error.value = e.message; }
+}
+const removeBrandLogo = once(async (o) => {
+  error.value = "";
+  if (!window.confirm(`Remove the logo of ${o.name}? Its paid events show its name instead. It cannot be undone.`)) return;
+  try { await call(`/api/admin/orgs/${encodeURIComponent(o.id)}/brand/logo`, "DELETE"); delete logoShown.value[o.id]; await loadBrands(); }
+  catch (e) { error.value = e.message; }
+});
+const setBrandOff = once(async (o, off) => {
+  error.value = "";
+  if (off && !window.confirm(`Switch off branding for ${o.name}? Its events show the Lanyard look, and it cannot set a name or logo until you switch it back on.`)) return;
+  try { await call(`/api/admin/orgs/${encodeURIComponent(o.id)}/brand`, "POST", { off }); await loadBrands(); }
+  catch (e) { error.value = e.message; }
+});
+
 const issueCode = once(async (id) => {
   error.value = "";
   try { issued.value[id] = (await call(`/api/admin/users/${id}/signin-code`, "POST")).code; }
@@ -156,6 +186,7 @@ async function load() {
   loadRequests();
   loadPromos();
   loadHosts();
+  loadBrands();
   loadFunnel();
   loadTips();
   try { queue.value = await call("/api/admin/queue"); }
@@ -263,6 +294,26 @@ const EMAIL = { education: "university or school address", free: "webmail addres
             <button class="btn btn-primary" :disabled="busy" @click="act(`/api/admin/tickets/${t.id}/resolve`, 'approve', t.id)">
               {{ t.kind === 'other' ? 'Mark resolved' : 'Approve' }}</button>
             <button class="btn btn-danger" :disabled="busy" @click="act(`/api/admin/tickets/${t.id}/resolve`, 'reject', t.id)">Reject</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="stack-2" aria-labelledby="adm-brands-h" data-admin-brands>
+        <span id="adm-brands-h" class="label">Company branding ({{ brands?.length || 0 }})</span>
+        <p class="small muted">Organisations with a display name or logo for their paid events. Removing a logo or switching branding off is recorded in the audit log.</p>
+        <p v-if="brands && !brands.length" class="muted">No organisation has branding.</p>
+        <div v-for="o in brands || []" :key="o.id" class="panel stack">
+          <div class="spread"><strong style="overflow-wrap:anywhere">{{ o.name }}</strong>
+            <span class="small" :class="o.off ? 'error-text' : ''">{{ o.off ? "Switched off" : "On" }}</span></div>
+          <p class="small muted" style="margin:0">
+            Name on pages: {{ o.brandName || "none (the organisation's name)" }} · {{ o.hasLogo ? "has a logo" : "no logo" }} · shown on {{ o.paidBrandedEvents }} paid {{ o.paidBrandedEvents === 1 ? "event" : "events" }}
+          </p>
+          <img v-if="logoShown[o.id]" :src="logoShown[o.id]" :alt="`Logo of ${o.name}`" style="max-height:80px;max-width:100%;object-fit:contain;align-self:flex-start;background:#FFFDF8;padding:4px;border:var(--border);border-radius:var(--radius)" />
+          <div class="btn-row">
+            <button v-if="o.hasLogo && !logoShown[o.id]" class="btn" type="button" @click="showLogo(o)">Show logo</button>
+            <button v-if="o.hasLogo" class="btn btn-danger" type="button" :disabled="!!working" @click="removeBrandLogo(o)">{{ working === removeBrandLogo ? "Removing…" : "Remove logo" }}</button>
+            <button v-if="!o.off" class="btn btn-danger" type="button" :disabled="!!working" @click="setBrandOff(o, true)">Switch branding off</button>
+            <button v-else class="btn" type="button" :disabled="!!working" @click="setBrandOff(o, false)">Switch back on</button>
           </div>
         </div>
       </section>

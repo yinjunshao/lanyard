@@ -21,7 +21,7 @@ import { perkProblems, perkRows } from "../lib/perkrows";
 import { foodTicked } from "../lib/eventinfoclean";
 import HostAttendees from "../components/HostAttendees.vue";
 import HostDrops from "../components/HostDrops.vue";
-import { detailsBody, eventFromBody, SUGGEST_HOST_HELP } from "../lib/eventform";
+import { detailsBody, eventFromBody, previewBrand, SUGGEST_HOST_HELP } from "../lib/eventform";
 import { defaultEnd } from "../lib/dates";
 import { cleanWhy, whyProblem } from "../lib/collects";
 import { useBusy } from "../components/Waiting.vue";
@@ -174,7 +174,8 @@ const perkTried = ref(false);
 const perkErrors = computed(() => (perkTried.value ? perkProblems(d.value.perks) : {}));
 const previewEvent = computed(() => {
   const e = eventFromBody(detailsBody(d.value), live.value?.event?.questions || [], live.value?.event?.collect?.organiser || organiser.value);
-  return { ...e, name: e.name || "Your event name" };
+  const b = look.value ? previewBrand(look.value.brand, look.value.paid, d.value.useBranding) : null; // F66
+  return { ...e, ...(b ? { brand: b } : {}), name: e.name || "Your event name" };
 });
 const { working, once } = useBusy();
 const saveDetails = once(async () => {

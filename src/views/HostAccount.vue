@@ -460,9 +460,11 @@ const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric
 
 <style scoped>
 .brand-logo-box { display: flex; align-items: center; min-height: 72px; padding: 12px; border: var(--border); border-radius: var(--radius); background: var(--paper); }
-.brand-logo { max-height: 64px; max-width: 100%; object-fit: contain; }
+/* A logo sits on a light plate everywhere it is drawn (as on the event pages), so a dark logo still reads in the dark themes. */
+.brand-logo { width: auto; height: 64px; max-width: 100%; object-fit: contain; object-position: left; padding: 4px; border-radius: 4px; background: #FFFDF8; }
 .bp-present { display: flex; flex-direction: column; gap: 6px; padding: 16px; border: var(--border); border-radius: var(--radius); background: var(--paper); border-top: 6px solid var(--strap); }
-.bp-present-logo { max-height: 40px; max-width: 60%; object-fit: contain; align-self: flex-start; }
+.bp-present-logo { width: auto; height: 40px; max-width: 60%; object-fit: contain; object-position: left; align-self: flex-start; padding: 3px; border-radius: 4px; background: #FFFDF8; }
+.brand-head-logo { display: block; width: auto; height: 48px; max-width: 60%; object-fit: contain; object-position: left; margin: 0 0 12px; padding: 4px; border-radius: 4px; background: #FFFDF8; }
 .bp-present-name { margin: 0; font-weight: 700; font-size: 20px; letter-spacing: -0.02em; line-height: 1.1; overflow-wrap: anywhere; }
 .bp-event { margin: 0; font-weight: 700; font-size: 18px; }
 .bp-with { margin: 4px 0 0; font-size: 12px; color: var(--graphite); }

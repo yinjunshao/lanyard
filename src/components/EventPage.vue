@@ -16,6 +16,8 @@
 //   event.suggestOn  false only when the host switched suggestions off (F60); otherwise the page asks what the person
 //            hopes to get from the event (optional) and shows the "Suggest me to people here" tick, on to start with.
 //            form.intention and form.suggest hold them; the words are src/lib/suggest.js, which the Worker records.
+//   event.brand  { name, logo } on a paid event with company branding on (F66, D061): the name in place of "lanyard" on the
+//            strap, the logo (a plain <img>, or none) above the event name, and "Check in with Lanyard" at the foot. Text only.
 //   showName ask for a name (a guest with no card yet)
 //   needsAgree show the line above Check in saying that pressing it agrees to 18+ and the Terms (first-timers, F51: no tick)
 import { computed, ref, watch } from "vue";
@@ -23,7 +25,7 @@ import RotatingHint from "./ui/RotatingHint.vue";
 import { INTENTION_EXAMPLES } from "../lib/examples";
 import { infoRows } from "../lib/eventinfo";
 import { INTENTION_LABEL, INTENTION_MAX, SUGGEST_DETAIL, SUGGEST_NOTICE } from "../lib/suggest";
-const branded = (e) => (e.theme && e.theme !== "default") || !!e.strapColor || !!e.strapInk;
+const branded = (e) => !!e.brand || (e.theme && e.theme !== "default") || !!e.strapColor || !!e.strapInk;
 const fmtDate = (t) =>
   t ? new Date(t).toLocaleString(undefined, {
     weekday: "short", day: "numeric", month: "long", hour: "numeric", minute: "2-digit",
@@ -78,10 +80,11 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
   <div class="checkin">
     <div v-if="branded(event)" class="profile event-brand" :class="event.theme">
       <div class="profile-strap" :style="{ '--card-strap': event.strapColor, '--card-strap-ink': event.strapInk }">
-        <span class="profile-strap-word">lanyard</span>
+        <span class="profile-strap-word">{{ event.brand ? event.brand.name : "lanyard" }}</span>
         <span class="profile-strap-card">Event check-in</span>
       </div>
       <div class="profile-body">
+        <img v-if="event.brand?.logo" :src="event.brand.logo" alt="" class="brand-logo" />
         <div class="page-head">
           <h1>{{ event.name }}</h1>
           <p class="sub">
@@ -198,6 +201,8 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
       <template v-if="event.feedbackOn">After the event you'll be asked for quick, anonymous feedback.</template>
     </p>
 
+    <p v-if="event.brand" class="small muted brand-with">Check in with Lanyard</p>
+
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
     <div class="thumb-bar">
@@ -257,4 +262,8 @@ const totalsLine = (e) => (e.collects ? "The organisers never see who you connec
 .event-info dd { margin: 0; }
 .event-brand .page-head { margin: 0; }
 .event-brand .page-head h1 { margin: 0; overflow-wrap: anywhere; }
+/* F66: a host's logo, on a light plate so it reads on a Night head too; its name on the strap is cut short, never wrapped. */
+.brand-logo { display: block; width: auto; height: 48px; max-width: 60%; object-fit: contain; object-position: left; margin: 0 0 12px; padding: 4px; border-radius: 4px; background: #FFFDF8; }
+.event-brand .profile-strap-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brand-with { margin: 0; }
 </style>

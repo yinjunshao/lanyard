@@ -26,10 +26,15 @@ onMounted(async () => {
   if (route.query.auto === "0") return;
   await nextTick();
   try { await document.fonts?.ready; } catch { /* print with what we have */ }
+  // F66: a host's logo is on the page; print once it has loaded (or failed), so the sheet is not printed without it.
+  await Promise.all([...document.images].map((img) => (img.complete ? null : new Promise((done) => { img.onload = img.onerror = done; }))));
   printIt();
 });
 
 const ev = computed(() => live.value?.event || null);
+// F66 (D061): the organisation's logo or name at the top, and "Check in with Lanyard" in place of the wordmark at the foot,
+// only when the live route sends a brand (a paid event with branding on).
+const brand = computed(() => live.value?.brand || null);
 const qr = computed(() => (ev.value ? qrPath(joinUrl(ev.value.code)) : null));
 // The event's own strap colour is the only colour on the paper: the host's, else the theme's (src/styles/eventthemes.css).
 const strap = computed(() => ev.value?.strapColor || "");
@@ -52,6 +57,8 @@ const when = computed(() => (ev.value?.startsAt
     <div v-if="ev" class="poster-sheet">
       <div class="poster" :class="ev.theme" :style="strap ? { '--event-strap': strap } : null">
         <div class="poster-head">
+          <img v-if="brand?.logo" :src="brand.logo" :alt="brand.name" class="poster-logo" />
+          <p v-else-if="brand" class="poster-host">{{ brand.name }}</p>
           <p class="poster-kicker">Event check-in</p>
           <h1 class="poster-name">{{ ev.name }}</h1>
           <p v-if="when" class="poster-when">{{ when }}</p>
@@ -70,7 +77,8 @@ const when = computed(() => (ev.value?.startsAt
           <li><b>2</b><span class="poster-step-t">Check in</span><span class="poster-step-d">Add your name. No app to install.</span></li>
           <li><b>3</b><span class="poster-step-t">Meet people</span><span class="poster-step-d">Keep a face and a name for everyone you meet.</span></li>
         </ol>
-        <p class="poster-brand">lanyard</p>
+        <p v-if="!brand" class="poster-brand">lanyard</p>
+        <p v-else class="poster-with">Check in with Lanyard</p>
       </div>
     </div>
   </main>
@@ -119,6 +127,9 @@ const when = computed(() => (ev.value?.startsAt
 .poster-step-t { font-size: 3.6cqw; font-weight: 700; line-height: 1.1; }
 .poster-step-d { font-size: 2.2cqw; line-height: 1.3; }
 .poster-brand { font-size: 2.6cqw; font-weight: 700; letter-spacing: -0.02em; }
+.poster-logo { display: block; width: auto; height: 9cqw; max-width: 50cqw; object-fit: contain; }
+.poster-host { font-size: 3.4cqw; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.poster-with { font-size: 2.2cqw; }
 </style>
 
 <style>

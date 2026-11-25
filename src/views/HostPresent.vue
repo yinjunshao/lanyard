@@ -83,6 +83,9 @@ onBeforeUnmount(() => {
 });
 
 const ev = computed(() => live.value?.event || null);
+// F66 (D061): the organisation's logo or name in place of the wordmark, only when the live route sends it (a paid event with
+// branding on). "Check in with Lanyard" then stays at the foot.
+const brand = computed(() => live.value?.brand || null);
 const qr = computed(() => (ev.value ? qrPath(joinUrl(ev.value.code)) : null));
 // The event's own strap: the host's colour, else the theme's (src/styles/eventthemes.css has a rule for each theme).
 const strap = computed(() => ev.value?.strapColor || "");
@@ -103,7 +106,8 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
     </div>
     <div v-if="ev" class="present-body">
       <section class="present-info">
-        <p class="present-brand">lanyard<b>.</b></p>
+        <p v-if="!brand" class="present-brand">lanyard<b>.</b></p>
+        <p v-else class="present-brand present-host"><img v-if="brand.logo" :src="brand.logo" :alt="brand.name" class="present-logo" /><template v-else>{{ brand.name }}</template></p>
         <h1 class="present-name">{{ ev.name }}</h1>
         <p v-if="when" class="present-when">{{ when }}</p>
         <p class="present-scan">Scan to check in</p>
@@ -122,6 +126,7 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
         </svg>
       </section>
     </div>
+    <p v-if="ev && brand" class="present-with">Check in with Lanyard</p>
   </main>
 </template>
 
@@ -143,6 +148,9 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
 .present-info { display: flex; flex-direction: column; gap: 2.4vh; min-width: 0; }
 .present-brand { font-weight: 700; font-size: 3.4vh; letter-spacing: -0.02em; line-height: 1; }
 .present-brand b { color: var(--event-strap); }
+.present-host { overflow-wrap: anywhere; }
+.present-logo { display: block; width: auto; height: 10vh; max-width: 100%; object-fit: contain; object-position: left; padding: 0.6vh; border-radius: 0.6vh; background: #FFFDF8; }
+.present-with { flex: none; padding: 0 5vw 2.4vh; font-size: 2.2vh; color: var(--graphite); }
 .present-name {
   font-size: 8vh; line-height: 1.04; letter-spacing: -0.02em; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
@@ -180,5 +188,6 @@ const when = computed(() => [ev.value?.venue, ev.value?.startsAt ? fmtDateTime(e
   .present-name { font-size: 6vh; }
   .present-code { font-size: 9vh; }
   .present-count { justify-content: center; }
+  .present-with { text-align: center; }
 }
 </style>

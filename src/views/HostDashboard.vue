@@ -13,7 +13,7 @@ import HostSetup from "../components/HostSetup.vue";
 import Waiting from "../components/Waiting.vue";
 import EventCreate from "../components/EventCreate.vue";
 import EventPreview from "../components/EventPreview.vue";
-import { collectBody, createBody, eventFromBody } from "../lib/eventform";
+import { collectBody, createBody, eventFromBody, previewBrand } from "../lib/eventform";
 import { UiCombobox } from "../components/ui/UiSelect.vue";
 import { blankForm, copyFacts, firstBadStep, formFromDraft, freshForm as freshFrom, serverErrorField, startFromEvent, startValues, stepFromQuery, submitPlan } from "../lib/eventsteps";
 import { clearDraft, loadDraft, saveDraft } from "../lib/eventdraft";
@@ -98,7 +98,8 @@ const previewEvent = computed(() => {
     ? eventFromBody({ name: f.value.name.trim() || s.name, venue: s.venue, startsAt: f.value.startsAt, theme: s.theme, strapColor: s.strapColor, strapInk: s.strapInkChoice,
       perks: s.perks, directoryOn: s.directoryOn, suggestOn: s.suggestOn, info: s.info, feedbackOn: s.feedbackOn, collect: collectBody(f.value) }, s.questions, org.value?.name)
     : eventFromBody(createBody(f.value), undefined, org.value?.name);
-  return e.name ? e : { ...e, name: "Your event name" };
+  const b = previewBrand(brand.value, !freeNow.value, s ? events.value.find((x) => x.id === f.value.from)?.useBranding : f.value.useBranding); // F66: a copy keeps its event's switch
+  return { ...e, ...(b ? { brand: b } : {}), name: e.name || "Your event name" };
 });
 
 const router = useRouter();

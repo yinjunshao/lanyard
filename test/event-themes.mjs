@@ -208,7 +208,8 @@ console.log("\n# The check-in page gets no script for this (CSS only)");
   const ep = read("src/components/EventPage.vue");
   check("EventPage imports no theme list and no colour sums (the CSS comes with main.css)", !/^import [^\n]*(eventthemes\.js|eventlook|cardcolour|colourpanel)/m.test(ep));
   check("the head's class is the id and its colours are data in two CSS custom properties", /class="profile event-brand" :class="event\.theme"/.test(ep) && /'--card-strap': event\.strapColor, '--card-strap-ink': event\.strapInk/.test(ep));
-  check("a default event with no colour and no text colour is still the plain head (nothing is branded)", /const branded = \(e\) => \(e\.theme && e\.theme !== "default"\) \|\| !!e\.strapColor \|\| !!e\.strapInk;/.test(ep));
+  // F66 adds the host's company branding (event.brand, only on a paid event with branding on) as a fourth reason for the strap head.
+  check("a default event with no colour, no text colour and no company branding is still the plain head (nothing is branded)", /const branded = \(e\) => !!e\.brand \|\| \(e\.theme && e\.theme !== "default"\) \|\| !!e\.strapColor \|\| !!e\.strapInk;/.test(ep));
 }
 
 console.log("\n# The form: a theme grid, and Advanced with the F55 picker, free for hosts (rendered on the server)");

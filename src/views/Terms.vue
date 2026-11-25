@@ -139,6 +139,7 @@ const UPDATED = "22 November 2026";
       <li>The person who creates the organisation is its owner. Owners can invite colleagues with an invite code. Everyone you invite works under your organisation, and you are responsible for the people you invite and for what they do in it. Remove people who should no longer have access.</li>
       <li>Keep your organisation details accurate, including its type and billing email.</li>
       <li>Each host account has your name and email, and can belong to one organisation. Student societies and educational institutions must apply with a university or school email, and we approve each application by hand before they can create events or buy packs. We may reject an application or withdraw approval if the details are wrong or the organisation is not what it says it is.</li>
+      <li>If you add a display name or logo for your organisation (company branding), you must own it or have the right to use it, and it must not mislead people or break anyone else's rights. We may remove a name or logo, or switch branding off, if it does not meet this.</li>
       <li>Organisations can be handed to another host account. The new owner must have their own host account and accept the transfer. For societies and institutions, a change of leader or email is a request an administrator checks first, because approval was given for a particular leader.</li>
     </ul>
 

@@ -125,6 +125,9 @@ Nothing new is stored. The hub shows a person only their own connections at that
 - **Retention:** until confirmed (it then becomes the sign-in email), changed, or the account is deleted; if never confirmed, cleared by the daily purge 30 days after it was given. Confirm links last 14 days, are stored only as a hash and go with the address. In the person's own data download.
 - **Policy:** Privacy Policy section 2 (what we collect: the email you must give, only we see it, the time zone) and section 6 (kept until confirmed, changed or deleted; cleared after 30 days unconfirmed; at most two emails). The Terms and Privacy version was **not** bumped; F50 does one bump for F45 to F50. In our view this is a material change (a new required field), so it belongs in that bump.
 
+## Company branding (F66)
+An organisation's display name and logo are the organisation's, not a person's: no attendee data is involved and nothing new is stored about anyone. A logo is shown publicly on the organisation's paid events (so it is public by nature once shown) and otherwise only to its own hosts. It is deleted from R2 when it is replaced or removed, and when the organisation is deleted (database triggers queue it; the routes and the daily clean-up delete it). The host's data download lists the display name and whether a logo is set; an attendee's data download carries nothing new (the event hub shows the brand of a paid event they checked in to, as the check-in page did). The Host Terms (section 15) say a host must have the right to use any name or logo they add ([[D061 Host branding shows on paid events only, keeps a Check in with Lanyard line, and takes PNG, JPEG or WebP logos up to 1 MB]]); the version was not bumped.
+
 ## Retention (implemented in `worker/purge.js`)
 - Selfies: 12 months. Feedback text: 12 months.
 - Event presence (F17): at once on withdrawal, otherwise 48 hours after the event ends.

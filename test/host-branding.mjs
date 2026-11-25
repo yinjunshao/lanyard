@@ -373,4 +373,62 @@ console.log("\n# F66.2 The host's side: the Branding section, the logo made read
   } finally { await vite.close(); }
 }
 
+console.log("\n# F66.3 Drawn on every surface, with Check in with Lanyard, as text; free events stay Lanyard");
+{
+  // A fresh organisation with branding, a paid event and a society's free one, read through the real Worker.
+  const C = await hostOf("Drawn Org");
+  q("UPDATE orgs SET org_type = 'society' WHERE id = ?", C.org.id);
+  const freeEv = (await C.post("/api/host/events", { name: "Free one", theme: "forest" })).json;
+  const paidEv = (await C.post("/api/host/events", { name: "Paid one" })).json;
+  await C.put(brandPath(C.org), { name: "\"><img src=x onerror=alert(1)>" });
+  await C.post(brandPath(C.org, "/logo"), { dataUrl: dataUrl(png(48, 24)) });
+  const viewer = client({ ip: ip() });
+  const paidPub = (await viewer.get(`/api/e/${paidEv.code}`)).json, freePub = (await viewer.get(`/api/e/${freeEv.code}`)).json;
+  check("through the real Worker: the paid event has a brand with the name as typed, the free one none", paidPub.event.brand?.name === "\"><img src=x onerror=alert(1)>" && /^\/media\/logo\//.test(paidPub.event.brand.logo) && !("brand" in freePub.event));
+
+  globalThis.location ??= new URL("https://lanyard.test/");
+  const { createServer } = await import("vite");
+  const { renderToString } = await import("vue/server-renderer");
+  const { createSSRApp, h, reactive } = await import("vue");
+  const vite = await createServer({ configFile: "vite.config.js", root: process.cwd(), logLevel: "silent", appType: "custom", server: { middlewareMode: true, hmr: false, watch: null }, optimizeDeps: { noDiscovery: true } });
+  try {
+    const EventPage = (await vite.ssrLoadModule("/src/components/EventPage.vue")).default;
+    const render = (event) => renderToString(createSSRApp({ render: () => h(EventPage, { event, form: reactive({ name: "", answers: {}, sponsorConsent: {}, directoryConsent: false }), sponsors: [] }) })
+      .component("router-link", { render() { return h("a", {}, this.$slots.default?.()); } })).then((x) => x.replace(/<!--[\s\S]*?-->/g, ""));
+    const paid = await render(paidPub.event), free = await render(freePub.event);
+    check("the paid event's check-in page: the name on the strap in place of lanyard, the logo as a plain <img>, and Check in with Lanyard", /class="profile-strap-word"[^>]*>&quot;&gt;&lt;img src=x onerror=alert\(1\)&gt;</.test(paid) && new RegExp(`<img src="${paidPub.event.brand.logo.replace(/[?]/g, "\\?")}" alt="" class="brand-logo"`).test(paid) && /Check in with Lanyard/.test(paid) && !/>lanyard</.test(paid));
+    check("the display name is text, never HTML, on the check-in page (no img with onerror, no script)", !/<img src=x/.test(paid) && !/<script>alert/.test(paid));
+    const scripted = await render({ ...paidPub.event, brand: { name: "<script>alert(1)</script>", logo: null } });
+    check("…and a name <script>alert(1)</script> shows as those characters", /&lt;script&gt;alert\(1\)&lt;\/script&gt;/.test(scripted) && !/<script>alert/.test(scripted) && !/class="brand-logo"/.test(scripted));
+    check("the free event's check-in page is the Lanyard look: lanyard on the strap, no logo, no Check in with Lanyard line", />lanyard</.test(free) && !/brand-logo|Check in with Lanyard|Drawn Org|onerror/.test(free));
+    check("a default-look event with no branding still has the plain head", !/event-brand/.test(await render({ ...freePub.event, theme: "default" })));
+  } finally { await vite.close(); }
+
+  // The other surfaces fetch their data when they open, so their source is read: each draws the brand only from the
+  // response's brand (which a free event never has), as text and an <img>, and says Check in with Lanyard whenever it does.
+  const surfaces = {
+    "the check-in page": ["src/components/EventPage.vue", /<p v-if="event\.brand" class="small muted brand-with">Check in with Lanyard<\/p>/],
+    "the event hub": ["src/views/EventDetail.vue", /<p v-if="event\.brand" class="small muted hub-with">Check in with Lanyard<\/p>/],
+    "Present": ["src/views/HostPresent.vue", /<p v-if="ev && brand" class="present-with">Check in with Lanyard<\/p>/],
+    "the poster": ["src/views/HostPrint.vue", /<p v-if="!brand" class="poster-brand">lanyard<\/p>\s*<p v-else class="poster-with">Check in with Lanyard<\/p>/],
+  };
+  for (const [name, [file, line]] of Object.entries(surfaces)) {
+    const src = read(file);
+    check(`${name}: Check in with Lanyard is drawn whenever the brand is, and nothing else can hide it`, line.test(src) && !/v-html|innerHTML/.test(src));
+  }
+  const pres = read("src/views/HostPresent.vue"), print = read("src/views/HostPrint.vue"), hub = read("src/views/EventDetail.vue");
+  check("Present: the logo, or the name in the wordmark's style, in place of lanyard. (the live route's brand)", /const brand = computed\(\(\) => live\.value\?\.brand \|\| null\);/.test(pres) && /<p v-if="!brand" class="present-brand">lanyard<b>\.<\/b><\/p>/.test(pres) && /<p v-else class="present-brand present-host"><img v-if="brand\.logo" :src="brand\.logo" :alt="brand\.name" class="present-logo" \/><template v-else>\{\{ brand\.name \}\}<\/template><\/p>/.test(pres));
+  check("the poster: the logo or the name at the top, printed once the logo has loaded", /const brand = computed\(\(\) => live\.value\?\.brand \|\| null\);/.test(print) && /<img v-if="brand\?\.logo" :src="brand\.logo" :alt="brand\.name" class="poster-logo" \/>/.test(print) && /document\.images\][\s\S]*printIt\(\);/.test(print));
+  check("the hub: the logo or the name on its head, from the hub response's brand", /<img v-if="event\.brand\?\.logo" :src="event\.brand\.logo" :alt="event\.brand\.name" class="hub-logo" \/>/.test(hub) && /<span v-else-if="event\.brand" class="hub-brand">\{\{ event\.brand\.name \}\}<\/span>/.test(hub));
+  check("the Lanyard frame stays: the hub keeps its back button, Present its controls, the poster its steps", /class="hub-back"/.test(hub) && /class="present-controls"/.test(pres) && /class="poster-steps"/.test(print));
+  const { previewBrand } = await import("../src/lib/eventform.js");
+  const set = { has: true, off: false, name: "", defaultName: "Drawn Org", logo: "/media/logo/a/b.png?v=1" };
+  check("the previews beside the forms follow the Worker's rule", JSON.stringify(previewBrand(set, true, undefined)) === '{"name":"Drawn Org","logo":"/media/logo/a/b.png?v=1"}' && previewBrand(set, false, true) === null && previewBrand(set, true, false) === null && previewBrand({ ...set, off: true }, true, true) === null && previewBrand({ has: false }, true, true) === null && previewBrand(null, true, true) === null);
+  check("Create's and Details' previews pass it to the same check-in page", /previewBrand\(brand\.value, !freeNow\.value/.test(read("src/views/HostDashboard.vue")) && /previewBrand\(look\.value\.brand, look\.value\.paid, d\.value\.useBranding\)/.test(read("src/views/HostLive.vue")));
+  const admin = read("src/views/Admin.vue");
+  check("the admin page lists branding, shows a logo through the token (a blob address, no public link), removes it and switches branding off, each after a confirm", /call\("\/api\/admin\/brands"\)/.test(admin) && /fetch\(`\/api\/admin\/orgs\/\$\{encodeURIComponent\(o\.id\)\}\/brand\/logo`, \{ headers: \{ authorization: `Bearer \$\{token\.value\}` \} \}\)/.test(admin) && /URL\.createObjectURL/.test(admin) && /\/brand\/logo`, "DELETE"\)/.test(admin) && /\/brand`, "POST", \{ off \}\)/.test(admin) && (admin.match(/window\.confirm\(`(Remove the logo|Switch off branding)/g) || []).length === 2 && !/v-html/.test(admin));
+  const terms = read("src/views/Terms.vue");
+  check("the Host Terms say a host must have the right to use any name or logo they add; the Terms version is not bumped", /you must own it or have the right to use it/.test(terms) && terms.indexOf("have the right to use it") > terms.indexOf('id="hosts"') && /TERMS_VERSION = "2026-11-22"/.test(read("worker/legal.js")));
+}
+
 summary();

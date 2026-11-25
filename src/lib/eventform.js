@@ -91,6 +91,13 @@ export function eventFromBody(b, questions, organiser) {
   };
 }
 
+// F66: what the preview beside the form shows for company branding: the brand the check-in page will get, worked out with
+// the Worker's rule (a paid event, the switch on, a name or a logo, not switched off), or nothing.
+export function previewBrand(brand, paid, useBranding) {
+  if (!brand?.has || brand.off || paid === false || useBranding === false) return null;
+  return { name: brand.name || brand.defaultName, logo: brand.logo || null };
+}
+
 // The Details form of a saved event (HostLive) in the same shape.
 export function detailsBody(d) {
   return { name: d.name, venue: d.venue, startsAt: d.startsAt, endsAt: d.endsAt, theme: d.theme, strapColor: d.strapColor || "",

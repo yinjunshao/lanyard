@@ -122,6 +122,9 @@ function openPerk(p, e) { perkTrigger.value = e.currentTarget; perkOpen.value = 
         <span aria-hidden="true">‹</span>
       </button>
       <div v-if="event" class="hub-title">
+        <!-- F66: the organisation's logo, or its name, on a paid event with company branding on. Text and a plain <img> only. -->
+        <img v-if="event.brand?.logo" :src="event.brand.logo" :alt="event.brand.name" class="hub-logo" />
+        <span v-else-if="event.brand" class="hub-brand">{{ event.brand.name }}</span>
         <span class="label hub-status" :class="status">{{ statusText(status, event) }}</span>
         <h1>{{ event.name }}</h1>
         <p v-if="event.venue" class="sub">{{ event.venue }}</p>
@@ -271,6 +274,7 @@ function openPerk(p, e) { perkTrigger.value = e.currentTarget; perkOpen.value = 
       </div>
 
       <button type="button" class="btn btn-danger" :disabled="leaving" @click="leave">{{ leaving ? "Leaving…" : "Leave this event" }}</button>
+      <p v-if="event.brand" class="small muted hub-with">Check in with Lanyard</p>
     </template>
 
     <UiSheet :open="!!perkOpen" :anchor="perkTrigger" :label="event?.name || 'Perk'" modal @close="perkOpen = null">
@@ -304,6 +308,9 @@ function openPerk(p, e) { perkTrigger.value = e.currentTarget; perkOpen.value = 
 .hub-back:focus-visible { outline: 2.5px solid var(--strap); outline-offset: 0; }
 .hub-title { min-width: 0; padding-top: 2px; }
 .hub-title h1 { margin-top: 4px; overflow-wrap: anywhere; }
+.hub-logo { display: block; width: auto; height: 40px; max-width: 60%; object-fit: contain; object-position: left; margin: 2px 0 8px; padding: 4px; border-radius: 4px; background: #FFFDF8; }
+.hub-brand { display: block; margin: 2px 0 6px; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.hub-with { margin: 0; text-align: center; }
 .hub-title .sub { margin-top: 6px; color: var(--graphite); font-size: 15px; }
 .hub-status.ongoing, .hub-status.upcoming { color: var(--strap-deep); }
 .hub-status.ended { color: var(--graphite); }
