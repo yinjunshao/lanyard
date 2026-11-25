@@ -65,6 +65,7 @@ These block the items in brackets. Tick each one and write the answer in the lin
 - [x] Who gets company branding ([[F66 Host branding on event pages]]): **paid events only** (answered 2026-11-24)
 - [x] Which credits make an event paid for company branding ([[F66 Host branding on event pages]]): **bought credits only** (answered 2026-11-25; starter and promo credits do not)
 - [ ] Matching ([[F61 Matching profiles for better suggestions]], [[F61 Research Matching options]]): **staged fixed list with anonymous outcome counts; field proposed from the card and confirmed; a global "Suggest me at events" setting, on by default; sensitive words screened, F60 fixed now ([[F69 Keep sensitive words out of who to meet]])** (answered 2026-11-24). Still open: keep the per-event untick too, where picks show, and the policy bump and lawyer sign-off
+- [x] Platform metrics archive and export ([[F70 Platform metrics with daily snapshots and CSV export]]): **daily snapshots, CSV export** (answered 2026-11-25)
 
 ## Build order
 Sizes: **S** under half a day · **M** 1-2 days · **L** 3-5 days · **XL** a week or more. Priorities: **P0** now · **P1** next · **P2** after · **P3** only if needed.
@@ -163,6 +164,9 @@ Build order: F68, F69, F63, F67, F64, F65, F66. F61's research note can be writt
 - [x] **F65** [[F65 Event themes and an advanced look]] · P1 · M · Needs: F63, F55 (done 2026-11-24, last commit d7a3cd9; migration 0043 to apply)
 - [x] **F66** [[F66 Host branding on event pages]] · P2 · L · Needs: F65 (paid events only, with a "Check in with Lanyard" line, by owner decision, 2026-11-24) (done 2026-11-25, last commit 0dc43f8; migration 0044 to apply; which credits count as paid is a question in the plan note)
 
+### Phase 12: owner requests (2026-11-25)
+- [ ] **F70** [[F70 Platform metrics with daily snapshots and CSV export]] · P1 · M · Needs: none (daily snapshots and CSV export by owner decision, 2026-11-25)
+
 ## Dependency map
 ```mermaid
 graph LR
@@ -257,6 +261,7 @@ graph LR
 | F62 | After F21 is on (no migration): `npm run deploy`. Then, with your own address on the allow-list, fill a test profile from your own LinkedIn "Save to PDF" file and from one real two-column CV, and judge the fields. Decide whether the new Privacy Policy line needs a Terms and Privacy version bump | [[F62 Fill your profile from LinkedIn or a CV]] |
 | F63, F64, F67, F68 | Front end and Worker only, no migration expected: `npm run deploy`. Then create one event on the host site on a phone and a laptop, and look at the check-in page and both event lists | [[F63 Create event form refresh]], [[F64 New events start from the host's latest settings]], [[F67 Check-in page layout]], [[F68 Event status on event lists]] |
 | F69 | Worker and one Privacy Policy line, no migration: `npm run deploy` with F60. In F60's real-model check, also try a sensitive tag and "meet other Muslim founders" and confirm no reason mentions them. Decide whether F24 and follow-up drafts should be screened too | [[F69 Keep sensitive words out of who to meet]] |
+| F70 | Worker, Admin page and migration 0045: `npm run db:remote`, then `npm run deploy`. The next morning, open `/admin`, press Show metrics and check one snapshot is dated that day; press Download CSV once and open it in a spreadsheet | [[F70 Platform metrics with daily snapshots and CSV export]] |
 | F65 | `npm run db:remote` (0043, additive: one nullable column on `events`) before `npm run deploy`. Then create one event with a new theme on the host site on a phone and a laptop, and look at the check-in page, Present and the printed poster | [[F65 Event themes and an advanced look]], [[D060 Event themes are one shared list drawn by CSS, and a chosen text colour must read]] |
 | F66 | `npm run db:remote` (the F66 migration, additive) before `npm run deploy`. Upload your own test logo on a paid test event and look at Present, the check-in page and print. Decide whether the new Terms line on names and logos needs a version bump, and which credits make an event paid (now every credit; events made before F66 stay free) | [[F66 Host branding on event pages]] |
 
