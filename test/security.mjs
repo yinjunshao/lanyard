@@ -2,7 +2,7 @@
 // Run: node test/security.mjs
 import { becomeHost, makeEnv, check, summary, PNG } from "./harness.mjs";
 
-const T = await makeEnv({ ADMIN_TOKEN: "test-admin-token" });
+const T = await makeEnv({ ADMIN_TOKEN: "test-admin-token", TOTP_KEY: "test-totp-key-0123456789" });
 const { client, q, q1 } = T;
 
 async function signup(name = "Alice", opts = {}) {

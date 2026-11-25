@@ -28,7 +28,11 @@ async function sendMailout(test) {
     });
     if (test) mail.value.result = "Test sent.";
     else { mail.value.id = r.remaining ? r.id : undefined; mail.value.result = `Sent to ${r.sent}.${r.remaining ? ` ${r.remaining} left: press Send again.` : " Done."}`; }
-  } catch (e) { error.value = e.message; }
+  } catch (e) {
+    // A send that failed part-way says which broadcast it was, so pressing Send again continues it instead of starting a new one.
+    if (!test && e.broadcastId) mail.value.id = e.broadcastId;
+    error.value = e.message;
+  }
   finally { busy.value = false; }
 }
 const requests = ref(null);
@@ -41,6 +45,14 @@ async function closeRequest(id) {
   error.value = ""; busy.value = true;
   try { await call(`/api/admin/privacy-requests/${id}/close`, "POST", { outcome: outcome.value[id] || "" }); await loadRequests(); }
   catch (e) { error.value = e.message; }
+  finally { busy.value = false; }
+}
+// Abuse reports: asked for only when Show reports is pressed (each read is logged), newest first.
+const reports = ref(null);
+async function loadReports() {
+  if (busy.value) return;
+  error.value = ""; busy.value = true;
+  try { reports.value = (await call("/api/admin/reports")).reports; } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
 }
 const search = ref("");
@@ -125,7 +137,7 @@ async function call(path, method = "GET", body) {
     });
     json = await res.json().catch(() => ({}));
   } catch (e) { res = { status: 0 }; json = { code: "offline", e }; }
-  if (!res.ok) throw fix(Object.assign(new Error(json.error || ""), { status: res.status, code: json.code || null }), json, res);
+  if (!res.ok) throw fix(Object.assign(new Error(json.error || ""), { status: res.status, code: json.code || null, broadcastId: json.id || null }), json, res);
   return json;
 }
 
@@ -359,6 +371,19 @@ const EMAIL = { education: "university or school address", free: "webmail addres
           <p style="margin:0;white-space:pre-wrap">{{ r.message }}</p>
           <input v-model="outcome[r.id]" type="text" maxlength="500" placeholder="Outcome (what you told them)" :aria-label="`Outcome for ${r.id}`" />
           <button class="btn" :disabled="busy || !outcome[r.id]" @click="closeRequest(r.id)">Close</button>
+        </div>
+      </section>
+
+      <section class="stack-2" aria-labelledby="adm-reports-h" data-admin-reports>
+        <span id="adm-reports-h" class="label">Abuse reports<template v-if="reports"> ({{ reports.length }}{{ reports.length === 100 ? ", newest 100" : "" }})</template></span>
+        <p class="small muted">Reports people made about someone they connected with or saw in Who to meet. Each is kept 12 months. To act on one, look the person up under account recovery by their account ID.</p>
+        <button v-if="!reports" class="btn" :disabled="busy" @click="loadReports">Show reports</button>
+        <p v-else-if="!reports.length" class="muted">No reports.</p>
+        <div v-for="r in reports || []" :key="r.id" class="panel stack">
+          <div class="spread"><strong>{{ r.target.name || "No name" }} · {{ r.target.id }}</strong>
+            <span class="small tnum">{{ fmt(r.createdAt) }}</span></div>
+          <p class="small muted" style="margin:0">{{ r.target.reports }} report{{ r.target.reports === 1 ? "" : "s" }} about this person · from {{ r.reporter.name || "no name" }} ({{ r.reporter.id }})</p>
+          <p style="margin:0;white-space:pre-wrap">{{ r.reason }}</p>
         </div>
       </section>
 

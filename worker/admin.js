@@ -8,7 +8,8 @@ import { sendMail, sendBatch, decisionEmail, ticketEmail, transferEmail, marketi
 import { hostOrigin } from "./host-auth.js";
 import { unsubUrl } from "./unsub.js";
 import { newId } from "./db.js";
-import { peek, bump, HOUR } from "./ratelimit.js";
+import { bump, HOUR } from "./ratelimit.js";
+import { giveBack } from "./codes.js";
 import { emailProblem, emailKind, openTransfer, normEmail } from "./hostorg.js";
 import { funnel } from "./onboarding.js";
 import { stageFunnel } from "./stages.js";
@@ -19,21 +20,24 @@ import { adminBrands, removeLogo, LOGO_KEY } from "./branding.js";
 import { getImage } from "./media.js";
 
 export const adminApp = new Hono();
+// Wrong admin tokens allowed per IP per hour. Right tokens are counted too while they are being checked, then
+// given back, so this also caps how many admin requests one page may have in flight at once (Admin.vue loads 8).
+export const ADMIN_TRIES = 10;
 
 adminApp.use("/api/admin/*", async (c, next) => {
   const token = c.env.ADMIN_TOKEN;
   if (!token) return c.json({ error: "Admin isn't set up. Set the ADMIN_TOKEN secret." }, 503);
   const db = c.env.DB;
   const key = `adm:${c.req.header("cf-connecting-ip") || "local"}`;
-  if ((await peek(db, key, HOUR)) >= 10) return c.json({ error: "Too many wrong tries. Wait an hour." }, 429);
+  // D040: the try is counted before the token is compared, so guesses sent at the same moment cannot get past
+  // the limit between a check and a count. A right token gives its try back.
+  if ((await bump(db, key, HOUR)) > ADMIN_TRIES) return c.json({ error: "Too many wrong tries. Wait an hour." }, 429);
   const given = (c.req.header("authorization") || "").replace(/^Bearer\s+/i, "");
   const [a, b] = await Promise.all([sha256Hex(given), sha256Hex(token)]);
   let diff = a.length ^ b.length;
   for (let i = 0; i < a.length && i < b.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  if (diff !== 0) {
-    await bump(db, key, HOUR);
-    return c.json({ error: "That token isn't right. Check it and try again." }, 401);
-  }
+  if (diff !== 0) return c.json({ error: "That token isn't right. Check it and try again." }, 401);
+  await giveBack(db, [key]);
   // Every admin action is logged: what was done and from where (search words are
   // kept, since looking someone up is itself access to personal data).
   const url = new URL(c.req.url);
@@ -253,6 +257,24 @@ adminApp.post("/api/admin/orgs/:id/attach", async (c) => {
   return c.json({ ok: true });
 });
 
+// Abuse reports (made from a connection or a Who to meet entry), newest first: who was reported, by whom, why,
+// and how many reports that person has in all. Kept 12 months (REPORT_KEEP in purge.js). Reading them is
+// logged like every admin request; the Admin page asks only when Show reports is pressed.
+adminApp.get("/api/admin/reports", async (c) => {
+  const rows = await all(c.env.DB,
+    `SELECT r.id, r.reason, r.created_at, r.target_id, r.reporter_id, t.name AS target_name, rp.name AS reporter_name,
+            (SELECT COUNT(*) FROM reports x WHERE x.target_id = r.target_id) AS target_reports
+     FROM reports r
+     LEFT JOIN profiles t ON t.user_id = r.target_id
+     LEFT JOIN profiles rp ON rp.user_id = r.reporter_id
+     ORDER BY r.created_at DESC LIMIT 100`);
+  return c.json({ reports: rows.map((r) => ({
+    id: r.id, reason: r.reason || "", createdAt: r.created_at,
+    target: { id: r.target_id, name: r.target_name || null, reports: r.target_reports },
+    reporter: { id: r.reporter_id, name: r.reporter_name || null },
+  })) });
+});
+
 // Account recovery for people who signed up with nothing but a cookie. Find them
 // by name / university / card code, check it's really them, then give them a
 // one-time sign-in code (30 minutes) to type on /signin.
@@ -417,18 +439,30 @@ adminApp.post("/api/admin/broadcast", async (c) => {
        AND NOT EXISTS (SELECT 1 FROM broadcast_sends s WHERE s.broadcast_id = ? AND s.user_id = u.id)
      ORDER BY u.id LIMIT 800`, id);
   const stored = await one(db, "SELECT subject, body FROM broadcasts WHERE id = ?", id);
-  const msgs = [];
-  for (const p of people) msgs.push({ to: p.email, ...marketingEmail({ subject: stored.subject, body: stored.body, unsubUrl: await unsubUrl(c, p.id) }) });
-  try { await sendBatch(c.env, "accounts", msgs); }
-  catch (e) { console.error(e); return c.json({ error: "Sending failed part-way. Run it again to continue; nobody is sent twice." }, 502); }
-  const ts = now();
-  for (let i = 0; i < people.length; i += 50) {
-    await db.batch(people.slice(i, i + 50).map((p) => db.prepare("INSERT OR IGNORE INTO broadcast_sends (broadcast_id, user_id, sent_at) VALUES (?, ?, ?)").bind(id, p.id, ts)));
+  // Claim, then send, one Resend batch (100) at a time: a person is mailed only if this run's INSERT made their
+  // broadcast_sends row, so a re-run or a second press at the same moment never mails them again. A chunk that
+  // fails to send gives its claims back, so the re-run sends exactly that chunk and everything after it.
+  let sent = 0;
+  for (let i = 0; i < people.length; i += 100) {
+    const chunk = people.slice(i, i + 100);
+    const ts = now();
+    const res = await db.batch(chunk.map((p) => db.prepare("INSERT OR IGNORE INTO broadcast_sends (broadcast_id, user_id, sent_at) VALUES (?, ?, ?)").bind(id, p.id, ts)));
+    const mine = chunk.filter((_, j) => res[j]?.meta?.changes === 1);
+    if (!mine.length) continue;
+    const msgs = [];
+    for (const p of mine) msgs.push({ to: p.email, ...marketingEmail({ subject: stored.subject, body: stored.body, unsubUrl: await unsubUrl(c, p.id) }) });
+    try { await sendBatch(c.env, "accounts", msgs); }
+    catch (e) {
+      console.error(e);
+      await db.batch(mine.map((p) => db.prepare("DELETE FROM broadcast_sends WHERE broadcast_id = ? AND user_id = ? AND sent_at = ?").bind(id, p.id, ts)));
+      return c.json({ error: `Sending failed part-way, after ${sent}. Run it again to continue; nobody is sent twice.`, id, sent }, 502);
+    }
+    sent += mine.length;
   }
   const left = await one(db,
     `SELECT COUNT(*) AS n FROM users u WHERE u.marketing_optin = 1 AND u.email_verified = 1
        AND NOT EXISTS (SELECT 1 FROM broadcast_sends s WHERE s.broadcast_id = ? AND s.user_id = u.id)`, id);
-  return c.json({ ok: true, id, sent: people.length, remaining: left?.n || 0 });
+  return c.json({ ok: true, id, sent, remaining: left?.n || 0 });
 });
 
 // Privacy requests and complaints: oldest deadline first.

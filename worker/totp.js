@@ -1,7 +1,7 @@
 // Authenticator-app sign-in (RFC 6238 TOTP: Authy, Google Authenticator, 1Password...).
 // A backup for passkeys: the account ID picks the account, the 6-digit code
 // proves it. Wrong tries are throttled per IP and per account, and a code
-// can't be used twice. Secrets are AES-GCM encrypted at rest when TOTP_KEY is set.
+// can't be used twice. Secrets are AES-GCM encrypted at rest with TOTP_KEY; without it setup is refused.
 import { one, run, now } from "./db.js";
 import { takeTry, giveBack } from "./codes.js";
 import { createSession, requireUser, HttpError } from "./session.js";
@@ -61,9 +61,13 @@ async function aesKey(env) {
   return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
+// Fails closed, like drops (D039): with no TOTP_KEY nothing is stored, rather than a secret in plain text.
+// Secrets stored in plain text before this rule still open, and are sealed the next time they sign someone in.
+const NO_KEY = Object.assign(new HttpError(503, "Authenticator sign-in isn't available right now. Use a passkey or an email code instead."), { expose: true, quiet: true });
+
 async function seal(env, plain) {
   const key = await aesKey(env);
-  if (!key) return plain;
+  if (!key) throw NO_KEY;
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plain)));
   const all = new Uint8Array(12 + ct.length);
@@ -148,6 +152,9 @@ export async function redeem(c, db, rawId, rawCode) {
     return c.json({ error: "That email (or account ID) and code don't match. Codes change every 30 seconds.", code: "bad_totp" }, 404);
   }
   await giveBack(db, keys);
+  if (!row.secret.startsWith("v1:") && c.env.TOTP_KEY) {
+    await run(db, "UPDATE totp_secrets SET secret = ? WHERE user_id = ? AND secret = ?", await seal(c.env, row.secret), userId, row.secret);
+  }
   await createSession(c, db, userId);
   await notifySignIn(c, db, userId, "authenticator app");
   return c.json({ ok: true });

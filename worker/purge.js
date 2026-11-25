@@ -114,6 +114,7 @@ export async function purgeExpired(env, ts = Date.now()) {
 
   await run(db, "DELETE FROM sessions WHERE expires_at < ?", ts);
   await run(db, "DELETE FROM login_codes WHERE expires_at < ?", ts);
+  await run(db, "DELETE FROM email_codes WHERE expires_at < ?", ts); // otherwise cleared only when that address asks again
   await run(db, "DELETE FROM host_sessions WHERE expires_at < ?", ts);
   await run(db, "DELETE FROM host_login_codes WHERE expires_at < ?", ts);
   await run(db, "DELETE FROM host_org_invites WHERE expires_at < ?", ts);
@@ -162,9 +163,12 @@ export async function expireInactive(env, ts = Date.now()) {
       out.inactiveWarned += 1;
     } catch (e) { console.error(e); }
   }
-  // Warned and still silent a month later, or never reachable by email.
+  // Warned and still silent a month later, or never reachable by email. A guest who has a profile (one who
+  // connected from a card makes a stub one) is not covered by the guest rule in purgeExpired, so it is covered
+  // here: it has no confirmed email, so it goes at 24 months unused without a warning, like a claimed account with none.
   const gone = await all(db,
-    `SELECT id FROM users WHERE is_guest = 0 AND last_seen_at < ?
+    `SELECT id FROM users WHERE last_seen_at < ?
+       AND (is_guest = 0 OR EXISTS (SELECT 1 FROM profiles p WHERE p.user_id = users.id))
        AND ((inactive_warned_at IS NOT NULL AND inactive_warned_at < ?) OR email_verified = 0) LIMIT 100`,
     ts - INACTIVE_AFTER, ts - INACTIVE_WARNING);
   for (const u of gone) { await eraseUser(env, u.id); out.inactiveDeleted += 1; }
