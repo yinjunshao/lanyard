@@ -351,15 +351,17 @@ console.log("\n# Claiming with an email that already has an account");
   const r = await c.post("/api/claim/finish", { token: E.token, email, code, acceptTerms: true, over18: true });
   check("finishing says so in plain words", r.status === 409 && r.json.code === "has_account" && r.json.error === "You already have a Lanyard account with this email. Sign in, and we'll offer these details to you instead.");
   check("no session, no cookie: nobody is signed in", c.jar.size === 0 && q1("SELECT COUNT(*) n FROM sessions WHERE user_id = ?", E.id).n === 0 && !r.setCookies.length);
-  check("no merge: the existing account is unchanged and the profile is still waiting, with its link", q1("SELECT name FROM profiles WHERE user_id = ?", owner.id).name === "Existing Owner" && q1("SELECT is_guest FROM users WHERE id = ?", E.id).is_guest === 1 && !!q1("SELECT 1 x FROM claim_links WHERE user_id = ?", E.id) && (await fresh().post("/api/claim/look", { token: E.token })).status === 200);
-  check("nothing erased and no consent recorded for either", q1("SELECT COUNT(*) n FROM consent_log WHERE user_id = ? AND ref = 'erased'", E.id).n === 0 && q1("SELECT COUNT(*) n FROM consent_log WHERE user_id = ?", E.id).n === 0);
-  check("the F75 hand-off slot is there and does nothing yet", /export async function handOffToExistingAccount/.test(read("worker/claim.js")) && /TODO\(F75\)/.test(read("worker/claim.js")));
+  check("no merge: the existing account's profile is unchanged (F75: the details wait as a suggestion it must accept)", q1("SELECT name, headline, company FROM profiles WHERE user_id = ?", owner.id).name === "Existing Owner" && !q1("SELECT company FROM profiles WHERE user_id = ?", owner.id).company && !!q1("SELECT 1 x FROM profile_suggestions WHERE user_id = ?", owner.id));
+  check("F75 hand-off: the made profile is erased with its link, and the link now gives the plain answer", !q1("SELECT 1 x FROM users WHERE id = ?", E.id) && !q1("SELECT 1 x FROM claim_links WHERE user_id = ?", E.id) && (await fresh().post("/api/claim/look", { token: E.token })).status === 404);
+  check("no consent recorded for the made account (only the erasure line), and the claimer has no cookie", q1("SELECT COUNT(*) n FROM consent_log WHERE user_id = ? AND action != 'withdrawn'", E.id).n === 0 && c.jar.size === 0);
+  check("the hand-off slot is filled (no TODO left)", /export async function handOffToExistingAccount/.test(read("worker/claim.js")) && !/TODO\(F75\)/.test(read("worker/claim.js")));
   // a legacy, unverified address counts as an account too
+  const E2 = await make({ name: "Already Here Too" });
   const legacy = await signup("Legacy Owner");
   raw.prepare("UPDATE users SET recovery_email = 'legacy@example.com', email_verified = 0 WHERE id = ?").run(legacy.id);
-  await c.post("/api/claim/start", { token: E.token, email: "legacy@example.com" });
-  const r2 = await c.post("/api/claim/finish", { token: E.token, email: "legacy@example.com", code: claimCode("legacy@example.com"), acceptTerms: true, over18: true });
-  check("an address an account signs in with but never verified is refused the same way", r2.status === 409 && r2.json.code === "has_account" && q1("SELECT is_guest FROM users WHERE id = ?", E.id).is_guest === 1);
+  await c.post("/api/claim/start", { token: E2.token, email: "legacy@example.com" });
+  const r2 = await c.post("/api/claim/finish", { token: E2.token, email: "legacy@example.com", code: claimCode("legacy@example.com"), acceptTerms: true, over18: true });
+  check("an address an account signs in with but never verified is answered the same way (a suggestion, no session)", r2.status === 409 && r2.json.code === "has_account" && !q1("SELECT 1 x FROM users WHERE id = ?", E2.id) && !!q1("SELECT 1 x FROM profile_suggestions WHERE user_id = ?", legacy.id) && c.jar.size === 0);
 }
 
 console.log("\n# Two claims of one link at the same moment: exactly one winner");

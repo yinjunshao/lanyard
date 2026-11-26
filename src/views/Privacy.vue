@@ -213,6 +213,7 @@ const UPDATED = "24 November 2026";
       <li><b>Who sees it</b>: only whoever has the link. It is private until you claim it, and never in search, People or Who to meet.</li>
       <li><b>How long</b>: deleted 30 days after it was made if you don't claim it. Our basis is legitimate interests, inviting you to Lanyard.</li>
       <li><b>To delete it</b>: press "This isn't me / delete it" on that page, and it goes at once, or write to us. To keep it, claim it with your email and agree to the Terms.</li>
+      <li><b>If you already have a card</b>: we may suggest details for it from public sources instead. Nothing changes until you accept them, and a suggestion is deleted after 30 days.</li>
     </ul>
 
     <h2>9. Children</h2>

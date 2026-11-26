@@ -361,4 +361,83 @@ console.log("\n# At the same moment: one consistent answer");
   check("accept and decline at once: exactly one wins, and the profile matches the winner", ad.filter((x) => x.status === 200).length === 1 && (ad[0].status === 200) === wrote && !rowOf(C.id), ad.map((x) => x.status));
 }
 
+/* ------------------------------------------------------------------------------------------------------------------ */
+console.log("\n# The F74 hand-off: claiming with an email that already has an account");
+{
+  const H = await signup("Hal Holder", {}, { email: "hal@example.com" });
+  const made = await admin.post("/api/admin/premade", { name: "Hal Holder", source: "LinkedIn", mode: "career", company: "Made-Co-77aa", headline: "Made-headline-31bc", photoDataUrl: PNG }, ADMIN);
+  const token = made.json.path.split("/claim/p/")[1];
+  const madePhoto = q1("SELECT photo_key FROM profiles WHERE user_id = ?", made.json.id).photo_key;
+  const c = fresh();
+  env.MAIL_OUTBOX.length = 0;
+  const start = await c.post("/api/claim/start", { token, email: "hal@example.com" });
+  check("Start answers exactly as for a new address, and nothing is handed over before the code", start.status === 200 && start.text === JSON.stringify({ ok: true }) && !rowOf(H.id) && !!q1("SELECT 1 x FROM users WHERE id = ?", made.json.id));
+  const code = env.MAIL_OUTBOX.find((m) => m.to[0] === "hal@example.com")?.text.match(/claim code is (\d{6})/)?.[1];
+  const bad = await c.post("/api/claim/finish", { token, email: "hal@example.com", code: code === "000000" ? "111111" : "000000", acceptTerms: true, over18: true });
+  check("a wrong code hands nothing over", bad.status === 400 && !rowOf(H.id) && !!q1("SELECT 1 x FROM users WHERE id = ?", made.json.id));
+  const r = await c.post("/api/claim/finish", { token, email: "hal@example.com", code, acceptTerms: true, over18: true });
+  const s = rowOf(H.id);
+  check("the right code: the same plain 409 as F74, no cookie, nobody signed in", r.status === 409 && r.json.code === "has_account" && c.jar.size === 0 && !r.setCookies.length);
+  check("the details are now a suggestion on the existing account, with the source, and her card is unchanged", !!s && s.source === "LinkedIn" && JSON.parse(s.fields).company === "Made-Co-77aa" && JSON.parse(s.fields).headline === "Made-headline-31bc" && !profileOf(H.id).company && !profileOf(H.id).headline);
+  check("the made photo became the suggested photo (a copy under suggest/), and the made one is deleted", /^suggest\//.test(s.photo_key) && env.MEDIA.store.has(s.photo_key) && !env.MEDIA.store.has(madePhoto));
+  check("the made account and its link are erased; the link gives the plain answer", !q1("SELECT 1 x FROM users WHERE id = ?", made.json.id) && !q1("SELECT 1 x FROM claim_links WHERE user_id = ?", made.json.id) && (await fresh().post("/api/claim/look", { token })).status === 404);
+  check("her verified address gets the one suggestion email (no values in it)", env.MAIL_OUTBOX.filter((m) => m.subject === "We filled in some details on your Lanyard card" && m.to[0] === "hal@example.com").length === 1 && !env.MAIL_OUTBOX.some((m) => /Made-Co-77aa|Made-headline-31bc/.test(m.text + m.html)));
+  check("her card shows none of it until she accepts", !(await fresh().get(`/api/c/${H.cardId}`)).text.includes("Made-Co-77aa"));
+  const acc = await H.c.post("/api/profile/suggested/accept", { id: s.id, fields: ["company"] });
+  check("after she signs in she can accept part of it", acc.status === 200 && profileOf(H.id).company === "Made-Co-77aa" && !profileOf(H.id).headline);
+  // An account without a profile: nothing to suggest to, so F74's answer stays and nothing is erased.
+  const bare = fresh(); await bare.post("/api/onboarding", {});
+  const bareId = q1("SELECT id FROM users ORDER BY created_at DESC, rowid DESC LIMIT 1").id;
+  raw.prepare("UPDATE users SET recovery_email = 'bare@example.com', email_verified = 1, is_guest = 0 WHERE id = ?").run(bareId);
+  const m2 = await admin.post("/api/admin/premade", { name: "Bare Made", source: "LinkedIn" }, ADMIN);
+  const t2 = m2.json.path.split("/claim/p/")[1];
+  const c2 = fresh();
+  await c2.post("/api/claim/start", { token: t2, email: "bare@example.com" });
+  const code2 = [...env.MAIL_OUTBOX].reverse().find((m) => m.to[0] === "bare@example.com")?.text.match(/claim code is (\d{6})/)?.[1];
+  const r2 = await c2.post("/api/claim/finish", { token: t2, email: "bare@example.com", code: code2, acceptTerms: true, over18: true });
+  check("an existing account with no profile: the same 409, nothing handed over, the made profile still waiting", r2.status === 409 && !rowOf(bareId) && !!q1("SELECT 1 x FROM claim_links WHERE user_id = ?", m2.json.id));
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ */
+console.log("\n# The 30-day purge, and erasing an account");
+{
+  const { purgeExpired, eraseUser } = await import("../worker/purge.js");
+  const Old = await signup("Olly Old"), Young = await signup("Yan Young");
+  await suggest(Old.id, { headline: "Old one", photoDataUrl: PNG });
+  await suggest(Young.id, { headline: "Young one", photoDataUrl: PNG });
+  const now = Date.now();
+  raw.prepare("UPDATE profile_suggestions SET created_at = ?, expires_at = ? WHERE user_id = ?").run(now - 31 * DAY, now - 31 * DAY + SUGGEST_MAX_AGE, Old.id);
+  raw.prepare("UPDATE profile_suggestions SET created_at = ?, expires_at = ? WHERE user_id = ?").run(now - 29 * DAY, now - 29 * DAY + SUGGEST_MAX_AGE, Young.id);
+  const ko = rowOf(Old.id).photo_key, ky = rowOf(Young.id).photo_key;
+  check("a suggestion past its 30 days is already treated as gone before the purge (no banner, 404)", !("suggested" in (await Old.c.get("/api/home")).json) && (await Old.c.get("/api/profile/suggested")).status === 404);
+  const out = await purgeExpired(env, now);
+  check("purgeExpired: the one 31 days old is gone with its photo, counted as expired", !rowOf(Old.id) && !env.MEDIA.store.has(ko) && out.suggestions === 1 && q1("SELECT SUM(n) n FROM suggestion_counts WHERE outcome = 'expired'").n >= 1);
+  check("…the one 29 days old is kept with its photo", !!rowOf(Young.id) && env.MEDIA.store.has(ky));
+  await purgeExpired(env, now + 2 * DAY);
+  check("…and goes two days later", !rowOf(Young.id) && !env.MEDIA.store.has(ky));
+  check("neither profile was changed by the purge", profileOf(Old.id).headline === "" && profileOf(Young.id).headline === "");
+  raw.prepare("INSERT INTO suggestion_counts (day, outcome, n) VALUES ('2020-01-01', 'accepted', 5)").run();
+  await purgeExpired(env, now);
+  check("outcome counts older than 400 days are deleted", !q1("SELECT 1 x FROM suggestion_counts WHERE day = '2020-01-01'"));
+  const Z = await signup("Zed Erased");
+  await suggest(Z.id, { headline: "Gone soon", photoDataUrl: PNG });
+  const kz = rowOf(Z.id).photo_key;
+  await eraseUser(env, Z.id);
+  check("erasing an account removes its suggestion (cascade) and the suggested photo", !rowOf(Z.id) && !env.MEDIA.store.has(kz));
+  const Y = await signup("Yas Deletes");
+  await suggest(Y.id, { headline: "Also gone", photoDataUrl: PNG });
+  const ky2 = rowOf(Y.id).photo_key;
+  const del = await Y.c.del("/api/account");
+  check("deleting your own account does the same", del.status === 200 && !rowOf(Y.id) && !env.MEDIA.store.has(ky2), del.status);
+  check("the purge runs it, in purge.js", /out\.suggestions = await purgeSuggestions\(env, ts\)/.test(read("worker/purge.js")) && /profile_suggestions WHERE user_id/.test(read("worker/purge.js")));
+}
+
+console.log("\n# The Privacy Policy says so, in section 8g");
+{
+  const pv = read("src/views/Privacy.vue");
+  const g = pv.slice(pv.indexOf("If we made a card for you"), pv.indexOf("9. Children"));
+  check("one line in 8g: suggestions from public sources, nothing changes until you accept, deleted after 30 days", /suggest details for it/.test(g) && /nothing changes until you accept/i.test(g) && /30 days/.test(g));
+  check("the Terms and Privacy version is unchanged", /TERMS_VERSION = "2026-11-22"/.test(read("worker/legal.js")));
+}
+
 summary();

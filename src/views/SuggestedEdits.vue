@@ -98,7 +98,7 @@ const day = (t) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", mon
       <fieldset class="stack-2 sg-list">
         <legend class="visually-hidden">Details to accept</legend>
         <label v-for="f in data.fields" :key="f.key" class="panel checkbox-row sg-row">
-          <input v-model="picked[f.key]" type="checkbox" />
+          <input v-model="picked[f.key]" type="checkbox" :aria-label="`Accept ${f.label}`" />
           <span class="sg-body">
             <strong>{{ f.label }}</strong>
             <template v-if="f.key === 'photo'">

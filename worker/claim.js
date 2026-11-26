@@ -17,7 +17,9 @@ import { getImage } from "./media.js";
 import { issue, checkCode, sendLimited, findUserByEmail, normEmail, validEmail } from "./email-auth.js";
 import { claimCodeEmail } from "./mail.js";
 import { termsScope, claimNoticeStmts } from "./legal.js";
-import { linkByToken, erasePremade, TOKEN_RE } from "./premade.js";
+import { linkByToken, erasePremade, isPremade, TOKEN_RE } from "./premade.js";
+import { readSuggestion, writeSuggestion, mailSuggestion, copyPhotoToSuggest } from "./suggestedEdits.js";
+import { institutionById } from "./institutions.js";
 
 export const LINK_GONE = { error: "This link has expired or was already used.", code: "link_gone" };
 export const HAS_ACCOUNT = {
@@ -45,15 +47,35 @@ async function open(c, body) {
 }
 
 /**
- * F75 slot. Someone proved (with the emailed code) that they own an email that already has a Lanyard account. F75
- * ("Admin-suggested profile edits that the person approves") will turn this profile's details into a suggestion on that
- * account, for them to accept after they sign in, and then erase the profile made for them. F75 is not built yet, so
- * this does nothing: nothing is merged, nobody is signed in, nothing is erased, and the claim link keeps working.
- * Returns true only once it has handed the details over.
+ * F75 (D064). Someone proved (with the emailed code) that they own an email that already has a Lanyard account. Nothing
+ * is merged and nobody is signed in: this profile's details and photo become a suggestion on that account, which they
+ * see after they sign in (and by email if its address is verified), and the profile made for them is erased with its
+ * link. The details go through the same reading as an admin's suggestion (the allow-list and Edit profile's checks).
+ * Returns true once it has handed the details over; false (nothing changed, the link keeps working) if the account
+ * has no profile to suggest to, or the made profile is gone.
  */
-// TODO(F75): make the suggestion on accountId from premadeId's profile and source, then erasePremade(env, premadeId).
-export async function handOffToExistingAccount(env, { premadeId, accountId, source }) { // eslint-disable-line no-unused-vars
-  return false;
+export async function handOffToExistingAccount(env, { premadeId, accountId, source }) {
+  const db = env.DB;
+  if (!(await isPremade(db, premadeId))) return false;
+  const [made, target] = await Promise.all([
+    one(db, "SELECT * FROM profiles WHERE user_id = ?", premadeId),
+    one(db, "SELECT * FROM profiles WHERE user_id = ?", accountId),
+  ]);
+  if (!made || !target) return false;
+  const body = {};
+  for (const k of ["name", "mode", "uni", "course", "year", "company", "role", "headline", "about"]) if (made[k]) body[k] = made[k];
+  if (institutionById(made.institution_id)) body.institutionId = made.institution_id;
+  if (Array.isArray(made.tags) && made.tags.length) body.tags = made.tags;
+  if (made.links && typeof made.links === "object" && Object.keys(made.links).length) body.links = made.links;
+  const read = readSuggestion(body, target);
+  if (read.error) return false;
+  const photoKey = made.photo_key ? await copyPhotoToSuggest(env, made.photo_key) : null;
+  if (Object.keys(read.fields).length || photoKey) {
+    const s = await writeSuggestion(env, { userId: accountId, fields: read.fields, source, photoKey });
+    await mailSuggestion(env, { userId: accountId, id: s.id });
+  }
+  await erasePremade(env, premadeId);
+  return true;
 }
 
 /**
@@ -144,7 +166,8 @@ export function registerClaimRoutes(app, { cardView }) {
       return c.json({ error: "That code isn't right or has expired. Ask for a new one.", code: "bad_code" }, 400);
     }
     await giveBack(db, keys);
-    // An email that already has an account: no merge, no sign-in, no session, nothing erased.
+    // An email that already has an account: no merge, no sign-in, no session. F75: the details become a suggestion on
+    // that account and this profile is erased (handOffToExistingAccount); the answer is the same either way.
     const holder = await findUserByEmail(db, email);
     if (holder && holder.id !== link.userId) {
       await handOffToExistingAccount(c.env, { premadeId: link.userId, accountId: holder.id, source: link.source });

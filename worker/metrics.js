@@ -17,7 +17,9 @@ import { LAST_STEP } from "./onboarding.js";
 
 // 2 (F74, D063): profiles the admin made that are waiting to be claimed are not people yet. They are left out of every
 // count of accounts, profiles and cards, and counted on their own as premade_waiting.
-export const METRICS_VERSION = 2;
+// 3 (F75, D064): suggested card details: how many are open, and how many were accepted and declined in 30 days
+// (from suggestion_counts, which keeps only the number per day).
+export const METRICS_VERSION = 3;
 export const PAGE = 500; // profiles read at a time
 const DAY = 86400_000;
 
@@ -40,7 +42,7 @@ export async function computeMetrics(db, ts = now()) {
   const d1 = ts - DAY, d7 = ts - 7 * DAY, d30 = ts - 30 * DAY, d60 = ts - 60 * DAY;
   const day30 = Math.floor(d30 / DAY) * DAY; // feedback keeps only the UTC day
   // One query for each table, run together: nothing here runs once per person.
-  const [u, p, cards, conn, connected, org, hostAcc, ev, ci, fb, orders, credits, premade] = await Promise.all([
+  const [u, p, cards, conn, connected, org, hostAcc, ev, ci, fb, orders, credits, premade, sOpen, sDone] = await Promise.all([
     one(db, `SELECT COUNT(*) AS total, ${S("is_guest = 0")} AS claimed, ${S("is_guest = 1")} AS guests,
         ${S("email_verified = 1")} AS confirmed,
         ${S("created_at >= ?2")} AS s1, ${S("created_at >= ?3")} AS s7, ${S("created_at >= ?4")} AS s30,
@@ -65,6 +67,9 @@ export async function computeMetrics(db, ts = now()) {
         FROM billing_orders WHERE status = 'paid' AND paid_at >= ?`, d30),
     one(db, "SELECT COALESCE(SUM(events_granted), 0) AS n FROM credits WHERE granted_by = 'polar' AND created_at >= ?", d30),
     one(db, "SELECT COUNT(*) AS n FROM users WHERE admin_made = 1 AND is_guest = 1"),
+    one(db, "SELECT COUNT(*) AS n FROM profile_suggestions WHERE expires_at > ?", ts),
+    one(db, `SELECT COALESCE(SUM(CASE WHEN outcome = 'accepted' THEN n ELSE 0 END), 0) AS a,
+        COALESCE(SUM(CASE WHEN outcome = 'declined' THEN n ELSE 0 END), 0) AS d FROM suggestion_counts WHERE day >= ?`, dayOf(d30)),
   ]);
 
   // Profile completeness: the same six points as Edit profile and the emails (src/lib/profileScore.js), read in pages.
@@ -117,6 +122,8 @@ export async function computeMetrics(db, ts = now()) {
     event_credits_bought_30d: credits.n,
     // F74: profiles the admin made that nobody has claimed yet (they are in none of the counts above)
     premade_waiting: premade.n,
+    // F75: suggested card details (counts only)
+    suggestions_open: sOpen.n, suggestions_accepted_30d: sDone.a, suggestions_declined_30d: sDone.d,
   };
   for (const k of Object.keys(m)) m[k] = num(m[k]);
   return m;

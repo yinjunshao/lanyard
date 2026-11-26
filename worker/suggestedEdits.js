@@ -313,3 +313,13 @@ export async function exportSuggestion(db, userId) {
   const s = await openSuggestion(db, userId);
   return s ? { fields: parseFields(s), photo: s.photo_key ? "a suggested photo (shown on the review page)" : null, source: s.source, createdAt: s.created_at, expiresAt: s.expires_at, emailedAt: s.emailed_at || null } : null;
 }
+
+/** A copy of a stored photo under suggest/ (F74's hand-off: the made profile's photo becomes the suggested one). */
+export async function copyPhotoToSuggest(env, key) {
+  const obj = key ? await env.MEDIA.get(key) : null;
+  if (!obj) return null;
+  const ext = (/\.(webp|jpg|jpeg|png)$/.exec(key) || [, "webp"])[1];
+  const copy = `suggest/${newId()}${newId()}.${ext}`;
+  await env.MEDIA.put(copy, await new Response(obj.body).arrayBuffer(), { httpMetadata: { contentType: obj.httpMetadata?.contentType || "image/webp" } });
+  return copy;
+}

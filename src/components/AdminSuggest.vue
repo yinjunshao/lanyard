@@ -3,7 +3,7 @@
 // or under), see their card now next to an editable copy, say where the details came from, and send a suggestion.
 // Nothing changes on their card until they accept; they get an email if their address is verified, and a banner on
 // My card either way. Only AdminProfiles.vue imports this file.
-import { onMounted, ref } from "vue";
+import { nextTick, onMounted, ref } from "vue";
 import PhotoCropper from "./PhotoCropper.vue";
 import ModeFields from "./ModeFields.vue";
 import TagFields from "./TagFields.vue";
@@ -66,6 +66,7 @@ const pick = once(async (p) => {
       const res = await fetch(`/api/admin/suggest/${encodeURIComponent(r.id)}/photo`, { headers: { authorization: `Bearer ${props.token}` } }).catch(() => null);
       if (res?.ok) suggestedPhoto.value = URL.createObjectURL(await res.blob());
     }
+    await nextTick();
     document.getElementById("sg-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) { error.value = e.message; }
 });
@@ -91,6 +92,8 @@ const send = once(async () => {
   try {
     const r = await props.call(`/api/admin/suggest/${encodeURIComponent(person.value.id)}`, "POST", body);
     note.value = r.emailed ? `Sent. ${v.name || "They"} will get an email and see it on My card.` : `Sent. ${v.name || "They"} will see it on My card (no email: they have no verified address).`;
+    const sent = person.value.id;
+    if (people.value) people.value = people.value.map((x) => (x.id === sent ? { ...x, open: true } : x));
     close();
     await loadOpen();
   } catch (e) { error.value = e.message; }
@@ -121,10 +124,10 @@ const day = (t) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", mon
       <label class="checkbox-row"><input v-model="low" type="checkbox" /><span class="small">Only cards with 2 of 6 or less</span></label>
       <button class="btn btn-primary" :disabled="!!working">{{ working === search ? "Finding…" : "Find" }}</button>
     </form>
-    <p v-if="people && !people.length" class="muted small">Nobody found.</p>
-    <div v-for="p in people || []" :key="p.id" class="panel spread sg-person">
+    <p v-if="people && !people.length && !person" class="muted small">Nobody found.</p>
+    <div v-for="p in person ? [] : people || []" :key="p.id" class="panel spread sg-person">
       <span class="sg-who"><strong>{{ p.name || "No name" }}</strong><br /><span class="small muted">{{ p.place || (p.mode === "career" ? "No company" : "No institution") }} · {{ p.score }} of {{ p.max }} · {{ p.emailVerified ? "email" : "no email" }}<template v-if="p.open"> · suggestion waiting</template></span></span>
-      <button type="button" class="btn" :disabled="!!working" @click="pick(p)">Suggest details</button>
+      <button type="button" class="btn sg-go" :disabled="!!working" @click="pick(p)">Suggest details</button>
     </div>
 
     <form v-if="person && f" id="sg-form" class="stack-2" @submit.prevent="send">
@@ -195,7 +198,8 @@ const day = (t) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", mon
 
 <style scoped>
 .sg-person { gap: 12px; }
-.sg-who { min-width: 0; overflow-wrap: anywhere; }
+.sg-who { min-width: 0; overflow-wrap: anywhere; flex: 1; }
+.sg-go { width: auto; flex: none; }
 .sg-grid { display: grid; gap: 16px; }
 .sg-dl { margin: 0; display: grid; gap: 2px; }
 .sg-dl dd { margin: 0 0 6px; white-space: pre-line; overflow-wrap: anywhere; }

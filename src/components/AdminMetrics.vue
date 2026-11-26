@@ -25,6 +25,7 @@ const GBP = (pence) => `£${(Number(pence || 0) / 100).toLocaleString("en-GB", {
 const GROUPS = [
   { id: "accounts", title: "Accounts", note: "An account is anyone with a Lanyard card or who connected from one; claimed means they saved it to sign in again. Guests are everyone else.", tiles: [
     ["Accounts", "users_total", N], ["Claimed", "users_claimed", N], ["Guests", "users_guest", N], ["Email confirmed", "users_email_confirmed", N], ["Made by admin, waiting", "premade_waiting", N],
+    ["Suggested details waiting", "suggestions_open", N], ["Suggestions accepted, 30 days", "suggestions_accepted_30d", N], ["Suggestions declined, 30 days", "suggestions_declined_30d", N],
     ["New today", "signups_1d", N], ["New in 7 days", "signups_7d", N], ["New in 30 days", "signups_30d", N],
     ["Student profiles", "mode_student", N], ["Career profiles", "mode_career", N]] },
   { id: "profiles", title: "Profiles", note: "Percentages are out of all accounts. Complete is 6 of 6 on the same score people see on Edit profile: name, photo, university or company, course or role, what you do, a link.", tiles: [

@@ -172,10 +172,26 @@ console.log("\n# F74 (METRICS_VERSION 2): profiles the admin made and nobody cla
   }
   const claimed = w.user({ created: T - 3 * DAY, seen: T - DAY }); w.sql("UPDATE users SET admin_made = 1, claimed_at = ? WHERE id = ?", T - DAY, claimed); w.profile(claimed, "Claimed One", w.FULL); w.card(claimed);
   const m = await computeMetrics(w.env.DB, T);
-  check("the version is 2", METRICS_VERSION === 2);
+  check("the version is 2 or later (3 since F75)", METRICS_VERSION >= 2);
   check("two waiting: premade_waiting 2, and out of users_total, users_guest, signups, profiles and cards", m.premade_waiting === 2 && m.users_total === 2 && m.users_guest === 0 && m.signups_7d === 2 && m.profiles_total === 2 && m.profile_score_6 === 2 && m.with_card_pct === 100 && m.profile_complete_pct === 100, m);
   check("a claimed one is an ordinary account in every count", m.users_claimed === 2 && m.active_7d === 2);
   check("with none waiting it is 0, not missing", (await computeMetrics((await world()).env.DB, T)).premade_waiting === 0);
+}
+
+console.log("\n# F75 (METRICS_VERSION 3): suggested card details, counts only");
+{
+  const w = await world();
+  const a = w.user({ created: T - 5 * DAY, seen: T - DAY }); w.profile(a, "Has One", w.FULL);
+  const b = w.user({ created: T - 5 * DAY, seen: T - DAY }); w.profile(b, "Old One", w.FULL);
+  w.sql("INSERT INTO profile_suggestions (user_id, id, fields, source, created_at, expires_at) VALUES (?, 's1', '{}', 'LinkedIn', ?, ?)", a, T - DAY, T + 29 * DAY);
+  w.sql("INSERT INTO profile_suggestions (user_id, id, fields, source, created_at, expires_at) VALUES (?, 's2', '{}', 'LinkedIn', ?, ?)", b, T - 31 * DAY, T - DAY); // past its time
+  const day = (t) => new Date(t).toISOString().slice(0, 10);
+  w.sql("INSERT INTO suggestion_counts (day, outcome, n) VALUES (?, 'accepted', 3), (?, 'declined', 2), (?, 'accepted', 9), (?, 'expired', 4)", day(T - DAY), day(T - 2 * DAY), day(T - 40 * DAY), day(T - DAY));
+  const m = await computeMetrics(w.env.DB, T);
+  check("the version is 3", METRICS_VERSION === 3);
+  check("open counts only suggestions still in time; accepted and declined are the last 30 days", m.suggestions_open === 1 && m.suggestions_accepted_30d === 3 && m.suggestions_declined_30d === 2, [m.suggestions_open, m.suggestions_accepted_30d, m.suggestions_declined_30d]);
+  const e = await computeMetrics((await world()).env.DB, T);
+  check("an empty database gives 0 for each, not missing", ["suggestions_open", "suggestions_accepted_30d", "suggestions_declined_30d"].every((k) => e[k] === 0));
 }
 
 console.log("\n# Queries are batched, and profiles are read in pages, not one per person");
@@ -193,7 +209,7 @@ console.log("\n# Queries are batched, and profiles are read in pages, not one pe
   const small = await countQueries(5), big = await countQueries(PAGE * 2 + 40);
   const pages = (r) => r.seen.filter((s) => /FROM profiles WHERE user_id >/.test(s)).length;
   check("5 people take 1 page, 1040 take 3", pages(small) === 1 && pages(big) === 3, [pages(small), pages(big)]);
-  check("the other queries are the same few however many people there are", small.seen.length - pages(small) === big.seen.length - pages(big) && small.seen.length - pages(small) <= 14, [small.seen.length, big.seen.length]);
+  check("the other queries are the same few however many people there are (15 at most: F75 adds two fixed ones)", small.seen.length - pages(small) === big.seen.length - pages(big) && small.seen.length - pages(small) <= 15, [small.seen.length, big.seen.length]);
   check("the numbers are right across pages (half of 1040 have a complete profile)", big.m.profile_score_6 === (PAGE * 2 + 40) / 2 && big.m.profiles_total === PAGE * 2 + 40, [big.m.profile_score_6, big.m.profiles_total]);
   check("a page holds at most 500 profiles", PAGE === 500 && /LIMIT \$\{PAGE\}/.test(read("worker/metrics.js")));
 }
