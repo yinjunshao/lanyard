@@ -49,6 +49,19 @@ export function codeEmail(code, signInLink) {
   return { subject: `${code} is your Lanyard code`, text, html };
 }
 
+// F74: the code that claims a card the admin made. No link: the token is never put in an email, the code is typed on
+// the claim page that asked for it.
+export function claimCodeEmail(code) {
+  const text = `Your claim code is ${code}\n\nType it on the Lanyard page where you asked for it. It works for 10 minutes and only once.\n\nIf you did not ask for this, ignore this email. Nobody can claim the card without the code.`;
+  const html = emailLayout({
+    title: "Your code to claim your card",
+    preheader: "Type it on the page where you asked for it. It works for 10 minutes.",
+    bodyHtml: `${paragraphs("Your claim code:")}${codeBox(code)}${para("Type it on the Lanyard page where you asked for it. It works for 10 minutes and only once.")}`,
+    footerHtml: small("If you did not ask for this, ignore this email. Nobody can claim the card without the code."),
+  });
+  return { subject: `${code} is your code to claim your Lanyard card`, text, html };
+}
+
 // Host portal sign-in (F10). No code in the link: it is typed on the page that asked for it.
 export function hostCodeEmail(code, hostOrigin) {
   const text = `Your Lanyard host portal code is ${code}

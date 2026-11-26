@@ -32,6 +32,7 @@ export const SIGNUP_NOTICE = {
   connect: "By pressing Connect, you confirm you're 18 or over and agree to the Terms and Privacy Policy.",
   welcome: "By pressing Continue, you confirm you're 18 or over and agree to the Terms and Privacy Policy.",
   checkin: "By pressing Check in, you confirm you're 18 or over and agree to the Terms and Privacy Policy.",
+  claim: "By pressing Claim it, you confirm you're 18 or over and agree to the Terms and Privacy Policy.", // F74: the claim page
   host: "By pressing Agree and continue, you confirm you're 18 or over, that you're authorised to act for the organisation you set up, and that you agree to the Host Terms and Privacy Policy.",
 };
 // ref is `notice:<place>` for a person; a host's row keeps ref 'host_account' (its export and the person's tell them apart by it).
@@ -42,4 +43,17 @@ export function logNoticeStmt(db, userId, scope, place, ref = `notice:${place}`)
 
 export async function recordConsent(db, userId, scope, place = null) {
   await db.batch([recordConsentStmt(db, userId, scope), place ? logNoticeStmt(db, userId, scope, place) : logConsentStmt(db, userId, scope)]);
+}
+
+// F74: the two rows recordConsent writes at sign-up (consents, and the consent_log line with the words and the Terms
+// version), as statements that only write while `cond` holds, so a claim records them in the same write that hands the
+// account over, and only for the claim that wins. Only the person's own request reaches them (worker/claim.js).
+export function claimNoticeStmts(db, userId, scope, cond, condArgs, place = "claim") {
+  const ts = now();
+  return [
+    db.prepare(`INSERT INTO consents (id, user_id, scope, granted, created_at) SELECT ?, ?, ?, 1, ? WHERE ${cond}
+       ON CONFLICT(user_id, scope) DO UPDATE SET granted = 1, created_at = excluded.created_at`).bind(newId(), userId, scope, ts, ...condArgs),
+    db.prepare(`INSERT INTO consent_log (id, user_id, scope, action, ref, at, wording, version) SELECT ?, ?, ?, 'granted', ?, ?, ?, ? WHERE ${cond}`)
+      .bind(newId() + newId(), userId, scope, `notice:${place}`, ts, SIGNUP_NOTICE[place], TERMS_VERSION, ...condArgs),
+  ];
 }

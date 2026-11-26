@@ -26,7 +26,8 @@ export function findUserByEmail(db, email) {
     email);
 }
 
-async function issue(c, db, email, purpose, userId) {
+// `makeMail(code)` builds the email; the default is the sign-in email with its link (F74 passes the claim code email).
+export async function issue(c, db, email, purpose, userId, makeMail = null) {
   const code = sixDigits();
   const ts = now();
   await run(db, "DELETE FROM email_codes WHERE expires_at < ?", ts);
@@ -34,6 +35,7 @@ async function issue(c, db, email, purpose, userId) {
     `INSERT OR REPLACE INTO email_codes (email, purpose, user_id, code_hash, attempts, created_at, expires_at)
      VALUES (?, ?, ?, ?, 0, ?, ?)`,
     email, purpose, userId || "", await hashCode(email, code), ts, ts + TTL_MS);
+  if (makeMail) return sendMail(c.env, "accounts", { to: email, ...makeMail(code) });
   const link = `${new URL(c.req.url).origin}/signin?email=${encodeURIComponent(email)}&otp=${code}`;
   await sendMail(c.env, "accounts", { to: email, ...codeEmail(code, link) });
 }
@@ -41,7 +43,7 @@ async function issue(c, db, email, purpose, userId) {
 // Spends one try; true when the code is right (and consumed). The try is taken in one conditional
 // write BEFORE the code is compared (F35.3), so guesses sent at the same moment cannot all be
 // compared: only MAX_TRIES of them ever are, whatever the timing.
-async function checkCode(db, email, purpose, userId, code) {
+export async function checkCode(db, email, purpose, userId, code) {
   const row = await one(db,
     `UPDATE email_codes SET attempts = attempts + 1
      WHERE email = ? AND purpose = ? AND user_id = ? AND expires_at > ? AND attempts < ?
@@ -53,7 +55,7 @@ async function checkCode(db, email, purpose, userId, code) {
   return used.meta?.changes === 1;
 }
 
-async function sendLimited(c, db, email) {
+export async function sendLimited(c, db, email) {
   const ip = c.req.header("cf-connecting-ip") || "local";
   if ((await bump(db, `mail:ip:${ip}`, HOUR)) > 20 || (await bump(db, `mail:e:${email}`, HOUR)) > 6) {
     throw new HttpError(429, "Too many emails requested. Try again in a bit.", "throttled");

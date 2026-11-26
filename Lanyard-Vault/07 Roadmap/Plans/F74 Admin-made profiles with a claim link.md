@@ -63,7 +63,7 @@ Asked what people can see before it is claimed, the owner chose **"Private until
 
 ## Tasks
 - [x] F74.1 Migration, admin routes (make, edit, list, rotate link, delete) and the private-until-claimed rules, with tests. (`migrations/0046_admin_made_profiles.sql`, `worker/premade.js`, `worker/premadeAdmin.js`, `worker/profileFields.js` (the Edit profile checks, moved out of `index.js` so both use one copy), `test/premade.mjs`)
-- [ ] F74.2 The claim routes (look, delete, email code, claim, existing-account case) with Terms recording and rate limits, with tests.
+- [x] F74.2 The claim routes (look, delete, email code, claim, existing-account case) with Terms recording and rate limits, with tests. (`worker/claim.js`: POST only, the token in the body; `claimCodeEmail` in `worker/mail.js`; `SIGNUP_NOTICE.claim` and `claimNoticeStmts` in `worker/legal.js`; `handOffToExistingAccount` is the F75 slot)
 - [ ] F74.3 The `/admin/profiles` page and the `/claim/p/<token>` page.
 - [ ] F74.4 The 30-day purge, the metrics change, the Privacy Policy section, vault notes, decision note, Log, Master To-Do.
 

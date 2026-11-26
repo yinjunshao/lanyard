@@ -5,7 +5,9 @@
 // as Edit profile does.
 // Run: node test/premade.mjs
 import { readFileSync } from "node:fs";
-import { makeEnv, makeDb, check, summary, migrationFiles, readMigration, PNG, becomeHost } from "./harness.mjs";
+import { makeEnv, makeDb, check, summary, migrationFiles, readMigration, PNG, becomeHost, withLatency } from "./harness.mjs";
+import { claimWrite } from "../worker/claim.js";
+import { SIGNUP_NOTICE, TERMS_VERSION } from "../worker/legal.js";
 import { hashClaimToken, readSource, SOURCE_MAX, TOKEN_RE, isPremade } from "../worker/premade.js";
 import { gatherPeople } from "../worker/ai/peopleSearch.js";
 import { createHash } from "node:crypto";
@@ -239,6 +241,172 @@ console.log("\n# Waiting list, Copy link and Delete");
   check("an erased profile leaves the erasure in the consent history only", q1("SELECT COUNT(*) n FROM consent_log WHERE user_id = ? AND ref = 'erased'", d.id).n === 1);
 }
 
+
+/* ------------------------------------------------------------------------------------------------------------------ */
+console.log("\n# The claim page: looking, with only the token");
+const claimCode = (email) => [...env.MAIL_OUTBOX].reverse().find((m) => m.to[0] === email && /claim code is/.test(m.text))?.text.match(/claim code is (\d{6})/)?.[1];
+const GONE_TEXT = JSON.stringify({ error: "This link has expired or was already used.", code: "link_gone" });
+{
+  const c = fresh();
+  const look = await c.post("/api/claim/look", { token: P.token });
+  check("the token alone opens the card as it will look, with the source and when it ends", look.status === 200 && look.json.card.profile.name === "Priya Example" && look.json.card.profile.headline === "Designs calm software" && look.json.source === "LinkedIn" && look.json.hasPhoto === true && look.json.expiresAt > Date.now());
+  check("it gives no storage address for the photo and no account id", look.json.card.profile.photo === null && !("userId" in look.json.card.profile) && !/avatar\//.test(look.text));
+  const ph = await c.post("/api/claim/photo", { token: P.token });
+  check("the photo comes with the token, never cached", ph.status === 200 && /image\/png/.test(ph.headers.get("content-type")) && /no-store/.test(ph.headers.get("cache-control")));
+  check("looking makes no account and no cookie", c.jar.size === 0);
+  const before = q1("SELECT COUNT(*) n FROM users").n;
+  const outs = [await fresh().post("/api/claim/look", { token: "A".repeat(43) }), await fresh().post("/api/claim/look", { token: "short" }), await fresh().post("/api/claim/look", {}), await fresh().post("/api/claim/look", { token: 12 }), await fresh().post("/api/claim/look", { token: P.token.slice(0, 42) + (P.token.at(-1) === "A" ? "B" : "A") })];
+  check("a wrong, short, missing, non-text or one-letter-off token gets the one plain answer", outs.every((r) => r.status === 404 && r.text === GONE_TEXT), outs.map((r) => r.status));
+  check("and no guest account is made by any of them", q1("SELECT COUNT(*) n FROM users").n === before);
+  check("GET is not a way in (the token never goes in an address the Worker reads)", (await fresh().get(`/api/claim/look?token=${P.token}`)).status === 404 && !/query\(/.test(read("worker/claim.js")));
+}
+
+console.log("\n# Rate limits: per IP and per token");
+{
+  const c = client({ ip: "10.74.200.1" });
+  const tries = [];
+  for (let i = 0; i < 12; i++) tries.push((await c.post("/api/claim/look", { token: "B".repeat(42) + String.fromCharCode(65 + i) })).status);
+  check("wrong tokens from one IP: 404 ten times, then 429", tries.slice(0, 10).every((s) => s === 404) && tries.slice(10).every((s) => s === 429), tries);
+  check("over the limit even the right token is refused from that IP", (await c.post("/api/claim/look", { token: P.token })).status === 429);
+  check("another IP is not affected", (await client({ ip: "10.74.200.2" }).post("/api/claim/look", { token: P.token })).status === 200);
+  // per token: wrong codes against one real link from many addresses
+  const L = await make({ name: "Rate Limited" });
+  const per = [];
+  for (let i = 0; i < 12; i++) per.push((await client({ ip: `10.74.201.${i + 1}` }).post("/api/claim/finish", { token: L.token, email: "rl@example.com", code: "000000", acceptTerms: true, over18: true })).status);
+  check("wrong codes against one link from twelve IPs: refused, then 429 for that token", per.slice(0, 10).every((s) => s === 400) && per.slice(10).every((s) => s === 429), per);
+  check("the rate-limit keys never hold the token itself", q("SELECT key FROM rate_limits").every((r) => TOKENS.every((t) => !r.key.includes(t))));
+}
+
+console.log("\n# This isn't me: erased with only the token, and the link is dead");
+{
+  const D = await make({ name: "Not Me", photoDataUrl: PNG });
+  const key = q1("SELECT photo_key FROM profiles WHERE user_id = ?", D.id).photo_key;
+  const c = fresh();
+  const r = await c.post("/api/claim/delete", { token: D.token });
+  check("it answers ok without any sign-in", r.status === 200 && c.jar.size === 0);
+  check("the account, profile, card, link and photo are gone", !q1("SELECT 1 x FROM users WHERE id = ?", D.id) && !q1("SELECT 1 x FROM profiles WHERE user_id = ?", D.id) && !q1("SELECT 1 x FROM cards WHERE user_id = ?", D.id) && !q1("SELECT 1 x FROM claim_links WHERE user_id = ?", D.id) && !env.MEDIA.store.has(key));
+  const again = await fresh().post("/api/claim/look", { token: D.token });
+  check("the link then says it has expired", again.status === 404 && again.text === GONE_TEXT);
+  check("deleting again is the same plain answer", (await fresh().post("/api/claim/delete", { token: D.token })).text === GONE_TEXT);
+  check("it does not reach anyone else's account", (await fresh().post("/api/claim/delete", { token: "C".repeat(43) })).status === 404 && q1("SELECT COUNT(*) n FROM users WHERE id = ?", P.id).n === 1);
+}
+
+console.log("\n# Claiming: the emailed code, the Terms record, the account handed over");
+{
+  const C = await make({ name: "Claim Me", photoDataUrl: PNG });
+  const email = "claim.me@example.com";
+  const c = fresh();
+  const s = await c.post("/api/claim/start", { token: C.token, email: "  Claim.Me@Example.com " });
+  const code = claimCode(email);
+  const mail = env.MAIL_OUTBOX.at(-1);
+  check("Start sends a 6-digit code to the address", s.status === 200 && /^\d{6}$/.test(code || "") && mail.to[0] === email);
+  check("the email holds the code and no link, token or name", !mail.text.includes(C.token) && !mail.html.includes(C.token) && !/claim\/p\//.test(mail.text + mail.html) && !/Claim Me/.test(mail.text));
+  check("the code is kept hashed under purpose claim, for this account", q1("SELECT COUNT(*) n FROM email_codes WHERE email = ? AND purpose = 'claim' AND user_id = ? AND code_hash != ?", email, C.id, code).n === 1);
+  check("a bad email is 400", (await c.post("/api/claim/start", { token: C.token, email: "not-an-email" })).status === 400);
+  const noTerms = await c.post("/api/claim/finish", { token: C.token, email, code });
+  check("finishing without the Terms and 18+ is refused, and the code still works after", noTerms.status === 400 && noTerms.json.code === "terms_required" && q1("SELECT COUNT(*) n FROM email_codes WHERE purpose = 'claim' AND user_id = ?", C.id).n === 1);
+  const half = await c.post("/api/claim/finish", { token: C.token, email, code, acceptTerms: true });
+  check("the Terms without 18+ is refused too", half.status === 400 && half.json.code === "terms_required");
+  const wrong = await c.post("/api/claim/finish", { token: C.token, email, code: code === "111111" ? "222222" : "111111", acceptTerms: true, over18: true });
+  check("a wrong code is refused and nothing changes", wrong.status === 400 && wrong.json.code === "bad_code" && q1("SELECT is_guest FROM users WHERE id = ?", C.id).is_guest === 1 && c.jar.size === 0);
+  check("the admin's make and edit wrote no consent for the person", q1("SELECT COUNT(*) n FROM consents WHERE user_id = ?", C.id).n === 0 && q1("SELECT COUNT(*) n FROM consent_log WHERE user_id = ?", C.id).n === 0 && q1("SELECT over_18 FROM users WHERE id = ?", C.id).over_18 === 0);
+  const adminTerms = await admin.post("/api/admin/premade", { name: "Consent Try", source: "LinkedIn", acceptTerms: true, over18: true }, ADMIN);
+  check("even when the admin sends acceptTerms and over18, no consent is recorded", adminTerms.status === 201 && q1("SELECT COUNT(*) n FROM consents WHERE user_id = ?", adminTerms.json.id).n === 0 && q1("SELECT over_18 FROM users WHERE id = ?", adminTerms.json.id).over_18 === 0 && !/legal\.js|consent/.test(read("worker/premadeAdmin.js")));
+  TOKENS.push(tokenOf(adminTerms.json.link));
+  const ok = await c.post("/api/claim/finish", { token: C.token, email, code, acceptTerms: true, over18: true });
+  check("the right code with the Terms and 18+ claims it", ok.status === 200 && ok.json.next === "/app/profile?claimed=1", ok.json);
+  const u = q1("SELECT is_guest, email_verified, recovery_email, admin_made, over_18, age_confirmed_at, claimed_at FROM users WHERE id = ?", C.id);
+  check("the account is theirs: is_guest 0, email_verified 1, their email, admin_made kept, 18+ recorded, claimed_at set", u.is_guest === 0 && u.email_verified === 1 && u.recovery_email === email && u.admin_made === 1 && u.over_18 === 1 && u.age_confirmed_at > 0 && u.claimed_at > 0, u);
+  const cs = q("SELECT scope, granted FROM consents WHERE user_id = ?", C.id);
+  const log = q("SELECT scope, action, ref, wording, version FROM consent_log WHERE user_id = ?", C.id);
+  check("the Terms record has the current version, as at sign-up (consents and one consent_log line with the words)", cs.length === 1 && cs[0].scope === `terms:${TERMS_VERSION}` && cs[0].granted === 1 && log.length === 1 && log[0].action === "granted" && log[0].ref === "notice:claim" && log[0].wording === SIGNUP_NOTICE.claim && log[0].version === TERMS_VERSION, { cs, log });
+  check("the claim line names its button and says 18 or over", SIGNUP_NOTICE.claim === "By pressing Claim it, you confirm you're 18 or over and agree to the Terms and Privacy Policy.");
+  check("a session for the claimer only: one session row, and this browser has the cookie", q1("SELECT COUNT(*) n FROM sessions WHERE user_id = ?", C.id).n === 1 && c.jar.has("lanyard_session"));
+  const me = await c.get("/api/me");
+  check("signed in as the claimed account, with no Terms pop-up due", me.json.user.id === C.id && me.json.user.emailVerified && me.json.user.termsAccepted && !me.json.user.needsTerms && me.json.profile.name === "Claim Me");
+  check("the claim_links row is gone", !q1("SELECT 1 x FROM claim_links WHERE user_id = ?", C.id));
+  const card = await fresh().get(`/api/c/${C.cardId}`);
+  check("the card is public now", card.status === 200 && card.json.profile.name === "Claim Me");
+  const pkey = q1("SELECT photo_key FROM profiles WHERE user_id = ?", C.id).photo_key;
+  check("and so is its photo", (await fresh().get(`/media/${pkey}`)).status === 200);
+  const reuse = await fresh().post("/api/claim/look", { token: C.token });
+  check("the link no longer works: the same plain answer", reuse.status === 404 && reuse.text === GONE_TEXT);
+  check("a used link cannot be claimed again, even with a new code", (await fresh().post("/api/claim/start", { token: C.token, email: "other@example.com" })).text === GONE_TEXT);
+  check("the claimed account is no longer a waiting profile for the admin, and is counted as claimed", (await admin.get(`/api/admin/premade/${C.id}`, ADMIN)).status === 404 && (await admin.get("/api/admin/premade", ADMIN)).json.claimed.count === 1 && (await admin.get("/api/admin/premade", ADMIN)).json.claimed.recent[0].id === C.id);
+  check("the code was used up", q1("SELECT COUNT(*) n FROM email_codes WHERE email = ? AND purpose = 'claim'", email).n === 0);
+  check("it can now connect and be connected", (await (await signup("Friend Later")).c.post("/api/connect", { cardId: C.cardId })).status === 200);
+}
+
+console.log("\n# Claiming with an email that already has an account");
+{
+  const E = await make({ name: "Already Here" });
+  const owner = await signup("Existing Owner");
+  const email = "existing.owner@example.com";
+  raw.prepare("UPDATE users SET recovery_email = ?, email_verified = 1, is_guest = 0 WHERE id = ?").run(email, owner.id);
+  const c = fresh();
+  const start = await c.post("/api/claim/start", { token: E.token, email });
+  check("Start answers the same as for a new address (it never says which addresses have accounts)", start.status === 200 && start.text === JSON.stringify({ ok: true }));
+  const code = claimCode(email);
+  const r = await c.post("/api/claim/finish", { token: E.token, email, code, acceptTerms: true, over18: true });
+  check("finishing says so in plain words", r.status === 409 && r.json.code === "has_account" && r.json.error === "You already have a Lanyard account with this email. Sign in, and we'll offer these details to you instead.");
+  check("no session, no cookie: nobody is signed in", c.jar.size === 0 && q1("SELECT COUNT(*) n FROM sessions WHERE user_id = ?", E.id).n === 0 && !r.setCookies.length);
+  check("no merge: the existing account is unchanged and the profile is still waiting, with its link", q1("SELECT name FROM profiles WHERE user_id = ?", owner.id).name === "Existing Owner" && q1("SELECT is_guest FROM users WHERE id = ?", E.id).is_guest === 1 && !!q1("SELECT 1 x FROM claim_links WHERE user_id = ?", E.id) && (await fresh().post("/api/claim/look", { token: E.token })).status === 200);
+  check("nothing erased and no consent recorded for either", q1("SELECT COUNT(*) n FROM consent_log WHERE user_id = ? AND ref = 'erased'", E.id).n === 0 && q1("SELECT COUNT(*) n FROM consent_log WHERE user_id = ?", E.id).n === 0);
+  check("the F75 hand-off slot is there and does nothing yet", /export async function handOffToExistingAccount/.test(read("worker/claim.js")) && /TODO\(F75\)/.test(read("worker/claim.js")));
+  // a legacy, unverified address counts as an account too
+  const legacy = await signup("Legacy Owner");
+  raw.prepare("UPDATE users SET recovery_email = 'legacy@example.com', email_verified = 0 WHERE id = ?").run(legacy.id);
+  await c.post("/api/claim/start", { token: E.token, email: "legacy@example.com" });
+  const r2 = await c.post("/api/claim/finish", { token: E.token, email: "legacy@example.com", code: claimCode("legacy@example.com"), acceptTerms: true, over18: true });
+  check("an address an account signs in with but never verified is refused the same way", r2.status === 409 && r2.json.code === "has_account" && q1("SELECT is_guest FROM users WHERE id = ?", E.id).is_guest === 1);
+}
+
+console.log("\n# Two claims of one link at the same moment: exactly one winner");
+{
+  const R = await make({ name: "Race Me" });
+  // two people, each with a right code for the same link (two addresses), finish at once
+  const a = fresh(), b = fresh();
+  await a.post("/api/claim/start", { token: R.token, email: "race.a@example.com" });
+  await b.post("/api/claim/start", { token: R.token, email: "race.b@example.com" });
+  const ca = claimCode("race.a@example.com"), cb = claimCode("race.b@example.com");
+  const base = env.DB;
+  env.DB = withLatency(base); // every query waits a turn, so the two requests interleave as on D1
+  const outs = await Promise.all([
+    a.post("/api/claim/finish", { token: R.token, email: "race.a@example.com", code: ca, acceptTerms: true, over18: true }),
+    b.post("/api/claim/finish", { token: R.token, email: "race.b@example.com", code: cb, acceptTerms: true, over18: true }),
+  ]);
+  env.DB = base;
+  const wins = outs.filter((r) => r.status === 200);
+  check("over HTTP: one 200 and one plain refusal", wins.length === 1 && outs.filter((r) => r.status === 404 && r.text === GONE_TEXT).length === 1, outs.map((r) => r.status));
+  const winner = outs[0].status === 200 ? "race.a@example.com" : "race.b@example.com";
+  check("the account has the winner's email, one session and one Terms record", q1("SELECT recovery_email FROM users WHERE id = ?", R.id).recovery_email === winner && q1("SELECT COUNT(*) n FROM sessions WHERE user_id = ?", R.id).n === 1 && q1("SELECT COUNT(*) n FROM consent_log WHERE user_id = ? AND ref = 'notice:claim'", R.id).n === 1);
+  check("only the winner's browser has a cookie", (outs[0].status === 200 ? a : b).jar.has("lanyard_session") && !(outs[0].status === 200 ? b : a).jar.size);
+}
+
+console.log("\n# The claim write alone, with a slow database and ten at once");
+{
+  const R = await make({ name: "Ten At Once" });
+  const hash = q1("SELECT token_hash FROM claim_links WHERE user_id = ?", R.id).token_hash;
+  const slow = withLatency(env.DB);
+  const res = await Promise.all(Array.from({ length: 10 }, (_, i) => claimWrite(slow, { userId: R.id, hash, email: `ten${i}@example.com` })));
+  check("ten claim writes of one link at once: exactly one wins", res.filter(Boolean).length === 1, res);
+  check("one email, one Terms record, one consent line, and the link is gone", /^ten\d@example\.com$/.test(q1("SELECT recovery_email FROM users WHERE id = ?", R.id).recovery_email) && q1("SELECT COUNT(*) n FROM consents WHERE user_id = ?", R.id).n === 1 && q1("SELECT COUNT(*) n FROM consent_log WHERE user_id = ?", R.id).n === 1 && !q1("SELECT 1 x FROM claim_links WHERE user_id = ?", R.id));
+  check("the gate is one batch on the link row (D040), not a read then a write", read("worker/claim.js").includes('const live = "EXISTS (SELECT 1 FROM claim_links WHERE user_id = ? AND token_hash = ? AND expires_at > ?)"') && read("worker/claim.js").includes("return out[2]?.meta?.changes === 1"));
+}
+
+console.log("\n# Expiry: a link past its 30 days");
+{
+  const X = await make({ name: "Old Link" });
+  raw.prepare("UPDATE claim_links SET expires_at = ? WHERE user_id = ?").run(Date.now() - 1, X.id);
+  const r = await fresh().post("/api/claim/look", { token: X.token });
+  check("an expired link gets the one plain answer", r.status === 404 && r.text === GONE_TEXT);
+  check("and cannot be used to delete or claim", (await fresh().post("/api/claim/delete", { token: X.token })).text === GONE_TEXT && (await fresh().post("/api/claim/start", { token: X.token, email: "x@example.com" })).text === GONE_TEXT && !!q1("SELECT 1 x FROM users WHERE id = ?", X.id));
+  const old = await make({ name: "Rotated" });
+  const oldTok = old.token;
+  const rot = await admin.post(`/api/admin/premade/${old.id}/link`, {}, ADMIN);
+  const newTok = tokenOf(rot.json.link);
+  check("after Copy link the old link gets the one plain answer and the new one opens", (await fresh().post("/api/claim/look", { token: oldTok })).text === GONE_TEXT && (await fresh().post("/api/claim/look", { token: newTok })).status === 200);
+}
 
 /* ------------------------------------------------------------------------------------------------------------------ */
 console.log("\n# No token in admin_audit or in anything logged");

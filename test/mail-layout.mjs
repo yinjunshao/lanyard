@@ -35,7 +35,7 @@ console.log("\n# Every send site, and every template, is covered");
 {
   // Every call of sendMail( or sendBatch( in the Worker, by file. A new call fails here until it is listed, and its
   // email is added to scripts/mail-samples.mjs, which is what the rest of this file runs.
-  const SITES = { "admin.js": 5, "ai/alerts.js": 1, "ai/feedbackSummary.js": 1, "alerts.js": 2, "email-auth.js": 2, "eventmail.js": 2, "followupmail.js": 1,
+  const SITES = { "admin.js": 5, "ai/alerts.js": 1, "ai/feedbackSummary.js": 1, "alerts.js": 2, "email-auth.js": 3, "eventmail.js": 2, "followupmail.js": 1,
     "host-auth.js": 1, "hosts.js": 3, "pending-email.js": 1, "privacy.js": 1, "profilenudge.js": 1, "purge.js": 1 };
   const found = {};
   for (const [p, t] of worker) {
@@ -54,7 +54,7 @@ console.log("\n# Every send site, and every template, is covered");
   check("every exported email template has a sample", templates.length >= 20 && templates.every((t) => new RegExp(`\\b${t}\\(`).test(samplesSrc)), templates.filter((t) => !new RegExp(`\\b${t}\\(`).test(samplesSrc)));
   check("every template builds its HTML with emailLayout (no bare html string left in mail.js or mail-templates.js)",
     !/html:\s*[`"'<]/.test(read("worker/mail.js") + read("worker/mail-templates.js")) && !/html:\s*(paragraphs|`|\$)/.test(read("worker/mail.js") + read("worker/mail-templates.js")));
-  check("the samples cover 29 emails and every file name is unique", SAMPLES.length === 29 && new Set(SAMPLES.map((s) => s.id)).size === SAMPLES.length, SAMPLES.length);
+  check("the samples cover 30 emails and every file name is unique", SAMPLES.length === 30 && new Set(SAMPLES.map((s) => s.id)).size === SAMPLES.length, SAMPLES.length);
 }
 
 console.log("\n# The send functions refuse HTML that did not come from emailLayout");
@@ -93,8 +93,8 @@ for (const s of built) {
     withButton.length >= 20 && withButton.every((s) => /<td class="btn" bgcolor="#C4441E" style="background:#C4441E;border:1px solid #C4441E;border-radius:6px"><a class="btn"[^>]*padding:11px 24px;font-size:16px;line-height:20px;font-weight:700;color:#FFFFFF/.test(s.m.html)), withButton.length);
   check("…and a VML twin for Outlook (44 px, rounded, same fill, same link)", withButton.every((s) => /<!--\[if mso\]><v:roundrect[^>]*href="[^"]+"[^>]*height:44px[^>]*fillcolor="#C4441E"/.test(s.m.html) && /<!--\[if !mso\]><!-->/.test(s.m.html)));
   const none = built.filter((s) => !s.m.html.includes('class="btn"') && !s.m.html.includes('class="btn2"')).map((s) => s.id).sort();
-  check("the emails with no button are the two sign-in codes, the news email, the privacy acknowledgements and the AI alert (the code or the words are the point)",
-    JSON.stringify(none) === JSON.stringify(["ai-budget", "code", "host-code", "news", "privacy-complaint", "privacy-request"]), none);
+  check("the emails with no button are the two sign-in codes, the claim code (F74), the news email, the privacy acknowledgements and the AI alert (the code or the words are the point)",
+    JSON.stringify(none) === JSON.stringify(["ai-budget", "claim-code", "code", "host-code", "news", "privacy-complaint", "privacy-request"]), none);
   check("white on the Persimmon strap is at least 4.5:1 (and the dark accent on dark paper)", contrast("#FFFFFF", MAIL_COLOURS.strap) >= 4.5 && contrast(MAIL_COLOURS.darkStrap, MAIL_COLOURS.darkPaper) >= 4.5 && contrast(MAIL_COLOURS.muted, MAIL_COLOURS.raised) >= 4.5 && contrast(MAIL_COLOURS.darkMuted, MAIL_COLOURS.darkRaised) >= 4.5,
     [contrast("#FFFFFF", MAIL_COLOURS.strap), contrast(MAIL_COLOURS.darkStrap, MAIL_COLOURS.darkPaper)]);
   check("the brand colours are the 2026-11-24 values (strap #C4441E, not the old #D9502B)", MAIL_COLOURS.strap === "#C4441E" && built.every((s) => !/D9502B/i.test(s.m.html)));
@@ -129,8 +129,9 @@ for (const s of built) {
 console.log("\n# The words are kept: every plain line of the text part is in the HTML");
 for (const s of built) {
   const vis = visible(s.m.html).replace(/ ?\| ?/g, " ");
-  // The two code emails' HTML has always said "Your Lanyard sign-in code:" above the box and "Or tap here" with a link.
-  const reworded = /^Your Lanyard (sign-in|host portal) code is \d{6}$|^It works for 10 minutes\. Or open this link/;
+  // The two code emails' HTML has always said "Your Lanyard sign-in code:" above the box and "Or tap here" with a link; the
+  // claim code email (F74) says "Your claim code:" above its box.
+  const reworded = /^Your Lanyard (sign-in|host portal) code is \d{6}$|^Your claim code is \d{6}$|^It works for 10 minutes\. Or open this link/;
   const lines = s.m.text.split("\n").map((l) => l.replace(/^- /, "").replace(/\s+/g, " ").trim()).filter((l) => l && l !== "--" && !/https?:\/\//.test(l) && !reworded.test(l));
   const missing = lines.filter((l) => !vis.includes(l));
   check(`${s.id}: ${lines.length} lines of the text are in the HTML`, lines.length > 0 && missing.length === 0, missing);
@@ -140,7 +141,7 @@ console.log("\n# Subjects are unchanged");
 {
   const subject = Object.fromEntries(built.map((s) => [s.id, s.m.subject]));
   const want = {
-    code: "482915 is your Lanyard code", "host-code": "739204 is your Lanyard host portal code", welcome: "Your Lanyard account is saved",
+    code: "482915 is your Lanyard code", "claim-code": "615203 is your code to claim your Lanyard card", "host-code": "739204 is your Lanyard host portal code", welcome: "Your Lanyard account is saved",
     "confirm-connect": "Confirm your email for Lanyard", "confirm-card": "Confirm your email for Lanyard",
     "followup-one": "Time to follow up with Priya", "followup-many": "Time to follow up with Priya, Tom, Aisha and 2 others",
     "profile-first": "Finish your card so Priya and Tom remember you", "profile-second": "Your Lanyard card is still unfinished",

@@ -42,6 +42,7 @@ import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 import { readInstitution } from "./institutions.js";
 import { validMode, profilePayload, applyInstitution, photoAllowed } from "./profileFields.js";
 import { NOT_PREMADE, isPremadePhoto } from "./premade.js";
+import { registerClaimRoutes } from "./claim.js";
 import { moveTo } from "./onboarding.js";
 import { selfieView } from "./selfie.js";
 import { sharedGround } from "./inCommon.js";
@@ -90,7 +91,8 @@ const isDropRoute = (path) => /^\/api\/e\/[^/]+\/drops(\/|$)/.test(path);
 // F45: connecting makes a guest only once the request is known to be good (in the route), so a refused connect leaves
 // nothing behind; saving a pending email needs a card already.
 const noGuest = (path) => isDropRoute(path) || path.startsWith("/api/billing/") || path.startsWith("/api/passkeys")
-  || path === "/api/connect" || path === "/api/account/pending-email" || path.startsWith("/api/stages"); // F59: tips need a signed-in person; signed out is a 401
+  || path === "/api/connect" || path === "/api/account/pending-email" || path.startsWith("/api/stages") // F59: tips need a signed-in person; signed out is a 401
+  || path.startsWith("/api/claim/"); // F74: the claim routes read a session if there is one, and never make a guest
 app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/webhooks/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/email/confirm" || c.req.path === "/api/privacy-request" ? next() : (noGuest(c.req.path) ? withSessionNoGuest : withSession)(c, next)));
 app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
 
@@ -1392,6 +1394,8 @@ app.post("/api/connections/:id/report", async (c) => {
 });
 
 /* ------------------------------- Events ---------------------------------- */
+// F74: claiming a profile the admin made (POST only, the token in the body). Given cardView so the claim page shows the card as it will look.
+registerClaimRoutes(app, { cardView });
 app.route("/", eventsApp);
 app.route("/", myEventsApp);
 app.route("/", leaveEventApp);

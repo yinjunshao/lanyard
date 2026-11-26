@@ -2,7 +2,7 @@
 // scratch/mail-preview/ and test/mail-layout.mjs calls every one with hostile text. Nothing here sends anything.
 // `x` is the text a person could have typed (a name, an event, an organisation); the default is a plain one.
 // Keep this list in step with the send sites: test/mail-layout.mjs fails when a send site has no entry.
-import { codeEmail, hostCodeEmail, decisionEmail, welcomeEmail, applicationEmail, ticketEmail, teamInviteEmail, transferEmail, marketingEmail } from "../worker/mail.js";
+import { claimCodeEmail, codeEmail, hostCodeEmail, decisionEmail, welcomeEmail, applicationEmail, ticketEmail, teamInviteEmail, transferEmail, marketingEmail } from "../worker/mail.js";
 import {
   feedbackReminderEmail, followupReminderEmail, profileNudgeEmail, hostSummaryEmail, feedbackSummaryEmail, signInAlertEmail,
   passkeyRemovedEmail, inactiveEmail, confirmEmail, withConfirm, privacyAckEmail, aiBudgetAlertEmail,
@@ -20,6 +20,7 @@ const AT = Date.UTC(2026, 10, 24, 18, 30);
 // id: a file name; from: the send site; user: the fields that can hold a person's text; stop: carries a stop link.
 export const SAMPLES = [
   { id: "code", from: "email-auth.js", kind: "accounts", user: [], build: () => codeEmail("482915", `${APP}/api/email/link?t=sample`) },
+  { id: "claim-code", from: "claim.js", kind: "accounts", user: [], build: () => claimCodeEmail("615203") },
   { id: "host-code", from: "host-auth.js", kind: "decisions", user: [], build: () => hostCodeEmail("739204", HOST) },
   { id: "welcome", from: "email-auth.js", kind: "accounts", user: [], build: () => welcomeEmail(APP) },
   { id: "confirm-connect", from: "pending-email.js", kind: "accounts", user: [], build: () => confirmEmail({ url: CONFIRM, reason: "connect" }) },
