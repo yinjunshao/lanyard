@@ -40,6 +40,8 @@ import {
 } from "./codes.js";
 import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 import { readInstitution } from "./institutions.js";
+import { validMode, profilePayload, applyInstitution, photoAllowed } from "./profileFields.js";
+import { NOT_PREMADE, isPremadePhoto } from "./premade.js";
 import { moveTo } from "./onboarding.js";
 import { selfieView } from "./selfie.js";
 import { sharedGround } from "./inCommon.js";
@@ -103,59 +105,11 @@ app.onError((err, c) => {
 
 /* ----------------------------- shape helpers ----------------------------- */
 
-const TEXT_FIELDS = ["name", "uni", "course", "year", "headline", "about"];
-// A custom institution (typed in) is capped at 120 characters (F12).
-const UNI_MAX = 120;
-// Student and Career mode (F11). `mode` is a whitelist; company and role are short.
-const MODES = ["student", "career"];
-const SHORT_FIELDS = ["company", "role"];
-const validMode = (input) => input.mode === undefined || MODES.includes(input.mode);
-
 // Only short strings get into JSON list columns.
 const strings = (arr, max, len) =>
   (Array.isArray(arr) ? arr : []).filter((x) => typeof x === "string" && x.trim()).slice(0, max).map((x) => x.trim().slice(0, len));
 
-function profilePayload(input) {
-  const out = {};
-  for (const k of TEXT_FIELDS) if (typeof input[k] === "string") out[k] = input[k].trim().slice(0, 400);
-  for (const k of SHORT_FIELDS) if (typeof input[k] === "string") out[k] = input[k].trim().slice(0, 80);
-  if (typeof out.uni === "string") out.uni = out.uni.slice(0, UNI_MAX);
-  if (MODES.includes(input.mode)) out.mode = input.mode;
-  if (typeof input.links === "object" && input.links) {
-    const links = {};
-    for (const [label, url] of Object.entries(input.links)) {
-      if (/^https?:\/\//.test(String(url)) && label.length <= 40) links[label.slice(0, 40)] = String(url).slice(0, 300);
-    }
-    out.links = JSON.stringify(links);
-  }
-  for (const jsonField of ["tags", "projects"]) {
-    if (Array.isArray(input[jsonField])) {
-      out[jsonField] = JSON.stringify(
-        input[jsonField].slice(0, jsonField === "projects" ? 3 : 30)
-          .map((x) => (jsonField === "projects" && x && typeof x === "object"
-            ? { title: String(x.title || "").slice(0, 80), line: String(x.line || "").slice(0, 160),
-                url: /^https?:\/\//.test(String(x.url || "")) ? String(x.url).slice(0, 300) : "" }
-            : String(x).slice(0, 60)))
-      );
-    }
-  }
-  // The app sends camelCase (showAge); accept both spellings.
-  const showAge = input.showAge ?? input.show_age;
-  if (typeof showAge === "boolean") out.show_age = showAge ? 1 : 0;
-  return out;
-}
-
-// Institution picker (F12). A listed institution sets institution_id and makes
-// `uni` its official name. Anything else (custom text, or an old client that only
-// sends `uni`) leaves institution_id empty when the text no longer matches.
-function applyInstitution(fields, pick, current) {
-  if (pick.present) {
-    fields.institution_id = pick.inst ? pick.inst.id : null;
-    if (pick.inst) fields.uni = pick.inst.name;
-  } else if (current && typeof fields.uni === "string" && fields.uni !== current.uni) {
-    fields.institution_id = null;
-  }
-}
+// The profile fields, their checks and the photo limit are in worker/profileFields.js (shared with F74 admin-made profiles).
 
 async function loadFullUser(db, userId) {
   const user = await one(db, "SELECT * FROM users WHERE id = ?", userId);
@@ -272,12 +226,6 @@ app.get("/api/me", async (c) => {
       cardView(db, card, { forOwner: true, profile: data.profile }).catch(() => null))),
   });
 });
-
-// Each new profile photo is a storage write, so changes are limited per account (F35.7).
-async function photoAllowed(c, u, dataUrl) {
-  if ((await bump(c.env.DB, `photo:u:${u.id}`, HOUR)) > 20) throw new HttpError(429, "That's a lot of new photos in an hour. Try again later.", "throttled");
-  return dataUrl;
-}
 
 // Guest completes their profile the first time. Creates profile + default card.
 app.post("/api/profile", async (c) => {
@@ -722,7 +670,8 @@ app.delete("/api/cards/:id", async (c) => {
 app.get("/api/c/:cardId", async (c) => {
   const db = c.env.DB;
   const me = c.get("user"); // null for a first-time visitor
-  const card = await one(db, "SELECT * FROM cards WHERE id = ?", c.req.param("cardId"));
+  // F74: a card the admin made for someone who has not claimed it yet is private: the same 404, to everyone.
+  const card = await one(db, `SELECT * FROM cards WHERE id = ? AND ${NOT_PREMADE("cards.user_id")}`, c.req.param("cardId"));
   if (!card) return c.json({ error: "We couldn't find that card. The link may be wrong, or the card may have been removed." }, 404);
   const isOwner = !!me && card.user_id === me.id;
   if (me && !isOwner && (await isBlocked(db, me.id, card.user_id))) return c.json({ error: "We couldn't find that card. The link may be wrong, or the card may have been removed." }, 404);
@@ -1018,7 +967,8 @@ const viaOf = (v) => (VIA.includes(v) ? v : "link");
 app.post("/api/connect", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const db = c.env.DB;
-  const card = await one(db, "SELECT * FROM cards WHERE id = ?", String(body.cardId || ""));
+  // F74: nobody can connect to a card the admin made that is waiting to be claimed (the trigger in 0046 holds it too).
+  const card = await one(db, `SELECT * FROM cards WHERE id = ? AND ${NOT_PREMADE("cards.user_id")}`, String(body.cardId || ""));
   if (!card) return c.json({ error: "We couldn't find that card. Reload the page and try again." }, 404);
   const peerId = card.user_id;
 
@@ -1392,6 +1342,8 @@ app.get("/media/:key{.+}", async (c) => {
   if (!/^(avatar|selfie|project|event|presence)\/[a-z0-9]+\.(webp|jpg|jpeg|png)$/.test(key)) {
     return c.json({ error: "That photo link isn't valid." }, 400);
   }
+  // F74: the photo of a profile waiting to be claimed is shown only on the claim page and the admin page, never here.
+  if (key.startsWith("avatar/") && (await isPremadePhoto(c.env.DB, key))) return c.json({ error: "We couldn't find that photo. It may have been removed." }, 404);
   // A shared selfie is only ever served to the two people in that connection.
   const isPrivate = key.startsWith("selfie/");
   if (isPrivate) {

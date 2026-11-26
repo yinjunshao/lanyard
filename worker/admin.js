@@ -17,6 +17,8 @@ import { ORG_KINDS } from "./plans.js";
 import { settleStatements } from "./host-promo.js";
 import { registerAiAdmin } from "./ai/admin.js";
 import { registerMetricsAdmin } from "./metricsAdmin.js";
+import { registerPremadeAdmin } from "./premadeAdmin.js";
+import { UNCLAIMED, isPremade } from "./premade.js";
 import { adminBrands, removeLogo, LOGO_KEY } from "./branding.js";
 import { getImage } from "./media.js";
 
@@ -51,6 +53,8 @@ adminApp.use("/api/admin/*", async (c, next) => {
 registerAiAdmin(adminApp);
 // F70: platform metrics, the daily snapshot and the CSV export (same: after the token check, so audited and limited).
 registerMetricsAdmin(adminApp);
+// F74: profiles for people who are not on Lanyard yet, and their claim links (same: after the token check).
+registerPremadeAdmin(adminApp);
 
 adminApp.get("/api/admin/queue", async (c) => {
   const db = c.env.DB;
@@ -289,8 +293,9 @@ adminApp.get("/api/admin/users", async (c) => {
     `SELECT u.id, u.created_at, u.recovery_email, u.email_verified, u.has_passkey, u.has_totp, p.name, p.uni, p.course,
             (SELECT MAX(created_at) FROM sessions s WHERE s.user_id = u.id) AS last_seen
      FROM users u LEFT JOIN profiles p ON p.user_id = u.id
-     WHERE p.name LIKE ? OR p.uni LIKE ? OR u.recovery_email LIKE ? OR u.id = ?
-        OR EXISTS (SELECT 1 FROM cards k WHERE k.user_id = u.id AND k.code = ?)
+     WHERE (p.name LIKE ? OR p.uni LIKE ? OR u.recovery_email LIKE ? OR u.id = ?
+        OR EXISTS (SELECT 1 FROM cards k WHERE k.user_id = u.id AND k.code = ?))
+       AND NOT ${UNCLAIMED("u")} -- F74: a profile waiting to be claimed is on Profiles for people, and has nobody to recover
      ORDER BY u.created_at DESC LIMIT 20`, like, like, like, q.toLowerCase(), q.toUpperCase());
   return c.json({ users });
 });
@@ -299,6 +304,8 @@ adminApp.post("/api/admin/users/:id/signin-code", async (c) => {
   const db = c.env.DB;
   const user = await one(db, "SELECT id FROM users WHERE id = ?", c.req.param("id"));
   if (!user) return c.json({ error: "No such user." }, 404);
+  // F74: a profile waiting to be claimed is claimed only by its link and an emailed code, never by a code from here.
+  if (await isPremade(db, user.id)) return c.json({ error: "This profile is waiting to be claimed. Only its claim link can hand it over." }, 409);
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const code = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => alphabet[b & 31]).join("");
   const ts = now();

@@ -191,7 +191,7 @@ console.log("\n# The form says what the Worker serves (the preview shows what at
 console.log("\n# The migration is one nullable column; events.theme was always free text");
 {
   const files = migrationFiles();
-  check("0043 is the next migration after 0042, named for the text colour (0044, F66, follows it)", files.indexOf("0043_event_strap_ink.sql") === files.indexOf("0042_card_material.sql") + 1 && files.indexOf("0044_host_branding.sql") === files.indexOf("0043_event_strap_ink.sql") + 1 && files.indexOf("0044_host_branding.sql") === files.length - 2 && files.at(-1) === "0045_metrics_daily.sql");
+  check("0043 is the next migration after 0042, named for the text colour (0044, F66, follows it; then 0045, F70, and 0046, F74)", files.indexOf("0043_event_strap_ink.sql") === files.indexOf("0042_card_material.sql") + 1 && files.indexOf("0044_host_branding.sql") === files.indexOf("0043_event_strap_ink.sql") + 1 && files.indexOf("0044_host_branding.sql") === files.length - 3 && files.at(-2) === "0045_metrics_daily.sql" && files.at(-1) === "0046_admin_made_profiles.sql");
   const sql = readMigration("0043_event_strap_ink.sql").replace(/--.*$/gm, "").trim();
   check("it only adds one nullable column to events (additive, safe to apply before the new code is deployed)", sql === "ALTER TABLE events ADD COLUMN strap_ink TEXT;" && !/NOT NULL|DEFAULT|DROP|UPDATE|DELETE/i.test(sql));
   check("events.theme has no CHECK constraint (a new id needs no migration)", !/CHECK\s*\(/i.test((q1("SELECT sql FROM sqlite_master WHERE name = 'events'") || {}).sql || ""));

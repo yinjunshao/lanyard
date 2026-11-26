@@ -58,7 +58,7 @@ const brandPath = (org, rest = "") => `/api/host/orgs/${org.id}/brand${rest}`;
 console.log("\n# The migration is additive and safe before the new code");
 {
   const files = migrationFiles();
-  check("0044 follows 0043 and is the newest but one (0045, F70, follows it)", files.indexOf("0044_host_branding.sql") === files.indexOf("0043_event_strap_ink.sql") + 1 && files.at(-2) === "0044_host_branding.sql" && files.at(-1) === "0045_metrics_daily.sql");
+  check("0044 follows 0043 and is the newest but two (0045, F70, and 0046, F74, follow it)", files.indexOf("0044_host_branding.sql") === files.indexOf("0043_event_strap_ink.sql") + 1 && files.at(-3) === "0044_host_branding.sql" && files.at(-2) === "0045_metrics_daily.sql" && files.at(-1) === "0046_admin_made_profiles.sql");
   const sql = readMigration("0044_host_branding.sql").replace(/--.*$/gm, "");
   check("it only adds columns (with defaults where NOT NULL), one table and two triggers; it drops, updates and deletes nothing", !/\bDROP\b|DELETE FROM|\bUPDATE \w+ SET|RENAME/i.test(sql) && (sql.match(/CREATE TABLE/g) || []).length === 1 && (sql.match(/CREATE TRIGGER/g) || []).length === 2 && (sql.match(/ALTER TABLE \w+ ADD COLUMN/g) || []).length === 5 && /use_branding INTEGER NOT NULL DEFAULT 1/.test(sql) && /brand_off INTEGER NOT NULL DEFAULT 0/.test(sql));
   const old = makeDb({ before: "0044" });

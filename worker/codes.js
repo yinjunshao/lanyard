@@ -145,11 +145,13 @@ export async function freshenCards(db, cards) {
   return cards;
 }
 
+// F74: a card the admin made that is waiting to be claimed opens nothing, the same as a code that does not exist.
 export async function findCardByCode(db, code) {
   return one(
     db,
     `SELECT c.id FROM card_codes k JOIN cards c ON c.id = k.card_id
-     WHERE k.code = ? AND k.valid_until > ?`,
+     WHERE k.code = ? AND k.valid_until > ?
+       AND NOT EXISTS (SELECT 1 FROM users pm WHERE pm.id = c.user_id AND pm.admin_made = 1 AND pm.is_guest = 1)`,
     code, now()
   );
 }

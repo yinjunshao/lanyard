@@ -150,11 +150,13 @@ function pageTags(origin, path) {
 // photo uses the site picture. Never the email, links, about, tags, notes, projects or any selfie.
 const PHOTO_KEY = /^avatar\/[a-z0-9]+\.(webp|jpg|jpeg|png)$/; // what /media/:key serves to anyone
 async function cardTags(db, origin, id) {
-  // One read: the card and its owner's profile together. No profile (a deleted account has none) is no card.
+  // One read: the card and its owner's profile together. No profile (a deleted account has none) is no card, and a card
+  // the admin made that is waiting to be claimed (F74) is no card either: the same page as a made-up one.
   const row = await one(
     db,
     `SELECT c.id, c.headline AS card_headline, p.name, p.photo_key, p.headline AS profile_headline
-       FROM cards c JOIN profiles p ON p.user_id = c.user_id WHERE c.id = ?`,
+       FROM cards c JOIN profiles p ON p.user_id = c.user_id JOIN users u ON u.id = c.user_id
+      WHERE c.id = ? AND NOT (u.admin_made = 1 AND u.is_guest = 1)`,
     id
   );
   if (!row) return null;

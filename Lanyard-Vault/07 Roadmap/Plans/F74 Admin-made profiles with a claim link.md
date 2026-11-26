@@ -4,7 +4,7 @@ id: F74
 priority: P1
 phase: 13
 size: L
-status: Not started
+status: In progress
 needs: [F70]
 ---
 # F74 Admin-made profiles with a claim link
@@ -62,7 +62,7 @@ Asked what people can see before it is claimed, the owner chose **"Private until
 - Add a decision note, and update [[Privacy and Data Retention]] (owner-modified: put the lines in the Log for the orchestrator).
 
 ## Tasks
-- [ ] F74.1 Migration, admin routes (make, edit, list, rotate link, delete) and the private-until-claimed rules, with tests.
+- [x] F74.1 Migration, admin routes (make, edit, list, rotate link, delete) and the private-until-claimed rules, with tests. (`migrations/0046_admin_made_profiles.sql`, `worker/premade.js`, `worker/premadeAdmin.js`, `worker/profileFields.js` (the Edit profile checks, moved out of `index.js` so both use one copy), `test/premade.mjs`)
 - [ ] F74.2 The claim routes (look, delete, email code, claim, existing-account case) with Terms recording and rate limits, with tests.
 - [ ] F74.3 The `/admin/profiles` page and the `/claim/p/<token>` page.
 - [ ] F74.4 The 30-day purge, the metrics change, the Privacy Policy section, vault notes, decision note, Log, Master To-Do.
