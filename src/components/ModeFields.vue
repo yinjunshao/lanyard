@@ -10,6 +10,8 @@ import { UiCombobox } from "./ui/UiSelect.vue";
 import { institutionForDomain, isWebmail } from "../lib/institutions";
 
 const props = defineProps({
+  // Prefixed to each id here, so two forms on one page (Admin's two profile forms) do not share ids. Empty keeps the ids as they were.
+  idPrefix: { type: String, default: "" },
   form: { type: Object, required: true },
   // Two big tiles (welcome) instead of the small switch (Edit profile).
   tiles: { type: Boolean, default: false },
@@ -56,15 +58,15 @@ onMounted(() => { if (emailDomain.value && !isWebmail(emailDomain.value)) loadIn
 <template>
   <!-- Switching keeps what is typed in the other mode; only the chosen mode shows on the card. -->
   <div class="field">
-    <span id="mode-label" class="label-top">{{ tiles ? "Are you studying or working?" : "I am a" }}</span>
-    <div v-if="tiles" class="tile-row" role="group" aria-labelledby="mode-label">
+    <span :id="idPrefix + 'mode-label'" class="label-top">{{ tiles ? "Are you studying or working?" : "I am a" }}</span>
+    <div v-if="tiles" class="tile-row" role="group" :aria-labelledby="idPrefix + 'mode-label'">
       <button v-for="m in MODES" :key="m[0]" type="button" class="tile" :class="{ on: form.mode === m[0] }"
               :aria-pressed="form.mode === m[0]" @click="form.mode = m[0]">
         <strong>{{ m[2] }}</strong>
         <span class="small">{{ m[3] }}</span>
       </button>
     </div>
-    <div v-else class="seg" role="group" aria-labelledby="mode-label" style="align-self:flex-start">
+    <div v-else class="seg" role="group" :aria-labelledby="idPrefix + 'mode-label'" style="align-self:flex-start">
       <button v-for="m in MODES" :key="m[0]" type="button" class="seg-btn"
               :class="{ on: form.mode === m[0] }" :aria-pressed="form.mode === m[0]"
               @click="form.mode = m[0]">{{ m[1] }}</button>
@@ -72,32 +74,32 @@ onMounted(() => { if (emailDomain.value && !isWebmail(emailDomain.value)) loadIn
   </div>
 
   <template v-if="!career">
-    <div class="field"><label id="uni-l">University</label>
+    <div class="field"><label :id="idPrefix + 'uni-l'">University</label>
       <p v-if="suggestion" class="notice small" role="status" style="margin:0 0 8px">
         Looks like you're at {{ suggestion.name }}.
         <button type="button" class="link-btn small" @click="useSuggestion">Use it</button></p>
-      <UiCombobox id="uni" v-model="form.institutionId" v-model:text="form.uni" labelledby="uni-l" :options="institutionOptions"
+      <UiCombobox :id="idPrefix + 'uni'" v-model="form.institutionId" v-model:text="form.uni" :labelledby="idPrefix + 'uni-l'" :options="institutionOptions"
                   allow-custom clearable placeholder="Search for your university" search-placeholder="Type a name or short name"
                   :custom-label="customInstitution" @open="loadInstitutions" /></div>
-    <div class="field"><label for="course">Course</label>
-      <input id="course" v-model="form.course" type="text" placeholder="e.g. Computer Science" /></div>
-    <div class="field"><label for="year">Year (optional)</label>
-      <input id="year" v-model="form.year" type="text" /></div>
+    <div class="field"><label :for="idPrefix + 'course'">Course</label>
+      <input :id="idPrefix + 'course'" v-model="form.course" type="text" placeholder="e.g. Computer Science" /></div>
+    <div class="field"><label :for="idPrefix + 'year'">Year (optional)</label>
+      <input :id="idPrefix + 'year'" v-model="form.year" type="text" /></div>
   </template>
   <template v-else>
-    <div class="field"><label for="company">Company</label>
-      <input id="company" v-model="form.company" type="text" maxlength="80" placeholder="Where you work" /></div>
-    <div class="field"><label for="role">Role</label>
-      <input id="role" v-model="form.role" type="text" maxlength="80" placeholder="e.g. Product designer" /></div>
+    <div class="field"><label :for="idPrefix + 'company'">Company</label>
+      <input :id="idPrefix + 'company'" v-model="form.company" type="text" maxlength="80" placeholder="Where you work" /></div>
+    <div class="field"><label :for="idPrefix + 'role'">Role</label>
+      <input :id="idPrefix + 'role'" v-model="form.role" type="text" maxlength="80" placeholder="e.g. Product designer" /></div>
     <button v-if="!showStudied" type="button" class="link-btn small" style="text-align:left" @click="showStudied = true">
       Add where you studied (optional)
     </button>
     <template v-else>
-      <div class="field"><label id="uni-l">Studied at (optional)</label>
+      <div class="field"><label :id="idPrefix + 'uni-l'">Studied at (optional)</label>
         <p v-if="suggestion" class="notice small" role="status" style="margin:0 0 8px">
           Looks like you're at {{ suggestion.name }}.
           <button type="button" class="link-btn small" @click="useSuggestion">Use it</button></p>
-        <UiCombobox id="uni" v-model="form.institutionId" v-model:text="form.uni" labelledby="uni-l" :options="institutionOptions"
+        <UiCombobox :id="idPrefix + 'uni'" v-model="form.institutionId" v-model:text="form.uni" :labelledby="idPrefix + 'uni-l'" :options="institutionOptions"
                     allow-custom clearable placeholder="Search for your university or school" search-placeholder="Type a name or short name"
                     :custom-label="customInstitution" @open="loadInstitutions" /></div>
     </template>

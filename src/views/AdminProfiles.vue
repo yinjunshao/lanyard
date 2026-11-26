@@ -196,13 +196,13 @@ const day = (t) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", mon
             </div>
           </div>
           <div class="field"><label for="pp-name">Name</label><input id="pp-name" v-model="f.name" type="text" autocomplete="off" /></div>
-          <ModeFields :form="f" />
+          <ModeFields :form="f" id-prefix="pp-" />
         </div>
         <div class="form-section">
           <span class="form-section-title">About</span>
           <div class="field"><label for="pp-headline">What they do</label><input id="pp-headline" v-model="f.headline" type="text" maxlength="80" /></div>
           <div class="field"><label for="pp-about">About</label><textarea id="pp-about" v-model="f.about" maxlength="600"></textarea></div>
-          <TagFields :form="f" />
+          <TagFields :form="f" id-prefix="pp-" />
           <div class="field">
             <label>Links</label>
             <div v-for="(l, i) in f.links" :key="i" class="link-row">

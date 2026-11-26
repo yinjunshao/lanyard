@@ -9,6 +9,7 @@ import { PROFILE_TAGS, addTags, hasTag, joinTags, parseTags, suggestionsFor } fr
 const props = defineProps({
   form: { type: Object, required: true },
   label: { type: String, default: "Come to me for" },
+  idPrefix: { type: String, default: "" },
 });
 
 const tags = computed({ get: () => parseTags(props.form.tags), set: (v) => { props.form.tags = joinTags(v); } });
@@ -19,8 +20,8 @@ function add(t) { tags.value = addTags(tags.value, t, PROFILE_TAGS).tags; }
 </script>
 
 <template>
-  <div class="field"><label for="tags">{{ label }}</label>
-    <UiTagInput id="tags" v-model="tags" :max="PROFILE_TAGS.max" :max-length="PROFILE_TAGS.maxLength" />
+  <div class="field"><label :for="idPrefix + 'tags'">{{ label }}</label>
+    <UiTagInput :id="idPrefix + 'tags'" v-model="tags" :max="PROFILE_TAGS.max" :max-length="PROFILE_TAGS.maxLength" />
     <div v-if="left.length && !full" class="chip-row" role="group" aria-label="Suggestions" style="margin-top:6px">
       <button v-for="t in left" :key="t" type="button" class="chip chip-toggle" @click="add(t)">+ {{ t }}</button>
     </div>
