@@ -48,7 +48,7 @@ Asked how admin edits should work (UK GDPR needs people told when their data com
 
 ## Tasks
 - [x] F75.1 Migration and admin routes (search for low scores, make or replace, list, withdraw), with an allow-list of fields and tests. (`migrations/0047_profile_suggestions.sql`, `worker/suggestedEdits.js`, `worker/suggestedEditsAdmin.js`, the Edit profile save moved into `readProfileEdit` and `profileEditStmt` in `worker/profileFields.js`, `test/suggested-edits.mjs`)
-- [ ] F75.2 The person's routes (read, accept selected, decline), the email, the banner and the review page, with tests.
+- [x] F75.2 The person's routes (read, accept selected, decline), the email, the banner and the review page, with tests. (`registerSuggestedEditsRoutes` and `mailSuggestion` in `worker/suggestedEdits.js`, `suggestedDetailsEmail` in `worker/mail-templates.js`, `src/views/SuggestedEdits.vue` on a lazy route, the My card banner from `/api/home`, `src/components/AdminSuggest.vue` on `/admin/profiles`)
 - [ ] F75.3 The F74 existing-account hand-off, the 30-day purge, the metrics counts, the Privacy Policy line, vault notes, decision note, Log, Master To-Do.
 
 ## Acceptance checks

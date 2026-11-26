@@ -15,7 +15,7 @@ import { getImage, deleteImage } from "./media.js";
 import { profileScore } from "../src/lib/profileScore.js";
 import { readSource, UNCLAIMED } from "./premade.js";
 import { readSuggestion, writeSuggestion, endSuggestion, openSuggestion, offeredKeys, parseFields, putSuggestedPhoto,
-  suggestionTotals, labelOf, LOW_SCORE } from "./suggestedEdits.js";
+  suggestionTotals, labelOf, LOW_SCORE, mailSuggestion } from "./suggestedEdits.js";
 
 const GONE = { error: "We couldn't find that person. They may have deleted their account." };
 const PAGE = 500; // profiles scored at a time
@@ -120,7 +120,9 @@ export function registerSuggestedEditsAdmin(app) {
       if (/FOREIGN KEY/i.test(String(e?.message || e))) return c.json(GONE, 404); // erased in the meantime
       throw e;
     }
-    return c.json({ ok: true, ...made }, 201);
+    // The one email (verified addresses only); the banner on My card shows either way.
+    const emailed = await mailSuggestion(c.env, { userId: p.id, id: made.id });
+    return c.json({ ok: true, ...made, emailed }, 201);
   });
 
   app.delete("/api/admin/suggest/:id", async (c) => {

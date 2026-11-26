@@ -19,6 +19,7 @@ export const attendeeRoutes = [
   // The welcome steps (F14). Not meta.app: no tab bar or Terms pop-up over the question; the page waits for /api/me itself.
   { path: "/app/welcome", component: () => import("../views/Welcome.vue") },
   { path: "/app/profile", component: () => import("../views/EditProfile.vue"), meta: { app: true } },
+  { path: "/app/profile/suggested", component: () => import("../views/SuggestedEdits.vue"), meta: { app: true } }, // F75
   { path: "/app/scan", component: () => import("../views/Scan.vue"), meta: { app: true } },
   { path: "/app/people", component: () => import("../views/People.vue"), meta: { app: true } },
   { path: "/app/people/:id", component: () => import("../views/Person.vue"), meta: { app: true } },

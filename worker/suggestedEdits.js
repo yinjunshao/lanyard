@@ -14,10 +14,15 @@
 // - It is deleted on Accept, on Decline, when the admin withdraws or replaces it, after 30 days, and with the account.
 //   Only counts of how suggestions ended are kept (suggestion_counts), never the values.
 import { all, one, run, now, newId } from "./db.js";
-import { profilePayload, validMode } from "./profileFields.js";
+import { profilePayload, validMode, readProfileEdit, profileEditStmt } from "./profileFields.js";
 import { readInstitution } from "./institutions.js";
-import { putImage } from "./media.js";
+import { putImage, getImage, deleteImage } from "./media.js";
 import { drainMediaDeletes } from "./branding.js";
+import { requireUser } from "./session.js";
+import { bump } from "./ratelimit.js";
+import { sendMail } from "./mail.js";
+import { suggestedDetailsEmail } from "./mail-templates.js";
+import { publicOrigin } from "./unsub.js";
 
 const DAY = 86400_000;
 export const SUGGEST_MAX_AGE = 30 * DAY;
@@ -174,4 +179,137 @@ export async function purgeSuggestions(env, ts = now()) {
   for (const r of old) if (await endSuggestion(env, r.user_id, { outcome: "expired", ts })) n += 1;
   await run(db, "DELETE FROM suggestion_counts WHERE day < ?", new Date(ts - COUNTS_KEEP).toISOString().slice(0, 10));
   return n;
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ */
+// The email, the person's routes.
+
+/**
+ * The one email about a suggestion, to a verified address only. It names the fields and where they came from, never
+ * a value. Sent once per suggestion (emailed_at is set before sending, only if it was empty), and at most one a day per
+ * person, so a quick correction by the admin does not send a second one (the banner shows the latest either way).
+ * A service message about their own account: the news-email opt-in does not apply. Returns true if it went.
+ */
+export async function mailSuggestion(env, { userId, id }) {
+  const db = env.DB;
+  const u = await one(db, "SELECT recovery_email, email_verified FROM users WHERE id = ?", userId);
+  if (!u || u.email_verified !== 1 || !u.recovery_email) return false;
+  const s = await one(db, "SELECT * FROM profile_suggestions WHERE user_id = ? AND id = ? AND emailed_at IS NULL", userId, id);
+  if (!s) return false;
+  if ((await bump(db, `suggest:mail:${userId}`, DAY)) > 1) return false;
+  const r = await run(db, "UPDATE profile_suggestions SET emailed_at = ? WHERE user_id = ? AND id = ? AND emailed_at IS NULL", now(), userId, id);
+  if (!r?.meta?.changes) return false;
+  try {
+    await sendMail(env, "accounts", { to: u.recovery_email, ...suggestedDetailsEmail({ fields: offeredKeys(s).map(labelOf), source: s.source, url: `${publicOrigin(env)}/app/profile/suggested` }) });
+    return true;
+  } catch (e) {
+    console.error("suggestion mail failed", e?.message || e);
+    await run(db, "UPDATE profile_suggestions SET emailed_at = NULL WHERE user_id = ? AND id = ?", userId, id);
+    return false;
+  }
+}
+
+const NONE = { error: "There are no suggested details waiting for you.", code: "no_suggestion" };
+const CHANGED = { error: "These details changed or were already answered. Look again.", code: "suggestion_changed" };
+
+/** What the card says now, for one field, in Edit profile's shape. */
+function nowOf(key, p) {
+  if (key === "photo") return null;
+  if (key === "mode") return p.mode || "student";
+  if (key === "tags") return p.tags || [];
+  if (key === "links") return p.links || {};
+  return p[key] || "";
+}
+
+/** A stored photo as a data URL, so accepting it goes through Edit profile's own photo upload (checks and limit). */
+async function dataUrlOf(env, key) {
+  const obj = key ? await env.MEDIA.get(key) : null;
+  if (!obj) return null;
+  const bytes = new Uint8Array(await new Response(obj.body).arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return `data:${obj.httpMetadata?.contentType || "image/webp"};base64,${btoa(bin)}`;
+}
+
+export function registerSuggestedEditsRoutes(app) {
+  app.get("/api/profile/suggested", async (c) => {
+    const u = requireUser(c);
+    const db = c.env.DB;
+    const [s, p] = await Promise.all([openSuggestion(db, u.id), one(db, "SELECT * FROM profiles WHERE user_id = ?", u.id)]);
+    if (!s || !p) return c.json(NONE, 404);
+    const f = parseFields(s);
+    return c.json({
+      id: s.id, source: s.source, createdAt: s.created_at, expiresAt: s.expires_at,
+      photoNow: p.photo_key ? `/media/${p.photo_key}` : null,
+      fields: offeredKeys(s).map((key) => ({ key, label: labelOf(key), now: nowOf(key, p), suggested: key === "photo" ? null : f[key] })),
+    });
+  });
+
+  // The suggested photo, to the person only, never cached. /media never serves it.
+  app.get("/api/profile/suggested/photo", async (c) => {
+    const u = requireUser(c);
+    const s = await openSuggestion(c.env.DB, u.id);
+    const img = s?.photo_key ? await getImage(c.env, s.photo_key, { noStore: true }) : null;
+    return img || c.json({ error: "There is no suggested photo." }, 404);
+  });
+
+  // Accept selected: the ticked fields, written exactly as an Edit profile save, in one write gated on this suggestion.
+  app.post("/api/profile/suggested/accept", async (c) => {
+    const u = requireUser(c);
+    const db = c.env.DB;
+    const body = await c.req.json().catch(() => ({}));
+    const keys = Array.isArray(body.fields) ? [...new Set(body.fields.filter((k) => typeof k === "string"))] : [];
+    if (!keys.length) return c.json({ error: "Tick at least one detail to accept, or press Decline all." }, 400);
+    const [s, current] = await Promise.all([openSuggestion(db, u.id), one(db, "SELECT * FROM profiles WHERE user_id = ?", u.id)]);
+    if (!s || !current) return c.json(NONE, 404);
+    if (body.id !== s.id) return c.json(CHANGED, 409);
+    const offered = offeredKeys(s);
+    if (keys.some((k) => !offered.includes(k))) return c.json({ error: "That detail isn't part of this suggestion. Look again." }, 400);
+    const f = parseFields(s);
+    const edit = {};
+    for (const k of keys) {
+      if (k === "photo") continue;
+      edit[k] = f[k];
+      if (k === "uni" && f.institutionId !== undefined) edit.institutionId = f.institutionId;
+    }
+    if (keys.includes("photo")) {
+      edit.photoDataUrl = await dataUrlOf(c.env, s.photo_key);
+      if (!edit.photoDataUrl) return c.json(CHANGED, 409);
+    }
+    // The Edit profile save itself: the same checks, the same cleaning, the same photo upload and limit.
+    const ed = await readProfileEdit(c, u, current, edit);
+    let out;
+    try {
+      out = await db.batch([
+        countStmt(db, "accepted", now(), u.id, s.id),
+        profileEditStmt(db, u.id, ed, gate(u.id, s.id)),
+        ...endStmts(db, { userId: u.id, id: s.id }),
+      ]);
+    } catch (e) { if (ed.newPhoto) await deleteImage(c.env, ed.newPhoto).catch(() => {}); throw e; }
+    if (out.at(-1)?.meta?.changes !== 1) {
+      // Someone else answered first (another tab, or a new suggestion replaced it): nothing was written.
+      if (ed.newPhoto) await deleteImage(c.env, ed.newPhoto).catch(() => {});
+      return c.json(CHANGED, 409);
+    }
+    if (ed.oldPhoto) await deleteImage(c.env, ed.oldPhoto).catch(() => {});
+    if (s.photo_key) await drainMediaDeletes(c.env, [s.photo_key]);
+    return c.json({ ok: true, accepted: keys });
+  });
+
+  // Decline all: nothing is written to the card, and the suggestion and its photo are deleted.
+  app.post("/api/profile/suggested/decline", async (c) => {
+    const u = requireUser(c);
+    const body = await c.req.json().catch(() => ({}));
+    const s = await openSuggestion(c.env.DB, u.id);
+    if (!s) return c.json(NONE, 404);
+    if (body.id !== s.id) return c.json(CHANGED, 409);
+    const ok = await endSuggestion(c.env, u.id, { id: s.id, outcome: "declined" });
+    return ok ? c.json({ ok: true }) : c.json(CHANGED, 409);
+  });
+}
+
+/** For the person's own data export only: the open suggestion, its values and where they came from. */
+export async function exportSuggestion(db, userId) {
+  const s = await openSuggestion(db, userId);
+  return s ? { fields: parseFields(s), photo: s.photo_key ? "a suggested photo (shown on the review page)" : null, source: s.source, createdAt: s.created_at, expiresAt: s.expires_at, emailedAt: s.emailed_at || null } : null;
 }

@@ -36,7 +36,7 @@ console.log("\n# Every send site, and every template, is covered");
   // Every call of sendMail( or sendBatch( in the Worker, by file. A new call fails here until it is listed, and its
   // email is added to scripts/mail-samples.mjs, which is what the rest of this file runs.
   const SITES = { "admin.js": 5, "ai/alerts.js": 1, "ai/feedbackSummary.js": 1, "alerts.js": 2, "email-auth.js": 3, "eventmail.js": 2, "followupmail.js": 1,
-    "host-auth.js": 1, "hosts.js": 3, "pending-email.js": 1, "privacy.js": 1, "profilenudge.js": 1, "purge.js": 1 };
+    "host-auth.js": 1, "hosts.js": 3, "pending-email.js": 1, "privacy.js": 1, "profilenudge.js": 1, "purge.js": 1, "suggestedEdits.js": 1 };
   const found = {};
   for (const [p, t] of worker) {
     if (p === "worker/mail.js") continue;
@@ -54,7 +54,7 @@ console.log("\n# Every send site, and every template, is covered");
   check("every exported email template has a sample", templates.length >= 20 && templates.every((t) => new RegExp(`\\b${t}\\(`).test(samplesSrc)), templates.filter((t) => !new RegExp(`\\b${t}\\(`).test(samplesSrc)));
   check("every template builds its HTML with emailLayout (no bare html string left in mail.js or mail-templates.js)",
     !/html:\s*[`"'<]/.test(read("worker/mail.js") + read("worker/mail-templates.js")) && !/html:\s*(paragraphs|`|\$)/.test(read("worker/mail.js") + read("worker/mail-templates.js")));
-  check("the samples cover 30 emails and every file name is unique", SAMPLES.length === 30 && new Set(SAMPLES.map((s) => s.id)).size === SAMPLES.length, SAMPLES.length);
+  check("the samples cover 31 emails and every file name is unique", SAMPLES.length === 31 && new Set(SAMPLES.map((s) => s.id)).size === SAMPLES.length, SAMPLES.length);
 }
 
 console.log("\n# The send functions refuse HTML that did not come from emailLayout");
@@ -152,7 +152,7 @@ console.log("\n# Subjects are unchanged");
     application: "We got your Lanyard application for Riverside Robotics Club", "decision-approved": "Robotics Club is approved on Lanyard",
     "decision-rejected": "Update on your Lanyard application for Robotics Club", "ticket-approved": "Request approved for Robotics Club",
     "ticket-rejected": "Update on your request for Robotics Club", "team-invite": "Join Robotics Club on Lanyard",
-    transfer: "Robotics Club is waiting for you on Lanyard", news: "What is new in Lanyard", "ai-budget": "Lanyard AI spend at 90% of the budget today",
+    transfer: "Robotics Club is waiting for you on Lanyard", news: "What is new in Lanyard", "suggested-details": "We filled in some details on your Lanyard card", "ai-budget": "Lanyard AI spend at 90% of the budget today",
   };
   check("every subject is what it was before F58 (pinned)", Object.entries(want).every(([k, v]) => subject[k] === v), Object.entries(want).filter(([k, v]) => subject[k] !== v));
 }

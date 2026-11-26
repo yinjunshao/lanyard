@@ -163,6 +163,10 @@ async function share() {
 
     <UiSelect v-model="selectedId" label="Switch card" :options="cardOptions" />
 
+    <router-link v-if="home.suggested" to="/app/profile/suggested" class="panel spread finish" style="text-decoration:none;color:inherit" data-suggested>
+      <span>We suggested some details for your card.</span><span class="btn" style="width:auto">Review</span>
+    </router-link>
+
     <section v-if="inSteps" class="panel stack-2 finish" aria-label="Finish your card">
       <strong>Your card isn't finished</strong>
       <p class="small muted" style="margin:0">A few quick questions, one at a time. You can skip any of them.</p>

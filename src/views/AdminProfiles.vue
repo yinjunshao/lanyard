@@ -8,6 +8,7 @@ import ModeFields from "../components/ModeFields.vue";
 import TagFields from "../components/TagFields.vue";
 import Avatar from "../components/Avatar.vue";
 import Waiting from "../components/Waiting.vue";
+import AdminSuggest from "../components/AdminSuggest.vue";
 import { useBusy } from "../components/Waiting.vue";
 import { buildLinks } from "../lib/links";
 import { fix } from "../lib/errors";
@@ -238,6 +239,8 @@ const day = (t) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", mon
           </div>
         </div>
       </section>
+
+      <AdminSuggest :call="call" :token="token" />
 
       <section class="stack-2" aria-labelledby="pp-claimed-h">
         <span id="pp-claimed-h" class="label">Claimed<template v-if="list"> ({{ list.claimed.count }})</template></span>

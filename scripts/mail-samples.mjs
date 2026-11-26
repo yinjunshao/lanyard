@@ -4,6 +4,7 @@
 // Keep this list in step with the send sites: test/mail-layout.mjs fails when a send site has no entry.
 import { claimCodeEmail, codeEmail, hostCodeEmail, decisionEmail, welcomeEmail, applicationEmail, ticketEmail, teamInviteEmail, transferEmail, marketingEmail } from "../worker/mail.js";
 import {
+  suggestedDetailsEmail,
   feedbackReminderEmail, followupReminderEmail, profileNudgeEmail, hostSummaryEmail, feedbackSummaryEmail, signInAlertEmail,
   passkeyRemovedEmail, inactiveEmail, confirmEmail, withConfirm, privacyAckEmail, aiBudgetAlertEmail,
 } from "../worker/mail-templates.js";
@@ -20,6 +21,8 @@ const AT = Date.UTC(2026, 10, 24, 18, 30);
 // id: a file name; from: the send site; user: the fields that can hold a person's text; stop: carries a stop link.
 export const SAMPLES = [
   { id: "code", from: "email-auth.js", kind: "accounts", user: [], build: () => codeEmail("482915", `${APP}/api/email/link?t=sample`) },
+  { id: "suggested-details", from: "suggestedEdits.js", kind: "accounts", user: ["source"],
+    build: (x = "LinkedIn") => suggestedDetailsEmail({ fields: ["What you do", "Company"], source: x, url: `${APP}/app/profile/suggested` }) },
   { id: "claim-code", from: "claim.js", kind: "accounts", user: [], build: () => claimCodeEmail("615203") },
   { id: "host-code", from: "host-auth.js", kind: "decisions", user: [], build: () => hostCodeEmail("739204", HOST) },
   { id: "welcome", from: "email-auth.js", kind: "accounts", user: [], build: () => welcomeEmail(APP) },

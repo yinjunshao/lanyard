@@ -42,6 +42,7 @@ import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 import { readInstitution } from "./institutions.js";
 import { validMode, profilePayload, applyInstitution, photoAllowed, readProfileEdit, profileEditStmt } from "./profileFields.js";
 import { NOT_PREMADE, isPremadePhoto } from "./premade.js";
+import { registerSuggestedEditsRoutes, openSuggestion, exportSuggestion } from "./suggestedEdits.js";
 import { registerClaimRoutes } from "./claim.js";
 import { moveTo } from "./onboarding.js";
 import { selfieView } from "./selfie.js";
@@ -92,6 +93,7 @@ const isDropRoute = (path) => /^\/api\/e\/[^/]+\/drops(\/|$)/.test(path);
 // nothing behind; saving a pending email needs a card already.
 const noGuest = (path) => isDropRoute(path) || path.startsWith("/api/billing/") || path.startsWith("/api/passkeys")
   || path === "/api/connect" || path === "/api/account/pending-email" || path.startsWith("/api/stages") // F59: tips need a signed-in person; signed out is a 401
+  || path.startsWith("/api/profile/suggested") // F75: signed out is a 401, never a new guest
   || path.startsWith("/api/claim/"); // F74: the claim routes read a session if there is one, and never make a guest
 app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/host/") || c.req.path.startsWith("/api/integrations/") || c.req.path.startsWith("/api/webhooks/") || c.req.path.startsWith("/api/admin/") || c.req.path === "/api/unsubscribe" || c.req.path === "/api/email/confirm" || c.req.path === "/api/privacy-request" ? next() : (noGuest(c.req.path) ? withSessionNoGuest : withSession)(c, next)));
 app.use("/media/*", async (c, next) => { await ensureSession(c, c.env.DB); await next(); });
@@ -480,6 +482,7 @@ app.get("/api/account/export", async (c) => {
   const stageTips = await exportStages(db, u.id).catch(() => null); // F59: which tips were shown (none until one was)
   const drops = await exportDrops(c.env, u.id); // F32: what organisers gave this person (opened, theirs only)
   const ai = await exportAi(db, "user", u.id); // F21
+  const suggestedEdit = await exportSuggestion(db, u.id).catch(() => null); // F75: details suggested for this card, until answered
   const billingOrders = await exportBillingOrders(db, "user", u.id); // F36: card orders (none until billing is on)
   // F45: the unconfirmed address, its emails and the time zone (the older shape if 0036 is not applied yet).
   const pend = await one(db, "SELECT pending_email, pending_email_at, pending_mails, tz, profile_nudges, profile_nudge_at FROM users WHERE id = ?", u.id).catch(() => null);
@@ -514,6 +517,7 @@ app.get("/api/account/export", async (c) => {
     ...(eventSuggestions ? { eventSuggestions } : {}),
     ...(stageTips ? { stageTips } : {}),
     ...(drops ? { drops } : {}),
+    ...(suggestedEdit ? { suggestedEdit } : {}),
     ai,
     consents,
     reportsMade: reports,
@@ -1258,7 +1262,7 @@ app.get("/api/home", async (c) => {
   const me = c.get("user");
   if (!me) return c.json({ followups: [], feedback: [] });
   const db = c.env.DB;
-  const [followups, feedback] = await Promise.all([
+  const [followups, feedback, suggested] = await Promise.all([
     all(db,
       `SELECT cn.id, n.remind_at, p.name, p.photo_key,
               ${SHARED_CARD_SQL("p.user_id")} AS card_id
@@ -1268,6 +1272,7 @@ app.get("/api/home", async (c) => {
        ORDER BY n.remind_at LIMIT 5`,
       me.id, me.id, now() + DAY),
     pendingFeedback(db, me.id),
+    openSuggestion(db, me.id).catch(() => null), // F75: the banner on My card
   ]);
   return c.json({
     followups: followups.map((f) => ({
@@ -1275,6 +1280,7 @@ app.get("/api/home", async (c) => {
       photo: f.photo_key ? `/media/${f.photo_key}` : null,
     })),
     feedback,
+    ...(suggested ? { suggested: true } : {}),
   });
 });
 
@@ -1382,6 +1388,8 @@ app.post("/api/connections/:id/report", async (c) => {
 /* ------------------------------- Events ---------------------------------- */
 // F74: claiming a profile the admin made (POST only, the token in the body). Given cardView so the claim page shows the card as it will look.
 registerClaimRoutes(app, { cardView });
+// F75: details the admin suggested for this person's card (read, accept selected, decline). Only their own.
+registerSuggestedEditsRoutes(app);
 app.route("/", eventsApp);
 app.route("/", myEventsApp);
 app.route("/", leaveEventApp);

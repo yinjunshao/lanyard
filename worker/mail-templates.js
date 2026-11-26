@@ -52,6 +52,25 @@ export function followupReminderEmail({ people, total, stopUrl, listUrl }) {
 // F49: finish your card. `names` is at most two first names of people they met (as they see them in the app);
 // `missing` is the labels of what is still to add. Nothing else about anyone. The second email says it is the last.
 // `stopUrl` is the same switch as the follow-up reminders.
+// F75: to someone the admin suggested card details for. It names the fields and where they came from, never a value,
+// and says nothing changes until they accept. A service message about their own account (no stop link).
+export function suggestedDetailsEmail({ fields, source, url }) {
+  const items = (fields || []).slice(0, 12).map((f) => plain(f, 40));
+  const intro = `Someone at Lanyard filled in some details for your card, from ${plain(source, 80)}. Nothing changes on your card until you accept them.`;
+  const foot = "You can accept some, all or none. If you do nothing, they are deleted after 30 days.";
+  return {
+    subject: "We filled in some details on your Lanyard card",
+    text: `${intro}\n\nWhat we filled in:\n${items.map((m) => `- ${m}`).join("\n")}\n\nReview them: ${url}\n\n${foot}`,
+    html: emailLayout({
+      title: "We filled in some details for you",
+      preheader: "Nothing changes on your card until you accept them.",
+      bodyHtml: `${paragraphs(intro)}${paragraphs("What we filled in:")}${bullets(items)}`,
+      button: { url, label: "Review the details" },
+      footerHtml: small(escapeHtml(foot)),
+    }),
+  };
+}
+
 export function profileNudgeEmail({ second, names, score, max, missing, url, stopUrl }) {
   const who = (names || []).slice(0, 2).map((n) => plain(n, 30)).filter(Boolean);
   const list = who.length > 1 ? `${who[0]} and ${who[1]}` : who[0] || "";
