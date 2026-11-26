@@ -14,6 +14,7 @@ import { purgeSummaries } from "./ai/feedbackSummary.js";
 import { purgePending } from "./pending-email.js";
 import { purgeStageStats } from "./stages.js";
 import { drainMediaDeletes } from "./branding.js";
+import { purgePremade } from "./premade.js";
 
 const DAY = 86400_000;
 export const SELFIE_MAX_AGE = 365 * DAY;
@@ -99,6 +100,9 @@ export async function purgeExpired(env, ts = Date.now()) {
 
   // F45: an email typed when connecting or making a card and never confirmed, 30 days after it was typed.
   out.pendingEmails = await purgePending(db, ts);
+
+  // F74: profiles the admin made that nobody claimed, 30 days after they were made, with their photos.
+  out.premade = await purgePremade(env, ts);
 
   // F66: logos the database stopped pointing at (replaced, removed, or their organisation deleted) and not yet deleted from R2.
   out.mediaDeletes = await drainMediaDeletes(env);

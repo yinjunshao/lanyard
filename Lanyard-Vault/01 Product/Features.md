@@ -50,6 +50,8 @@ tags: [product, features]
 ## Admin
 `/admin` (token-protected): approve societies and institutions, grant credits, see usage, and the welcome-steps funnel (counts per step for 30 days, nothing about who).
 
+**Profiles for people (F74, [[D063 Admin-made profiles are private until claimed, by a hashed link and an emailed code, and deleted after 30 days]]):** on `/admin/profiles` the admin makes a card for someone not on Lanyard yet, from details found elsewhere, with where they came from, and copies a claim link to send them. The card is private until claimed (only the link holder sees it) and deleted after 30 days unclaimed. The person opens `/claim/p/<token>`, sees the card and the source, and either deletes it at once or claims it with their email and a 6-digit code, agreeing to the Terms as at sign-up. An email that already has an account is told to sign in; handing the details over to that account waits for F75.
+
 ## AI foundation (F21, built, off until the owner turns it on)
 No AI feature is visible yet. The shared plumbing is: one Worker-side client, limits per person, a budget, a kill switch and an allow-list on `/admin`, a Settings switch "Let people I've connected with find me using AI search" (on by default) and the Plan page's allowances. See [[F21 AI foundation]] and [[AI Safety and Cost Plan]].
 

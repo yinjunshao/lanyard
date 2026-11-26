@@ -15,7 +15,9 @@ import { now, one, all } from "./db.js";
 import { profileScore } from "../src/lib/profileScore.js";
 import { LAST_STEP } from "./onboarding.js";
 
-export const METRICS_VERSION = 1;
+// 2 (F74, D063): profiles the admin made that are waiting to be claimed are not people yet. They are left out of every
+// count of accounts, profiles and cards, and counted on their own as premade_waiting.
+export const METRICS_VERSION = 2;
 export const PAGE = 500; // profiles read at a time
 const DAY = 86400_000;
 
@@ -28,13 +30,17 @@ const S = (cond) => `COALESCE(SUM(CASE WHEN ${cond} THEN 1 ELSE 0 END), 0)`;
 export const dayOf = (t = now()) => new Date(t).toISOString().slice(0, 10);
 
 /** The same Plus rule as `planOf` (worker/plans.js): plan 'plus' and not ended (no end date, or one in the future). */
+// F74: not an unclaimed admin-made account (an account row, then a user_id column).
+const REAL = "NOT (admin_made = 1 AND is_guest = 1)";
+const REAL_ID = (col) => `${col} NOT IN (SELECT id FROM users WHERE admin_made = 1 AND is_guest = 1)`;
+
 const PLUS_SQL = "plan = 'plus' AND (plan_until IS NULL OR plan_until = 0 OR plan_until > ?1)";
 
 export async function computeMetrics(db, ts = now()) {
   const d1 = ts - DAY, d7 = ts - 7 * DAY, d30 = ts - 30 * DAY, d60 = ts - 60 * DAY;
   const day30 = Math.floor(d30 / DAY) * DAY; // feedback keeps only the UTC day
   // One query for each table, run together: nothing here runs once per person.
-  const [u, p, cards, conn, connected, org, hostAcc, ev, ci, fb, orders, credits] = await Promise.all([
+  const [u, p, cards, conn, connected, org, hostAcc, ev, ci, fb, orders, credits, premade] = await Promise.all([
     one(db, `SELECT COUNT(*) AS total, ${S("is_guest = 0")} AS claimed, ${S("is_guest = 1")} AS guests,
         ${S("email_verified = 1")} AS confirmed,
         ${S("created_at >= ?2")} AS s1, ${S("created_at >= ?3")} AS s7, ${S("created_at >= ?4")} AS s30,
@@ -43,10 +49,10 @@ export async function computeMetrics(db, ts = now()) {
         ${S("created_at >= ?5 AND created_at < ?4")} AS cohort, ${S("created_at >= ?5 AND created_at < ?4 AND last_seen_at >= ?4")} AS back,
         ${S("is_guest = 0 AND app_installed_at IS NOT NULL")} AS installed, ${S("is_guest = 0 AND has_passkey = 1")} AS passkey,
         ${S(PLUS_SQL)} AS plus
-      FROM users`, ts, d1, d7, d30, d60),
+      FROM users WHERE ${REAL}`, ts, d1, d7, d30, d60),
     one(db, `SELECT COUNT(*) AS total, ${S("mode = 'career'")} AS career, ${S("mode != 'career'")} AS student,
-        ${S("onboarding_max >= 1")} AS started, ${S(`onboarding_max > ${LAST_STEP}`)} AS done FROM profiles`),
-    one(db, "SELECT COUNT(DISTINCT user_id) AS n FROM cards"),
+        ${S("onboarding_max >= 1")} AS started, ${S(`onboarding_max > ${LAST_STEP}`)} AS done FROM profiles WHERE ${REAL_ID("user_id")}`),
+    one(db, `SELECT COUNT(DISTINCT user_id) AS n FROM cards WHERE ${REAL_ID("user_id")}`),
     one(db, `SELECT COUNT(*) AS total, ${S("created_at >= ?1")} AS c7, ${S("created_at >= ?2")} AS c30 FROM connections`, d7, d30),
     one(db, "SELECT COUNT(*) AS n FROM (SELECT user_a AS u FROM connections UNION SELECT user_b FROM connections)"),
     one(db, `SELECT COUNT(*) AS total, ${S("verification_status = 'approved'")} AS approved FROM orgs`),
@@ -58,6 +64,7 @@ export async function computeMetrics(db, ts = now()) {
     one(db, `SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN currency = 'gbp' THEN amount_pence ELSE 0 END), 0) AS pence
         FROM billing_orders WHERE status = 'paid' AND paid_at >= ?`, d30),
     one(db, "SELECT COALESCE(SUM(events_granted), 0) AS n FROM credits WHERE granted_by = 'polar' AND created_at >= ?", d30),
+    one(db, "SELECT COUNT(*) AS n FROM users WHERE admin_made = 1 AND is_guest = 1"),
   ]);
 
   // Profile completeness: the same six points as Edit profile and the emails (src/lib/profileScore.js), read in pages.
@@ -66,7 +73,7 @@ export async function computeMetrics(db, ts = now()) {
   for (;;) {
     const rows = await all(db,
       `SELECT user_id, name, photo_key, uni, course, company, role, headline, links, mode
-         FROM profiles WHERE user_id > ? ORDER BY user_id LIMIT ${PAGE}`, last);
+         FROM profiles WHERE user_id > ? AND ${REAL_ID("user_id")} ORDER BY user_id LIMIT ${PAGE}`, last);
     for (const r of rows) {
       const s = profileScore(r);
       spread[Math.min(Math.max(s.score, 0), 6)] += 1;
@@ -108,6 +115,8 @@ export async function computeMetrics(db, ts = now()) {
     // Revenue
     plus_active: u.plus, plus_pct: pct(u.plus, claimed), paid_orders_30d: orders.n, paid_pence_30d: orders.pence,
     event_credits_bought_30d: credits.n,
+    // F74: profiles the admin made that nobody has claimed yet (they are in none of the counts above)
+    premade_waiting: premade.n,
   };
   for (const k of Object.keys(m)) m[k] = num(m[k]);
   return m;

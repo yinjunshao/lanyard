@@ -207,6 +207,14 @@ const UPDATED = "24 November 2026";
       <li><b>How long</b>: what you wrote and your choice are deleted 48 hours after the event ends, or with your account.</li>
     </ul>
 
+    <h2 id="made-for-you">8g. If we made a card for you</h2>
+    <ul>
+      <li><b>What</b>: someone at Lanyard may make a card for you from details you made public elsewhere, such as LinkedIn (your name, photo, work or study and links), and send you a link to claim it. The page says where they came from.</li>
+      <li><b>Who sees it</b>: only whoever has the link. It is private until you claim it, and never in search, People or Who to meet.</li>
+      <li><b>How long</b>: deleted 30 days after it was made if you don't claim it. Our basis is legitimate interests, inviting you to Lanyard.</li>
+      <li><b>To delete it</b>: press "This isn't me / delete it" on that page, and it goes at once, or write to us. To keep it, claim it with your email and agree to the Terms.</li>
+    </ul>
+
     <h2>9. Children</h2>
     <p>
       Lanyard is for people aged 18 and over. We ask you to confirm this when you create a profile. If we find out

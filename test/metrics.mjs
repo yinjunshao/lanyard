@@ -162,6 +162,22 @@ console.log("\n# Only numbers leave: no id, name, email or code in the metrics, 
 }
 
 /* ------------------- batched reads ------------------- */
+console.log("\n# F74 (METRICS_VERSION 2): profiles the admin made and nobody claimed are not counted as people");
+{
+  const w = await world();
+  const real = w.user({ created: T - 5 * DAY, seen: T - DAY }); w.profile(real, "Real Person", w.FULL); w.card(real);
+  const waiting = [];
+  for (let i = 0; i < 2; i++) { // two waiting, made by the admin: guests with a full profile and a card, never seen
+    const id = w.user({ guest: 1, created: T - 2 * DAY }); w.sql("UPDATE users SET admin_made = 1 WHERE id = ?", id); w.profile(id, "Made " + i, w.FULL); w.card(id); waiting.push(id);
+  }
+  const claimed = w.user({ created: T - 3 * DAY, seen: T - DAY }); w.sql("UPDATE users SET admin_made = 1, claimed_at = ? WHERE id = ?", T - DAY, claimed); w.profile(claimed, "Claimed One", w.FULL); w.card(claimed);
+  const m = await computeMetrics(w.env.DB, T);
+  check("the version is 2", METRICS_VERSION === 2);
+  check("two waiting: premade_waiting 2, and out of users_total, users_guest, signups, profiles and cards", m.premade_waiting === 2 && m.users_total === 2 && m.users_guest === 0 && m.signups_7d === 2 && m.profiles_total === 2 && m.profile_score_6 === 2 && m.with_card_pct === 100 && m.profile_complete_pct === 100, m);
+  check("a claimed one is an ordinary account in every count", m.users_claimed === 2 && m.active_7d === 2);
+  check("with none waiting it is 0, not missing", (await computeMetrics((await world()).env.DB, T)).premade_waiting === 0);
+}
+
 console.log("\n# Queries are batched, and profiles are read in pages, not one per person");
 {
   async function countQueries(n) {

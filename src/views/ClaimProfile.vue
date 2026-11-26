@@ -93,7 +93,7 @@ const claim = () => run(async () => {
     <template v-else>
       <p class="claim-lede">Someone at Lanyard made this card for you from details on {{ data.source }}. Nobody can see it until you claim it.</p>
       <CardView :view="data.card" />
-      <p class="small muted">If you don't claim it, it is deleted 30 days after it was made. See <router-link to="/privacy" style="text-decoration:underline">If we made a card for you</router-link> in the Privacy Policy.</p>
+      <p class="small muted">If you don't claim it, it is deleted 30 days after it was made. See <router-link to="/privacy#made-for-you" style="text-decoration:underline">If we made a card for you</router-link> in the Privacy Policy.</p>
 
       <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 

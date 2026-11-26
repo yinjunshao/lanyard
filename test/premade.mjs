@@ -10,6 +10,7 @@ import { claimWrite } from "../worker/claim.js";
 import { SIGNUP_NOTICE, TERMS_VERSION } from "../worker/legal.js";
 import { hashClaimToken, readSource, SOURCE_MAX, TOKEN_RE, isPremade } from "../worker/premade.js";
 import { gatherPeople } from "../worker/ai/peopleSearch.js";
+import { purgeExpired } from "../worker/purge.js";
 import { createHash } from "node:crypto";
 
 const read = (f) => readFileSync(new URL("../" + f, import.meta.url), "utf8");
@@ -424,6 +425,44 @@ console.log("\n# The two pages");
   check("the admin page shows a link once and Copy link makes a new one, and it never asks for consent", /It is shown only now/.test(adminSrc) && /stops working/.test(adminSrc) && !/acceptTerms|over18/.test(adminSrc));
   check("Edit profile says Check your details after a claim", /route\.query\.claimed[\s\S]{0,80}Check your details/.test(read("src/views/EditProfile.vue")));
   check("no emoji on either page", ![claimSrc, adminSrc].some((s) => /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(s)));
+}
+
+console.log("\n# The 30-day purge");
+{
+  const now = Date.now();
+  const age = (id, days) => { raw.prepare("UPDATE users SET created_at = ? WHERE id = ?").run(now - days * DAY, id); raw.prepare("UPDATE claim_links SET expires_at = ? WHERE user_id = ?").run(now - days * DAY + 30 * DAY, id); };
+  const old = await make({ name: "Thirty One", photoDataUrl: PNG }); age(old.id, 31);
+  const young = await make({ name: "Twenty Nine", photoDataUrl: PNG }); age(young.id, 29);
+  const kept = await make({ name: "Claimed Old", photoDataUrl: PNG });
+  const c = fresh();
+  await c.post("/api/claim/start", { token: kept.token, email: "claimed.old@example.com" });
+  await c.post("/api/claim/finish", { token: kept.token, email: "claimed.old@example.com", code: claimCode("claimed.old@example.com"), acceptTerms: true, over18: true });
+  raw.prepare("UPDATE users SET created_at = ? WHERE id = ?").run(now - 31 * DAY, kept.id);
+  const key = (id) => q1("SELECT photo_key FROM profiles WHERE user_id = ?", id)?.photo_key;
+  const [ko, ky, kk] = [key(old.id), key(young.id), key(kept.id)];
+  const out = await purgeExpired(env, now);
+  check("made 31 days ago and unclaimed: gone, with its card, link and photo", !q1("SELECT 1 x FROM users WHERE id = ?", old.id) && !q1("SELECT 1 x FROM cards WHERE user_id = ?", old.id) && !q1("SELECT 1 x FROM claim_links WHERE user_id = ?", old.id) && !env.MEDIA.store.has(ko) && out.premade >= 1, out.premade);
+  check("made 29 days ago: kept, photo and link too", !!q1("SELECT 1 x FROM users WHERE id = ?", young.id) && env.MEDIA.store.has(ky) && (await fresh().post("/api/claim/look", { token: young.token })).status === 200);
+  check("claimed, made 31 days ago: never touched by it", q1("SELECT is_guest FROM users WHERE id = ?", kept.id)?.is_guest === 0 && env.MEDIA.store.has(kk) && q1("SELECT COUNT(*) n FROM sessions WHERE user_id = ?", kept.id).n === 1);
+  const later = await purgeExpired(env, now + 2 * DAY);
+  check("two days later the 29-day one is gone too", !q1("SELECT 1 x FROM users WHERE id = ?", young.id) && !env.MEDIA.store.has(ky) && later.premade >= 1);
+  check("the purge runs it every night (purgeExpired calls purgePremade)", /out\.premade = await purgePremade\(env, ts\)/.test(read("worker/purge.js")));
+  // An R2 delete that fails leaves the key queued for the next run, not forgotten.
+  const f = await make({ name: "Flaky Storage", photoDataUrl: PNG }); age(f.id, 31);
+  const fk = key(f.id);
+  const realDelete = env.MEDIA.delete; env.MEDIA.delete = async () => { throw new Error("R2 down"); };
+  await purgeExpired(env, now);
+  env.MEDIA.delete = realDelete;
+  check("a failed photo delete stays in media_deletes, and the next run deletes it", !q1("SELECT 1 x FROM users WHERE id = ?", f.id) && !!q1("SELECT 1 x FROM media_deletes WHERE key = ?", fk) && env.MEDIA.store.has(fk));
+  await purgeExpired(env, now);
+  check("(next run: gone from storage and the queue)", !env.MEDIA.store.has(fk) && !q1("SELECT 1 x FROM media_deletes WHERE key = ?", fk));
+}
+
+console.log("\n# The Privacy Policy says it");
+{
+  const pv = read("src/views/Privacy.vue");
+  check("a section If we made a card for you: what, where from, private until claimed, 30 days, how to delete", /If we made a card for you/.test(pv) && /private until you claim it/i.test(pv) && /30 days/.test(pv.slice(pv.indexOf("If we made a card for you"))) && /This isn.t me \/ delete it/.test(pv) && /LinkedIn/.test(pv.slice(pv.indexOf("If we made a card for you"))));
+  check("the Terms and Privacy version is unchanged", TERMS_VERSION === "2026-11-22");
 }
 
 /* ------------------------------------------------------------------------------------------------------------------ */
