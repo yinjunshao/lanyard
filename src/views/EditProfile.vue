@@ -158,6 +158,8 @@ async function save() {
   <div class="stack-2">
     <PhotoCropper v-if="cropFile" :file="cropFile" @done="onCropped" @cancel="cropFile = null" />
     <h1>Edit profile</h1>
+    <!-- F74: just claimed a card someone at Lanyard made from details found elsewhere. -->
+    <p v-if="route.query.claimed" class="panel" role="status" style="margin:0">Check your details. This card was made for you from details found elsewhere, so change anything that is wrong, then press Save changes.</p>
     <section aria-label="Profile score" style="display:grid;gap:8px">
       <div class="spread">
         <strong class="tnum">Profile {{ score.score }} of {{ score.max }}</strong>

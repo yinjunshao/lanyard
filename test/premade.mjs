@@ -408,6 +408,24 @@ console.log("\n# Expiry: a link past its 30 days");
   check("after Copy link the old link gets the one plain answer and the new one opens", (await fresh().post("/api/claim/look", { token: oldTok })).text === GONE_TEXT && (await fresh().post("/api/claim/look", { token: newTok })).status === 200);
 }
 
+console.log("\n# The two pages");
+{
+  const claimSrc = read("src/views/ClaimProfile.vue"), adminSrc = read("src/views/AdminProfiles.vue"), routes = read("src/router/routes.attendee.js");
+  const words = (h) => h.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const m = claimSrc.match(/<p v-if="[^"]+" class="consent-line">([\s\S]*?)<\/p>/);
+  check("the claim page has one consent line, by the Claim it button, word for word what the Worker records", (claimSrc.match(/class="consent-line"/g) || []).length === 1 && m && words(m[1]) === SIGNUP_NOTICE.claim && /consent-line[\s\S]*?Claim it<\/button>|"Claim it"/.test(claimSrc.slice(claimSrc.indexOf("consent-line"))));
+  check("it sends acceptTerms and over18 only from the Claim it press, and the token only in POST bodies", /claim\/finish", \{ email: email\.value, code: code\.value, acceptTerms: true, over18: true \}/.test(claimSrc) && !/\?token|[?&]t=|searchParams/.test(claimSrc) && /method: "POST"/.test(claimSrc));
+  check("it says where the details came from and that nobody can see it, with both buttons", /Someone at Lanyard made this card for you from details on \{\{ data\.source \}\}\. Nobody can see it until you claim it\./.test(claimSrc) && />Claim it<\/button>/.test(claimSrc) && /This isn't me \/ delete it/.test(claimSrc));
+  check("the expired, used and wrong link page is one plain sentence", /This link has expired or was already used\./.test(claimSrc));
+  check("both routes are lazy, and no public page imports either page", /path: "\/claim\/p\/:token", component: \(\) => import\("\.\.\/views\/ClaimProfile\.vue"\)/.test(routes) && /path: "\/admin\/profiles", component: \(\) => import\("\.\.\/views\/AdminProfiles\.vue"\)/.test(routes)
+    && ["src/main.js", "src/router/index.js", "src/lib/api.js", "src/lib/store.js", "src/views/PublicCard.vue", "src/views/Landing.vue", "src/views/Privacy.vue", "src/views/Terms.vue", "src/views/SignIn.vue"].every((f) => !/ClaimProfile|AdminProfiles|api\/claim|admin\/premade/.test(read(f))));
+  check("the admin page keeps the token where Admin keeps it (this tab's sessionStorage) and nowhere else", /const TOKEN_KEY = "lanyard_admin_token"/.test(adminSrc) && /const TOKEN_KEY = "lanyard_admin_token"/.test(read("src/views/Admin.vue")) && /sessionStorage\.getItem\(TOKEN_KEY\)/.test(adminSrc) && !/localStorage/.test(adminSrc));
+  check("Admin links to it", /<router-link to="\/admin\/profiles"[^>]*>Profiles for people<\/router-link>/.test(read("src/views/Admin.vue")));
+  check("the admin page shows a link once and Copy link makes a new one, and it never asks for consent", /It is shown only now/.test(adminSrc) && /stops working/.test(adminSrc) && !/acceptTerms|over18/.test(adminSrc));
+  check("Edit profile says Check your details after a claim", /route\.query\.claimed[\s\S]{0,80}Check your details/.test(read("src/views/EditProfile.vue")));
+  check("no emoji on either page", ![claimSrc, adminSrc].some((s) => /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(s)));
+}
+
 /* ------------------------------------------------------------------------------------------------------------------ */
 console.log("\n# No token in admin_audit or in anything logged");
 {

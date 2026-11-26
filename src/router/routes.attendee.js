@@ -34,11 +34,14 @@ export const attendeeRoutes = [
   { path: "/privacy-request", component: () => import("../views/PrivacyRequest.vue") },
   { path: "/privacy", component: () => import("../views/Privacy.vue") },
   { path: "/claim", component: () => import("../views/Claim.vue") },
+  // F74: a card the admin made for someone, claimed by its link. Lazy, and no public page imports it.
+  { path: "/claim/p/:token", component: () => import("../views/ClaimProfile.vue") },
   { path: "/redeem", component: Redeem },
   { path: "/redeem/:code", component: Redeem },
   { path: "/signin", component: () => import("../views/SignIn.vue") },
   { path: "/hosts", component: () => import("../views/Hosts.vue") },
   { path: "/admin", component: () => import("../views/Admin.vue") },
+  { path: "/admin/profiles", component: () => import("../views/AdminProfiles.vue") }, // F74
   // F08 test page for checking the pickers by eye. `import.meta.env.DEV` is false
   // in a production build, so this entry (and the page's chunk) is dropped.
   ...(import.meta.env.DEV ? [{ path: "/ui-test", component: () => import("../views/UiTest.vue") }] : []),

@@ -251,6 +251,7 @@ const EMAIL = { education: "university or school address", free: "webmail addres
 
     <template v-else>
       <div class="spread">
+        <router-link to="/admin/profiles" class="btn" style="width:auto">Profiles for people</router-link>
         <button class="btn" style="width:auto" @click="load">Refresh</button>
         <button class="btn" style="width:auto" @click="signOut">Sign out</button>
       </div>
