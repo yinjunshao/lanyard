@@ -40,7 +40,7 @@ import {
 } from "./codes.js";
 import { planOf, USER_PLANS, PLUS_PRICE } from "./plans.js";
 import { readInstitution } from "./institutions.js";
-import { validMode, profilePayload, applyInstitution, photoAllowed } from "./profileFields.js";
+import { validMode, profilePayload, applyInstitution, photoAllowed, readProfileEdit, profileEditStmt } from "./profileFields.js";
 import { NOT_PREMADE, isPremadePhoto } from "./premade.js";
 import { registerClaimRoutes } from "./claim.js";
 import { moveTo } from "./onboarding.js";
@@ -321,28 +321,14 @@ app.put("/api/profile", async (c) => {
   const current = await one(db, "SELECT * FROM profiles WHERE user_id = ?", u.id);
   if (!current) return c.json({ error: "Make your card first, then try again." }, 404);
   const body = await c.req.json().catch(() => ({}));
-  if (!validMode(body)) return c.json({ error: "Choose a mode for your card: student or career." }, 400);
-  const pick = readInstitution(body);
-  if (pick.error) return c.json({ error: pick.error }, 400);
-
-  let photoKey = current.photo_key;
-  if (body.photoDataUrl) {
-    photoKey = await putImage(c.env, await photoAllowed(c, u, body.photoDataUrl), "avatar");
-    // The old photo is not kept once it's replaced.
-    if (current.photo_key) await deleteImage(c.env, current.photo_key).catch(() => {});
-  } else if (body.removePhoto === true) {
-    await deleteImage(c.env, current.photo_key);
-    photoKey = null;
-  }
-  const fields = profilePayload(body);
-  applyInstitution(fields, pick, current);
+  // The checks and the photo are in readProfileEdit (worker/profileFields.js), shared with F75's accepted suggestions.
+  const edit = await readProfileEdit(c, u, current, body);
   await saveTz(db, u.id, body.tz); // F45
-  const sets = Object.keys(fields);
-  const vals = Object.values(fields);
-  if (sets.length || photoKey !== current.photo_key) {
-    const sql = `UPDATE profiles SET ${[...sets, "photo_key", "updated_at"].map((k) => `${k} = ?`).join(", ")} WHERE user_id = ?`;
-    await run(db, sql, ...vals, photoKey, now(), u.id);
+  if (edit.changed) {
+    try { await profileEditStmt(db, u.id, edit).run(); }
+    catch (e) { if (edit.newPhoto) await deleteImage(c.env, edit.newPhoto).catch(() => {}); throw e; }
   }
+  if (edit.oldPhoto) await deleteImage(c.env, edit.oldPhoto).catch(() => {});
   return c.json({ ok: true });
 });
 

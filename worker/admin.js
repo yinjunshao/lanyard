@@ -18,6 +18,7 @@ import { settleStatements } from "./host-promo.js";
 import { registerAiAdmin } from "./ai/admin.js";
 import { registerMetricsAdmin } from "./metricsAdmin.js";
 import { registerPremadeAdmin } from "./premadeAdmin.js";
+import { registerSuggestedEditsAdmin } from "./suggestedEditsAdmin.js";
 import { UNCLAIMED, isPremade } from "./premade.js";
 import { adminBrands, removeLogo, LOGO_KEY } from "./branding.js";
 import { getImage } from "./media.js";
@@ -55,6 +56,8 @@ registerAiAdmin(adminApp);
 registerMetricsAdmin(adminApp);
 // F74: profiles for people who are not on Lanyard yet, and their claim links (same: after the token check).
 registerPremadeAdmin(adminApp);
+// F75: details suggested for someone's card, which change nothing until they accept (same: after the token check).
+registerSuggestedEditsAdmin(adminApp);
 
 adminApp.get("/api/admin/queue", async (c) => {
   const db = c.env.DB;

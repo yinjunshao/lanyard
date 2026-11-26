@@ -175,7 +175,7 @@ Build order: F71 and F72 together (both small, both My card), F73, F74, F75.
 - [x] **F72** [[F72 One heading on My card and Events]] · P1 · S · Needs: none (done 2026-11-25, last commit 38bf172)
 - [ ] **F73** [[F73 Scan and card arrival motion]] · P1 · M · Needs: none (in progress: Claude subagent, 2026-11-25; all tasks built, tested and seen in the browser pane, last commit is the F73.3 one; waiting on one check that needs a real phone: scan a badge with the camera and judge the feel)
 - [ ] **F74** [[F74 Admin-made profiles with a claim link]] · P1 · L · Needs: F70 (private until claimed, deleted after 30 days, by owner decision, 2026-11-25) (in progress: Claude subagent, 2026-11-26; all four tasks built and tested, nine of ten acceptance checks verified, last commit is the F74.4 one; waiting on the owner check: `npm run db:remote` for migration 0046, deploy, then a friend claims a made profile on their phone; the lines for the owner-modified vault notes are in the plan note's Log)
-- [ ] **F75** [[F75 Admin-suggested profile edits that the person approves]] · P1 · M · Needs: F74 (the person approves first, by owner decision, 2026-11-25)
+- [ ] **F75** [[F75 Admin-suggested profile edits that the person approves]] · P1 · M · Needs: F74 (the person approves first, by owner decision, 2026-11-25) (in progress: Claude subagent, 2026-11-26)
 
 ## Dependency map
 ```mermaid

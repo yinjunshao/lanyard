@@ -354,7 +354,7 @@ console.log("\n# The migration is additive and safe to run before the new code")
 {
   const sql = read("migrations/0045_metrics_daily.sql");
   const code = sql.replace(/--.*$/gm, "");
-  check("it is the next number after 0044 (only 0046, F74, follows it) and only creates one table with IF NOT EXISTS", migrationFiles().indexOf("0045_metrics_daily.sql") === migrationFiles().indexOf("0044_host_branding.sql") + 1 && migrationFiles().slice(migrationFiles().indexOf("0045_metrics_daily.sql") + 1).join() === "0046_admin_made_profiles.sql" && /CREATE TABLE IF NOT EXISTS metrics_daily/.test(code) && !/\b(DROP|ALTER|DELETE|UPDATE|INSERT)\b/i.test(code));
+  check("it is the next number after 0044 (only 0046, F74, and 0047, F75, follow it) and only creates one table with IF NOT EXISTS", migrationFiles().indexOf("0045_metrics_daily.sql") === migrationFiles().indexOf("0044_host_branding.sql") + 1 && migrationFiles().slice(migrationFiles().indexOf("0045_metrics_daily.sql") + 1).join() === "0046_admin_made_profiles.sql,0047_profile_suggestions.sql" && /CREATE TABLE IF NOT EXISTS metrics_daily/.test(code) && !/\b(DROP|ALTER|DELETE|UPDATE|INSERT)\b/i.test(code));
   const db = makeDb({ before: "0045" });
   db.exec(readMigration("0045_metrics_daily.sql")); db.exec(readMigration("0045_metrics_daily.sql"));
   check("it applies twice without error on a database made by 0001 to 0044", db.raw.prepare("SELECT COUNT(*) n FROM metrics_daily").get().n === 0);

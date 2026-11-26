@@ -3,6 +3,9 @@
 // worker/premadeAdmin.js), so a profile the admin makes is held to exactly the same rules.
 import { bump, HOUR } from "./ratelimit.js";
 import { HttpError } from "./session.js";
+import { now } from "./db.js";
+import { putImage } from "./media.js";
+import { readInstitution } from "./institutions.js";
 
 const TEXT_FIELDS = ["name", "uni", "course", "year", "headline", "about"];
 // A custom institution (typed in) is capped at 120 characters (F12).
@@ -58,4 +61,34 @@ export function applyInstitution(fields, pick, current) {
 export async function photoAllowed(c, u, dataUrl) {
   if ((await bump(c.env.DB, `photo:u:${u.id}`, HOUR)) > 20) throw new HttpError(429, "That's a lot of new photos in an hour. Try again later.", "throttled");
   return dataUrl;
+}
+
+/**
+ * An Edit profile save, read and checked (PUT /api/profile, and F75's accepted suggestions, worker/suggestedEdits.js,
+ * which must write exactly what Edit profile would). Throws a 400 or 429 HttpError with the same words as before.
+ * A new photo is stored here; the caller writes the row with profileEditStmt and then deletes `oldPhoto`, or, if it
+ * did not write, deletes `newPhoto`.
+ */
+export async function readProfileEdit(c, u, current, body) {
+  if (!validMode(body)) throw new HttpError(400, "Choose a mode for your card: student or career.");
+  const pick = readInstitution(body);
+  if (pick.error) throw new HttpError(400, pick.error);
+  let photoKey = current.photo_key, oldPhoto = null, newPhoto = null;
+  if (body.photoDataUrl) {
+    newPhoto = photoKey = await putImage(c.env, await photoAllowed(c, u, body.photoDataUrl), "avatar");
+    oldPhoto = current.photo_key || null; // the old photo is not kept once it's replaced
+  } else if (body.removePhoto === true) {
+    oldPhoto = current.photo_key || null;
+    photoKey = null;
+  }
+  const fields = profilePayload(body);
+  applyInstitution(fields, pick, current);
+  return { fields, photoKey, oldPhoto, newPhoto, changed: Object.keys(fields).length > 0 || photoKey !== current.photo_key };
+}
+
+/** The UPDATE for a read edit. `gate` adds an SQL condition (with its args) so the write can be one conditional write. */
+export function profileEditStmt(db, userId, edit, gate = { sql: "", args: [] }) {
+  const sets = Object.keys(edit.fields);
+  return db.prepare(`UPDATE profiles SET ${[...sets, "photo_key", "updated_at"].map((k) => `${k} = ?`).join(", ")} WHERE user_id = ?${gate.sql ? ` AND ${gate.sql}` : ""}`)
+    .bind(...Object.values(edit.fields), edit.photoKey, now(), userId, ...gate.args);
 }

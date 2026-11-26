@@ -4,7 +4,7 @@ id: F75
 priority: P1
 phase: 13
 size: M
-status: Not started
+status: In progress
 needs: [F74]
 ---
 # F75 Admin-suggested profile edits that the person approves
@@ -47,7 +47,7 @@ Asked how admin edits should work (UK GDPR needs people told when their data com
 - Update [[Privacy and Data Retention]] (owner-modified: lines in the Log).
 
 ## Tasks
-- [ ] F75.1 Migration and admin routes (search for low scores, make or replace, list, withdraw), with an allow-list of fields and tests.
+- [x] F75.1 Migration and admin routes (search for low scores, make or replace, list, withdraw), with an allow-list of fields and tests. (`migrations/0047_profile_suggestions.sql`, `worker/suggestedEdits.js`, `worker/suggestedEditsAdmin.js`, the Edit profile save moved into `readProfileEdit` and `profileEditStmt` in `worker/profileFields.js`, `test/suggested-edits.mjs`)
 - [ ] F75.2 The person's routes (read, accept selected, decline), the email, the banner and the review page, with tests.
 - [ ] F75.3 The F74 existing-account hand-off, the 30-day purge, the metrics counts, the Privacy Policy line, vault notes, decision note, Log, Master To-Do.
 

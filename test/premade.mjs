@@ -49,7 +49,7 @@ const MISSING_CARD = async () => (await fresh().get("/api/c/0000000000")).text;
 console.log("\n# The migration is additive and safe to apply before the new code");
 {
   const sql = read("migrations/0046_admin_made_profiles.sql").replace(/--.*$/gm, "");
-  check("0046 is the newest migration and follows 0045", migrationFiles().at(-1) === "0046_admin_made_profiles.sql" && migrationFiles().at(-2) === "0045_metrics_daily.sql");
+  check("0046 follows 0045 (only 0047, F75, comes after it)", migrationFiles().indexOf("0046_admin_made_profiles.sql") === migrationFiles().indexOf("0045_metrics_daily.sql") + 1 && migrationFiles().slice(migrationFiles().indexOf("0046_admin_made_profiles.sql") + 1).join() === "0047_profile_suggestions.sql");
   check("it only adds: two columns with safe defaults, one table, one partial index and two triggers; nothing dropped, renamed or rewritten",
     /ALTER TABLE users ADD COLUMN admin_made INTEGER NOT NULL DEFAULT 0/.test(sql) && /ALTER TABLE users ADD COLUMN claimed_at INTEGER;/.test(sql)
     && /CREATE TABLE IF NOT EXISTS claim_links/.test(sql) && /token_hash TEXT NOT NULL UNIQUE/.test(sql) && /user_id\s+TEXT PRIMARY KEY REFERENCES users\(id\) ON DELETE CASCADE/.test(sql)
@@ -149,7 +149,7 @@ console.log("\n# The profile is checked exactly as Edit profile checks it");
   check("a photo that is not an image is refused (the shared media check)", (await admin.post("/api/admin/premade", { name: "Pic", source: "LinkedIn", photoDataUrl: "data:image/png;base64,PHN2Zz4=" }, ADMIN)).status === 400);
   const src = read("worker/premadeAdmin.js"), idx = read("worker/index.js");
   check("one code path: the admin routes and index.js both import profilePayload, validMode, applyInstitution and photoAllowed from worker/profileFields.js, and neither defines its own",
-    /import \{ validMode, profilePayload, applyInstitution, photoAllowed \} from "\.\/profileFields\.js"/.test(src) && /import \{ validMode, profilePayload, applyInstitution, photoAllowed \} from "\.\/profileFields\.js"/.test(idx)
+    /import \{ validMode, profilePayload, applyInstitution, photoAllowed \} from "\.\/profileFields\.js"/.test(src) && /import \{ validMode, profilePayload, applyInstitution, photoAllowed(, \w+)* \} from "\.\/profileFields\.js"/.test(idx)
     && !/function profilePayload|function applyInstitution|const validMode/.test(src + idx));
   const edited = await admin.get(`/api/admin/premade/${m.id}`, ADMIN);
   check("the edit form reads it back", edited.status === 200 && edited.json.profile.name === "Mess" && edited.json.source === "A society page" && edited.json.profile.mode === "career");

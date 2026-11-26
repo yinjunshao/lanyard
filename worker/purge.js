@@ -51,6 +51,9 @@ export async function eraseUser(env, userId) {
     await tryDel(env, prof.photo_key);
     for (const k of projectKeys(prof.projects)) await tryDel(env, k);
   }
+  // F75: a suggested photo waiting for this person (the suggestion row goes with the user, by cascade).
+  const sug = await one(db, "SELECT photo_key FROM profile_suggestions WHERE user_id = ?", userId).catch(() => null);
+  await tryDel(env, sug?.photo_key);
   // Host accounts are separate (F10): organisations, events and invoices are not
   // the attendee's and are not touched here.
   // The consent history stays (it has no foreign key); record that the account went.
